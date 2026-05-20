@@ -57,7 +57,7 @@ function App() {
 
   return (
     <main className="layout">
-      <h1>EvalTrace Lite</h1>
+      <h1>Trajecta</h1>
       <p>Trajectory-to-eval-case agent for human-reviewed regression cases.</p>
       <section className="grid">
         <RunList

@@ -1,6 +1,6 @@
-# EvalTrace Lite
+# Trajecta
 
-EvalTrace Lite is an AI-native eval agent that turns browser-agent trajectories into human-reviewable regression eval cases.
+Trajecta is an AI-native eval agent that turns browser-agent trajectories into human-reviewable regression eval cases.
 
 ## What this MVP includes
 

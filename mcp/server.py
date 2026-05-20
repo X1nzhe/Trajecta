@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from backend.app.eval_agent import EvalAgent
 
-app = FastAPI(title="EvalTrace Lite MCP")
+app = FastAPI(title="Trajecta MCP")
 agent = EvalAgent()
 
 

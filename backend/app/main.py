@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .eval_agent import EvalAgent
 from .storage import LocalStorage
 
-app = FastAPI(title="EvalTrace Lite API", version="0.1.0")
+app = FastAPI(title="Trajecta API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
