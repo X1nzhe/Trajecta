@@ -1,0 +1,14 @@
+{
+  "run_id": "run_002",
+  "source": "fixture",
+  "steps": [
+    {
+      "step_id": "step_001",
+      "timestamp": "2026-05-19T11:00:00Z",
+      "action": "navigate /cart",
+      "target": "https://example.test/cart",
+      "screenshot_path": "screenshots/step_001.png",
+      "success": true
+    }
+  ]
+}

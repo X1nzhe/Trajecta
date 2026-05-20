@@ -1,0 +1,24 @@
+{
+  "run_id": "run_001",
+  "source": "fixture",
+  "steps": [
+    {
+      "step_id": "step_001",
+      "timestamp": "2026-05-19T10:00:00Z",
+      "action": "navigate /login",
+      "target": "https://example.test/login",
+      "screenshot_path": "screenshots/step_001.png",
+      "success": true
+    },
+    {
+      "step_id": "step_002",
+      "timestamp": "2026-05-19T10:00:06Z",
+      "action": "click submit",
+      "target": "button[type=submit]",
+      "screenshot_path": "screenshots/step_002.png",
+      "success": false,
+      "error": "Submit button remained disabled",
+      "coordinates": {"x": 640, "y": 470}
+    }
+  ]
+}
