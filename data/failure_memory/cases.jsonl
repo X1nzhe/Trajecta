@@ -1,0 +1,2 @@
+{"case_id":"case_001","failure_label":"action_failed","summary":"Checkout button disabled after validation error","tags":["checkout","button","disabled"]}
+{"case_id":"case_002","failure_label":"timing_issue","summary":"Element appeared after timeout threshold","tags":["timeout","wait","slow"]}
