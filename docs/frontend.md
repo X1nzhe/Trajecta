@@ -31,6 +31,12 @@ generic observability platform
 
 ## Components
 
+### Header
+
+A thin top bar. The only interactive element is one button:
+
+- **`Reload Sample Runs`** — calls `POST /api/import/molmoweb-sample`, which re-imports the bundled `data/raw/molmoweb_humanskills_sample/` fixtures (idempotent — see [docs/dataset_import.md](dataset_import.md#re-import-behavior)). Disable while in flight; on success, refresh `RunList`. Tooltip: "Re-imports the bundled MolmoWeb-HumanSkills sample. Dataset upload from the browser is a v2 feature." Do not label this button "Import Dataset" — it does not accept user uploads in v1.
+
 ### `RunList.tsx`
 
 - List runs from `GET /api/runs`.
