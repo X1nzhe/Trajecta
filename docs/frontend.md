@@ -143,6 +143,65 @@ Project-level summary row at the bottom of the page:
 
 Do not show fake database / schema version labels — Trajecta's storage is local files and ChromaDB; surfacing a schema version is misleading in v1.
 
+## Routing
+
+Single-page app with **URL search params**, no router library. Two params:
+
+```text
+?run={run_id}             ← selects a run
+?run={run_id}&step={i}    ← also selects a step (0-based index)
+```
+
+Rules:
+
+- On mount, parse `window.location.search` with `URLSearchParams`. Hydrate `selectedRun` / `selectedStep` from it.
+- On selection change, write back with `history.pushState({}, "", "?run=" + id + ...)` so the URL stays in sync.
+- Listen to `popstate` so browser back/forward re-applies the URL to component state.
+- An unknown `run_id` in the URL renders the empty middle/right panels and shows a "Run not found" inline notice.
+- The home URL (`/` with no params) shows the run list with no run selected. Refreshing on any valid URL must restore the exact same view.
+
+Do not add React Router or any routing library for v1 — search params + `history.pushState` covers the requirement in ~50 lines.
+
+## Streaming
+
+`POST /analyze`, `POST /steps/{i}/analyze`, and `POST /followup` return an **NDJSON stream** per [docs/contracts.md](contracts.md#api-contracts). Each line is one JSON object: `{"type": "event", "event": ...}`, `{"type": "done", ...}`, or `{"type": "error", ...}`.
+
+The frontend reads with the standard `fetch` + `ReadableStream` API — no library:
+
+```typescript
+async function streamAnalyze(runId: string, onEvent: (e: AgentTraceEvent) => void) {
+  const res = await fetch(`/api/runs/${runId}/analyze`, { method: "POST" });
+  if (!res.body) throw new Error("no body");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop()!;
+    for (const line of lines) {
+      if (!line) continue;
+      const msg = JSON.parse(line);
+      if (msg.type === "event") onEvent(msg.event);
+      else if (msg.type === "done") return msg; // {eval_case_draft, agent_trace}
+      else if (msg.type === "error") throw new Error(msg.error);
+    }
+  }
+}
+```
+
+UX rules:
+
+- Append `event` lines to the chat history as they arrive (the agent's tool calls and reasoning appear progressively, not in one drop).
+- When the terminal `done` line arrives, reconcile the local trace against `done.agent_trace` (the canonical full state). In practice this should match what was streamed, but the reconciliation step protects against dropped events.
+- While the stream is open, the chat input's send button is disabled and the typing indicator is shown.
+- On `error` (or fetch-level failure), show an inline error in the chat history and re-enable the input; the user can retry by sending a new follow-up.
+- On user navigation away from the run mid-stream, abort the fetch with an `AbortController` and discard the in-flight events.
+
+The same `streamAnalyze` shape is used for `/followup` and the two step-scoped analyze endpoints — only the URL changes. Centralize this helper in `frontend/src/api/stream.ts` and let `EvalAgentPanel` call it.
+
 ## State Rules
 
 - A run's trace lifecycle: `none` → `fresh` (first analyze) → `extended` (one or more follow-ups). The `EvalAgentPanel` infers state from `AgentTrace.turn_count`.

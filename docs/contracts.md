@@ -368,19 +368,29 @@ POST /api/eval-cases
 GET  /api/eval-cases
 ```
 
-`POST /api/runs/{run_id}/analyze` returns:
+`POST /api/runs/{run_id}/analyze`, `POST /api/runs/{run_id}/steps/{step_index}/analyze`, and `POST /api/runs/{run_id}/followup` all return an **NDJSON stream** (`Content-Type: application/x-ndjson`). Each line is one JSON object terminated by `\n`. There are three line types:
 
 ```jsonc
-{
-  "eval_case_draft": { /* EvalCase with human_validated=false */ } | null,
-  "agent_trace": { /* AgentTrace */ }
-}
+// 0..N event lines, one per new AgentTraceEvent as it is appended
+{"type": "event", "event": { /* AgentTraceEvent */ }}
+
+// exactly one terminal line — the canonical final state
+{"type": "done",  "eval_case_draft": { /* EvalCase */ } | null,
+                  "agent_trace":    { /* AgentTrace */ }}
+
+// alternative terminal line for unrecoverable errors (network/agent crash,
+// not the agent's tool_error events — those still stream as `event` lines)
+{"type": "error", "error": "string"}
 ```
 
-`eval_case_draft` is `null` whenever the latest turn terminated by
-`budget_exceeded` or `error`. `tool_call_count`, `turn_count`, and
-`terminated_by` are nested under `agent_trace`; they are not duplicated as
-top-level response fields.
+Stream rules:
+
+- `event` lines carry **only new events being appended in this request**. For `/analyze` (fresh trace) the stream starts at `seq=0`; for `/followup` it starts at `prior_max_seq + 1`. The frontend appends to its local trace in arrival order.
+- Exactly one `done` **or** one `error` line ends the stream; the server closes the connection after writing it. After `done`, no more lines are produced.
+- `done.agent_trace` contains the **complete** trace (including events from previous turns if any) — this is the canonical state for the frontend to reconcile against.
+- `done.eval_case_draft` is `null` whenever the latest turn terminated by `budget_exceeded` or `error`. `tool_call_count`, `turn_count`, and `terminated_by` are nested under `agent_trace`; they are not duplicated as top-level response fields.
+- Order invariant: every `event` line precedes the terminal `done`/`error`. Streamed `event.seq` values are strictly increasing.
+- Clients that don't want incremental updates may ignore `event` lines and only consume `done` / `error`. Both behaviors are supported.
 
 Endpoint-to-agent mapping:
 
@@ -399,7 +409,7 @@ already-started analysis. Request body:
 }
 ```
 
-Response shape is **identical** to `/analyze`: `{eval_case_draft, agent_trace}`.
+Response is the **same NDJSON stream** as `/analyze` (`Content-Type: application/x-ndjson`, three line types: `event`, `done`, `error`). `event` lines for follow-up start at `prior_max_seq + 1` and only carry events appended in this turn; the terminal `done` carries the complete updated trace.
 
 Preconditions:
 

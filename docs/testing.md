@@ -116,16 +116,20 @@ tests/test_api.py
 - list runs endpoint returns at least 5 imported or fixture runs
 - screenshot endpoint returns a fixture image by run_id and filename
 - screenshot endpoint rejects missing files and path traversal
-- analyze endpoint returns eval_case_draft and agent_trace
-- analyze endpoint exposes tool_call_count, turn_count, and terminated_by inside agent_trace
-- followup endpoint returns 409 when last_trace.json does not exist
+- analyze endpoint returns an application/x-ndjson stream with at least one event line and a terminal done line
+- analyze done line carries eval_case_draft and agent_trace; agent_trace exposes tool_call_count, turn_count, and terminated_by
+- analyze streamed event.seq values are strictly increasing and start at 0
+- followup endpoint returns 409 (as a single error response, not a stream) when last_trace.json does not exist
 - followup endpoint returns 422 when message is missing, empty, or > 2000 chars
-- followup endpoint appends a user_message event with the next turn value
+- followup endpoint streams a user_message event with the next turn value as the first event line
 - followup endpoint enforces its own per-turn budget (default 4) independent of the initial analyze
-- followup endpoint with a propose_eval_case in the new turn returns an eval_case_draft that replaces the previous one
+- followup endpoint streamed event.seq values start at prior_max_seq + 1
+- followup endpoint with a propose_eval_case in the new turn produces a done line whose eval_case_draft replaces the previous one
 - followup endpoint preserves the trace's original user_intent and selected_step
 - POST /api/eval-cases rejects human_validated=false with 422
 - failure-memory and eval-case search endpoints return schema-valid result lists
+
+API tests that hit `/analyze`, `/steps/{i}/analyze`, or `/followup` must drain the NDJSON stream before asserting. Centralize this in a `drain_ndjson(response) -> tuple[list[dict], dict]` helper that returns `(event_lines, terminal_line)`. HTTP error responses (404 / 409 / 422) are **not** streamed — they return a regular JSON error body, so the helper must short-circuit when `status_code != 200`.
 
 tests/test_rag.py
 - ChromaDB collection initializes
