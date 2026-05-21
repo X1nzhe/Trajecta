@@ -4,9 +4,8 @@ The authoritative ChromaDB collection contracts live in
 [docs/contracts.md](contracts.md#rag-collection-contracts).
 
 v1 uses ChromaDB for text-based retrieval over failure memories, eval cases,
-successful runs (for replay-and-diff), and optional VLM-generated step
-summaries. This is **multimodal-informed RAG**, not full image-vector
-multimodal RAG.
+and successful runs (for replay-and-diff). This is **multimodal-informed RAG**,
+not full image-vector multimodal RAG.
 
 The Eval Agent reaches RAG only through tools: `search_failure_memory`,
 `search_eval_cases`, and `find_similar_successful_run`. There is no implicit
@@ -18,7 +17,7 @@ use.
 - `failure_memory` stores reusable failure patterns. **Read-only in v1**: the seed file `data/failure_memory/cases.jsonl` is the only write path; neither the UI nor the agent can add new failure memories.
 - `eval_cases` stores human-validated eval cases only (drafts are not persisted in v1).
 - `successful_runs` indexes imported runs with `status == "success"` so the agent can pull a counter-example via `find_similar_successful_run` and do step-level replay-and-diff.
-- `step_summaries` is optional in v1 and stores retrieval hints, not final visual evidence.
+- `step_summaries` is a v2 placeholder; not implemented in v1.
 - Store full metadata needed to reconstruct schema objects where required by the contract.
 - Serialize list fields when required by the Chroma client.
 - On read, deserialize metadata back into Pydantic schemas before returning through API or export code.

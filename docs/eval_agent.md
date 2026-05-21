@@ -94,7 +94,6 @@ The graph is intentionally small. The agent loop is one node that owns the tool-
 START
   → preprocess        # fixed for-loop; per-step VLM call; build trajectory_digest
   → agent_loop        # LLM with tool calls; loops until terminal tool or budget
-  → validate_output   # Pydantic-validate eval_case_draft against EvalCase schema
   → END
 ```
 
@@ -105,20 +104,20 @@ The `preprocess` graph node is a thin wrapper around `preprocess.load_or_build_d
 - the model calling `propose_eval_case` (success path), or
 - `tool_call_count` exceeding the configured budget (`terminated_by="budget_exceeded"` and `errors` is populated).
 
-`propose_eval_case` is a terminal tool. After it returns successfully, the graph
-sets `eval_case_draft` and routes directly to `validate_output`; it must not
-return to the model for another reasoning turn.
+`propose_eval_case` is a terminal tool. Its schema is enforced by the tool
+signature, so no separate validation node is needed; after the tool returns
+successfully, the graph sets `eval_case_draft` and routes directly to END.
+The agent must not return to the model for another reasoning turn after a
+successful terminal call.
 
 ## Screenshot Detail Policy
 
 Two screenshot detail levels exist, and they have different evidentiary weight:
 
 - **Low-detail** (~85 tokens/image) — from `StepDigest.vlm_low_detail_summary` or from `get_step_detail(..., image_detail="low")`. Allowed for orientation, hypothesis formation, and suspicious-step selection.
-- **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`, optionally with a `crop` BBox. Required for any claim about visual text, button labels, target identity, or coordinate correctness.
+- **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`. Required for any claim about visual text, button labels, target identity, or coordinate correctness.
 
-Hard rule: **any field in the final `EvalCase` that depends on visual text, target identity, or coordinate correctness must trace to a high-detail observation** (high-detail `get_step_detail`, crop-level inspection, OCR, or structured trajectory text such as `StepObservation.visible_text` / `action_target`). Low-detail output may appear in the agent's reasoning but must not be cited as the sole source of evidence in `EvalCase.evidence`.
-
-When the agent needs to read a small UI region, it should prefer `image_detail="high"` with a `crop` over a full-frame high-detail call — same evidentiary weight, lower token cost.
+Hard rule: **any field in the final `EvalCase` that depends on visual text, target identity, or coordinate correctness must trace to a high-detail observation** (high-detail `get_step_detail`, OCR, or structured trajectory text such as `StepObservation.visible_text` / `action_target`). Low-detail output may appear in the agent's reasoning but must not be cited as the sole source of evidence in `EvalCase.evidence`.
 
 ## Agent Behavior
 
@@ -144,11 +143,10 @@ Budget accounting:
 
 ## Failure Handling
 
-- If `propose_eval_case` raises a Pydantic `ValidationError` or contract error, record an `AgentTraceEvent(type="tool_error")`, append the error text to `EvalState.errors`, and allow one repair turn. If the repaired `propose_eval_case` call also fails, set `terminated_by="error"` and end the graph.
-- If `validate_output` fails after a successful `propose_eval_case`, set `terminated_by="error"`, append the validation message to `EvalState.errors`, and end the graph. Do not return to `agent_loop`.
+- If `propose_eval_case` raises a Pydantic `ValidationError` or contract error, record an `AgentTraceEvent(type="tool_error")`, append the error text to `EvalState.errors`, set `terminated_by="error"`, and end the graph. v1 does not retry — the user re-triggers analyze.
 - If the budget is exceeded, set `terminated_by="budget_exceeded"`, append a budget error to `EvalState.errors`, and end the graph without an eval case draft.
 
-Errors are populated for budget exhaustion, tool errors, and output validation failures.
+Errors are populated for budget exhaustion and terminal-tool errors.
 
 ## Offline Agent Mock
 
@@ -198,7 +196,7 @@ Screenshot bytes are never written to the trace. `get_step_detail` results carry
 | --- | --- | --- | --- |
 | `preprocess` | low | ~85 | at most one per step (skipped when `visible_text` is present) |
 | `get_step_detail(image_detail="low")` | low | ~85 | 0–N, agent-decided, for re-orientation on suspicious steps |
-| `get_step_detail(image_detail="high"[, crop])` | high | ~1500 (less with `crop`) | 1–4 per run |
+| `get_step_detail(image_detail="high")` | high | ~1500 | 1–4 per run |
 
 For a 30-step run where the dataset provides no `visible_text`, preprocessing costs `30 * 85 = 2550` visual tokens and a typical analyze adds `3 * 1500 = 4500`, for a total of `7050` — versus `30 * 1500 = 45000` for a naive full-detail pass. If the dataset already provides DOM text for every step, preprocessing's VLM cost drops to zero and analyze cost stays roughly the same. The cost ablation is part of the README demo.
 

@@ -247,7 +247,7 @@ Behavior rules:
 - `save_run`, `save_trace`, `save_digest`, `save_eval_case` overwrite atomically (write to tempfile + `os.replace`) so a crash mid-write cannot corrupt the JSON.
 - `list_runs` scans `data/runs/*/trajectory.json` at request time. v1 has no run index file; the scan is acceptable because demo fixtures are small (≤ ~50 runs).
 - `load_failure_memory` validates every row as `FailureMemoryCase` and raises on duplicate `case_id`. Used both for ChromaDB seeding and for direct API responses.
-- `save_eval_case` writes `data/eval_cases/validated/{case_id}.json` and refuses to overwrite an existing file unless `case_id` already maps to the same `source_run_id` and `failure_step` (anti-clobber). It must also call into `rag.upsert_eval_case(case)` so ChromaDB stays in sync; see "Index trigger" rules below.
+- `save_eval_case` writes `data/eval_cases/validated/{case_id}.json` and refuses to overwrite an existing file (raises; the API layer surfaces this as 409). To replace an existing case, delete the file first. It must also call into `rag.upsert_eval_case(case)` so ChromaDB stays in sync; see "Index trigger" rules below.
 - Eval-case drafts (`human_validated=false`) are **not** persisted in v1. The draft survives only in the API response and in the trace's `propose_eval_case` tool-call args. Refreshing the page = lose the draft = re-analyze.
 - `run_exists` is used by `ids.make_eval_case_id` for collision checks; it must be cheap (a `Path.exists` on `trajectory.json`).
 
@@ -293,7 +293,6 @@ def get_step_detail(
     run_id: str,
     step_index: int,
     image_detail: Literal["low", "high"] = "high",
-    crop: Optional[BBox] = None,
 ) -> dict:
     """Return VLM analysis for one step, without screenshot bytes.
 
@@ -303,10 +302,6 @@ def get_step_detail(
     - "low": ~85 tokens/image; allowed for orientation and suspicious-step
       selection only. The agent must not cite low-detail output as final
       evidence — see Screenshot Detail Policy in docs/eval_agent.md.
-
-    `crop` restricts the VLM input to a sub-region of the screenshot. When
-    provided, it must lie inside the screenshot bounds; otherwise the tool
-    returns a `tool_error`.
     """
 
 
@@ -508,39 +503,6 @@ Index trigger:
 - Re-importing an existing `run_id` upserts (overwrites) the row.
 - FastAPI startup: rebuild the collection from `data/runs/*/trajectory.json` if empty.
 
-### `step_summaries`
+### `step_summaries` (v2 placeholder)
 
-Optional in v1. Step summaries are retrieval hints, not final visual evidence.
-
-Index trigger:
-
-- Not indexed in v1. If enabled by a future flag, indexing would be synchronous inside `POST /api/runs/{run_id}/preprocess` (one row per `StepDigest`).
-
-Metadata:
-
-- `run_id`
-- `index`
-- `action_type`
-- `action_text`
-- `action_target`
-- `url`
-- `title`
-- `result_status`
-- `coord_validation_status`
-- `vlm_low_detail_summary`
-- `has_screenshot`
-
-Text to embed:
-
-```python
-" ".join([
-    action_type,
-    action_text,
-    action_target or "",
-    url or "",
-    title or "",
-    result_status,
-    coord_validation_status,
-    vlm_low_detail_summary or "",
-]).strip()
-```
+Per-step retrieval hints (one row per `StepDigest`). **Not implemented in v1**; the trajectory digest itself fills this role through `get_run` and the agent reasons over the full digest in context. Schema and embedding text intentionally undefined here — design when the v2 use case (cross-run step retrieval at corpus scale) materializes.

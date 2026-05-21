@@ -125,11 +125,11 @@ The Eval Agent **only** sees:
 
 The agent never receives raw screenshot bytes or the high-detail VLM output through the digest. This keeps the prompt small, cacheable, and within visual-token budget.
 
-If the digest is missing or malformed, the agent must fail fast rather than synthesize. The `validate_output` node in [docs/eval_agent.md](eval_agent.md) enforces this.
+If the digest is missing or malformed, the `preprocess` node must fail fast rather than synthesize; the agent does not see a partial or stitched-together digest.
 
 ## Contract with RAG
 
-Preprocessing **does not write to ChromaDB**. RAG ingestion of `failure_memory`, `eval_cases`, and (optionally) `step_summaries` is a separate concern owned by [docs/rag.md](rag.md). If the `step_summaries` collection is enabled in v1, it is fed from the digest, not directly from screenshots.
+Preprocessing **does not write to ChromaDB**. RAG ingestion of `failure_memory`, `eval_cases`, and `successful_runs` is a separate concern owned by [docs/rag.md](rag.md).
 
 ## Acceptance Criteria
 

@@ -64,7 +64,6 @@ tests/test_tools.py
 - get_run accepts a comparison run_id distinct from the run currently under analysis
 - get_step_detail returns high-detail analysis for a valid step
 - get_step_detail with image_detail="low" returns a low-detail analysis without throwing
-- get_step_detail rejects a crop outside screenshot bounds
 - find_similar_successful_run returns only runs with status=="success" and excludes the queried run_id
 - find_similar_successful_run returns an empty list when no successful run is indexed for the task
 - propose_eval_case rejects an EvalCase draft missing required fields
