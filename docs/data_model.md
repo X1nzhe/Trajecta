@@ -45,6 +45,10 @@ class StepObservation(BaseModel):
     visual_evidence: List[str] = Field(default_factory=list)
 ```
 
+`screenshot` should be a filename or run-relative path under
+`data/runs/{run_id}/screenshots/`, not an absolute local filesystem path. The API
+is responsible for converting it into a frontend-accessible screenshot URL.
+
 ## Result
 
 ```python
@@ -90,6 +94,14 @@ class TrajectoryRun(BaseModel):
 
 ## Failure Memory Case
 
+Failure memory `case_id` values should be stable and human-readable:
+
+```text
+case_{failure_type}_{NNN}
+```
+
+Example: `case_missed_constraint_001`.
+
 ```python
 class FailureMemoryCase(BaseModel):
     case_id: str
@@ -101,6 +113,12 @@ class FailureMemoryCase(BaseModel):
 ```
 
 ## Eval Case
+
+Eval case `case_id` values should be stable for the source run and failure step:
+
+```text
+eval_{source_run_id}_step_{failure_step}_{failure_type}
+```
 
 ```python
 class EvalCase(BaseModel):

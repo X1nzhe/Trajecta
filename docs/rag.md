@@ -31,15 +31,22 @@ failure_type + summary + fix_hint + tags
 
 Stores generated or human-validated eval cases.
 
-Fields:
+Each Chroma record must preserve enough metadata to reconstruct the full
+`EvalCase` schema from `docs/data_model.md`. The embedded document text may use
+a subset optimized for retrieval, but metadata must keep the complete eval case.
+
+Metadata fields:
 
 - `case_id`
+- `source_run_id`
 - `task`
+- `failure_step`
 - `failure_type`
 - `expected_behavior`
 - `actual_behavior`
 - `evidence`
 - `regression_rule`
+- `retrieved_context_ids`
 - `human_validated`
 
 Text to embed:
@@ -47,6 +54,13 @@ Text to embed:
 ```text
 task + failure_type + expected_behavior + actual_behavior + evidence + regression_rule
 ```
+
+Write/read strategy:
+
+- Store the full `EvalCase` object in Chroma metadata, serializing list fields such as `evidence` and `retrieved_context_ids` when required by the Chroma client.
+- Use only retrieval-relevant fields in the embedding text; do not include `case_id`, `source_run_id`, `failure_step`, `retrieved_context_ids`, or `human_validated` unless they improve a specific query.
+- On read, deserialize metadata back into the `EvalCase` schema before returning an eval case through API or export code.
+- `human_validated=false` draft cases may be stored for local review, but only `human_validated=true` cases should be treated as final regression cases.
 
 ### Collection 3: `step_summaries`
 

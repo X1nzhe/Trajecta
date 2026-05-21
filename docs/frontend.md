@@ -30,6 +30,7 @@ Bottom or side: Eval case draft
 `ScreenshotViewer.tsx`
 
 - show selected step screenshot
+- load screenshots from `/api/runs/{run_id}/screenshots/{filename}` or an API-provided screenshot URL
 - draw coordinate marker only if coordinate validation is `validated`
 - draw bbox if bbox exists
 
@@ -48,7 +49,14 @@ Bottom or side: Eval case draft
 - show suggested failure type
 - show evidence
 - show similar retrieved cases
-- show eval case draft
+- pass generated eval case draft to `EvalCaseDraft.tsx`
+
+`EvalCaseDraft.tsx`
+
+- show complete `EvalCase`-shaped draft
+- show task, failure step, failure type, expected behavior, actual behavior, evidence, regression rule, retrieved context IDs, and validation status
+- allow user to review or edit draft fields before export
+- require human validation before marking an eval case final
 - button: Export Eval Case
 
 ## UI Copy

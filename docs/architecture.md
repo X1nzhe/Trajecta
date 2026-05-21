@@ -26,6 +26,19 @@
 - Function tools
 - Embeddings for failure-memory RAG
 
+Configuration:
+
+- Load configuration from environment variables. Local development may use
+  `backend/.env`, which must not be committed.
+- `OPENAI_API_KEY`: required only when real LLM/VLM calls are enabled
+- `OPENAI_BASE_URL`: optional override for OpenAI-compatible providers
+- `TRAJECTA_LLM_MODEL`: text model for trajectory analysis
+- `TRAJECTA_VLM_MODEL`: vision model for screenshot summaries
+- `TRAJECTA_EMBEDDING_MODEL`: embedding model for ChromaDB indexing
+
+Tests and local fixtures must not require network calls. If API credentials are
+missing, use deterministic mocked LLM/VLM summaries and agent outputs.
+
 ### Data
 
 - Source dataset: `allenai/MolmoWeb-HumanSkills`
@@ -64,6 +77,7 @@ trajecta/
       test_rag.py
       test_eval_case.py
       test_coordinates.py
+      test_api.py
     requirements.txt
   frontend/
     package.json
@@ -81,6 +95,18 @@ trajecta/
       molmoweb_humanskills_sample/
     runs/
       run_001/
+        trajectory.json
+        screenshots/
+      run_002/
+        trajectory.json
+        screenshots/
+      run_003/
+        trajectory.json
+        screenshots/
+      run_004/
+        trajectory.json
+        screenshots/
+      run_005/
         trajectory.json
         screenshots/
     failure_memory/

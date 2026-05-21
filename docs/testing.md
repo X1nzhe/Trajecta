@@ -44,7 +44,7 @@ tests/test_schema.py
 - reject invalid step action type
 
 tests/test_importer.py
-- import small MolmoWeb-HumanSkills sample
+- import at least 5 small MolmoWeb-HumanSkills sample or fixture runs
 - convert raw sample to Trajecta JSON
 - preserve screenshot path and raw action text
 
@@ -56,7 +56,12 @@ tests/test_coordinates.py
 tests/test_tools.py
 - get_run returns known run
 - get_step returns correct step
-- generate_eval_case returns required fields
+- assemble_eval_case returns all EvalCase draft fields with human_validated=false
+
+tests/test_api.py
+- list runs endpoint returns at least 5 imported or fixture runs
+- screenshot endpoint returns a fixture image by run_id and filename
+- screenshot endpoint rejects missing files and path traversal
 
 tests/test_rag.py
 - ChromaDB collection initializes
@@ -64,7 +69,8 @@ tests/test_rag.py
 - top_k length is respected
 
 tests/test_eval_case.py
-- exported eval case contains task, failure_step, failure_type, expected_behavior, actual_behavior, evidence, regression_rule
+- agent eval_case_draft contains case_id, source_run_id, task, failure_step, failure_type, expected_behavior, actual_behavior, evidence, regression_rule, retrieved_context_ids, human_validated
+- exported eval case validates against the EvalCase schema
 ```
 
 ## Acceptance Criteria

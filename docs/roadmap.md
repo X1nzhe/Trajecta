@@ -7,9 +7,21 @@ MCP is optional for v1.
 If time permits, create minimal MCP server in `mcp/server.py` exposing:
 
 ```text
-search_eval_cases(query)
-generate_eval_case(run_id, failure_step, failure_type)
+search_failure_memory(query, top_k=3)
+create_eval_case_draft(run_id, failure_step, failure_type)
 ```
+
+`search_failure_memory` wraps the same failure-memory retrieval path used by the
+Eval Agent's internal `search_similar_cases` helper. It searches the
+`failure_memory` collection.
+
+`create_eval_case_draft` is a high-level MCP wrapper that runs the Eval Agent
+flow and returns an `EvalCase`-shaped draft. It should not be confused with the
+LangGraph `generate_eval_case` node or the deterministic `assemble_eval_case`
+helper.
+
+If a later MCP tool named `search_eval_cases` is added, it should explicitly
+search the `eval_cases` collection, not failure memory.
 
 Do not spend more than half a day on MCP.
 
@@ -19,7 +31,7 @@ Do not spend more than half a day on MCP.
 
 - Create repo
 - Add schemas
-- Add small MolmoWeb-HumanSkills sample fixtures
+- Add at least 5 small MolmoWeb-HumanSkills sample fixtures
 - Add failure memory cases
 - Add basic tests
 
@@ -53,7 +65,7 @@ Do not spend more than half a day on MCP.
 - Add Eval Agent panel
 - Wire Analyze Run / Analyze Step
 - Export eval case
-- Add AGENTS.md and SKILL.md
+- Add SKILL.md if time permits
 - Optional minimal MCP server
 
 ### Stage 7
@@ -61,7 +73,7 @@ Do not spend more than half a day on MCP.
 - Polish demo
 - Add screenshots / GIF
 - Run tests
-- Produce `evaluation_report.md`
+- Produce `ragas_report.md`
 - Prepare README and resume bullets
 
 ## README Requirements
@@ -73,6 +85,7 @@ README must include:
 - Architecture diagram
 - Demo flow
 - Setup
+- LLM/VLM configuration and environment variables
 - Run backend
 - Run frontend
 - Run tests
@@ -90,7 +103,7 @@ Trajecta turns raw browser-agent trajectories into human-validated regression ev
 
 - Recorder middleware
 - MCP expansion
-- Skill-style workflow packaging
+- Expanded Skill-style workflow packaging
 - Run comparison
 - Failure memory search UI
 - Coordinate validation report for MolmoWeb samples

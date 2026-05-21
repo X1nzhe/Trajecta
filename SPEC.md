@@ -21,7 +21,7 @@ The project must clearly demonstrate:
 - Evaluation case generation
 - Testing and evaluation
 - RAGAS-based retrieval/grounding evaluation
-- Optional MCP and Skill-style workflow packaging
+- Time-permitting MCP and Skill-style workflow packaging
 
 This is not a browser-use agent.
 

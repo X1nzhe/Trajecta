@@ -23,7 +23,7 @@ The project must clearly demonstrate:
 - Evaluation case generation
 - Testing and evaluation
 - RAGAS-based retrieval/grounding evaluation
-- Optional MCP and Skill-style workflow packaging
+- Time-permitting MCP and Skill-style workflow packaging
 
 ## Core User Flow
 
@@ -53,13 +53,13 @@ The project must clearly demonstrate:
 - FastAPI backend
 - Pydantic schemas
 - React + TypeScript + Vite + Tailwind frontend
+- Local file storage for screenshots
+- Local ChromaDB persistence
+- `AGENTS.md`
 
 
 ## Should Have
 
-- Local file storage for screenshots
-- Local ChromaDB persistence
-- `AGENTS.md`
 - One `skills/create-eval-case/SKILL.md`
 
 ## Nice to Have
