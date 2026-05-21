@@ -49,13 +49,16 @@ Do not spend more than half a day on MCP.
 - Run list
 - Step timeline
 - Screenshot viewer
-- Step details
+- Step details (Action / Observation / Coordinate Validation / Metadata tabs)
 
 ### Stage 6
 
-- Add Eval Agent panel
-- Wire Analyze Run / Analyze Step
-- Export eval case
+- Add Eval Agent panel as a chat-style timeline (renders trace events grouped by turn)
+- Wire Analyze Run / Analyze Step as the only fresh-trace entrypoints
+- Implement `POST /api/runs/{run_id}/followup` endpoint and the chat input + prompt chips that drive it (~+1-1.5 days vs. button-only design)
+- Termination badge, View Draft / Mark validated / Export eval case flow
+- Visual-only thumbs feedback (not wired)
+- Footer dataset/run summary
 - Add SKILL.md if time permits
 - Optional minimal MCP server
 
@@ -107,7 +110,7 @@ Trajecta turns raw browser-agent trajectories into human-validated regression ev
 Use after completion:
 
 - Built **Trajecta**, an AI-native Eval Agent for browser-agent trajectory evaluation that converts raw trajectories into human-reviewable regression eval cases.
-- Designed and implemented a **LangGraph tool-calling agent** that autonomously decides which trajectory steps to deep-dive, when to retrieve failure memory, and when to terminate via a typed `propose_eval_case` tool — making the agent's reasoning structurally bounded and schema-safe.
+- Designed and implemented a **LangGraph tool-calling agent** with multi-turn follow-up: the agent autonomously decides which trajectory steps to deep-dive, when to retrieve failure memory, and when to terminate via a typed `propose_eval_case` tool — and users can ask follow-up questions that resume the same trace under a smaller per-turn budget, with the agent free to revise the draft.
 - Reduced visual-token cost ~80% via a **coarse-to-fine VLM strategy**: Trajectory Preprocessing calls a low-detail VLM (~85 tokens/image) on every step to build a digest, while high-detail VLM is invoked on demand by the agent only for steps it flags as suspicious.
 - Built **ChromaDB-backed RAG** over failure memory and prior eval cases, with agent-authored queries and traceable `retrieved_context_ids` linking each generated case back to its supporting evidence.
 - Produced a structured per-run `AgentTrace` rendered in the UI and consumed by RAGAS.

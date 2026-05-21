@@ -9,6 +9,7 @@ Implementation notes:
 - `POST /api/runs/{run_id}/analyze` runs the Eval Agent and returns an `EvalCase` draft plus `AgentTrace`.
 - `POST /api/runs/{run_id}/preprocess` returns the cached or freshly built `TrajectoryDigest`.
 - Calling `/analyze` should preprocess on demand if the digest is missing or stale.
+- `POST /api/runs/{run_id}/followup` continues the existing `last_trace.json` with one additional turn. See [docs/contracts.md "Follow-up Contract"](contracts.md#follow-up-contract) for preconditions, request shape, and overwrite semantics. The endpoint reuses the same handler scaffolding as `/analyze` but skips the preprocess node and rehydrates `messages` from the persisted trace.
 
 ## Screenshot Access
 

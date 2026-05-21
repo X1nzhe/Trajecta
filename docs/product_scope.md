@@ -32,10 +32,11 @@ The project must clearly demonstrate:
 3. Backend runs Trajectory Preprocessing on the run and produces a trajectory digest.
 4. User clicks `Analyze Run` or `Analyze Step`.
 5. The Eval Agent autonomously decides which steps to deep-dive (via `get_step_detail`), pulls a similar successful run for the same task and diffs against it (via `find_similar_successful_run` + `get_run`), retrieves similar failures from ChromaDB (via `search_failure_memory` / `search_eval_cases`), and terminates by calling `propose_eval_case`.
-6. UI renders the agent's tool-call trace, retrieved cases, and the proposed eval case draft.
-7. User confirms or edits the failure label.
-8. System exports `eval_case.json`.
-9. Tests and RAGAS eval verify basic quality.
+6. UI renders the agent's tool-call trace, retrieved cases, and the proposed eval case draft as a chat-style timeline.
+7. User may ask follow-up questions in the chat input ("why did you flag step 5?", "find similar failures"); the agent resumes the same trace with a smaller per-turn budget and may revise the draft.
+8. User confirms or edits the failure label and marks the draft validated.
+9. System exports `eval_case.json`.
+10. Tests and RAGAS eval verify basic quality.
 
 ## Must Have in v1
 
@@ -46,7 +47,8 @@ The project must clearly demonstrate:
 - Trajectory Preprocessing pipeline producing a per-run trajectory digest (see [docs/preprocessing.md](preprocessing.md))
 - LangGraph **tool-calling Eval Agent** with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and a terminal `propose_eval_case` tool
 - Replay-and-diff: agent retrieves a similar successful run for the same task and reasons over step-level divergence
-- Tool-call budget enforcement (default 8) bounding cost and latency
+- Multi-turn follow-up: after the initial analyze, the user may ask follow-up questions via `POST /api/runs/{run_id}/followup`. The agent resumes the same trace, may revise the eval case draft, and is bounded by a smaller per-turn tool-call budget
+- Tool-call budget enforcement (default 8 initial / 4 per follow-up) bounding cost and latency
 - ChromaDB-backed RAG over failure memories, eval cases, and successful runs
 - Multi-resolution VLM (low-detail for preprocessing, high-detail on demand)
 - Per-run agent trace persisted at `data/runs/{run_id}/last_trace.json`

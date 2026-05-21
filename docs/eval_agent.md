@@ -108,7 +108,12 @@ The `preprocess` graph node is a thin wrapper around `preprocess.load_or_build_d
 signature, so no separate validation node is needed; after the tool returns
 successfully, the graph sets `eval_case_draft` and routes directly to END.
 The agent must not return to the model for another reasoning turn after a
-successful terminal call.
+successful terminal call **within the same turn**. A subsequent `/followup`
+invocation is a new turn and is allowed to call `propose_eval_case` again.
+
+For `/followup` invocations the graph starts at `agent_loop` and skips
+`preprocess` — the digest is already cached from the initial analyze. The
+`messages` list is rehydrated from the persisted trace before the loop resumes.
 
 ## Screenshot Detail Policy
 
@@ -133,20 +138,56 @@ The system prompt instructs the agent to:
 8. When evidence is sufficient, call `propose_eval_case` with all required fields.
 9. Never invent evidence. If a screenshot, coordinate, or successful comparison run is missing, say so explicitly in `evidence`.
 
-The agent is constrained by a tool-call budget (default 8) to bound cost and latency.
+The agent is constrained by a **per-turn** tool-call budget to bound cost and latency:
+
+- **Initial analyze** (`/analyze` or `/steps/{i}/analyze`): default `8`.
+- **Follow-up turn** (`/followup`): default `4`. Smaller because follow-up questions are targeted and should not require fresh broad exploration.
 
 Budget accounting:
 
 - Counts: `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `find_similar_successful_run`.
 - Does not count: `get_run`, `propose_eval_case`.
 - `get_run` is free even when called on a comparison run returned by `find_similar_successful_run`, but any `get_step_detail` call against that comparison run counts normally.
+- The budget resets at the start of each turn. Exceeding the per-turn budget terminates **only that turn** with `terminated_by="budget_exceeded"`; the user may still send another follow-up. `AgentTrace.tool_call_count` keeps incrementing across turns so the total cost remains visible.
+- The comparator semantic is `tool_call_count_for_this_turn < budget`: an in-flight tool call is allowed when the pre-call count is strictly less than the budget. The Nth budgeted call is permitted; the (N+1)th is rejected.
+
+## Follow-up Mode
+
+After the initial analyze has produced a trace, the user may ask follow-up questions via `POST /api/runs/{run_id}/followup`. This is a second-and-onward turn over the same trace; it is **not** a fresh agent run.
+
+### Lifecycle
+
+1. The handler loads `data/runs/{run_id}/last_trace.json`. If absent, returns `409` — follow-up has no meaning before an analyze.
+2. The handler appends one `AgentTraceEvent(type="user_message", message=..., turn=prior_turn_count)` with the next `seq`.
+3. The handler resumes the `agent_loop` node with the existing `messages` (LangGraph state-continuation), reset per-turn budget counter, and the new user message attached as the latest entry.
+4. The loop runs the standard `reason → call tool → observe → reason` cycle, appending new events with the same `turn` value.
+5. The turn ends by the standard termination conditions:
+   - Agent calls `propose_eval_case` → the new draft **replaces** the previous draft in the response. `terminated_by="propose_eval_case"`. `AgentTrace.turn_count` increments.
+   - Per-turn budget exhausted → `terminated_by="budget_exceeded"`. The user may follow up again.
+   - Terminal tool validation error → `terminated_by="error"`. The user may follow up again to correct.
+6. The updated trace is atomically persisted back to `last_trace.json`.
+
+### Prompt context
+
+The agent's system prompt for follow-up turns must explicitly state:
+
+- The user is asking a follow-up about the previous analysis. The earlier `messages` (including the prior `propose_eval_case` call) are visible in context.
+- A follow-up is allowed to revise the earlier eval case by calling `propose_eval_case` again. The new draft fully replaces the old one — there is no merge.
+- Re-running broad exploration is discouraged; targeted tool use is preferred. The smaller per-turn budget enforces this.
+- If the user's follow-up is a clarification question (no new evidence needed), the agent should answer in a single `agent_message` and not call `propose_eval_case`.
+
+### Invariants
+
+- A trace may contain multiple `propose_eval_case` tool calls (one per turn that terminates that way). The **latest** call's args define the current draft. RAGAS and the frontend both read the latest call.
+- `EvalCase.retrieved_context_ids` returned by a follow-up `propose_eval_case` may reference search results from **any earlier turn** — the whole trace is the evidence pool. The existing invariant ("every retrieved_context_id appears in some search\_\* tool\_result of the same trace") naturally extends.
+- `user_intent` and `selected_step` are set by the initial analyze and never modified by follow-up. The framing of the original invocation is preserved for observability and RAGAS sampling.
 
 ## Failure Handling
 
-- If `propose_eval_case` raises a Pydantic `ValidationError` or contract error, record an `AgentTraceEvent(type="tool_error")`, append the error text to `EvalState.errors`, set `terminated_by="error"`, and end the graph. v1 does not retry — the user re-triggers analyze.
-- If the budget is exceeded, set `terminated_by="budget_exceeded"`, append a budget error to `EvalState.errors`, and end the graph without an eval case draft.
+- If `propose_eval_case` raises a Pydantic `ValidationError` or contract error, record an `AgentTraceEvent(type="tool_error")`, append the error text to `EvalState.errors`, set `terminated_by="error"`, and end the **current turn**. v1 does not retry within a turn — the user re-triggers analyze, or sends a follow-up message to correct.
+- If the per-turn budget is exceeded, set `terminated_by="budget_exceeded"`, append a budget error to `EvalState.errors`, and end the current turn without modifying the eval case draft.
 
-Errors are populated for budget exhaustion and terminal-tool errors.
+Errors are populated for budget exhaustion and terminal-tool errors. "Ending the turn" means the graph returns to the API handler; it does not invalidate the trace or block follow-up.
 
 ## Offline Agent Mock
 
@@ -181,12 +222,16 @@ observability layer.
 
 Persistence and consumers:
 
-- Written to `data/runs/{run_id}/last_trace.json`, overwritten on each analyze. This is enough for the frontend to re-read after navigation; older traces are not retained in v1.
-- Returned in full on `POST /api/runs/{run_id}/analyze`.
-- Rendered by the frontend `EvalAgentPanel` as the agent's reasoning steps.
-- Read by `ragas_eval.py`; `tool_result` events whose `name` is `search_failure_memory` or `search_eval_cases` provide the retrieved contexts for faithfulness scoring. RAGAS must not re-run retrieval.
+- Written to `data/runs/{run_id}/last_trace.json`, overwritten on each `/analyze` (fresh trace) and on each `/followup` (in-place append of new events). Older traces are not retained in v1.
+- Returned in full on `POST /api/runs/{run_id}/analyze` and `POST /api/runs/{run_id}/followup`.
+- Rendered by the frontend `EvalAgentPanel` as a chat-style timeline (`user_message`, `agent_message`, `tool_call` / `tool_result` summaries), grouped by `turn`. See [docs/frontend.md](frontend.md).
+- Read by `ragas_eval.py`. The latest `propose_eval_case` tool-call args provide the RAGAS `answer` ([docs/testing.md](testing.md)). All `tool_result` events whose `name` is `search_failure_memory` or `search_eval_cases` — **across all turns of the trace** — provide the retrieved contexts. RAGAS must not re-run retrieval.
 
-Invariant enforced in tests: every `case_id` in the proposed `EvalCase.retrieved_context_ids` must appear in some `tool_result` event of the same trace.
+Invariants enforced in tests:
+
+- Every `case_id` in the proposed `EvalCase.retrieved_context_ids` must appear in some `tool_result` event of the same trace, regardless of which turn produced it.
+- `AgentTraceEvent.seq` is strictly monotonic across the whole trace.
+- `AgentTraceEvent.turn` is non-decreasing across the event list.
 
 Screenshot bytes are never written to the trace. `get_step_detail` results carry a URL plus text fields only.
 

@@ -16,11 +16,44 @@ Input shape:
 ```python
 {
   "question": "What failure pattern does this trajectory most closely match?",
-  "answer": agent_generated_failure_analysis,
+  "answer": ragas_answer_from_trace(trace),
   "contexts": retrieved_context_texts_from_search_tool_results,
   "ground_truth": "missed_constraint"
 }
 ```
+
+### `answer` derivation
+
+The RAGAS `answer` field is built from the `propose_eval_case` tool call recorded in the trace. The agent's "failure analysis" is exactly what the agent passed to the terminal tool, so RAGAS scores faithfulness against the structured conclusion rather than any free-form intermediate `agent_message`.
+
+```python
+def ragas_answer_from_trace(trace: AgentTrace) -> str:
+    """Extract the agent's failure analysis text from a persisted trace.
+
+    Locates the **latest** `tool_call` event with name=="propose_eval_case"
+    (a multi-turn trace may contain more than one) and concatenates the
+    `actual_behavior` argument with the `evidence` list. Raises if the trace
+    did not terminate via propose_eval_case (e.g. terminated_by=="budget_exceeded"
+    or "error") — such traces are skipped from the RAGAS sample.
+    """
+    calls = [
+        e for e in trace.events
+        if e.type == "tool_call" and e.name == "propose_eval_case"
+    ]
+    if not calls:
+        raise ValueError("trace has no propose_eval_case tool call")
+    args = calls[-1].args or {}
+    actual_behavior = args["actual_behavior"]
+    evidence = args.get("evidence", [])
+    return actual_behavior + "\n\n" + "\n".join(evidence)
+```
+
+Rules:
+
+- Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` are included in the RAGAS sample; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
+- The answer text intentionally excludes `expected_behavior`, `regression_rule`, and `agent_message` events. `expected_behavior` describes the correct outcome (not the agent's claim about *this* run), and free-form `agent_message` text often contains discarded hypotheses that would inflate hallucination signal unfairly.
+- `actual_behavior` and `evidence` are read from the **trace** (the tool-call `args`), not from a persisted `EvalCase` file, because drafts are not persisted and the trace is the only source available to `ragas_eval.py` (see [docs/eval_agent.md](eval_agent.md) Observability section).
+- `contexts` are accumulated from **all** `search_failure_memory` / `search_eval_cases` `tool_result` events in the trace, regardless of turn. A follow-up turn that retrieves additional evidence contributes to the same RAGAS sample as the initial turn's retrievals.
 
 Output files:
 
@@ -72,15 +105,25 @@ tests/test_eval_agent.py
 - uses the Offline Agent Mock when no LLM credentials are configured
 - agent terminates via propose_eval_case when evidence is sufficient
 - agent terminates with budget_exceeded when tool-call budget is reached
-- agent's retrieved_context_ids match IDs actually returned by search_* tool calls in the trace
+- agent's retrieved_context_ids match IDs actually returned by search_* tool calls in the trace, across all turns
 - agent uses get_step_detail no more than min(tool_call_budget, ceil(0.3 * step_count)) times on run-level analysis
+- AgentTraceEvent.seq is strictly monotonic across the whole trace, including across turns
+- AgentTraceEvent.turn is non-decreasing across the event list
+- a follow-up turn re-resumes the loop from the persisted messages and does not invoke the preprocess node again
+- a follow-up turn that calls propose_eval_case produces a new draft; the trace contains two propose_eval_case tool calls and the latest one defines the current draft
 
 tests/test_api.py
 - list runs endpoint returns at least 5 imported or fixture runs
 - screenshot endpoint returns a fixture image by run_id and filename
 - screenshot endpoint rejects missing files and path traversal
 - analyze endpoint returns eval_case_draft and agent_trace
-- analyze endpoint exposes tool_call_count and terminated_by inside agent_trace
+- analyze endpoint exposes tool_call_count, turn_count, and terminated_by inside agent_trace
+- followup endpoint returns 409 when last_trace.json does not exist
+- followup endpoint returns 422 when message is missing, empty, or > 2000 chars
+- followup endpoint appends a user_message event with the next turn value
+- followup endpoint enforces its own per-turn budget (default 4) independent of the initial analyze
+- followup endpoint with a propose_eval_case in the new turn returns an eval_case_draft that replaces the previous one
+- followup endpoint preserves the trace's original user_intent and selected_step
 - POST /api/eval-cases rejects human_validated=false with 422
 - failure-memory and eval-case search endpoints return schema-valid result lists
 

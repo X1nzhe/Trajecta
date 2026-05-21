@@ -133,12 +133,13 @@ class EvalCase(BaseModel):
 
 class AgentTraceEvent(BaseModel):
     seq: int
-    type: Literal["agent_message", "tool_call", "tool_result", "tool_error"]
+    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error"]
     name: Optional[str] = None
     args: Optional[Dict[str, Any]] = None
     result: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     error: Optional[str] = None
+    turn: int = 0
 
 
 class AgentTrace(BaseModel):
@@ -146,13 +147,19 @@ class AgentTrace(BaseModel):
     user_intent: Literal["analyze_run", "analyze_step"]
     selected_step: Optional[int] = None
     tool_call_count: int = 0
+    turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"
     events: List[AgentTraceEvent] = Field(default_factory=list)
 ```
 
 Schema field notes:
 
-- `AgentTraceEvent.seq` starts at `0` and increments by `1` within one trace.
+- `AgentTraceEvent.seq` starts at `0` and increments by `1` within one trace, across all turns.
+- `AgentTraceEvent.turn` starts at `0` for the initial `analyze` invocation and increments by `1` for each follow-up turn. Events recorded inside the same turn share the same `turn` value.
+- `AgentTraceEvent.type == "user_message"` records the follow-up message text in `message`. The initial `analyze` invocation is implicit and does not produce a `user_message` event.
+- `AgentTrace.turn_count` equals the number of distinct turns recorded so far; it starts at `1` after the initial analyze and increments by `1` per follow-up.
+- `AgentTrace.tool_call_count` is **cumulative across all turns**. Per-turn budget enforcement is the agent loop's responsibility (see [docs/eval_agent.md](eval_agent.md)); the trace persists only the running total for observability.
+- `AgentTrace.terminated_by` reflects the **latest turn's** termination reason. Earlier-turn outcomes are recoverable by walking events backward to find each turn's last event.
 - `TrajectoryRun.status` is imported from the source trajectory when present. If source data does not provide a reliable run-level result, set it to `"unknown"`; do not infer it from the Eval Agent's analysis.
 - `StepObservation.visual_evidence` is for structured visual evidence imported from the source dataset or explicit high-detail inspection output. It must not be populated from low-detail preprocessing hints.
 - Low-detail preprocessing output belongs in `StepDigest.vlm_low_detail_summary`, not in `StepObservation`.
@@ -353,6 +360,7 @@ POST /api/import/molmoweb-sample
 POST /api/runs/{run_id}/preprocess
 POST /api/runs/{run_id}/analyze
 POST /api/runs/{run_id}/steps/{step_index}/analyze
+POST /api/runs/{run_id}/followup
 
 GET  /api/failure-memory/search?q=...
 GET  /api/eval-cases/search?q=...
@@ -364,18 +372,49 @@ GET  /api/eval-cases
 
 ```jsonc
 {
-  "eval_case_draft": { /* EvalCase with human_validated=false */ },
+  "eval_case_draft": { /* EvalCase with human_validated=false */ } | null,
   "agent_trace": { /* AgentTrace */ }
 }
 ```
 
-`tool_call_count` and `terminated_by` are nested under `agent_trace`; they are
-not duplicated as top-level response fields.
+`eval_case_draft` is `null` whenever the latest turn terminated by
+`budget_exceeded` or `error`. `tool_call_count`, `turn_count`, and
+`terminated_by` are nested under `agent_trace`; they are not duplicated as
+top-level response fields.
 
 Endpoint-to-agent mapping:
 
-- `POST /api/runs/{run_id}/analyze` sets `user_intent="analyze_run"` and `selected_step=None`.
-- `POST /api/runs/{run_id}/steps/{step_index}/analyze` sets `user_intent="analyze_step"` and `selected_step=step_index`.
+- `POST /api/runs/{run_id}/analyze` sets `user_intent="analyze_run"` and `selected_step=None`. Creates a fresh trace at turn 0.
+- `POST /api/runs/{run_id}/steps/{step_index}/analyze` sets `user_intent="analyze_step"` and `selected_step=step_index`. Creates a fresh trace at turn 0.
+- `POST /api/runs/{run_id}/followup` continues the existing `last_trace.json`. See the follow-up contract below.
+
+### Follow-up Contract
+
+`POST /api/runs/{run_id}/followup` is the second-and-onward turn of an
+already-started analysis. Request body:
+
+```jsonc
+{
+  "message": "string (user's follow-up question, non-empty, <= 2000 chars)"
+}
+```
+
+Response shape is **identical** to `/analyze`: `{eval_case_draft, agent_trace}`.
+
+Preconditions:
+
+- `404` if `run_id` is unknown.
+- `409` if no `last_trace.json` exists for the run (the user must call `/analyze` first).
+- `422` if `message` is missing, empty, or exceeds 2000 characters.
+
+Behavior:
+
+- The handler loads `last_trace.json`, appends a `user_message` event with the new message and the next `turn` value, then resumes the agent loop with the existing message history.
+- A fresh **per-turn tool-call budget** applies (default 4 — see [docs/eval_agent.md](eval_agent.md) "Follow-up Mode"). `AgentTrace.tool_call_count` continues to accumulate across turns.
+- The agent may call `propose_eval_case` again in a follow-up turn. When it does, the new draft **overwrites** the previous one in the response; only the latest draft is returned. Any previously persisted, human-validated `EvalCase` files under `data/eval_cases/validated/` are untouched — those are immutable once exported.
+- The updated trace is atomically written back to `last_trace.json`, replacing the previous version. There is no separate per-turn trace file in v1.
+- `user_intent` and `selected_step` on the trace are **not** modified by follow-up — they record the framing of the original analyze invocation only.
+- v1 single-concurrency rule still applies: concurrent `/followup` calls on the same `run_id` race on `last_trace.json` and have undefined behavior.
 
 `POST /api/eval-cases` accepts a complete `EvalCase` with
 `human_validated=true` and persists it as a final regression case. The handler:
