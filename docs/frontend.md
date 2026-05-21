@@ -32,7 +32,7 @@ Bottom or side: Eval case draft
 - show selected step screenshot
 - load screenshots from `/api/runs/{run_id}/screenshots/{filename}` or an API-provided screenshot URL
 - draw coordinate marker only if coordinate validation is `validated`
-- draw bbox if bbox exists
+- draw bbox only when bbox exists, the screenshot is available, and bbox bounds are validated
 
 `StepDetailPanel.tsx`
 
@@ -46,17 +46,20 @@ Bottom or side: Eval case draft
 
 - button: Analyze Run
 - button: Analyze Selected Step
-- show suggested failure type
-- show evidence
-- show similar retrieved cases
+- render the agent's tool-call trace (ordered list of tool calls + results), so the user can see what the agent looked at and why
+- highlight which steps the agent inspected via `get_step_detail` (clicking jumps the `StepTimeline` to that step)
+- show retrieved failure-memory and eval-case results
+- show termination reason: `propose_eval_case`, `budget_exceeded`, or `error`
+- for `error`, show the latest `tool_error` or `AgentTraceEvent.error` message
 - pass generated eval case draft to `EvalCaseDraft.tsx`
 
 `EvalCaseDraft.tsx`
 
 - show complete `EvalCase`-shaped draft
-- show task, failure step, failure type, expected behavior, actual behavior, evidence, regression rule, retrieved context IDs, and validation status
+- render key fields from the `EvalCase` contract
 - allow user to review or edit draft fields before export
-- require human validation before marking an eval case final
+- include a `Mark validated` checkbox or toggle that explicitly sets `human_validated=true`
+- disable export while `human_validated=false`
 - button: Export Eval Case
 
 ## UI Copy

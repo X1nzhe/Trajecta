@@ -18,9 +18,11 @@ Start every non-trivial task by reading the smallest relevant set of docs.
 - `SPEC.md`: project entry point, MVP priorities, non-goals, and document map.
 - `docs/product_scope.md`: product positioning, v1 scope, v2 boundaries, and core user flow.
 - `docs/architecture.md`: recommended stack, repository layout, and system boundaries.
-- `docs/data_model.md`: Pydantic schemas for trajectory, coordinate validation, failure memory, and eval cases.
+- `docs/contracts.md`: single source of truth for schemas, tool contracts, API endpoints, RAG collections, and screenshot access.
+- `docs/data_model.md`: implementation notes for Pydantic schemas defined in `docs/contracts.md`.
 - `docs/dataset_import.md`: MolmoWeb-HumanSkills import strategy and coordinate validation rules.
-- `docs/eval_agent.md`: LangGraph Eval Agent workflow, tools, state, output schema, and Skill wrapper.
+- `docs/preprocessing.md`: Trajectory Preprocessing — digest schema, low-detail VLM contract, caching, and fallbacks.
+- `docs/eval_agent.md`: LangGraph Eval Agent workflow, tools, state, output schema, observability, and Skill wrapper.
 - `docs/rag.md`: ChromaDB collections, embedding text, and retrieval flow.
 - `docs/api.md`: FastAPI endpoint surface.
 - `docs/frontend.md`: React UI layout, components, and UI copy.
@@ -35,7 +37,7 @@ If a future subdirectory contains its own `AGENTS.md`, follow that nearest file 
 1. Keep the MVP small.
 2. Do not build live browser control.
 3. Do not build recorder middleware in v1.
-4. Focus on tool-using Eval Agent, LangGraph orchestration, ChromaDB RAG, eval case generation, tests, and simple UI.
+4. Focus on the tool-calling Eval Agent (LangGraph), Trajectory Preprocessing, coarse-to-fine VLM, ChromaDB RAG, agent tracing, eval case generation, tests, and a simple UI.
 
 ## Work Routine
 1. Read the relevant docs before editing.
@@ -61,9 +63,13 @@ Frontend:
 - npm run dev
 
 ## Coding Rules
-- Use Pydantic schemas for all trajectory and eval case structures.
-- Use LangGraph only for the Eval Agent workflow.
-- All agent outputs must be valid JSON.
+- Use the Pydantic schemas defined in `docs/contracts.md` for all trajectory and eval case structures.
+- The Eval Agent is a LangGraph tool-calling agent. It must reach trajectory data, RAG, and final output only through declared tools.
+- Per-step preprocessing has fixed control flow: a `for` loop calls a low-detail VLM on every step and parses every action. It still invokes the model, but *which* step gets processed and *in what order* is not a model decision. This is not part of the agent.
+- High-detail VLM inspection is on demand only — via the `get_step_detail` tool.
+- The agent terminates by calling the `propose_eval_case` terminal tool. Free-form JSON output is not used.
+- Tool-call budget (default 8) must be enforced; exceeding it terminates the loop with `terminated_by="budget_exceeded"`.
+- All agent outputs must be valid JSON and validate against the `EvalCase` schema.
 - Do not invent evidence not present in the trajectory.
 - If a screenshot or coordinate is missing, mark it as unavailable.
 - If coordinates are invalid, do not draw overlay markers.

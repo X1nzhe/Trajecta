@@ -4,24 +4,11 @@
 
 MCP is optional for v1.
 
-If time permits, create minimal MCP server in `mcp/server.py` exposing:
+If time permits, create a minimal MCP server in `mcp/server.py` that re-exposes
+a subset of the Eval Agent's contracted tools and an `analyze_run` wrapper.
+Core tool signatures live in [docs/contracts.md](contracts.md#agent-tool-contracts).
 
-```text
-search_failure_memory(query, top_k=3)
-create_eval_case_draft(run_id, failure_step, failure_type)
-```
-
-`search_failure_memory` wraps the same failure-memory retrieval path used by the
-Eval Agent's internal `search_similar_cases` helper. It searches the
-`failure_memory` collection.
-
-`create_eval_case_draft` is a high-level MCP wrapper that runs the Eval Agent
-flow and returns an `EvalCase`-shaped draft. It should not be confused with the
-LangGraph `generate_eval_case` node or the deterministic `assemble_eval_case`
-helper.
-
-If a later MCP tool named `search_eval_cases` is added, it should explicitly
-search the `eval_cases` collection, not failure memory.
+Each MCP tool delegates to the same backend function used by the in-process Eval Agent. Do not duplicate logic; the MCP layer is a thin transport adapter.
 
 Do not spend more than half a day on MCP.
 
@@ -32,6 +19,9 @@ Do not spend more than half a day on MCP.
 - Create repo
 - Add schemas
 - Add at least 5 small MolmoWeb-HumanSkills sample fixtures
+- Commit `data/raw/molmoweb_humanskills_sample/run_status_overlay.json` covering those fixtures (≥1 `success` entry per task category)
+- Commit 1 example `data/eval_cases/validated/{case_id}.json` so `GET /api/eval-cases` is non-empty on a fresh clone
+- Commit 1 example `data/runs/{run_id}/last_trace.json` so frontend dev has a fixture before the agent loop is wired up
 - Add failure memory cases
 - Add basic tests
 
@@ -43,9 +33,11 @@ Do not spend more than half a day on MCP.
 
 ### Stage 3
 
-- Implement ChromaDB RAG
-- Implement LangGraph Eval Agent
-- Add eval case generator
+- Implement Trajectory Preprocessing (`preprocess.py`) per [docs/preprocessing.md](preprocessing.md): build the `trajectory_digest` with low-detail VLM hints, parsed actions, and coordinate validation
+- Implement ChromaDB RAG (`failure_memory` + `eval_cases` + `successful_runs` collections)
+- Implement the LangGraph tool-calling Eval Agent with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and the terminal `propose_eval_case` tool
+- Wire prompt caching across tool-calling turns
+- Convert the agent loop's final `messages` into an `AgentTrace` and persist to `data/runs/{run_id}/last_trace.json` (overwritten each analyze)
 
 ### Stage 4
 
@@ -115,8 +107,11 @@ Trajecta turns raw browser-agent trajectories into human-validated regression ev
 
 Use after completion:
 
-- Built Trajecta, an AI-native Eval Agent for browser-agent trajectory evaluation that converts raw trajectories into human-reviewable regression eval cases.
-- Implemented a LangGraph-based tool-calling workflow for trajectory inspection, screenshot analysis, similar failure retrieval, and structured eval-case generation.
-- Built ChromaDB-backed failure-memory RAG and evaluated retrieval-grounded analysis using lightweight RAGAS metrics.
-- Designed a React replay UI for screenshot-based trajectory inspection, step-level failure labeling, coordinate validation, and eval case export.
-- Added pytest coverage for schemas, MolmoWeb import, coordinate validation, tools, ChromaDB retrieval, and eval-case generation.
+- Built **Trajecta**, an AI-native Eval Agent for browser-agent trajectory evaluation that converts raw trajectories into human-reviewable regression eval cases.
+- Designed and implemented a **LangGraph tool-calling agent** that autonomously decides which trajectory steps to deep-dive, when to retrieve failure memory, and when to terminate via a typed `propose_eval_case` tool — making the agent's reasoning structurally bounded and schema-safe.
+- Reduced visual-token cost ~80% via a **coarse-to-fine VLM strategy**: Trajectory Preprocessing calls a low-detail VLM (~85 tokens/image) on every step to build a digest, while high-detail VLM is invoked on demand by the agent only for steps it flags as suspicious.
+- Built **ChromaDB-backed RAG** over failure memory and prior eval cases, with agent-authored queries and traceable `retrieved_context_ids` linking each generated case back to its supporting evidence.
+- Wired **prompt caching** across the agent's tool-calling turns; produced a structured per-run `AgentTrace` rendered in the UI and consumed by RAGAS.
+- Evaluated retrieval-grounded analysis with **RAGAS faithfulness and context-precision** metrics; documented an ablation comparing all-steps-high-detail vs agent-driven on-demand inspection cost.
+- Built a **React replay UI** for screenshot-based trajectory inspection, coordinate validation, agent reasoning visualization, and eval case export.
+- Added pytest coverage for schemas, MolmoWeb import, coordinate validation, preprocessing, tools, ChromaDB retrieval, and the agent loop.

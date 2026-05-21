@@ -1,46 +1,69 @@
 # Eval Agent
 
-The Eval Agent is the core agent.
+The Eval Agent is the core component of Trajecta.
 
-It should be implemented as a small LangGraph workflow.
+It is implemented as a LangGraph **tool-calling agent**, not a fixed DAG. The agent autonomously decides which steps in a trajectory to deep-dive, when to retrieve failure memory, when to backtrack, and when it has enough evidence to propose an eval case.
 
-The project description should emphasize the Eval Agent, not LangGraph. LangGraph is an implementation detail.
+The project description emphasizes the Eval Agent capability. LangGraph, ChromaDB, and the multi-resolution VLM strategy are implementation details.
+
+## Design Rationale
+
+Trajectories vary in length (10–80 steps) and in failure mode. A human eval engineer does not analyze every step at full detail. They:
+
+1. Skim the run.
+2. Form a hypothesis about where it likely failed.
+3. Zoom in on suspicious steps.
+4. Cross-reference similar past failures.
+5. When useful, pull a successful run of the same task and compare step-by-step to localize the divergence.
+6. Sometimes backtrack to earlier steps to find a root cause.
+7. Stop when evidence is sufficient.
+
+This is a task with **dynamic information needs and a non-fixed path**, which is the canonical justification for an agent over a deterministic pipeline.
+
+Two boundaries keep the design honest:
+
+- **Trajectory Preprocessing runs the same work on every step.**
+  A `for` loop iterates over every step and runs a low-detail VLM (~85 tokens/image) plus action parsing. The VLM call itself is a model invocation — outputs are not bit-identical across runs — but the *orchestration* is fixed: every step is processed, in order, with the same prompt. The output is a cheap text-only **trajectory digest** that the agent consumes. See [docs/preprocessing.md](preprocessing.md) for the schema and contract.
+- **High-detail visual inspection is on demand.** Full-resolution VLM analysis (~1500 tokens/image) is expensive. The agent calls `get_step_detail` only for steps it has reason to inspect. *Which* steps to deep-dive is the agent's decision, in contrast to preprocessing where every step is processed unconditionally. This yields a coarse-to-fine pattern with measurable cost savings.
+
+## Pipeline Overview
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│ Stage 1: Trajectory Preprocessing  (backend/app/preprocess.py)
+│   for each step in run:                  ← fixed control flow
+│     - low-detail VLM summary (~85 tokens/image)   ← model call
+│     - parse action, validate coordinates           ← deterministic
+│   → build trajectory_digest: list[StepDigest]   (text only)
+└──────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────┐
+│ Stage 2: ★ Eval Agent  (LangGraph tool-calling loop)
+│   Input:  trajectory_digest + user intent (Analyze Run / Step)
+│   Tools:  get_run, get_step_detail, find_similar_successful_run,
+│           search_failure_memory, search_eval_cases, propose_eval_case
+│   Loop:   reason → call tool → observe → reason
+│   Stop:   agent calls propose_eval_case (terminal) OR
+│           tool-call budget reached
+└──────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────┐
+│ Stage 3: Human Validation + Export
+│   User confirms or edits failure label, then exports JSON.
+└──────────────────────────────────────────────────────────┘
+```
 
 ## Tools
 
-Implement in `backend/app/tools.py`.
+Implement the typed tools from
+[docs/contracts.md](contracts.md#agent-tool-contracts) in `backend/app/tools.py`.
 
-```python
-def get_run(run_id: str) -> dict:
-    """Return trajectory run metadata and steps."""
+Tool design notes:
 
-
-def get_step(run_id: str, step_index: int) -> dict:
-    """Return one trajectory step."""
-
-
-def get_screenshot_summary(run_id: str, step_index: int) -> dict:
-    """Return a VLM-generated or mocked screenshot summary."""
-
-
-def search_similar_cases(query: str, top_k: int = 3) -> list[dict]:
-    """Retrieve similar failure memory cases from ChromaDB."""
-
-
-def assemble_eval_case(
-    run_id: str,
-    failure_step: int,
-    failure_type: str,
-    analysis: dict,
-    retrieved_cases: list[dict] | None = None,
-    human_note: str | None = None
-) -> dict:
-    """Deterministically assemble and validate an EvalCase-shaped draft."""
-```
-
-`assemble_eval_case` is not the LLM generator. It should combine the already
-loaded run, selected failure step, structured analysis, retrieved case IDs, and
-optional human note into the `EvalCase` schema.
+- `propose_eval_case` is a **terminal tool**. The agent indicates "I have enough evidence" by calling it. The graph transitions to validation when this tool is invoked.
+- `get_step_detail` is the only multimodal tool. The agent is expected to call it sparingly (typically 1–4 times per run) on steps surfaced by the digest.
+- `find_similar_successful_run` is the replay-and-diff entry point. It returns successful runs of a similar task; the agent then calls `get_run(other_run_id)` (free; not budgeted) to load the comparison digest and reasons about divergence. Calling `get_step_detail` on a step of the comparison run is allowed and counts against the budget normally.
+- `retrieved_context_ids` carries the case IDs returned by prior `search_*` calls, providing a traceable link from agent output back to retrieved evidence. Run IDs from `find_similar_successful_run` are **not** stored here; the comparison is traced through `AgentTrace` events.
 
 ## LangGraph State
 
@@ -48,105 +71,142 @@ Create `backend/app/eval_agent_graph.py`.
 
 ```python
 from typing import TypedDict, Optional, List, Dict, Any
+from typing import Literal
+from langchain_core.messages import AnyMessage
 
 
 class EvalState(TypedDict):
     run_id: str
+    user_intent: Literal["analyze_run", "analyze_step"]
     selected_step: Optional[int]
-    run: Optional[Dict[str, Any]]
-    relevant_steps: List[Dict[str, Any]]
-    retrieved_cases: List[Dict[str, Any]]
-    analysis: Optional[Dict[str, Any]]
-    eval_case: Optional[Dict[str, Any]]
+    trajectory_digest: List[Dict[str, Any]]
+    messages: List[AnyMessage]           # agent reasoning + tool-call history
+    tool_call_count: int
+    eval_case_draft: Optional[Dict[str, Any]]
     errors: List[str]
 ```
 
 ## LangGraph Nodes
 
-Use a small linear graph.
+The graph is intentionally small. The agent loop is one node that owns the tool-calling cycle; the rest of the graph is plumbing.
 
 ```text
 START
--> load_run
--> select_relevant_steps
--> retrieve_similar_cases
--> analyze_trajectory
--> generate_eval_case
--> validate_output
--> END
+  → preprocess        # fixed for-loop; per-step VLM call; build trajectory_digest
+  → agent_loop        # LLM with tool calls; loops until terminal tool or budget
+  → validate_output   # Pydantic-validate eval_case_draft against EvalCase schema
+  → END
 ```
 
-`generate_eval_case` is the LangGraph node name. It may call
-`assemble_eval_case`, but it should not be implemented as a second backend tool
-with the same name.
+The `preprocess` graph node is a thin wrapper around `preprocess.load_or_build_digest` — the same function that backs the standalone Pipeline Stage 1 and the `POST /api/runs/{run_id}/preprocess` endpoint. There is one implementation; the node, the endpoint, and the pipeline diagram refer to it.
+
+`agent_loop` is a `tools_condition` style cycle: the model produces a message, if it contains tool calls they execute and feed back into the model, otherwise the loop ends. Termination is triggered by either:
+
+- the model calling `propose_eval_case` (success path), or
+- `tool_call_count` exceeding the configured budget (`terminated_by="budget_exceeded"` and `errors` is populated).
+
+`propose_eval_case` is a terminal tool. After it returns successfully, the graph
+sets `eval_case_draft` and routes directly to `validate_output`; it must not
+return to the model for another reasoning turn.
+
+## Screenshot Detail Policy
+
+Two screenshot detail levels exist, and they have different evidentiary weight:
+
+- **Low-detail** (~85 tokens/image) — from `StepDigest.vlm_low_detail_summary` or from `get_step_detail(..., image_detail="low")`. Allowed for orientation, hypothesis formation, and suspicious-step selection.
+- **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`, optionally with a `crop` BBox. Required for any claim about visual text, button labels, target identity, or coordinate correctness.
+
+Hard rule: **any field in the final `EvalCase` that depends on visual text, target identity, or coordinate correctness must trace to a high-detail observation** (high-detail `get_step_detail`, crop-level inspection, OCR, or structured trajectory text such as `StepObservation.visible_text` / `action_target`). Low-detail output may appear in the agent's reasoning but must not be cited as the sole source of evidence in `EvalCase.evidence`.
+
+When the agent needs to read a small UI region, it should prefer `image_detail="high"` with a `crop` over a full-frame high-detail call — same evidentiary weight, lower token cost.
 
 ## Agent Behavior
 
-1. Load the run using `get_run`.
-2. Select relevant steps.
-3. If a selected step exists, inspect that step and nearby steps.
-4. Use `search_similar_cases` to retrieve related failure memories.
-5. Use LLM/VLM to produce structured analysis.
-6. Generate eval case draft by assembling the structured analysis into `EvalCase`.
-7. Validate eval case schema.
-8. Return JSON only.
+The system prompt instructs the agent to:
+
+1. Call `get_run(run_id)` once at the start to load run metadata and the digest.
+2. Read the `trajectory_digest`, `user_intent`, and optional `selected_step`.
+3. Form an initial hypothesis about where the run likely failed.
+4. For `analyze_run`, call `get_step_detail` on the most suspicious steps (typically 1–4). Backtrack to earlier steps if the root cause appears upstream.
+5. For `analyze_step`, call `get_step_detail(run_id, selected_step)` first, inspect adjacent steps if needed, and still allow backtracking when evidence indicates the root cause is upstream.
+6. Call `find_similar_successful_run(task)` once a likely failure region is identified. If a comparable success run exists, call `get_run(other_run_id)` and diff the digests step-by-step; use `get_step_detail` on the comparison run only when the digest-level diff is ambiguous.
+7. Call `search_failure_memory` and/or `search_eval_cases` with queries grounded in observed evidence — including divergence patterns surfaced by replay-and-diff.
+8. When evidence is sufficient, call `propose_eval_case` with all required fields.
+9. Never invent evidence. If a screenshot, coordinate, or successful comparison run is missing, say so explicitly in `evidence`.
+
+The agent is constrained by a tool-call budget (default 8) to bound cost and latency.
+
+Budget accounting:
+
+- Counts: `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `find_similar_successful_run`.
+- Does not count: `get_run`, `propose_eval_case`.
+- `get_run` is free even when called on a comparison run returned by `find_similar_successful_run`, but any `get_step_detail` call against that comparison run counts normally.
+
+## Failure Handling
+
+- If `propose_eval_case` raises a Pydantic `ValidationError` or contract error, record an `AgentTraceEvent(type="tool_error")`, append the error text to `EvalState.errors`, and allow one repair turn. If the repaired `propose_eval_case` call also fails, set `terminated_by="error"` and end the graph.
+- If `validate_output` fails after a successful `propose_eval_case`, set `terminated_by="error"`, append the validation message to `EvalState.errors`, and end the graph. Do not return to `agent_loop`.
+- If the budget is exceeded, set `terminated_by="budget_exceeded"`, append a budget error to `EvalState.errors`, and end the graph without an eval case draft.
+
+Errors are populated for budget exhaustion, tool errors, and output validation failures.
+
+## Offline Agent Mock
+
+Tests must not depend on a live LLM. When no usable LLM credentials are
+configured, `eval_agent_graph.py` should use a deterministic mock agent:
+
+1. Call `get_run(run_id)`.
+2. For `analyze_step`, call `get_step_detail(run_id, selected_step)`.
+3. For `analyze_run`, call `get_step_detail` on the first failed step in the digest, or step 0 if no failed step is present.
+4. Call `find_similar_successful_run(task, top_k=1)`. If the result is non-empty, call `get_run(result[0]["run_id"])` to exercise the comparison path. If empty, skip silently.
+5. Call `search_failure_memory("missed_constraint", top_k=1)`.
+6. Call `propose_eval_case(...)` using the returned first case ID as `retrieved_context_ids[0]`.
+
+This mock exists only to stabilize pytest coverage for graph control flow,
+retrieval traceability, budget handling, and schema validation. It is not used
+for demo-quality analysis.
 
 ## Agent Output Schema
 
-The Eval Agent returns analysis fields plus an `eval_case_draft`.
+The output is the `EvalCase` Pydantic model from
+[docs/contracts.md](contracts.md#schema-contracts), populated by the
+`propose_eval_case` terminal tool. The agent does **not** emit free-form JSON;
+the schema is enforced by the tool signature.
 
-`eval_case_draft` must be a complete `EvalCase`-shaped draft as defined in
-`docs/data_model.md`. The draft is not final until a human confirms or edits it,
-so `human_validated` must remain `false` in raw agent output.
+## Observability
 
-Field mapping:
+Every agent run produces a structured `AgentTrace` (schema in
+[docs/contracts.md](contracts.md#schema-contracts)) covering every tool call,
+tool result, and the termination reason. The trace is built directly from
+LangGraph's `messages` state at the end of `agent_loop`; there is no separate
+observability layer.
 
-- `case_id`: generated by `assemble_eval_case` using the Eval Case ID convention from `docs/data_model.md`
-- `source_run_id`: copied from input `run_id`
-- `task`: copied from `TrajectoryRun.task`
-- `failure_step`: copied from the selected or suggested failure step
-- `failure_type`: copied from human input when provided, otherwise from `suggested_failure_type`
-- `expected_behavior`: generated from the task and evidence
-- `actual_behavior`: generated from observed trajectory behavior only
-- `evidence`: copied from the top-level evidence list and grounded in trajectory steps
-- `regression_rule`: generated as the pass/fail rule for future regression evaluation
-- `similar_cases`: `FailureMemoryCase.case_id` values using the ID convention from `docs/data_model.md`
-- `retrieved_context_ids`: copied from retrieved case IDs in `similar_cases`
-- `human_validated`: `false` until user review
+Persistence and consumers:
 
-```json
-{
-  "suggested_failure_step": 3,
-  "suggested_failure_type": "missed_constraint",
-  "confidence": 0.78,
-  "reason": "The agent selected an item before checking the user's stated constraint.",
-  "evidence": [
-    "Step 3 action clicked the first result.",
-    "The task required a specific constraint that was not verified."
-  ],
-  "similar_cases": ["case_missed_constraint_001"],
-  "eval_case_draft": {
-    "case_id": "eval_run_123_step_3_missed_constraint",
-    "source_run_id": "run_123",
-    "task": "Find a result that satisfies the stated constraint.",
-    "failure_step": 3,
-    "failure_type": "missed_constraint",
-    "expected_behavior": "The agent should verify all explicit constraints before selecting a final item.",
-    "actual_behavior": "The agent selected a result before verifying constraints.",
-    "evidence": [
-      "Step 3 action clicked the first result.",
-      "The task required a specific constraint that was not verified."
-    ],
-    "regression_rule": "Pass only if the selected result satisfies the explicit constraints.",
-    "retrieved_context_ids": ["case_missed_constraint_001"],
-    "human_validated": false
-  }
-}
-```
+- Written to `data/runs/{run_id}/last_trace.json`, overwritten on each analyze. This is enough for the frontend to re-read after navigation; older traces are not retained in v1.
+- Returned in full on `POST /api/runs/{run_id}/analyze`.
+- Rendered by the frontend `EvalAgentPanel` as the agent's reasoning steps.
+- Read by `ragas_eval.py`; `tool_result` events whose `name` is `search_failure_memory` or `search_eval_cases` provide the retrieved contexts for faithfulness scoring. RAGAS must not re-run retrieval.
+
+Invariant enforced in tests: every `case_id` in the proposed `EvalCase.retrieved_context_ids` must appear in some `tool_result` event of the same trace.
+
+Screenshot bytes are never written to the trace. `get_step_detail` results carry a URL plus text fields only.
+
+## Cost Strategy (Coarse-to-Fine VLM)
+
+| Stage | VLM detail | Tokens per image | Typical calls per run |
+| --- | --- | --- | --- |
+| `preprocess` | low | ~85 | at most one per step (skipped when `visible_text` is present) |
+| `get_step_detail(image_detail="low")` | low | ~85 | 0–N, agent-decided, for re-orientation on suspicious steps |
+| `get_step_detail(image_detail="high"[, crop])` | high | ~1500 (less with `crop`) | 1–4 per run |
+
+For a 30-step run where the dataset provides no `visible_text`, preprocessing costs `30 * 85 = 2550` visual tokens and a typical analyze adds `3 * 1500 = 4500`, for a total of `7050` — versus `30 * 1500 = 45000` for a naive full-detail pass. If the dataset already provides DOM text for every step, preprocessing's VLM cost drops to zero and analyze cost stays roughly the same. The cost ablation is part of the README demo.
+
+Prompt caching is applied to the agent's system prompt and the trajectory digest (which is stable across all tool-calling turns within one run), reducing repeated input cost.
 
 ## Skill
 
-The Skill wrapper is a should-have, time-permitting package around the Eval Agent workflow. It is not a v1 acceptance blocker.
+The Skill wrapper is optional packaging around the Eval Agent. It is not a v1 blocker.
 
 Create one skill file:
 
@@ -162,29 +222,14 @@ description: Use when a browser-agent trajectory has a suspected or labeled fail
 
 ## Inputs
 - run_id
-- failure_step
-- failure_type
+- optional failure_step
 - optional human_note
 
 ## Procedure
-1. Load the trajectory.
-2. Inspect the failure step and nearby steps.
-3. Retrieve similar failure memories.
-4. Identify expected behavior, actual behavior, and evidence.
-5. Generate structured eval_case JSON.
-6. Require human validation before marking the case as final.
+1. Invoke the Eval Agent on the run.
+2. Let the agent inspect suspicious steps, retrieve similar failure memories, and propose an eval case draft.
+3. Require human validation before marking the case as final.
 
 ## Output
-Return JSON with:
-- case_id
-- source_run_id
-- task
-- failure_step
-- failure_type
-- expected_behavior
-- actual_behavior
-- evidence
-- regression_rule
-- retrieved_context_ids
-- human_validated
+A validated `EvalCase` JSON matching the schema in `docs/contracts.md`.
 ```

@@ -1,0 +1,546 @@
+# Contracts
+
+This file is the single source of truth for shared Trajecta contracts:
+
+- Pydantic schemas
+- agent tool contracts
+- FastAPI endpoint surface
+- ChromaDB collection contracts
+- screenshot access rules
+
+Topic docs may explain behavior and implementation strategy, but they should not
+redefine fields, endpoint lists, or tool signatures.
+
+## v1 Assumptions
+
+- **Single user, single concurrency.** v1 assumes one analyze request at a time per run; concurrent analyzes on the same `run_id` race on `last_trace.json` and have undefined behavior.
+- **No force-rebuild knob.** `POST /api/runs/{run_id}/preprocess` is cache-first with no override; rebuilding a digest requires deleting `digest.json` on disk or bumping `preprocess_version` in code.
+- **Missing screenshots are non-fatal.** If `StepObservation.screenshot` points to a file that does not exist, `has_screenshot=false` is recorded in the digest, `get_step_detail` returns a `tool_error` naming the missing file, and `GET /api/runs/{run_id}/screenshots/{filename}` returns `404`.
+
+## Schema Contracts
+
+Create `backend/app/schemas.py` from these Pydantic models.
+
+```python
+from pydantic import BaseModel, Field
+from typing import Literal, Optional, List, Dict, Any
+
+
+class Coordinate(BaseModel):
+    x: float
+    y: float
+
+
+class BBox(BaseModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+class StepAction(BaseModel):
+    type: Literal["click", "type", "scroll", "navigate", "wait", "unknown"]
+    label: Optional[str] = None
+    text: Optional[str] = None
+    coordinates: Optional[Coordinate] = None
+    bbox: Optional[BBox] = None
+    raw: Optional[str] = None
+
+
+class StepObservation(BaseModel):
+    screenshot: Optional[str] = None
+    url: Optional[str] = None
+    title: Optional[str] = None
+    visible_text: Optional[str] = None
+    visual_evidence: List[str] = Field(default_factory=list)
+
+
+class StepResult(BaseModel):
+    status: Literal["success", "failed", "unknown"] = "unknown"
+    error: Optional[str] = None
+
+
+class CoordinateValidation(BaseModel):
+    status: Literal["validated", "out_of_bounds", "missing", "unknown"] = "unknown"
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    reason: Optional[str] = None
+
+
+class TrajectoryStep(BaseModel):
+    index: int
+    timestamp: Optional[str] = None
+    observation: StepObservation
+    action: StepAction
+    result: StepResult = Field(default_factory=StepResult)
+    coordinate_validation: CoordinateValidation = Field(default_factory=CoordinateValidation)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TrajectoryRun(BaseModel):
+    run_id: str
+    task: str
+    source: str = "allenai/MolmoWeb-HumanSkills"
+    status: Literal["success", "failed", "unknown"] = "unknown"
+    steps: List[TrajectoryStep]
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StepDigest(BaseModel):
+    index: int
+    action_type: Literal["click", "type", "scroll", "navigate", "wait", "unknown"]
+    action_text: str
+    action_target: Optional[str] = None
+    url: Optional[str] = None
+    title: Optional[str] = None
+    result_status: Literal["success", "failed", "unknown"] = "unknown"
+    coord_validation_status: Literal["validated", "out_of_bounds", "missing", "unknown"] = "unknown"
+    vlm_low_detail_summary: Optional[str] = None
+    has_screenshot: bool = False
+
+
+class TrajectoryDigest(BaseModel):
+    run_id: str
+    task: str
+    step_count: int
+    steps: List[StepDigest]
+    preprocess_model: Optional[str] = None
+    preprocess_version: str = "v1"
+
+
+class FailureMemoryCase(BaseModel):
+    case_id: str
+    failure_type: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    summary: str
+    fix_hint: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    source_run_id: Optional[str] = None
+
+
+class EvalCase(BaseModel):
+    case_id: str
+    source_run_id: str
+    task: str
+    failure_step: int
+    failure_type: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    expected_behavior: str
+    actual_behavior: str
+    evidence: List[str]
+    regression_rule: str
+    retrieved_context_ids: List[str] = Field(default_factory=list)
+    human_validated: bool = False
+
+
+class AgentTraceEvent(BaseModel):
+    seq: int
+    type: Literal["agent_message", "tool_call", "tool_result", "tool_error"]
+    name: Optional[str] = None
+    args: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
+    error: Optional[str] = None
+
+
+class AgentTrace(BaseModel):
+    run_id: str
+    user_intent: Literal["analyze_run", "analyze_step"]
+    selected_step: Optional[int] = None
+    tool_call_count: int = 0
+    terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"
+    events: List[AgentTraceEvent] = Field(default_factory=list)
+```
+
+Schema field notes:
+
+- `AgentTraceEvent.seq` starts at `0` and increments by `1` within one trace.
+- `TrajectoryRun.status` is imported from the source trajectory when present. If source data does not provide a reliable run-level result, set it to `"unknown"`; do not infer it from the Eval Agent's analysis.
+- `StepObservation.visual_evidence` is for structured visual evidence imported from the source dataset or explicit high-detail inspection output. It must not be populated from low-detail preprocessing hints.
+- Low-detail preprocessing output belongs in `StepDigest.vlm_low_detail_summary`, not in `StepObservation`.
+- `StepAction.bbox` is untrusted unless validated against screenshot dimensions. v1 may omit bbox overlays; if rendered, the bbox must be in bounds and tied to a valid screenshot.
+
+## ID Conventions
+
+- `failure_type` must match `^[a-z][a-z0-9_]*$`.
+- Failure memory IDs: `fm_{failure_type}_{NNN}`, for example `fm_missed_constraint_001`.
+- Eval case IDs: `ec_{source_run_id}_step_{failure_step}`. If collisions are possible, append `_{failure_type}`.
+- `retrieved_context_ids` must contain IDs returned by `search_failure_memory` or `search_eval_cases` in the same agent trace.
+
+ID generators:
+
+- Failure memory IDs are manually assigned in `data/failure_memory/cases.jsonl`; import code must reject duplicates and IDs that do not match `^fm_[a-z][a-z0-9_]*_[0-9]{3}$`. `NNN` is monotonically assigned within each `failure_type`.
+- Eval case IDs are generated by backend code before returning from `propose_eval_case`. Use `make_eval_case_id(run_id, failure_step, failure_type, storage)` in `backend/app/ids.py`; it first tries `ec_{run_id}_step_{failure_step}` and appends `_{failure_type}` only if the base ID already exists.
+
+## Screenshot Contract
+
+`StepObservation.screenshot` stores a filename or run-relative path under:
+
+```text
+data/runs/{run_id}/screenshots/
+```
+
+It must not store an absolute local filesystem path. API responses may add a
+derived frontend URL:
+
+```text
+/api/runs/{run_id}/screenshots/{filename}
+```
+
+Screenshot endpoint rules:
+
+- Return the image file with the correct media type.
+- Return `404` if the run or screenshot file does not exist.
+- Reject path traversal; `filename` must resolve inside the run's screenshot directory.
+- Do not expose raw absolute filesystem paths to the frontend.
+
+## Storage Contract
+
+Local-disk persistence is owned by `backend/app/storage.py`. All other modules
+must reach disk through these functions; no direct path-joining elsewhere.
+
+Layout:
+
+```text
+data/
+  raw/molmoweb_humanskills_sample/
+    run_status_overlay.json          # hand-curated status, see docs/dataset_import.md
+  runs/{run_id}/
+    trajectory.json                  # TrajectoryRun
+    digest.json                      # TrajectoryDigest (cache; see preprocessing.md)
+    last_trace.json                  # AgentTrace from most recent analyze
+    screenshots/                     # PNG/JPEG files referenced by StepObservation.screenshot
+  failure_memory/cases.jsonl         # FailureMemoryCase rows
+  eval_cases/validated/{case_id}.json  # one EvalCase per file, human_validated=true
+  chroma/                            # ChromaDB persistence (TRAJECTA_CHROMA_DIR override)
+```
+
+Function surface:
+
+```python
+# Runs
+def load_run(run_id: str) -> TrajectoryRun: ...
+def save_run(run: TrajectoryRun) -> None: ...
+def list_runs() -> list[TrajectoryRun]: ...
+def run_exists(run_id: str) -> bool: ...
+
+# Digest
+def load_digest(run_id: str) -> Optional[TrajectoryDigest]: ...
+def save_digest(run_id: str, digest: TrajectoryDigest) -> None: ...
+
+# Trace
+def load_trace(run_id: str) -> Optional[AgentTrace]: ...
+def save_trace(run_id: str, trace: AgentTrace) -> None: ...
+
+# Eval cases
+def save_eval_case(case: EvalCase) -> None: ...
+def load_eval_case(case_id: str) -> Optional[EvalCase]: ...
+def load_eval_cases() -> list[EvalCase]: ...
+def eval_case_exists(case_id: str) -> bool: ...
+
+# Failure memory
+def load_failure_memory() -> list[FailureMemoryCase]: ...
+```
+
+Behavior rules:
+
+- `load_run` and `load_digest` raise `FileNotFoundError` for unknown run IDs; API layer converts to `404`.
+- `load_trace`, `load_digest`, `load_eval_case` return `None` when the artifact does not exist (it is normal for a run to have no trace yet).
+- `save_run`, `save_trace`, `save_digest`, `save_eval_case` overwrite atomically (write to tempfile + `os.replace`) so a crash mid-write cannot corrupt the JSON.
+- `list_runs` scans `data/runs/*/trajectory.json` at request time. v1 has no run index file; the scan is acceptable because demo fixtures are small (≤ ~50 runs).
+- `load_failure_memory` validates every row as `FailureMemoryCase` and raises on duplicate `case_id`. Used both for ChromaDB seeding and for direct API responses.
+- `save_eval_case` writes `data/eval_cases/validated/{case_id}.json` and refuses to overwrite an existing file unless `case_id` already maps to the same `source_run_id` and `failure_step` (anti-clobber). It must also call into `rag.upsert_eval_case(case)` so ChromaDB stays in sync; see "Index trigger" rules below.
+- Eval-case drafts (`human_validated=false`) are **not** persisted in v1. The draft survives only in the API response and in the trace's `propose_eval_case` tool-call args. Refreshing the page = lose the draft = re-analyze.
+- `run_exists` is used by `ids.make_eval_case_id` for collision checks; it must be cheap (a `Path.exists` on `trajectory.json`).
+
+
+
+Implement these typed tools in `backend/app/tools.py`.
+
+```python
+def get_run(run_id: str) -> dict:
+    """Return trajectory run metadata and the cached or freshly built digest.
+
+    Accepts any imported `run_id`, not just the run currently under analysis.
+    The agent uses this to load comparison runs returned by
+    `find_similar_successful_run`.
+    """
+
+
+def find_similar_successful_run(task: str, top_k: int = 3) -> list[dict]:
+    """Retrieve previously imported runs whose task is semantically similar to
+    `task` AND whose `TrajectoryRun.status == "success"`.
+
+    Used by the agent for replay-and-diff: after identifying a likely failure
+    step in the current run, the agent calls this to find a comparable
+    successful run, then calls `get_run(other_run_id)` to load that run's
+    digest and reasons about where the two runs diverge.
+
+    Returns a list of dicts with:
+    - `run_id`: str
+    - `task`: str
+    - `status`: Literal["success"]   (filtered)
+    - `step_count`: int
+
+    The currently-analyzed `run_id` (if any) is excluded from results. The
+    list is sorted by similarity, highest first. May return an empty list.
+
+    Run IDs returned here are **not** part of `EvalCase.retrieved_context_ids`
+    — that field stores failure-memory and eval-case IDs only. The comparison
+    is traceable through the agent's `AgentTrace`.
+    """
+
+
+def get_step_detail(
+    run_id: str,
+    step_index: int,
+    image_detail: Literal["low", "high"] = "high",
+    crop: Optional[BBox] = None,
+) -> dict:
+    """Return VLM analysis for one step, without screenshot bytes.
+
+    `image_detail` selects the VLM resolution:
+    - "high" (default): ~1500 tokens/image; required for any claim about
+      visual text, target identity, or coordinate correctness.
+    - "low": ~85 tokens/image; allowed for orientation and suspicious-step
+      selection only. The agent must not cite low-detail output as final
+      evidence — see Screenshot Detail Policy in docs/eval_agent.md.
+
+    `crop` restricts the VLM input to a sub-region of the screenshot. When
+    provided, it must lie inside the screenshot bounds; otherwise the tool
+    returns a `tool_error`.
+    """
+
+
+def search_failure_memory(query: str, top_k: int = 3) -> list[dict]:
+    """Retrieve FailureMemoryCase-like records from the failure_memory collection."""
+
+
+def search_eval_cases(query: str, top_k: int = 3, only_validated: bool = True) -> list[dict]:
+    """Retrieve EvalCase-like records from the eval_cases collection."""
+
+
+def propose_eval_case(
+    run_id: str,
+    failure_step: int,
+    failure_type: str,
+    expected_behavior: str,
+    actual_behavior: str,
+    evidence: list[str],
+    regression_rule: str,
+    retrieved_context_ids: list[str],
+) -> dict:
+    """Terminal tool that returns an EvalCase draft with human_validated=false."""
+```
+
+`propose_eval_case` ends the agent loop. The returned draft must validate as
+`EvalCase`, and `human_validated` must remain `false` until user review.
+
+Implementation responsibilities:
+
+- `get_run` is an agent tool. The agent should call it at the start of `agent_loop` to load run metadata and the digest.
+- `propose_eval_case` loads `TrajectoryRun.task` by `run_id` and injects it as `EvalCase.task`.
+- `propose_eval_case` computes `EvalCase.case_id` through `make_eval_case_id(...)`.
+- `propose_eval_case` copies `run_id` into `EvalCase.source_run_id`.
+- `propose_eval_case` sets `human_validated=False`.
+- `propose_eval_case` validates that every `retrieved_context_id` appears in a prior `search_failure_memory` or `search_eval_cases` tool result in the current `AgentTrace`.
+- The tool-call budget counts `get_step_detail`, `search_failure_memory`, `search_eval_cases`, and `find_similar_successful_run`. `get_run` and `propose_eval_case` do not count against the budget.
+
+## API Contracts
+
+```text
+GET  /api/runs
+GET  /api/runs/{run_id}
+GET  /api/runs/{run_id}/digest
+GET  /api/runs/{run_id}/steps/{step_index}
+GET  /api/runs/{run_id}/steps/{step_index}/detail
+GET  /api/runs/{run_id}/screenshots/{filename}
+
+POST /api/import/molmoweb-sample
+POST /api/runs/{run_id}/preprocess
+POST /api/runs/{run_id}/analyze
+POST /api/runs/{run_id}/steps/{step_index}/analyze
+
+GET  /api/failure-memory/search?q=...
+GET  /api/eval-cases/search?q=...
+POST /api/eval-cases
+GET  /api/eval-cases
+```
+
+`POST /api/runs/{run_id}/analyze` returns:
+
+```jsonc
+{
+  "eval_case_draft": { /* EvalCase with human_validated=false */ },
+  "agent_trace": { /* AgentTrace */ }
+}
+```
+
+`tool_call_count` and `terminated_by` are nested under `agent_trace`; they are
+not duplicated as top-level response fields.
+
+Endpoint-to-agent mapping:
+
+- `POST /api/runs/{run_id}/analyze` sets `user_intent="analyze_run"` and `selected_step=None`.
+- `POST /api/runs/{run_id}/steps/{step_index}/analyze` sets `user_intent="analyze_step"` and `selected_step=step_index`.
+
+`POST /api/eval-cases` accepts a complete `EvalCase` with
+`human_validated=true` and persists it as a final regression case. The handler:
+
+1. Validates the body against the `EvalCase` schema; returns `422` if `human_validated=false` or any required field is missing.
+2. Calls `storage.save_eval_case(case)` — writes `data/eval_cases/validated/{case_id}.json`.
+3. Calls `rag.upsert_eval_case(case)` — synchronously upserts into the `eval_cases` ChromaDB collection.
+4. Returns the persisted `EvalCase`.
+
+Drafts (`human_validated=false`) returned by `POST /api/runs/{run_id}/analyze`
+are **not** persisted to disk in v1. They survive only in the API response and
+in the trace's `propose_eval_case` tool-call args (`last_trace.json`). Page
+refresh = lose the draft = re-analyze.
+
+`GET /api/eval-cases` returns a list of persisted `EvalCase` objects by reading
+`data/eval_cases/validated/*.json` (not via ChromaDB).
+
+Search endpoint responses:
+
+- `GET /api/failure-memory/search?q=...` returns `list[FailureMemoryCase]`.
+- `GET /api/eval-cases/search?q=...` returns `list[EvalCase]` and defaults to `only_validated=true`.
+- Similarity scores are not part of v1 API responses; keep scoring internal to retrieval.
+
+Run-scoped endpoints must return `404` for an unknown `run_id`, including
+`/digest`, `/preprocess`, `/analyze`, `/steps/{step_index}`, and screenshot
+endpoints. Invalid `step_index` also returns `404`.
+
+## RAG Collection Contracts
+
+Embedding model rule:
+
+- Collections are tied to `TRAJECTA_EMBEDDING_MODEL`. Changing the embedding model requires clearing and rebuilding persisted ChromaDB collections or writing to model-specific collection names.
+
+Persistence directory:
+
+- All collections live under `TRAJECTA_CHROMA_DIR` (default `data/chroma/`).
+- v1 uses one ChromaDB client / one persistence directory for all collections.
+
+Indexing model:
+
+- Index writes are **synchronous** with the request that produces the data. No background workers in v1.
+- On FastAPI startup, the failure_memory collection is hydrated from `data/failure_memory/cases.jsonl` if empty. successful_runs is hydrated by scanning `data/runs/*/trajectory.json` for any record whose post-overlay `status == "success"` and upserting one row per such run.
+- All `upsert` operations are idempotent: re-indexing the same `case_id` / `run_id` overwrites the existing row.
+
+### `failure_memory`
+
+Metadata:
+
+- `case_id`
+- `failure_type`
+- `summary`
+- `fix_hint`
+- `tags`
+- `source_run_id`
+
+Text to embed:
+
+```python
+" ".join([
+    failure_type,
+    summary,
+    fix_hint or "",
+    " ".join(tags),
+]).strip()
+```
+
+Seed requirements:
+
+- `data/failure_memory/cases.jsonl` must contain at least 5 seed cases for the MVP.
+- It must include at least one `missed_constraint` case because tests and demos use that retrieval path.
+- Each row must validate as `FailureMemoryCase`, and all `case_id` values must be unique.
+
+Index trigger:
+
+- FastAPI startup: read `cases.jsonl`, validate every row, and upsert into the collection. If the collection already contains the same `case_id`, the row is overwritten (idempotent restart).
+- v1 has no API endpoint to add new failure memories; the file is the source of truth.
+
+### `eval_cases`
+
+Metadata must preserve a complete `EvalCase`. The embedded document text may use
+a retrieval-optimized subset.
+
+Text to embed:
+
+```text
+task + failure_type + expected_behavior + actual_behavior + evidence + regression_rule
+```
+
+Index trigger:
+
+- Synchronous inside `POST /api/eval-cases`, after `storage.save_eval_case` succeeds.
+- The collection only contains `human_validated=true` records — drafts are never indexed.
+- FastAPI startup: rebuild the collection from `data/eval_cases/validated/*.json` if empty, for crash recovery.
+
+### `successful_runs`
+
+Indexes imported runs that completed successfully, so the agent can pull a
+counter-example for replay-and-diff via `find_similar_successful_run`.
+
+Metadata:
+
+- `run_id`
+- `task`
+- `status` (always `"success"`; rows with other statuses are not indexed)
+- `step_count`
+
+Text to embed:
+
+```python
+task
+```
+
+Seed requirements:
+
+- Populated at dataset-import time. Only `TrajectoryRun` records with
+  `status == "success"` (after applying `run_status_overlay.json`) are indexed.
+- At least one success run per fixture task category should be present so
+  replay-and-diff is reachable from each demo run.
+- If no successful run exists for a given task category, the tool returns an
+  empty list and the agent must proceed without comparison.
+
+Index trigger:
+
+- Synchronous inside `POST /api/import/molmoweb-sample`: for each imported run whose post-overlay status is `"success"`, upsert one row keyed by `run_id`.
+- Re-importing an existing `run_id` upserts (overwrites) the row.
+- FastAPI startup: rebuild the collection from `data/runs/*/trajectory.json` if empty.
+
+### `step_summaries`
+
+Optional in v1. Step summaries are retrieval hints, not final visual evidence.
+
+Index trigger:
+
+- Not indexed in v1. If enabled by a future flag, indexing would be synchronous inside `POST /api/runs/{run_id}/preprocess` (one row per `StepDigest`).
+
+Metadata:
+
+- `run_id`
+- `index`
+- `action_type`
+- `action_text`
+- `action_target`
+- `url`
+- `title`
+- `result_status`
+- `coord_validation_status`
+- `vlm_low_detail_summary`
+- `has_screenshot`
+
+Text to embed:
+
+```python
+" ".join([
+    action_type,
+    action_text,
+    action_target or "",
+    url or "",
+    title or "",
+    result_status,
+    coord_validation_status,
+    vlm_low_detail_summary or "",
+]).strip()
+```

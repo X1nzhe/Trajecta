@@ -22,9 +22,11 @@
 ### AI
 
 - OpenAI-compatible LLM/VLM API
-- Structured JSON outputs
-- Function tools
-- Embeddings for failure-memory RAG
+- Structured JSON outputs enforced by tool signatures (no free-form JSON parsing)
+- Function tools as the agent's only interface to the run, RAG, and final output
+- Multi-resolution VLM: low-detail (~85 tokens/image) for preprocessing, high-detail (~1500 tokens/image) on demand
+- Prompt caching across the agent's tool-calling turns when supported by the configured provider; OpenAI-compatible providers that do not expose caching still use the same prompt layout without relying on cache discounts.
+- Embeddings for failure-memory and eval-case RAG
 
 Configuration:
 
@@ -35,6 +37,10 @@ Configuration:
 - `TRAJECTA_LLM_MODEL`: text model for trajectory analysis
 - `TRAJECTA_VLM_MODEL`: vision model for screenshot summaries
 - `TRAJECTA_EMBEDDING_MODEL`: embedding model for ChromaDB indexing
+- `TRAJECTA_CHROMA_DIR`: ChromaDB persistence directory; defaults to `data/chroma/`
+
+Changing `TRAJECTA_EMBEDDING_MODEL` requires clearing and rebuilding persisted
+ChromaDB collections or using model-specific collection names.
 
 Tests and local fixtures must not require network calls. If API credentials are
 missing, use deterministic mocked LLM/VLM summaries and agent outputs.
@@ -63,18 +69,22 @@ trajecta/
       main.py
       schemas.py
       storage.py
+      ids.py
+      llm.py
       dataset_importer.py
       coordinate_validator.py
+      preprocess.py
       tools.py
       eval_agent_graph.py
       rag.py
       ragas_eval.py
-      eval_case_generator.py
     tests/
       test_schema.py
       test_importer.py
+      test_preprocess.py
       test_tools.py
       test_rag.py
+      test_eval_agent.py
       test_eval_case.py
       test_coordinates.py
       test_api.py
@@ -93,26 +103,19 @@ trajecta/
   data/
     raw/
       molmoweb_humanskills_sample/
+        run_status_overlay.json
     runs/
-      run_001/
+      {run_id}/
         trajectory.json
-        screenshots/
-      run_002/
-        trajectory.json
-        screenshots/
-      run_003/
-        trajectory.json
-        screenshots/
-      run_004/
-        trajectory.json
-        screenshots/
-      run_005/
-        trajectory.json
+        digest.json
+        last_trace.json
         screenshots/
     failure_memory/
       cases.jsonl
     eval_cases/
-      generated/
+      validated/
+        {case_id}.json
+    chroma/
   skills/
     create-eval-case/
       SKILL.md
@@ -122,3 +125,13 @@ trajecta/
     ragas_report.json
     ragas_report.md
 ```
+
+The repo should include at least 5 fixture runs under `data/runs/` for the MVP,
+but the structure above is shown as a template because additional run folders are
+runtime data.
+
+Module responsibilities:
+
+- `storage.py`: load and save trajectory runs, digests, traces, and eval cases from local disk; provide existence checks used by `ids.make_eval_case_id`.
+- `ids.py`: generate stable eval-case IDs and check collisions through storage.
+- `llm.py`: centralize LLM/VLM client creation, provider configuration, and deterministic offline mocks.

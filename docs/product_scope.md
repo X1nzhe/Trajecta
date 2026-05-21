@@ -29,33 +29,38 @@ The project must clearly demonstrate:
 
 1. User selects an imported browser-agent trajectory run.
 2. UI shows step-by-step screenshots and actions.
-3. User clicks `Analyze Run` or `Analyze Step`.
-4. Trajecta Eval Agent calls tools to inspect the run, retrieve similar failure cases from ChromaDB, and analyze evidence.
-5. Eval Agent generates structured failure analysis and an eval case draft.
-6. User confirms or edits the failure label.
-7. System exports `eval_case.json`.
-8. Tests and RAGAS eval verify basic quality.
+3. Backend runs Trajectory Preprocessing on the run and produces a trajectory digest.
+4. User clicks `Analyze Run` or `Analyze Step`.
+5. The Eval Agent autonomously decides which steps to deep-dive (via `get_step_detail`), pulls a similar successful run for the same task and diffs against it (via `find_similar_successful_run` + `get_run`), retrieves similar failures from ChromaDB (via `search_failure_memory` / `search_eval_cases`), and terminates by calling `propose_eval_case`.
+6. UI renders the agent's tool-call trace, retrieved cases, and the proposed eval case draft.
+7. User confirms or edits the failure label.
+8. System exports `eval_case.json`.
+9. Tests and RAGAS eval verify basic quality.
 
 ## Must Have in v1
 
-- Import or load a checked-in sample subset derived from Hugging Face dataset: `allenai/MolmoWeb-HumanSkills`
-- Normalize raw trajectory data into Trajecta JSON schema
+- Import or load a checked-in sample subset derived from Hugging Face dataset: `allenai/MolmoWeb-HumanSkills` (≥5 runs, including at least one `status=success` run per fixture task category so replay-and-diff is reachable)
+- Normalize raw trajectory data into the Trajecta JSON schema
 - Visual trajectory replay UI
-- Screenshot viewer with optional coordinate overlay
-- Tool-using Eval Agent
-- LangGraph workflow for Eval Agent orchestration
-- ChromaDB-backed RAG over failure memories and eval cases
-- LLM/VLM-assisted failure analysis
-- Human-reviewable eval case generation
+- Screenshot viewer with coordinate overlay rendered only when validated
+- Trajectory Preprocessing pipeline producing a per-run trajectory digest (see [docs/preprocessing.md](preprocessing.md))
+- LangGraph **tool-calling Eval Agent** with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and a terminal `propose_eval_case` tool
+- Replay-and-diff: agent retrieves a similar successful run for the same task and reasons over step-level divergence
+- Tool-call budget enforcement (default 8) bounding cost and latency
+- ChromaDB-backed RAG over failure memories, eval cases, and successful runs
+- Multi-resolution VLM (low-detail for preprocessing, high-detail on demand)
+- Prompt caching across the agent's tool-calling turns
+- Per-run agent trace persisted at `data/runs/{run_id}/last_trace.json`
+- Human-reviewable eval case draft and export flow
 - Basic pytest test suite
-- Minimal RAGAS evaluation script; fallback allowed if RAGAS setup is too slow
+- Minimal RAGAS evaluation script (faithfulness + context_precision); fallback allowed if RAGAS setup is too slow
 - README with architecture and demo instructions
 - FastAPI backend
 - Pydantic schemas
 - React + TypeScript + Vite + Tailwind frontend
 - Local file storage for screenshots
 - Local ChromaDB persistence
-- `AGENTS.md`
+- `AGENTS.md` at repo root
 
 
 ## Should Have
