@@ -49,7 +49,6 @@ The project must clearly demonstrate:
 - Tool-call budget enforcement (default 8) bounding cost and latency
 - ChromaDB-backed RAG over failure memories, eval cases, and successful runs
 - Multi-resolution VLM (low-detail for preprocessing, high-detail on demand)
-- Prompt caching across the agent's tool-calling turns
 - Per-run agent trace persisted at `data/runs/{run_id}/last_trace.json`
 - Human-reviewable eval case draft and export flow
 - Basic pytest test suite

@@ -36,7 +36,6 @@ Do not spend more than half a day on MCP.
 - Implement Trajectory Preprocessing (`preprocess.py`) per [docs/preprocessing.md](preprocessing.md): build the `trajectory_digest` with low-detail VLM hints, parsed actions, and coordinate validation
 - Implement ChromaDB RAG (`failure_memory` + `eval_cases` + `successful_runs` collections)
 - Implement the LangGraph tool-calling Eval Agent with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and the terminal `propose_eval_case` tool
-- Wire prompt caching across tool-calling turns
 - Convert the agent loop's final `messages` into an `AgentTrace` and persist to `data/runs/{run_id}/last_trace.json` (overwritten each analyze)
 
 ### Stage 4
@@ -111,7 +110,7 @@ Use after completion:
 - Designed and implemented a **LangGraph tool-calling agent** that autonomously decides which trajectory steps to deep-dive, when to retrieve failure memory, and when to terminate via a typed `propose_eval_case` tool — making the agent's reasoning structurally bounded and schema-safe.
 - Reduced visual-token cost ~80% via a **coarse-to-fine VLM strategy**: Trajectory Preprocessing calls a low-detail VLM (~85 tokens/image) on every step to build a digest, while high-detail VLM is invoked on demand by the agent only for steps it flags as suspicious.
 - Built **ChromaDB-backed RAG** over failure memory and prior eval cases, with agent-authored queries and traceable `retrieved_context_ids` linking each generated case back to its supporting evidence.
-- Wired **prompt caching** across the agent's tool-calling turns; produced a structured per-run `AgentTrace` rendered in the UI and consumed by RAGAS.
+- Produced a structured per-run `AgentTrace` rendered in the UI and consumed by RAGAS.
 - Evaluated retrieval-grounded analysis with **RAGAS faithfulness and context-precision** metrics; documented an ablation comparing all-steps-high-detail vs agent-driven on-demand inspection cost.
 - Built a **React replay UI** for screenshot-based trajectory inspection, coordinate validation, agent reasoning visualization, and eval case export.
 - Added pytest coverage for schemas, MolmoWeb import, coordinate validation, preprocessing, tools, ChromaDB retrieval, and the agent loop.

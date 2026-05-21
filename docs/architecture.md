@@ -25,7 +25,7 @@
 - Structured JSON outputs enforced by tool signatures (no free-form JSON parsing)
 - Function tools as the agent's only interface to the run, RAG, and final output
 - Multi-resolution VLM: low-detail (~85 tokens/image) for preprocessing, high-detail (~1500 tokens/image) on demand
-- Prompt caching across the agent's tool-calling turns when supported by the configured provider; OpenAI-compatible providers that do not expose caching still use the same prompt layout without relying on cache discounts.
+- Prompt layout keeps the stable prefix (system prompt + trajectory digest) before dynamic tool-calling turns, so a caching-capable provider benefits transparently. v1 does not depend on cache discounts and does not wire provider-specific cache controls.
 - Embeddings for failure-memory and eval-case RAG
 
 Configuration:

@@ -202,7 +202,7 @@ Screenshot bytes are never written to the trace. `get_step_detail` results carry
 
 For a 30-step run where the dataset provides no `visible_text`, preprocessing costs `30 * 85 = 2550` visual tokens and a typical analyze adds `3 * 1500 = 4500`, for a total of `7050` — versus `30 * 1500 = 45000` for a naive full-detail pass. If the dataset already provides DOM text for every step, preprocessing's VLM cost drops to zero and analyze cost stays roughly the same. The cost ablation is part of the README demo.
 
-Prompt caching is applied to the agent's system prompt and the trajectory digest (which is stable across all tool-calling turns within one run), reducing repeated input cost.
+The agent prompt is laid out with the stable prefix first — system prompt, then the trajectory digest — followed by the dynamic tool-call turns. v1 does not wire provider-specific cache controls; this layout exists so that a caching-capable provider benefits transparently if used, but the cost story does not depend on it.
 
 ## Skill
 

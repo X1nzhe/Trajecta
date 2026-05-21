@@ -72,9 +72,7 @@ These are the load-bearing decisions for v1. Each is justified by task character
    The agent indicates "I have enough evidence" by calling the tool. Schema is enforced by the tool signature, eliminating a class of JSON-parsing failures.
 5. **Tool-call budget bounds cost and latency.**
    Default 8 calls per run. Exceeding the budget terminates the loop with `terminated_by="budget_exceeded"` rather than runaway tool use.
-6. **Prompt caching across the agent's tool-calling turns.**
-   The system prompt and trajectory digest are stable across all turns within one run. Caching them is mandatory for v1, not an optimization.
-7. **Human-in-the-loop is mandatory before export.**
+6. **Human-in-the-loop is mandatory before export.**
    The agent proposes; the human validates. No `EvalCase` is exported with `human_validated = false`.
 
 ## Must Not Have in v1
