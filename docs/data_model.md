@@ -13,7 +13,7 @@ Model families:
 
 - Trajectory data: `Coordinate`, `BBox`, `StepAction`, `StepObservation`, `StepResult`, `CoordinateValidation`, `TrajectoryStep`, `TrajectoryRun`
 - Preprocessing output: `StepDigest`, `TrajectoryDigest`
-- Memory and eval artifacts: `FailureMemoryCase`, `EvalCase`
+- Memory and eval artifacts: `FailureMemoryCase`, `EvidenceItem`, `EvalCase`
 - Agent observability: `AgentTraceEvent`, `AgentTrace`
 
 Related behavior docs:

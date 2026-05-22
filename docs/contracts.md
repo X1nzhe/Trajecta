@@ -117,6 +117,24 @@ class FailureMemoryCase(BaseModel):
     source_run_id: Optional[str] = None
 
 
+class EvidenceItem(BaseModel):
+    claim: str
+    source: Literal[
+        "trajectory",
+        "trajectory_digest",
+        "step_detail_high",
+        "step_detail_low",
+        "failure_memory",
+        "eval_case",
+        "successful_run",
+        "unavailable",
+    ]
+    run_id: Optional[str] = None
+    step_index: Optional[int] = None
+    trace_event_seq: Optional[int] = None
+    context_id: Optional[str] = None
+
+
 class EvalCase(BaseModel):
     case_id: str
     source_run_id: str
@@ -125,7 +143,7 @@ class EvalCase(BaseModel):
     failure_type: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
     expected_behavior: str
     actual_behavior: str
-    evidence: List[str]
+    evidence: List[EvidenceItem]
     regression_rule: str
     retrieved_context_ids: List[str] = Field(default_factory=list)
     human_validated: bool = False
@@ -164,6 +182,11 @@ Schema field notes:
 - `StepObservation.visual_evidence` is for structured visual evidence imported from the source dataset or explicit high-detail inspection output. It must not be populated from low-detail preprocessing hints.
 - Low-detail preprocessing output belongs in `StepDigest.vlm_low_detail_summary`, not in `StepObservation`.
 - `StepAction.bbox` is untrusted unless validated against screenshot dimensions. v1 may omit bbox overlays; if rendered, the bbox must be in bounds and tied to a valid screenshot.
+- `EvalCase.evidence` is a list of structured `EvidenceItem` objects, not free-form strings. The frontend renders `claim`, but the rest of the object is used to jump back to the supporting step, tool event, or retrieved context.
+- `EvidenceItem.trace_event_seq` points to the `AgentTraceEvent.seq` that produced the evidence when it came from a tool call or tool result. It is `None` for static trajectory fields or unavailable evidence.
+- `EvidenceItem.context_id` stores a `FailureMemoryCase.case_id` or `EvalCase.case_id` when `source` is `"failure_memory"` or `"eval_case"`. It must appear in `retrieved_context_ids` if the final eval case relies on it.
+- `source="step_detail_low"` may be used for orientation only. It must not be the sole support for final claims about visual text, target identity, or coordinate correctness.
+- `source="unavailable"` records absence of evidence, such as a missing screenshot, invalid coordinate, or unavailable successful comparison run. The `claim` must state what was unavailable.
 
 ## ID Conventions
 
@@ -326,7 +349,7 @@ def propose_eval_case(
     failure_type: str,
     expected_behavior: str,
     actual_behavior: str,
-    evidence: list[str],
+    evidence: list[EvidenceItem],
     regression_rule: str,
     retrieved_context_ids: list[str],
 ) -> dict:
@@ -334,7 +357,8 @@ def propose_eval_case(
 ```
 
 `propose_eval_case` ends the agent loop. The returned draft must validate as
-`EvalCase`, and `human_validated` must remain `false` until user review.
+`EvalCase`, including `EvidenceItem` objects for every evidence entry, and
+`human_validated` must remain `false` until user review.
 
 Implementation responsibilities:
 
@@ -510,7 +534,7 @@ a retrieval-optimized subset.
 Text to embed:
 
 ```text
-task + failure_type + expected_behavior + actual_behavior + evidence + regression_rule
+task + failure_type + expected_behavior + actual_behavior + evidence.claim + regression_rule
 ```
 
 Index trigger:

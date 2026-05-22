@@ -52,7 +52,7 @@ The project must clearly demonstrate:
 - ChromaDB-backed RAG over failure memories, eval cases, and successful runs
 - Multi-resolution VLM (low-detail for preprocessing, high-detail on demand)
 - Per-run agent trace persisted at `data/runs/{run_id}/last_trace.json`
-- Human-reviewable eval case draft and export flow
+- Human-reviewable eval case draft and export flow with structured evidence references
 - Basic pytest test suite
 - Minimal RAGAS evaluation script (faithfulness + context_precision); fallback allowed if RAGAS setup is too slow
 - README with architecture and demo instructions

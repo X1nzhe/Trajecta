@@ -122,7 +122,7 @@ Two screenshot detail levels exist, and they have different evidentiary weight:
 - **Low-detail** (~85 tokens/image) — from `StepDigest.vlm_low_detail_summary` or from `get_step_detail(..., image_detail="low")`. Allowed for orientation, hypothesis formation, and suspicious-step selection.
 - **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`. Required for any claim about visual text, button labels, target identity, or coordinate correctness.
 
-Hard rule: **any field in the final `EvalCase` that depends on visual text, target identity, or coordinate correctness must trace to a high-detail observation** (high-detail `get_step_detail`, OCR, or structured trajectory text such as `StepObservation.visible_text` / `action_target`). Low-detail output may appear in the agent's reasoning but must not be cited as the sole source of evidence in `EvalCase.evidence`.
+Hard rule: **any field in the final `EvalCase` that depends on visual text, target identity, or coordinate correctness must trace to a high-detail observation** (high-detail `get_step_detail`, OCR, or structured trajectory text such as `StepObservation.visible_text` / `action_target`). Low-detail output may appear in the agent's reasoning, but `EvidenceItem.source="step_detail_low"` or `"trajectory_digest"` must not be the sole support for those final claims.
 
 ## Agent Behavior
 
@@ -136,7 +136,7 @@ The system prompt instructs the agent to:
 6. Call `find_similar_successful_run(task)` once a likely failure region is identified. If a comparable success run exists, call `get_run(other_run_id)` and diff the digests step-by-step; use `get_step_detail` on the comparison run only when the digest-level diff is ambiguous.
 7. Call `search_failure_memory` and/or `search_eval_cases` with queries grounded in observed evidence — including divergence patterns surfaced by replay-and-diff.
 8. When evidence is sufficient, call `propose_eval_case` with all required fields.
-9. Never invent evidence. If a screenshot, coordinate, or successful comparison run is missing, say so explicitly in `evidence`.
+9. Never invent evidence. If a screenshot, coordinate, or successful comparison run is missing, include an `EvidenceItem` with `source="unavailable"` and a claim that states what was unavailable.
 
 The agent is constrained by a **per-turn** tool-call budget to bound cost and latency:
 
@@ -210,7 +210,9 @@ for demo-quality analysis.
 The output is the `EvalCase` Pydantic model from
 [docs/contracts.md](contracts.md#schema-contracts), populated by the
 `propose_eval_case` terminal tool. The agent does **not** emit free-form JSON;
-the schema is enforced by the tool signature.
+the schema is enforced by the tool signature. `EvalCase.evidence` entries are
+structured `EvidenceItem` objects so the UI and tests can trace each claim back
+to a run step, tool event, retrieved context, or explicit unavailable evidence.
 
 ## Observability
 
@@ -230,6 +232,8 @@ Persistence and consumers:
 Invariants enforced in tests:
 
 - Every `case_id` in the proposed `EvalCase.retrieved_context_ids` must appear in some `tool_result` event of the same trace, regardless of which turn produced it.
+- Every `EvidenceItem` with `source="failure_memory"` or `"eval_case"` must carry a `context_id` that appears in a prior retrieval tool result.
+- Every `EvidenceItem` with `source="step_detail_high"` or `"step_detail_low"` should carry the `trace_event_seq` for the matching `get_step_detail` tool result.
 - `AgentTraceEvent.seq` is strictly monotonic across the whole trace.
 - `AgentTraceEvent.turn` is non-decreasing across the event list.
 

@@ -99,6 +99,7 @@ trajecta/
         ScreenshotViewer.tsx
         StepDetailPanel.tsx
         EvalAgentPanel.tsx
+        ObservationSummaryPanel.tsx
         EvalCaseDraft.tsx
   data/
     raw/

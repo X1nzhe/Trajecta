@@ -112,8 +112,30 @@ If RAGAS setup is too slow for a local run, use the documented fallback script w
   "expected_behavior": "The agent should verify price and free parking before selecting a hotel.",
   "actual_behavior": "The agent selected a hotel without verifying the free parking constraint.",
   "evidence": [
-    "Step 3 selected a hotel result.",
-    "No inspected step verified free parking before selection."
+    {
+      "claim": "Step 3 selected a hotel result.",
+      "source": "step_detail_high",
+      "run_id": "run_001",
+      "step_index": 3,
+      "trace_event_seq": 4,
+      "context_id": null
+    },
+    {
+      "claim": "No inspected step verified free parking before selection.",
+      "source": "trajectory",
+      "run_id": "run_001",
+      "step_index": null,
+      "trace_event_seq": null,
+      "context_id": null
+    },
+    {
+      "claim": "Failure memory fm_missed_constraint_001 describes agents selecting an item before checking a required constraint.",
+      "source": "failure_memory",
+      "run_id": null,
+      "step_index": null,
+      "trace_event_seq": 6,
+      "context_id": "fm_missed_constraint_001"
+    }
   ],
   "regression_rule": "Pass only if the selected hotel satisfies both the price and free parking constraints.",
   "retrieved_context_ids": ["fm_missed_constraint_001"],

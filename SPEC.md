@@ -55,7 +55,7 @@ This is an Eval Agent for browser-use agent trajectories.
 - LangGraph **tool-calling Eval Agent** that autonomously inspects suspicious steps, retrieves similar failures, and proposes an eval case via a terminal tool.
 - ChromaDB-backed failure-memory and eval-case retrieval.
 - Per-run agent trace (`data/runs/{run_id}/last_trace.json`) consumed by the API, frontend, and RAGAS.
-- Human-reviewable eval case draft and export flow.
+- Human-reviewable eval case draft and export flow with structured evidence references.
 - pytest coverage plus RAGAS or fallback retrieval/grounding evaluation.
 
 ## Design Decisions

@@ -32,9 +32,10 @@ def ragas_answer_from_trace(trace: AgentTrace) -> str:
 
     Locates the **latest** `tool_call` event with name=="propose_eval_case"
     (a multi-turn trace may contain more than one) and concatenates the
-    `actual_behavior` argument with the `evidence` list. Raises if the trace
-    did not terminate via propose_eval_case (e.g. terminated_by=="budget_exceeded"
-    or "error") — such traces are skipped from the RAGAS sample.
+    `actual_behavior` argument with each structured evidence `claim`. Raises
+    if the trace did not terminate via propose_eval_case (e.g.
+    terminated_by=="budget_exceeded" or "error") — such traces are skipped from
+    the RAGAS sample.
     """
     calls = [
         e for e in trace.events
@@ -45,14 +46,15 @@ def ragas_answer_from_trace(trace: AgentTrace) -> str:
     args = calls[-1].args or {}
     actual_behavior = args["actual_behavior"]
     evidence = args.get("evidence", [])
-    return actual_behavior + "\n\n" + "\n".join(evidence)
+    claims = [item["claim"] for item in evidence]
+    return actual_behavior + "\n\n" + "\n".join(claims)
 ```
 
 Rules:
 
 - Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` are included in the RAGAS sample; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
 - The answer text intentionally excludes `expected_behavior`, `regression_rule`, and `agent_message` events. `expected_behavior` describes the correct outcome (not the agent's claim about *this* run), and free-form `agent_message` text often contains discarded hypotheses that would inflate hallucination signal unfairly.
-- `actual_behavior` and `evidence` are read from the **trace** (the tool-call `args`), not from a persisted `EvalCase` file, because drafts are not persisted and the trace is the only source available to `ragas_eval.py` (see [docs/eval_agent.md](eval_agent.md) Observability section).
+- `actual_behavior` and `evidence[*].claim` are read from the **trace** (the tool-call `args`), not from a persisted `EvalCase` file, because drafts are not persisted and the trace is the only source available to `ragas_eval.py` (see [docs/eval_agent.md](eval_agent.md) Observability section).
 - `contexts` are accumulated from **all** `search_failure_memory` / `search_eval_cases` `tool_result` events in the trace, regardless of turn. A follow-up turn that retrieves additional evidence contributes to the same RAGAS sample as the initial turn's retrievals.
 
 Output files:
@@ -106,6 +108,8 @@ tests/test_eval_agent.py
 - agent terminates via propose_eval_case when evidence is sufficient
 - agent terminates with budget_exceeded when tool-call budget is reached
 - agent's retrieved_context_ids match IDs actually returned by search_* tool calls in the trace, across all turns
+- agent's evidence items validate against `EvidenceItem`, and retrieval-derived evidence has `context_id` values returned by search_* tool calls
+- step-detail evidence includes a `trace_event_seq` pointing to a matching `get_step_detail` event
 - agent uses get_step_detail no more than min(tool_call_budget, ceil(0.3 * step_count)) times on run-level analysis
 - AgentTraceEvent.seq is strictly monotonic across the whole trace, including across turns
 - AgentTraceEvent.turn is non-decreasing across the event list
@@ -142,6 +146,7 @@ tests/test_rag.py
 
 tests/test_eval_case.py
 - agent eval_case_draft validates against the EvalCase contract
+- eval_case_draft evidence validates as structured EvidenceItem rows
 - exported eval case validates against the EvalCase contract
 ```
 

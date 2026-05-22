@@ -7,7 +7,7 @@ Layout:
 ```text
 Left:   Run list
 Center: Screenshot replay + step timeline + step detail tabs
-Right:  Eval Agent panel (chat-style) + Eval case draft
+Right:  Eval Agent controls + observation summary + trace timeline + eval case draft
 Footer: dataset and run count summary
 ```
 
@@ -73,7 +73,9 @@ Tabs map directly to [docs/contracts.md](contracts.md) schema fields. Do not add
 
 ### `EvalAgentPanel.tsx` (chat-style)
 
-Renders the agent's trace as a chat-style timeline plus a follow-up input.
+Renders the agent controls, `ObservationSummaryPanel`, trace timeline, and
+follow-up input. The right panel should feel like an AI-native inspection
+surface: latest conclusion first, trace available below for audit.
 
 **Header**
 
@@ -90,6 +92,10 @@ Renders the agent's trace as a chat-style timeline plus a follow-up input.
 - `Analyze this step` → `POST /api/runs/{run_id}/steps/{step_index}/analyze`. Disabled until a step is selected.
 
 These are the **only** buttons that can start a fresh trace. All other interactions go through the chat input.
+
+Place `ObservationSummaryPanel` immediately below these buttons and above the
+chat history so the right panel leads with the current interpretation while the
+full trace remains available for audit.
 
 **Chat history**
 
@@ -129,10 +135,27 @@ The chip labels and prefill texts are UI strings, not contract values; the agent
 
 A thumbs-up / thumbs-down pair next to the latest agent message. Clicking them sets a local highlight state but is not wired to any backend in v1. Wire-up is a v2 task.
 
+### `ObservationSummaryPanel.tsx`
+
+This is the observation-focused summary surface shown in the mock UI. It is a
+read model over the latest `AgentTrace` and latest `EvalCase` draft; it does
+not create a second analysis path.
+
+- Empty state before analysis: show no findings and keep the follow-up input disabled.
+- After analysis: show the latest outcome title, e.g. `Analysis Result (Step 5)`, derived from `EvalCase.failure_step` when a draft exists.
+- Show a concise natural-language summary from the latest terminal `propose_eval_case` arguments: `actual_behavior` first, then `expected_behavior` when useful.
+- Show `Findings` as `EvalCase.evidence[*].claim`, grouped by `EvidenceItem.source` where useful.
+- Show `Suggested Failure Label` from `EvalCase.failure_type`. Do **not** show a model confidence score; if a grounding signal is needed, derive it from evidence structure in a later version.
+- Show `Visual Evidence` thumbnails only for evidence items with `run_id` and `step_index` whose source is `trajectory`, `step_detail_high`, or `successful_run`, and where the referenced step has an available screenshot. Clicking a thumbnail selects that step in the center panel.
+- Show retrieved context chips for evidence items with `context_id`; clicking opens the matching tool result card in the trace.
+- Show unavailable evidence items (`source="unavailable"`) as muted warnings, not as factual proof.
+- If the latest turn ended with `budget_exceeded` or `error`, keep any prior summary visible but mark it as stale relative to the latest turn.
+
 ### `EvalCaseDraft.tsx`
 
 - Show complete `EvalCase`-shaped draft from the response's `eval_case_draft` field.
 - Render every field from the [EvalCase schema](contracts.md#schema-contracts): `failure_step`, `failure_type`, `expected_behavior`, `actual_behavior`, `evidence`, `regression_rule`, `retrieved_context_ids`.
+- Render `evidence` as structured rows: claim text, source badge, optional step link, optional trace-event link, and optional retrieved-context link.
 - Allow the user to edit fields inline before export.
 - `Mark validated` checkbox sets `human_validated=true` in the client-side draft.
 - `Export Eval Case` button is **disabled** while `human_validated=false`. Clicking calls `POST /api/eval-cases` with the validated body.
