@@ -148,8 +148,9 @@ def load_digest(run_id: str) -> TrajectoryDigest | None:
 
 def save_digest(run_id: str, digest: TrajectoryDigest) -> None:
     validated = TrajectoryDigest.model_validate(digest)
+    if validated.run_id != run_id:
+        raise ValueError(f"digest.run_id {validated.run_id!r} does not match run_id argument {run_id!r}")
     _atomic_write_model(_run_artifact_path(run_id, "digest.json"), validated)
-
 
 def delete_digest(run_id: str) -> None:
     try:
