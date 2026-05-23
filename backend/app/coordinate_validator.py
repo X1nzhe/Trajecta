@@ -48,12 +48,12 @@ def validate_coordinates(
 
     x = action.coordinates.x
     y = action.coordinates.y
-    if 0 <= x <= width and 0 <= y <= height:
+    if 0 <= x < width and 0 <= y < height:
         return CoordinateValidation(status="validated", image_width=width, image_height=height)
 
     return CoordinateValidation(
         status="out_of_bounds",
         image_width=width,
         image_height=height,
-        reason=f"coordinate ({x}, {y}) outside image bounds 0..{width} x 0..{height}",
+        reason=f"coordinate ({x}, {y}) outside image bounds x in [0, {width}) y in [0, {height})",
     )
