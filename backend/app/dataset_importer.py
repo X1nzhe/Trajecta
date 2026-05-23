@@ -507,9 +507,7 @@ def _normalize_image_bytes(value: Any) -> bytes | None:
                 return nested
             if isinstance(nested, bytearray):
                 return bytes(nested)
-        path = value.get("path")
-        if isinstance(path, str) and Path(path).exists():
-            return Path(path).read_bytes()
+        # Intentionally ignore any `path` field to avoid reading arbitrary local files from dataset rows.
     if hasattr(value, "save"):
         buffer = io.BytesIO()
         image_format = getattr(value, "format", None) or "PNG"
