@@ -14,7 +14,7 @@ Do not spend more than half a day on MCP.
 
 ## One-Week Build Plan
 
-### Stage 1
+### Phase 1 - Done
 
 - Create repo
 - Add schemas
@@ -25,25 +25,25 @@ Do not spend more than half a day on MCP.
 - Add failure memory cases
 - Add basic tests
 
-### Stage 2
+### Phase 2 - Done
 
 - Implement dataset importer
 - Implement coordinate validator
 - Implement backend storage and tools
 
-### Stage 3
+### Phase 3
 
 - Implement Trajectory Preprocessing (`preprocess.py`) per [docs/preprocessing.md](preprocessing.md): build the `trajectory_digest` with low-detail VLM hints, parsed actions, and coordinate validation
 - Implement ChromaDB RAG (`failure_memory` + `eval_cases` + `successful_runs` collections)
 - Implement the LangGraph tool-calling Eval Agent with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and the terminal `propose_eval_case` tool
 - Convert the agent loop's final `messages` into an `AgentTrace` and persist to `data/runs/{run_id}/last_trace.json` (overwritten each analyze)
 
-### Stage 4
+### Phase 4
 
 - Add RAGAS eval script
 - Finish pytest coverage
 
-### Stage 5
+### Phase 5
 
 - Build React UI
 - Run list
@@ -51,7 +51,7 @@ Do not spend more than half a day on MCP.
 - Screenshot viewer
 - Step details (Action / Observation / Coordinate Validation / Metadata tabs)
 
-### Stage 6
+### Phase 6
 
 - Add Eval Agent panel as a chat-style timeline (renders trace events grouped by turn)
 - Wire Analyze Run / Analyze Step as the only fresh-trace entrypoints
@@ -62,7 +62,7 @@ Do not spend more than half a day on MCP.
 - Add SKILL.md if time permits
 - Optional minimal MCP server
 
-### Stage 7
+### Phase 7
 
 - Polish demo
 - Add screenshots / GIF
