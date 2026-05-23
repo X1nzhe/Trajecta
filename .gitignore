@@ -222,3 +222,7 @@ __marimo__/
 
 # data
 data/raw
+# Fixture contract files: track human-curated demo manifest and status overlay,
+# but keep the materialized HF dataset and generated galleries out of git.
+!data/raw/molmoweb_humanskills_sample/demo_sample_ids.txt
+!data/raw/molmoweb_humanskills_sample/run_status_overlay.json

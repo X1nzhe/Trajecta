@@ -16,16 +16,41 @@ import sys
 from pathlib import Path
 from typing import Any
 
-try:
-    from prefilter_molmoweb import DATASET_NAME, load_env_file
-except ImportError:
-    from scripts.prefilter_molmoweb import DATASET_NAME, load_env_file
-
-
-DEFAULT_SAMPLE_ID_FILE = "data/raw/molmoweb_humanskills_sample/_work/candidate_sample_ids.txt"
+DATASET_NAME = "allenai/MolmoWeb-HumanSkills"
+DEFAULT_SAMPLE_ID_FILE = "data/raw/molmoweb_humanskills_sample/demo_sample_ids.txt"
 DEFAULT_OUTPUT_DIR = "data/raw/molmoweb_humanskills_sample/hf_dataset"
 DEFAULT_PARQUET_PATH = "data/raw/molmoweb_humanskills_sample/molmoweb_humanskills_sample.parquet"
 DEFAULT_MANIFEST_PATH = "data/raw/molmoweb_humanskills_sample/materialize_manifest.json"
+
+
+def load_env_file(path: Path) -> None:
+    """Load a dotenv-style file into os.environ. Existing env vars win."""
+    if not path.exists():
+        return
+
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        load_dotenv = None
+
+    if load_dotenv is not None:
+        load_dotenv(path, override=False)
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key.startswith("export "):
+            key = key.removeprefix("export ").strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ[key] = value
 
 
 def read_sample_ids(path: Path) -> list[str]:
