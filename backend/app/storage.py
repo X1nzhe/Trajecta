@@ -171,8 +171,9 @@ def load_trace(run_id: str) -> AgentTrace | None:
 
 def save_trace(run_id: str, trace: AgentTrace) -> None:
     validated = AgentTrace.model_validate(trace)
+    if validated.run_id != run_id:
+        raise ValueError(f"trace.run_id {validated.run_id!r} does not match run_id argument {run_id!r}")
     _atomic_write_model(_run_artifact_path(run_id, "last_trace.json"), validated)
-
 
 def save_eval_case(case: EvalCase) -> None:
     validated = EvalCase.model_validate(case)
