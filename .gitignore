@@ -221,7 +221,10 @@ __marimo__/
 .DS_Store
 
 # data
-data/raw
+data/raw/molmoweb_humanskills_sample/image_gallery/
+data/raw/molmoweb_humanskills_sample/hf_dataset/
+data/raw/molmoweb_humanskills_sample/molmoweb_humanskills_sample.parquet
+data/raw/molmoweb_humanskills_sample/materialize_manifest.json
 # Fixture contract files: track human-curated demo manifest and status overlay,
 # but keep the materialized HF dataset and generated galleries out of git.
 !data/raw/molmoweb_humanskills_sample/demo_sample_ids.txt

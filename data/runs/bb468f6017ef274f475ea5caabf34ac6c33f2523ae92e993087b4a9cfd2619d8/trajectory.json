@@ -1,0 +1,457 @@
+{
+  "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+  "task": "navigate: Search for round-trip flights from San Francisco to Singapore, departing on April 15, 2025, and returning on April 22, 2025, while ensuring the flights do not exceed two layovers.",
+  "source": "allenai/MolmoWeb-HumanSkills",
+  "status": "failed",
+  "steps": [
+    {
+      "index": 0,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_001.png",
+        "url": "https://www.google.com/travel/flights/",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "click",
+        "label": "Click on INPUT element",
+        "raw": "mouse_click(x=299.8773006134969, y=537.1565495207667, button='left')",
+        "coordinates": {
+          "x": 299.8773006134969,
+          "y": 537.1565495207667
+        },
+        "bbox": {
+          "x": 161.4339430171288,
+          "y": 498.97783546325877,
+          "width": 214.4435071574642,
+          "height": 69.9552715654952
+        }
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "validated",
+        "image_width": 1222,
+        "image_height": 782
+      },
+      "metadata": {
+        "source_step_key": "1",
+        "source_action_name": "click",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 1,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_002.png",
+        "url": "https://www.google.com/travel/flights/",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "unknown",
+        "label": "SelectAll(key='ControlOrMeta+a')",
+        "raw": "keyboard_press(key='ControlOrMeta+a')",
+        "text": "ControlOrMeta+a"
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "missing",
+        "image_width": 1222,
+        "image_height": 782,
+        "reason": "action has no coordinate"
+      },
+      "metadata": {
+        "source_step_key": "2",
+        "source_action_name": "keyboard_press",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 2,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_003.png",
+        "url": "https://www.google.com/travel/flights/",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "type",
+        "label": "type 'san francisco'",
+        "raw": "keyboard_type(text='san francisco')",
+        "text": "san francisco"
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "missing",
+        "image_width": 1222,
+        "image_height": 782,
+        "reason": "action has no coordinate"
+      },
+      "metadata": {
+        "source_step_key": "3",
+        "source_action_name": "keyboard_type",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 3,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_004.png",
+        "url": "https://www.google.com/travel/flights/",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "unknown",
+        "label": "press Enter key",
+        "raw": "keyboard_press(key='Enter')",
+        "text": "Enter"
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "missing",
+        "image_width": 1222,
+        "image_height": 782,
+        "reason": "action has no coordinate"
+      },
+      "metadata": {
+        "source_step_key": "4",
+        "source_action_name": "keyboard_press",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 4,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_005.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARoOagwIAxIIL20vMGQ2bHAaDnIMCAMSCC9tLzBkNmxwQAFIAXABggELCP___________wGYAQE&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "click",
+        "label": "Click on INPUT element",
+        "raw": "mouse_click(x=497.2965235173824, y=538.405750798722, button='left')",
+        "coordinates": {
+          "x": 497.2965235173824,
+          "y": 538.405750798722
+        },
+        "bbox": {
+          "x": 385.8733792607282,
+          "y": 498.97783546325877,
+          "width": 214.4435071574642,
+          "height": 69.9552715654952
+        }
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "validated",
+        "image_width": 1222,
+        "image_height": 782
+      },
+      "metadata": {
+        "source_step_key": "5",
+        "source_action_name": "click",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 5,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_006.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARoOagwIAxIIL20vMGQ2bHAaDnIMCAMSCC9tLzBkNmxwQAFIAXABggELCP___________wGYAQE&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "type",
+        "label": "type 'singapore'",
+        "raw": "keyboard_type(text='singapore')",
+        "text": "singapore"
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "missing",
+        "image_width": 1222,
+        "image_height": 782,
+        "reason": "action has no coordinate"
+      },
+      "metadata": {
+        "source_step_key": "6",
+        "source_action_name": "keyboard_type",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 6,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_007.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARoOagwIAxIIL20vMGQ2bHAaDnIMCAMSCC9tLzBkNmxwQAFIAXABggELCP___________wGYAQE&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "unknown",
+        "label": "press Enter key",
+        "raw": "keyboard_press(key='Enter')",
+        "text": "Enter"
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "missing",
+        "image_width": 1222,
+        "image_height": 782,
+        "reason": "action has no coordinate"
+      },
+      "metadata": {
+        "source_step_key": "7",
+        "source_action_name": "keyboard_press",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 7,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_008.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARocagwIAxIIL20vMGQ2bHByDAgDEggvbS8wNnQydBocagwIAxIIL20vMDZ0MnRyDAgDEggvbS8wZDZscEABSAFwAYIBCwj___________8BmAEB&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "click",
+        "label": "Click on svg element",
+        "raw": "mouse_click(x=662.2290388548057, y=530.9105431309904, button='left')",
+        "coordinates": {
+          "x": 662.2290388548057,
+          "y": 530.9105431309904
+        },
+        "bbox": {
+          "x": 662.2290388548057,
+          "y": 530.9105431309904,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "validated",
+        "image_width": 1222,
+        "image_height": 782
+      },
+      "metadata": {
+        "source_step_key": "8",
+        "source_action_name": "click",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 8,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_009.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARocagwIAxIIL20vMGQ2bHByDAgDEggvbS8wNnQydBocagwIAxIIL20vMDZ0MnRyDAgDEggvbS8wZDZscEABSAFwAYIBCwj___________8BmAEB&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "click",
+        "label": "Click on svg element",
+        "raw": "mouse_click(x=344.8588957055215, y=734.5303514376997, button='left')",
+        "coordinates": {
+          "x": 344.8588957055215,
+          "y": 734.5303514376997
+        },
+        "bbox": {
+          "x": 344.8588957055215,
+          "y": 734.5303514376997,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "validated",
+        "image_width": 1222,
+        "image_height": 782
+      },
+      "metadata": {
+        "source_step_key": "9",
+        "source_action_name": "click",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 9,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_010.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARocagwIAxIIL20vMGQ2bHByDAgDEggvbS8wNnQydBocagwIAxIIL20vMDZ0MnRyDAgDEggvbS8wZDZscEABSAFwAYIBCwj___________8BmAEB&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "click",
+        "label": "Click on svg element",
+        "raw": "mouse_click(x=333.6134969325154, y=748.2715654952076, button='left')",
+        "coordinates": {
+          "x": 333.6134969325154,
+          "y": 748.2715654952076
+        },
+        "bbox": {
+          "x": 333.6134969325154,
+          "y": 748.2715654952076,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "validated",
+        "image_width": 1222,
+        "image_height": 782
+      },
+      "metadata": {
+        "source_step_key": "10",
+        "source_action_name": "click",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 10,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_011.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARocagwIAxIIL20vMGQ2bHByDAgDEggvbS8wNnQydBocagwIAxIIL20vMDZ0MnRyDAgDEggvbS8wZDZscEABSAFwAYIBCwj___________8BmAEB&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "click",
+        "label": "Click on svg element",
+        "raw": "mouse_click(x=333.6134969325154, y=748.2715654952076, button='left')",
+        "coordinates": {
+          "x": 333.6134969325154,
+          "y": 748.2715654952076
+        },
+        "bbox": {
+          "x": 333.6134969325154,
+          "y": 748.2715654952076,
+          "width": 0.0,
+          "height": 0.0
+        }
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "validated",
+        "image_width": 1222,
+        "image_height": 782
+      },
+      "metadata": {
+        "source_step_key": "11",
+        "source_action_name": "click",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    },
+    {
+      "index": 11,
+      "timestamp": null,
+      "observation": {
+        "screenshot": "screenshot_012.png",
+        "url": "https://www.google.com/travel/flights?tfs=CBwQARocagwIAxIIL20vMGQ2bHByDAgDEggvbS8wNnQydBocagwIAxIIL20vMDZ0MnRyDAgDEggvbS8wZDZscEABSAFwAYIBCwj___________8BmAEB&tfu=KgIIAw",
+        "title": "Find Cheap Flights Worldwide & Book Your Ticket - Google Flights",
+        "visible_text": null,
+        "visual_evidence": []
+      },
+      "action": {
+        "type": "unknown",
+        "label": "send message to user: '[EXIT]'",
+        "raw": "send_msg_to_user(text='[EXIT]')"
+      },
+      "result": {
+        "status": "unknown",
+        "error": null
+      },
+      "coordinate_validation": {
+        "status": "missing",
+        "image_width": 1222,
+        "image_height": 782,
+        "reason": "action has no coordinate"
+      },
+      "metadata": {
+        "source_step_key": "12",
+        "source_action_name": "send_msg_to_user",
+        "image_width": 1222,
+        "image_height": 782
+      }
+    }
+  ],
+  "metadata": {
+    "category": "google_flight",
+    "failure_mode": "early terminated",
+    "notes": null,
+    "fixture_set": "stage1"
+  }
+}

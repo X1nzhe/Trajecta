@@ -1,0 +1,144 @@
+{
+  "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+  "user_intent": "analyze_run",
+  "selected_step": null,
+  "tool_call_count": 2,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "agent_message",
+      "name": null,
+      "args": null,
+      "result": null,
+      "message": "Inspect the failed Google Flights run and verify whether the final step has enough evidence for success.",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+        "step_index": 11,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+        "step_index": 11,
+        "analysis": "The final recorded action is send_msg_to_user(text='[EXIT]'). The run ends without a recorded action that verifies the no-more-than-two-layovers constraint."
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "search_failure_memory",
+      "args": {
+        "query": "agent exits before verifying explicit flight layover constraint",
+        "top_k": 2
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "search_failure_memory",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "fm_early_terminated_001",
+            "failure_type": "early_terminated",
+            "summary": "The agent exited before reaching a page state that satisfies the task.",
+            "fix_hint": "Require a final evidence check that the requested information or state is visible before sending an exit message.",
+            "tags": [
+              "termination",
+              "verification"
+            ],
+            "source_run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8"
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+        "failure_step": 11,
+        "failure_type": "early_terminated",
+        "expected_behavior": "The agent should continue until the Google Flights results satisfy the requested route, dates, and no-more-than-two-layovers constraint.",
+        "actual_behavior": "The trajectory ends with an exit message before the fixture contains evidence that the layover constraint was checked.",
+        "evidence": [
+          {
+            "claim": "The source task explicitly requires round-trip flights from San Francisco to Singapore with no more than two layovers.",
+            "source": "trajectory",
+            "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Step 11 is an exit message rather than an action that verifies or filters layovers.",
+            "source": "step_detail_high",
+            "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+            "step_index": 11,
+            "trace_event_seq": 2,
+            "context_id": null
+          },
+          {
+            "claim": "Failure memory case fm_early_terminated_001 describes this premature-exit pattern.",
+            "source": "failure_memory",
+            "run_id": null,
+            "step_index": null,
+            "trace_event_seq": 4,
+            "context_id": "fm_early_terminated_001"
+          }
+        ],
+        "regression_rule": "For flight-search tasks with explicit constraints, the agent must not exit until the final visible state or tool evidence confirms every route, date, and layover constraint.",
+        "retrieved_context_ids": [
+          "fm_early_terminated_001"
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8_step_11",
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ]
+}

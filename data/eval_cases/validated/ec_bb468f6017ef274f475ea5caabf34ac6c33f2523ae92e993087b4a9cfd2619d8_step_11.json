@@ -1,0 +1,40 @@
+{
+  "case_id": "ec_bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8_step_11",
+  "source_run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+  "task": "navigate: Search for round-trip flights from San Francisco to Singapore, departing on April 15, 2025, and returning on April 22, 2025, while ensuring the flights do not exceed two layovers.",
+  "failure_step": 11,
+  "failure_type": "early_terminated",
+  "expected_behavior": "The agent should continue until the Google Flights results satisfy the requested route, dates, and no-more-than-two-layovers constraint.",
+  "actual_behavior": "The trajectory ends with an exit message before the fixture contains evidence that the layover constraint was checked.",
+  "evidence": [
+    {
+      "claim": "The source task explicitly requires round-trip flights from San Francisco to Singapore with no more than two layovers.",
+      "source": "trajectory",
+      "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+      "step_index": null,
+      "trace_event_seq": null,
+      "context_id": null
+    },
+    {
+      "claim": "Step 11 is an exit message rather than an action that verifies or filters layovers.",
+      "source": "trajectory",
+      "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+      "step_index": 11,
+      "trace_event_seq": null,
+      "context_id": null
+    },
+    {
+      "claim": "Failure memory case fm_early_terminated_001 describes this premature-exit pattern.",
+      "source": "failure_memory",
+      "run_id": null,
+      "step_index": null,
+      "trace_event_seq": 4,
+      "context_id": "fm_early_terminated_001"
+    }
+  ],
+  "regression_rule": "For flight-search tasks with explicit constraints, the agent must not exit until the final visible state or tool evidence confirms every route, date, and layover constraint.",
+  "retrieved_context_ids": [
+    "fm_early_terminated_001"
+  ],
+  "human_validated": true
+}
