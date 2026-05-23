@@ -14,7 +14,7 @@ Do not spend more than half a day on MCP.
 
 ## One-Week Build Plan
 
-### Phase 1
+### Phase 1 - Done
 
 - Create repo
 - Add schemas
@@ -25,7 +25,7 @@ Do not spend more than half a day on MCP.
 - Add failure memory cases
 - Add basic tests
 
-### Phase 2
+### Phase 2 - Done
 
 - Implement dataset importer
 - Implement coordinate validator
