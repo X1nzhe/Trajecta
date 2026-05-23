@@ -181,6 +181,89 @@ def extract_task(instruction: Any) -> str:
     return str(parsed).strip() if parsed is not None else ""
 
 
+def json_text(value: Any, *, indent: int | None = None) -> str:
+    return json.dumps(value, default=str, ensure_ascii=False, indent=indent, sort_keys=False)
+
+
+def compact_json(value: Any, max_chars: int = 1400) -> str:
+    text = json_text(value)
+    return text if len(text) <= max_chars else text[: max_chars - 3] + "..."
+
+
+def action_summary(action: Any) -> str:
+    if isinstance(action, str):
+        return action
+    if not isinstance(action, dict):
+        return compact_json(action)
+
+    parts: list[str] = []
+    for key in ("action_str", "action_description"):
+        value = action.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+
+    output = action.get("action_output")
+    if isinstance(output, str):
+        try:
+            output = json.loads(output)
+        except json.JSONDecodeError:
+            parts.append(output)
+            output = None
+    if isinstance(output, dict):
+        action_name = output.get("action_name") or output.get("name")
+        if action_name:
+            parts.append(str(action_name))
+        params = {
+            key: value
+            for key, value in output.items()
+            if key not in {"thought", "action_name", "name"} and value not in (None, "")
+        }
+        if params:
+            parts.append(compact_json(params, max_chars=500))
+
+    return " | ".join(parts) if parts else compact_json(action)
+
+
+def step_summaries(row: dict[str, Any]) -> list[dict[str, Any]]:
+    trajectory = parse_trajectory(row.get("trajectory"))
+    if not isinstance(trajectory, dict):
+        return []
+
+    try:
+        step_keys = sorted(trajectory.keys(), key=int)
+    except (TypeError, ValueError):
+        step_keys = list(trajectory.keys())
+
+    steps: list[dict[str, Any]] = []
+    for step_key in step_keys:
+        step = trajectory.get(step_key)
+        if not isinstance(step, dict):
+            continue
+
+        other_obs = step.get("other_obs") or {}
+        url = None
+        title = None
+        if isinstance(other_obs, dict):
+            url = other_obs.get("url") or other_obs.get("current_url")
+            page_index = other_obs.get("page_index")
+            titles = other_obs.get("open_pages_titles")
+            if isinstance(titles, list) and isinstance(page_index, int) and 0 <= page_index < len(titles):
+                title = titles[page_index]
+
+        steps.append(
+            {
+                "index": step_key,
+                "screenshot": step.get("screenshot"),
+                "action": action_summary(step.get("action")),
+                "url": url,
+                "title": title,
+                "timestamp": step.get("action_timestamp"),
+                "raw": json_text(step, indent=2),
+            }
+        )
+    return steps
+
+
 def ordered_screenshot_refs(row: dict[str, Any]) -> list[str]:
     trajectory = parse_trajectory(row.get("trajectory"))
     if not isinstance(trajectory, dict):
@@ -199,20 +282,24 @@ def ordered_screenshot_refs(row: dict[str, Any]) -> list[str]:
     return refs
 
 
-def export_images(dataset: Any, output_dir: Path, overwrite: bool, only_referenced: bool) -> list[dict[str, Any]]:
+def export_images(dataset: Any, output_dir: Path, overwrite: bool, only_referenced: bool) -> dict[str, Any]:
     if output_dir.exists():
         if not overwrite:
             raise FileExistsError(f"output directory already exists: {output_dir}; pass --overwrite to replace it")
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    exported: list[dict[str, Any]] = []
+    exported_images: list[dict[str, Any]] = []
+    samples: list[dict[str, Any]] = []
     for row_index, row in enumerate(dataset):
         row_dict = dict(row)
         sample_id = str(row_dict.get("sample_id") or f"row_{row_index}")
         task = extract_task(row_dict.get("instruction"))
+        trajectory = parse_trajectory(row_dict.get("trajectory"))
+        steps = step_summaries(row_dict)
         sample_dir = output_dir / safe_filename(sample_id, f"row_{row_index}")
         sample_dir.mkdir(parents=True, exist_ok=True)
+        sample_images: list[dict[str, Any]] = []
 
         images = row_dict.get("images") or []
         raw_image_paths = row_dict.get("image_paths")
@@ -248,51 +335,130 @@ def export_images(dataset: Any, output_dir: Path, overwrite: bool, only_referenc
             width, height = image_dimensions(image_bytes)
             quality_flags = image_quality_flags(image_bytes, width, height)
 
-            exported.append(
-                {
-                    "sample_id": sample_id,
-                    "task": task,
-                    "source_path": source_path,
-                    "output_path": str(output_path),
-                    "relative_path": str(output_path.relative_to(output_dir)),
-                    "bytes": len(image_bytes),
-                    "width": width,
-                    "height": height,
-                    "quality_flags": quality_flags,
-                    "referenced": source_path_matches_ref,
-                }
-            )
+            image_record = {
+                "sample_id": sample_id,
+                "source_path": source_path,
+                "output_path": str(output_path),
+                "relative_path": str(output_path.relative_to(output_dir)),
+                "bytes": len(image_bytes),
+                "width": width,
+                "height": height,
+                "quality_flags": quality_flags,
+                "referenced": source_path_matches_ref,
+            }
+            exported_images.append(image_record)
+            sample_images.append(image_record)
 
-    return exported
+        sample_flags = sorted({flag for item in sample_images for flag in item.get("quality_flags") or []})
+        samples.append(
+            {
+                "sample_id": sample_id,
+                "task": task,
+                "steps": steps,
+                "trajectory_json": json_text(trajectory, indent=2) if trajectory else "",
+                "images": sample_images,
+                "image_count": len(sample_images),
+                "flagged_image_count": sum(1 for item in sample_images if item.get("quality_flags")),
+                "quality_flags": sample_flags,
+            }
+        )
+
+    return {"samples": samples, "images": exported_images}
 
 
-def write_gallery(output_dir: Path, exported: list[dict[str, Any]]) -> None:
-    by_sample: dict[str, list[dict[str, Any]]] = {}
-    for item in exported:
-        by_sample.setdefault(str(item["sample_id"]), []).append(item)
+def write_gallery(output_dir: Path, gallery_data: dict[str, Any]) -> None:
+    samples = gallery_data.get("samples") or []
+    exported_images = gallery_data.get("images") or []
 
     sections: list[str] = []
-    for sample_id, items in by_sample.items():
-        task = str(items[0].get("task") or "")
-        cards = []
-        for item in items:
-            rel = html.escape(item["relative_path"])
-            label = html.escape(Path(str(item["source_path"])).name)
-            dimensions = (
-                f"{item['width']}x{item['height']}" if item.get("width") and item.get("height") else "unknown size"
+    for sample in samples:
+        sample_id = str(sample.get("sample_id") or "")
+        task = str(sample.get("task") or "")
+        images = sample.get("images") or []
+        image_by_ref: dict[str, dict[str, Any]] = {}
+        for item in images:
+            source_path = str(item.get("source_path") or "")
+            image_by_ref[source_path] = item
+            image_by_ref[Path(source_path).name] = item
+
+        step_cards: list[str] = []
+        used_relative_paths: set[str] = set()
+        for step in sample.get("steps") or []:
+            screenshot = str(step.get("screenshot") or "")
+            image_item = image_by_ref.get(screenshot) or image_by_ref.get(Path(screenshot).name)
+            if image_item:
+                used_relative_paths.add(str(image_item.get("relative_path") or ""))
+                rel = html.escape(str(image_item["relative_path"]))
+                dimensions = (
+                    f"{image_item['width']}x{image_item['height']}"
+                    if image_item.get("width") and image_item.get("height")
+                    else "unknown size"
+                )
+                meta = f"{dimensions}, {int(image_item['bytes']) // 1024} KB"
+                flags = ", ".join(image_item.get("quality_flags") or [])
+                quality = f"<span class=\"flags\">{html.escape(flags)}</span>" if flags else ""
+                media = (
+                    f'<a href="{rel}"><img src="{rel}" loading="lazy"></a>'
+                    f'<div class="image-meta">{html.escape(meta)}{quality}</div>'
+                )
+            else:
+                media = '<div class="missing-image">No screenshot</div>'
+
+            url = f'<div class="url">{html.escape(str(step.get("url") or ""))}</div>' if step.get("url") else ""
+            title = f'<div class="title">{html.escape(str(step.get("title") or ""))}</div>' if step.get("title") else ""
+            timestamp = (
+                f'<span class="timestamp">{html.escape(str(step.get("timestamp")))}</span>'
+                if step.get("timestamp") is not None
+                else ""
             )
-            meta = f"{dimensions}, {int(item['bytes']) // 1024} KB"
-            flags = ", ".join(item.get("quality_flags") or [])
-            quality = f"<span class=\"flags\">{html.escape(flags)}</span>" if flags else ""
-            cards.append(
-                f'<figure><a href="{rel}"><img src="{rel}" loading="lazy"></a>'
-                f"<figcaption>{label}<br><span>{html.escape(meta)}</span>{quality}</figcaption></figure>"
+            step_cards.append(
+                '<article class="step">'
+                '<div class="step-body">'
+                f'<div class="step-head"><strong>Step {html.escape(str(step.get("index")))}</strong>{timestamp}</div>'
+                f'<div class="action">{html.escape(str(step.get("action") or ""))}</div>'
+                f"{title}{url}"
+                f'<details><summary>Raw step</summary><pre>{html.escape(str(step.get("raw") or ""))}</pre></details>'
+                "</div>"
+                f'<div class="media">{media}</div>'
+                "</article>"
             )
+
+        if not step_cards:
+            step_cards.append('<div class="no-steps">No parseable trajectory steps</div>')
+
+        extra_images: list[str] = []
+        for item in images:
+            rel_path = str(item.get("relative_path") or "")
+            if rel_path in used_relative_paths:
+                continue
+            rel = html.escape(rel_path)
+            extra_images.append(f'<a href="{rel}"><img src="{rel}" loading="lazy"></a>')
+        extras = (
+            f'<div class="extra-images"><h3>Unmatched images</h3><div>{"".join(extra_images)}</div></div>'
+            if extra_images
+            else ""
+        )
+
+        flags = ", ".join(sample.get("quality_flags") or [])
+        sample_meta = (
+            f"{len(sample.get('steps') or [])} steps, {int(sample.get('image_count') or 0)} images"
+            f"{', flags: ' + flags if flags else ''}"
+        )
+        trajectory_json = str(sample.get("trajectory_json") or "")
+        trajectory_details = (
+            f'<details class="trajectory-json"><summary>Full trajectory JSON</summary>'
+            f"<pre>{html.escape(trajectory_json)}</pre></details>"
+            if trajectory_json
+            else ""
+        )
         sections.append(
             "<section>"
             f"<h2>{html.escape(sample_id)}</h2>"
             f"<p class=\"task\">{html.escape(task)}</p>"
-            f"<div class=\"grid\">{''.join(cards)}</div>"
+            f"<p class=\"sample-meta\">{html.escape(sample_meta)}</p>"
+            f"{trajectory_details}"
+            f"<div class=\"steps\">{''.join(step_cards)}</div>"
+            f"{extras}"
             "</section>"
         )
 
@@ -306,18 +472,34 @@ def write_gallery(output_dir: Path, exported: list[dict[str, Any]]) -> None:
     body {{ margin: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2933; }}
     h1 {{ margin: 0 0 8px; font-size: 24px; }}
     h2 {{ margin: 28px 0 6px; font-size: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }}
-    .task {{ margin: 0 0 12px; max-width: 1100px; font-size: 14px; line-height: 1.45; color: #52606d; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }}
-    figure {{ margin: 0; border: 1px solid #d9e2ec; border-radius: 6px; overflow: hidden; background: #fff; }}
-    img {{ display: block; width: 100%; height: 180px; object-fit: contain; background: #f5f7fa; }}
-    figcaption {{ padding: 8px 10px; font-size: 12px; overflow-wrap: anywhere; }}
-    figcaption span {{ color: #627d98; }}
+    .task {{ margin: 0 0 8px; max-width: 1100px; font-size: 14px; line-height: 1.45; color: #52606d; }}
+    .sample-meta {{ margin: 0 0 12px; font-size: 12px; color: #829ab1; }}
+    .steps {{ display: grid; gap: 12px; }}
+    .step {{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 260px); gap: 14px; align-items: start; border: 1px solid #d9e2ec; border-radius: 6px; padding: 10px; background: #fff; }}
+    .media img {{ display: block; width: 100%; max-height: 190px; object-fit: contain; background: #f5f7fa; border-radius: 4px; }}
+    .image-meta {{ margin-top: 6px; font-size: 12px; color: #627d98; overflow-wrap: anywhere; }}
+    .missing-image {{ min-height: 120px; display: grid; place-items: center; color: #829ab1; background: #f5f7fa; border-radius: 4px; font-size: 13px; }}
+    .step-head {{ display: flex; gap: 10px; align-items: baseline; margin-bottom: 6px; }}
+    .timestamp {{ color: #829ab1; font-size: 12px; }}
+    .action {{ font-size: 14px; line-height: 1.45; margin-bottom: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }}
+    .title {{ font-size: 13px; color: #334e68; margin-bottom: 3px; }}
+    .url {{ font-size: 12px; color: #52606d; overflow-wrap: anywhere; margin-bottom: 8px; }}
+    details {{ margin-top: 8px; }}
+    summary {{ cursor: pointer; color: #486581; font-size: 12px; }}
+    pre {{ white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; padding: 8px; background: #f5f7fa; border-radius: 4px; font-size: 11px; }}
+    .trajectory-json pre {{ max-height: 420px; }}
     .flags {{ display: inline-block; margin-top: 4px; color: #9f580a; font-weight: 600; }}
+    .no-steps {{ color: #829ab1; background: #f5f7fa; border-radius: 4px; padding: 12px; font-size: 13px; }}
+    .extra-images {{ margin-top: 12px; }}
+    .extra-images h3 {{ margin: 0 0 8px; font-size: 13px; color: #486581; }}
+    .extra-images div {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }}
+    .extra-images img {{ width: 100%; max-height: 120px; object-fit: contain; background: #f5f7fa; border-radius: 4px; }}
+    @media (max-width: 760px) {{ .step {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
 <body>
   <h1>MolmoWeb Image Gallery</h1>
-  <p>{len(exported)} exported images</p>
+  <p>{len(samples)} samples, {len(exported_images)} exported images</p>
   {''.join(sections)}
 </body>
 </html>
@@ -325,15 +507,31 @@ def write_gallery(output_dir: Path, exported: list[dict[str, Any]]) -> None:
     (output_dir / "index.html").write_text(page, encoding="utf-8")
 
 
-def write_manifest(output_dir: Path, exported: list[dict[str, Any]]) -> None:
+def write_manifest(output_dir: Path, gallery_data: dict[str, Any]) -> None:
+    samples = gallery_data.get("samples") or []
+    exported = gallery_data.get("images") or []
     by_flag: dict[str, int] = {}
     for item in exported:
         for flag in item.get("quality_flags") or []:
             by_flag[flag] = by_flag.get(flag, 0) + 1
 
+    by_sample: dict[str, dict[str, Any]] = {}
+    for sample in samples:
+        sample_id = str(sample.get("sample_id") or "")
+        by_sample[sample_id] = {
+            "sample_id": sample_id,
+            "task": sample.get("task") or "",
+            "step_count": len(sample.get("steps") or []),
+            "image_count": int(sample.get("image_count") or 0),
+            "flagged_image_count": int(sample.get("flagged_image_count") or 0),
+            "quality_flags": sample.get("quality_flags") or [],
+        }
+
     manifest = {
+        "sample_count": len(samples),
         "exported_count": len(exported),
         "flag_counts": dict(sorted(by_flag.items())),
+        "samples": dict(sorted(by_sample.items())),
         "images": exported,
     }
     (output_dir / "manifest.json").write_text(
@@ -366,7 +564,7 @@ def main() -> int:
     )
     write_gallery(Path(args.output_dir), exported)
     write_manifest(Path(args.output_dir), exported)
-    print(f"Exported {len(exported)} images to {args.output_dir}")
+    print(f"Exported {len(exported.get('images') or [])} images to {args.output_dir}")
     print(f"Open {Path(args.output_dir) / 'index.html'}")
     print(f"Wrote manifest to {Path(args.output_dir) / 'manifest.json'}")
     return 0

@@ -22,7 +22,7 @@ except ImportError:
     from scripts.prefilter_molmoweb import DATASET_NAME, load_env_file
 
 
-DEFAULT_SAMPLE_ID_FILE = "data/raw/molmoweb_humanskills_candidates/candidate_sample_ids.txt"
+DEFAULT_SAMPLE_ID_FILE = "data/raw/molmoweb_humanskills_sample/_work/candidate_sample_ids.txt"
 DEFAULT_OUTPUT_DIR = "data/raw/molmoweb_humanskills_sample/hf_dataset"
 DEFAULT_PARQUET_PATH = "data/raw/molmoweb_humanskills_sample/molmoweb_humanskills_sample.parquet"
 DEFAULT_MANIFEST_PATH = "data/raw/molmoweb_humanskills_sample/materialize_manifest.json"

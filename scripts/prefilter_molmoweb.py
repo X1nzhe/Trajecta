@@ -19,7 +19,7 @@ from typing import Any
 
 
 DATASET_NAME = "allenai/MolmoWeb-HumanSkills"
-DEFAULT_OUTPUT_DIR = "data/raw/molmoweb_humanskills_candidates"
+DEFAULT_OUTPUT_DIR = "data/raw/molmoweb_humanskills_sample/_work"
 METADATA_COLUMNS = ["sample_id", "instruction", "trajectory", "image_paths"]
 VALID_RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
 PAREN_COORD_RE = re.compile(r"\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)")

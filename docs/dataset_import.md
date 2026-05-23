@@ -27,45 +27,46 @@ python3 scripts/run_molmoweb_pipeline.py
 
 Default behavior:
 
-- prefilter a `clean` candidate pool with `max_unknown_action_ratio=0.4`;
-- prefilter an `anomaly` candidate pool with `unknown_action_ratio > 0.4`
-  and `max_unknown_action_ratio=1.0`;
-- merge both candidate ID lists;
-- materialize `clean`, `anomaly`, and merged selected rows separately;
-- write local Parquet copies;
-- export separate `clean`, `anomaly`, and merged screenshot galleries.
+- stream Hugging Face metadata once and rank a single candidate pool with
+  `max_unknown_action_ratio=0.4`;
+- materialize the candidate pool with source-compatible row fields, including
+  `images`;
+- export a candidate gallery and image quality manifest;
+- reject samples containing any image quality flag and write the quality-passing
+  IDs to `selected_sample_ids.txt`;
+- subset the local candidate dataset to those IDs, write a local Parquet copy,
+  and export the final gallery.
 
 Common overrides:
 
 ```bash
 python3 scripts/run_molmoweb_pipeline.py \
   --max-rows 5000 \
-  --target-candidates 80 \
-  --materialize-limit 80
+  --target-candidates 80
 ```
 
-Use `--skip-clean`, `--skip-anomaly`, `--skip-materialize`, or
-`--skip-gallery` to resume part of the pipeline. Use `--dry-run` to print the
-underlying commands without downloading data.
-
-The clean and anomaly pools are intended to be mutually exclusive. If you have
-old outputs created before this rule existed, rerun the prefilter step instead
-of reusing the old `data/raw/molmoweb_humanskills_candidates/anomaly/` files.
+Use `--skip-prefilter`, `--skip-materialize`, `--skip-gallery`, or
+`--skip-quality-filter` to resume part of the pipeline. Use `--dry-run` to
+print the underlying commands without downloading data.
 
 Pipeline outputs:
 
 ```text
-data/raw/molmoweb_humanskills_candidates/
-  clean/
-  anomaly/
-  selected_sample_ids.txt
 data/raw/molmoweb_humanskills_sample/
-  pools/clean/hf_dataset/
-  pools/clean/image_gallery/index.html
-  pools/anomaly/hf_dataset/
-  pools/anomaly/image_gallery/index.html
-  hf_dataset/                # merged clean + anomaly subset
-  image_gallery/index.html   # merged gallery
+  hf_dataset/                             # final selected subset
+  image_gallery/index.html                # final selected gallery
+  molmoweb_humanskills_sample.parquet     # final parquet
+  materialize_manifest.json               # final manifest
+  selected_sample_ids.txt                 # quality-passing IDs (provenance)
+  _work/                                  # intermediates; safe to delete to force a rebuild
+    candidates.jsonl                      # ranked metadata candidates
+    candidate_sample_ids.txt              # candidate IDs (input to materialize)
+    summary.json                          # prefilter scan summary
+    rejected_quality_sample_ids.txt
+    quality_summary.json
+    candidates/hf_dataset/                # one HF download for all candidates
+    candidates/image_gallery/index.html
+    candidates/image_gallery/manifest.json
 ```
 
 ## Source Dataset Structure
@@ -135,7 +136,7 @@ unavailable downstream. Missing screenshots are non-fatal in v1.
 ## Automatic Prefilter
 
 Do not manually inspect the full dataset. First run a metadata-only streaming
-prefilter to produce a small candidate list:
+prefilter to produce a single ranked candidate list:
 
 ```bash
 pip install datasets python-dotenv
@@ -174,7 +175,7 @@ python3 scripts/prefilter_molmoweb.py \
 The prefilter does not materialize screenshots or download the full dataset. It writes:
 
 ```text
-data/raw/molmoweb_humanskills_candidates/
+data/raw/molmoweb_humanskills_sample/_work/
   candidates.jsonl
   candidate_sample_ids.txt
   summary.json
@@ -198,8 +199,13 @@ is present, the prefilter records match coverage for diagnostics but does not
 reject by default. Use `--require-image-paths --require-image-path-match` only
 when intentionally auditing the upstream `image_paths` field.
 
-The output is still only a candidate set. A human should review the final
-`5-20` selected runs for demo value, then write:
+The output is still only a metadata candidate set. Image byte size and image
+dimensions are not available in this phase because the prefilter intentionally
+does not download screenshots for every scanned row. The one-command pipeline
+applies the image quality gate after materializing the combined metadata
+candidate pool once and before writing final selected IDs.
+
+A human should review the final `5-20` selected runs for demo value, then write:
 
 ```text
 data/raw/molmoweb_humanskills_sample/run_status_overlay.json
@@ -208,18 +214,18 @@ data/raw/molmoweb_humanskills_sample/run_status_overlay.json
 Coordinate bounds are validated later during import/preprocessing after
 screenshots have been materialized locally.
 
-## Materialize Selected Rows
+## Materialize Candidate Rows
 
 Do not search Hugging Face by `sample_id`. `sample_id` is a row value inside the
 dataset, not a Hub-indexed artifact ID, so Hub search is not a reliable lookup
-mechanism. To download the selected rows, stream the dataset again and filter
-locally:
+mechanism. To download the combined metadata candidates, stream the dataset
+again and filter locally:
 
 ```bash
 python3 scripts/materialize_molmoweb_sample.py \
-  --sample-id-file data/raw/molmoweb_humanskills_candidates/candidate_sample_ids.txt \
+  --sample-id-file data/raw/molmoweb_humanskills_sample/_work/candidate_sample_ids.txt \
   --max-rows 2000 \
-  --output-dir data/raw/molmoweb_humanskills_sample/hf_dataset
+  --output-dir data/raw/molmoweb_humanskills_sample/_work/candidates/hf_dataset
 ```
 
 Use the same or larger `--max-rows` value that produced the candidate file. If
@@ -234,12 +240,12 @@ row fields:
 ```python
 from datasets import load_dataset, load_from_disk
 
-ds = load_from_disk("data/raw/molmoweb_humanskills_sample/hf_dataset")
+ds = load_from_disk("data/raw/molmoweb_humanskills_sample/_work/candidates/hf_dataset")
 row = ds[0]
 
 parquet_ds = load_dataset(
     "parquet",
-    data_files="data/raw/molmoweb_humanskills_sample/molmoweb_humanskills_sample.parquet",
+    data_files="data/raw/molmoweb_humanskills_sample/_work/candidates/molmoweb_humanskills_sample.parquet",
     split="train",
 )
 ```
@@ -247,9 +253,9 @@ parquet_ds = load_dataset(
 Outputs:
 
 ```text
-data/raw/molmoweb_humanskills_sample/
+data/raw/molmoweb_humanskills_sample/_work/candidates/
   hf_dataset/                         # Dataset.save_to_disk output
-  molmoweb_humanskills_sample.parquet # local Parquet subset
+  molmoweb_humanskills_sample.parquet # local Parquet candidate pool
   materialize_manifest.json           # requested/found/missing IDs and scan settings
 ```
 
@@ -258,10 +264,14 @@ Pass `--overwrite` to replace existing materialized outputs. Pass
 `materialize_manifest.json`; increase `--max-rows` if the IDs came from a
 longer prefilter pass.
 
+After quality filtering, the one-command pipeline subsets the local candidate
+dataset to the quality-passing IDs in place (no second Hugging Face stream),
+preserving the same source-compatible row fields.
+
 ## View Materialized Screenshots
 
-After materializing selected rows, export screenshot bytes to normal image files
-and generate a local HTML gallery:
+After materializing or subsetting selected rows, export screenshot bytes to
+normal image files and generate a local HTML gallery:
 
 ```bash
 python3 scripts/export_molmoweb_images.py \
@@ -276,8 +286,11 @@ Open:
 data/raw/molmoweb_humanskills_sample/image_gallery/index.html
 ```
 
-Each gallery section shows the full `sample_id`, the parsed task instruction,
-and the exported screenshots for that trajectory.
+Each gallery section is trajectory-first: it shows the full `sample_id`, the
+parsed task instruction, every parseable trajectory step, raw step JSON, and the
+matching screenshot when one can be mapped. A collapsible `Full trajectory JSON`
+block is included for checking the complete source trajectory. Steps without a
+mapped screenshot are still shown and marked as unavailable.
 
 By default, the exporter writes only images referenced by the row's
 `trajectory[*].screenshot` values when those references are available. Pass
@@ -303,8 +316,12 @@ Flags:
 - `low_pixel_count`: total pixel count is under 300,000.
 - `unknown_dimensions`: dimensions could not be parsed from the image bytes.
 
-Runs dominated by flagged screenshots should usually be excluded from the
-committed fixture set.
+By default, `scripts/run_molmoweb_pipeline.py` rejects any sample with any of
+these quality flags in the pool gallery manifest before writing
+`selected_sample_ids.txt`. The temporary candidate gallery may still show
+rejected samples because it is the evidence used for the quality gate; the final
+`data/raw/molmoweb_humanskills_sample/image_gallery/index.html` is generated
+from quality-passing selected samples only.
 
 ## Status Overlay
 
