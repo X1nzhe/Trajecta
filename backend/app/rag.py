@@ -50,6 +50,7 @@ SUCCESSFUL_RUNS_COLLECTION = "successful_runs"
 _FAKE_EMBEDDING_DIM = 384
 
 _client_cache: tuple[Path, ClientAPI] | None = None
+_embedding_cache: tuple[tuple[bool, str | None, bool], EmbeddingFunction] | None = None
 
 
 def _chroma_dir() -> Path:
@@ -122,22 +123,40 @@ class FakeEmbeddingFunction(EmbeddingFunction):
 
 
 def get_embedding_function() -> EmbeddingFunction:
-    if os.environ.get("TRAJECTA_USE_FAKE_EMBEDDING") == "1":
-        return FakeEmbeddingFunction()
+    """Return the active embedding function per env configuration.
 
+    Cached at module scope keyed on the resolved env-var tuple so the
+    relatively expensive ``DefaultEmbeddingFunction`` (sentence-transformers
+    + ONNX runtime) is not reconstructed on every collection access.
+    Tests that flip env vars see the change because the cache key changes.
+    """
+
+    global _embedding_cache
+
+    fake_flag = os.environ.get("TRAJECTA_USE_FAKE_EMBEDDING") == "1"
     model_name = os.environ.get("TRAJECTA_EMBEDDING_MODEL")
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if model_name and api_key:
+    api_key_present = bool(os.environ.get("OPENAI_API_KEY"))
+    key = (fake_flag, model_name, api_key_present)
+    if _embedding_cache is not None and _embedding_cache[0] == key:
+        return _embedding_cache[1]
+
+    if fake_flag:
+        ef: EmbeddingFunction = FakeEmbeddingFunction()
+    elif model_name and api_key_present:
         try:
             import openai  # noqa: F401  probe availability
         except ImportError:
-            return embedding_functions.DefaultEmbeddingFunction()
-        return embedding_functions.OpenAIEmbeddingFunction(
-            api_key=api_key,
-            model_name=model_name,
-        )
+            ef = embedding_functions.DefaultEmbeddingFunction()
+        else:
+            ef = embedding_functions.OpenAIEmbeddingFunction(
+                api_key=os.environ["OPENAI_API_KEY"],
+                model_name=model_name,
+            )
+    else:
+        ef = embedding_functions.DefaultEmbeddingFunction()
 
-    return embedding_functions.DefaultEmbeddingFunction()
+    _embedding_cache = (key, ef)
+    return ef
 
 
 def _get_or_create(name: str) -> chromadb.Collection:
