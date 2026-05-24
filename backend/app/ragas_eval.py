@@ -136,23 +136,7 @@ def _retrieved_contexts(trace: AgentTrace) -> list[str]:
     return out
 
 
-def _retrieved_case_ids_from_contexts(trace: AgentTrace) -> list[str]:
-    """case_id values surfaced by every search_* tool result, in arrival order."""
 
-    out: list[str] = []
-    for event in trace.events:
-        if event.type != "tool_result" or event.name not in SEARCH_TOOL_NAMES:
-            continue
-        payload = event.result or {}
-        items = payload.get("items") if isinstance(payload, dict) else None
-        if not isinstance(items, list):
-            continue
-        for item in items:
-            if isinstance(item, dict):
-                case_id = item.get("case_id")
-                if isinstance(case_id, str):
-                    out.append(case_id)
-    return out
 
 
 def _ground_truth_from_disk(run_id: str, data_root: Path) -> str | None:
