@@ -232,6 +232,6 @@ data/raw/molmoweb_humanskills_sample/materialize_manifest.json
 
 # Runtime artifacts under data/runs/{run_id}/: digest.json is the
 # preprocessing cache (rebuilt by load_or_build_digest on demand).
-data/runs/*/digest.json
+# Runtime trajectory data — local only, not committed
+data/runs/
 data/chroma/
-data/runs/*/last_trace.json
