@@ -436,26 +436,32 @@ def _fallback_graph_stream(state: GraphState, *, include_preprocess: bool) -> It
         yield state
 
     steps = 0
-    while steps < _graph_recursion_limit(state["budget"]):
-        steps += 1
+    limit = _graph_recursion_limit(state["budget"])
+    while True:
+        steps = _advance_graph_step(steps, limit)
         state = _agent_node(state)
         yield state
         if _after_agent_node(state) == END:
             return
         while _after_execute_tool_node(state) == "tool_call":
-            steps += 1
+            steps = _advance_graph_step(steps, limit)
             state = _tool_call_node(state)
             yield state
-            steps += 1
+            steps = _advance_graph_step(steps, limit)
             state = _execute_tool_node(state)
             yield state
             if _after_execute_tool_node(state) == END:
                 return
-    raise RuntimeError("agent graph exceeded recursion limit")
 
 
 def _graph_recursion_limit(budget: int) -> int:
     return max(25, (budget + 8) * 6)
+
+
+def _advance_graph_step(steps: int, limit: int) -> int:
+    if steps >= limit:
+        raise RuntimeError("agent graph exceeded recursion limit")
+    return steps + 1
 
 
 def _agent_node(state: GraphState) -> GraphState:

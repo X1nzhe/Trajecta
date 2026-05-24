@@ -417,6 +417,33 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(new_events[-1].name, "graph_execution")
         self.assertIn("followup crashed", new_events[-1].error or "")
 
+    def test_fallback_recursion_limit_applies_inside_tool_call_batch(self) -> None:
+        old_state_graph = eval_agent_graph.StateGraph
+        eval_agent_graph.StateGraph = None
+        tool_calls = [
+            {"name": "get_run", "args": {"run_id": "run_1"}, "id": f"call_get_run_{index}"}
+            for index in range(40)
+        ]
+        try:
+            with self.assertRaisesRegex(RuntimeError, "agent graph exceeded recursion limit"):
+                for _item in eval_agent_graph.stream_analyze_run(
+                    "run_1",
+                    llm_client=ScriptedLLM([AIMessage(content="", tool_calls=tool_calls)]),
+                    budget=1,
+                ):
+                    pass
+        finally:
+            eval_agent_graph.StateGraph = old_state_graph
+
+        persisted = storage.load_trace("run_1")
+        self.assertIsNotNone(persisted)
+        completed_get_run_results = [
+            event for event in persisted.events if event.type == "tool_result" and event.name == "get_run"
+        ]
+        self.assertLess(len(completed_get_run_results), len(tool_calls))
+        self.assertEqual(persisted.events[-1].type, "tool_error")
+        self.assertEqual(persisted.events[-1].name, "graph_execution")
+
     def test_no_screenshot_bytes_in_trace(self) -> None:
         _write_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
 
