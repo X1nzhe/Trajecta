@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from backend.app import dataset_importer, storage, tools
+from backend.app import dataset_importer, preprocess, storage, tools
 from backend.app.schemas import EvalCase
 
 
@@ -141,10 +141,14 @@ def search_eval_cases(q: str = Query(...), top_k: int = 3, only_validated: bool 
 
 
 @app.post("/api/runs/{run_id}/preprocess")
-def preprocess_run(run_id: str) -> None:
+def preprocess_run(run_id: str) -> dict:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    raise HTTPException(status_code=501, detail="Phase 3 owns trajectory preprocessing.")
+    try:
+        digest = preprocess.load_or_build_digest(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"digest": digest.model_dump(mode="json")}
 
 
 @app.post("/api/runs/{run_id}/analyze")
