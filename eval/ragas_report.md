@@ -3,10 +3,14 @@
 - Sample count: 1
 - Mode: `stub`
 - Ground truth source: `self`
+- Fallback reason: OPENAI_API_KEY is not set
 
 ## Metric means
 - **faithfulness_stub**: 0.0000
 - **context_precision_stub**: 1.0000
+
+`faithfulness_stub` is the fraction of evidence claims with at least 50% token overlap against any retrieved context.
+`context_precision_stub` is the fraction of retrieved contexts whose case IDs were cited by the latest `propose_eval_case` call.
 
 ## Skipped traces
 - budget_exceeded: 0

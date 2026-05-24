@@ -92,6 +92,7 @@ class DatasetImporterTests(unittest.TestCase):
         self.assertEqual(run.steps[0].index, 0)
         self.assertEqual(run.steps[0].observation.url, "https://example.com/one")
         self.assertEqual(run.steps[0].coordinate_validation.status, "validated")
+        self.assertEqual(run.steps[0].action.raw, "mouse_click(x=10, y=20, button='left')")
         self.assertEqual(run.steps[1].action.type, "wait")
 
     def test_task_extraction_from_instruction_json(self) -> None:
@@ -119,16 +120,23 @@ class DatasetImporterTests(unittest.TestCase):
             source_dir = Path(tmpdir) / "hf_dataset"
             source_dir.mkdir()
             original_loader = dataset_importer._load_dataset_from_disk
-            dataset_importer._load_dataset_from_disk = lambda path: [raw_row()]
+            dataset_importer._load_dataset_from_disk = lambda path: [
+                raw_row(sample_id=f"run_{i}") for i in range(5)
+            ]
             try:
                 runs = dataset_importer.import_sample(source_dir)
-                assets = dataset_importer.get_imported_screenshot_assets("run_1")
+                assets = {
+                    run.run_id: dataset_importer.get_imported_screenshot_assets(run.run_id)
+                    for run in runs
+                }
             finally:
                 dataset_importer._load_dataset_from_disk = original_loader
 
-        self.assertEqual(len(runs), 1)
-        self.assertEqual(assets["screenshot_001.png"], b"first")
-        self.assertEqual(assets["screenshot_002.png"], b"second")
+        self.assertEqual(len(runs), 5)
+        self.assertEqual([run.run_id for run in runs], [f"run_{i}" for i in range(5)])
+        for run_id in [f"run_{i}" for i in range(5)]:
+            self.assertEqual(assets[run_id]["screenshot_001.png"], b"first")
+            self.assertEqual(assets[run_id]["screenshot_002.png"], b"second")
 
 
 if __name__ == "__main__":

@@ -80,12 +80,16 @@ class RagasReport:
     skipped: SkippedCounts = field(default_factory=SkippedCounts)
     ground_truth_source: str = "self"  # "fixture" | "self" | "mixed"
     ragas_mode: str = "stub"  # "real" | "stub"
+    fallback_reason: str | None = None
 
 
 def ragas_answer_from_trace(trace: AgentTrace) -> str:
     """Concatenate the latest propose_eval_case args' actual_behavior with
     each evidence claim. Raises when the trace contains no terminal call.
     """
+
+    if trace.terminated_by != TERMINAL_TOOL:
+        raise ValueError(f"trace did not terminate via {TERMINAL_TOOL}")
 
     calls = [
         e for e in trace.events
@@ -231,13 +235,22 @@ def collect_samples(
     return samples, skipped
 
 
-def _ragas_importable() -> bool:
+def _exception_reason(prefix: str, exc: Exception) -> str:
+    message = str(exc).strip().replace("\n", " ")
+    if not message:
+        message = "<no message>"
+    return f"{prefix}: {type(exc).__name__}: {message}"
+
+
+def _ragas_import_failure() -> str | None:
     try:
         import ragas  # noqa: F401
         from ragas.metrics import context_precision, faithfulness  # noqa: F401
-    except Exception:
-        return False
-    return True
+    except (ImportError, ModuleNotFoundError) as exc:
+        return _exception_reason("ragas import failed", exc)
+    except Exception as exc:
+        return _exception_reason("ragas import failed", exc)
+    return None
 
 
 def _run_real_ragas(samples: list[RagasSample]) -> dict[str, float]:
@@ -368,17 +381,25 @@ def build_report(
         for s in samples
     ]
 
-    use_real = (not force_stub) and bool(os.environ.get("OPENAI_API_KEY")) and _ragas_importable()
-    if use_real:
-        try:
-            means = _run_real_ragas(samples)
-            report.ragas_mode = "real"
-            report.metric_means = means
-            return report
-        except Exception:
-            # Real path failed (network, quota, etc.); fall through to stub
-            # so the script still produces output.
-            pass
+    if force_stub:
+        report.fallback_reason = "force_stub requested"
+    elif not os.environ.get("OPENAI_API_KEY"):
+        report.fallback_reason = "OPENAI_API_KEY is not set"
+    else:
+        import_failure = _ragas_import_failure()
+        if import_failure is not None:
+            report.fallback_reason = import_failure
+        else:
+            try:
+                means = _run_real_ragas(samples)
+                report.ragas_mode = "real"
+                report.metric_means = means
+                return report
+            except Exception as exc:
+                # Real path can fail because of model credentials, network,
+                # quota, or package/API drift. Keep the report auditable while
+                # still writing deterministic offline output.
+                report.fallback_reason = _exception_reason("real ragas evaluation failed", exc)
 
     report.ragas_mode = "stub"
     report.metric_means = {
@@ -399,6 +420,7 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
         "skipped": report.skipped.to_dict(),
         "ground_truth_source": report.ground_truth_source,
         "ragas_mode": report.ragas_mode,
+        "fallback_reason": report.fallback_reason,
     }
     json_path.write_text(
         json.dumps(json_payload, indent=2, ensure_ascii=False) + "\n",
@@ -411,12 +433,18 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     lines.append(f"- Sample count: {len(report.samples)}")
     lines.append(f"- Mode: `{report.ragas_mode}`")
     lines.append(f"- Ground truth source: `{report.ground_truth_source}`")
+    if report.fallback_reason:
+        lines.append(f"- Fallback reason: {report.fallback_reason}")
     lines.append("")
     lines.append("## Metric means")
     if report.metric_means:
         for metric, value in report.metric_means.items():
             label = f"{metric}_stub" if report.ragas_mode == "stub" else metric
             lines.append(f"- **{label}**: {value:.4f}")
+        if report.ragas_mode == "stub":
+            lines.append("")
+            lines.append("`faithfulness_stub` is the fraction of evidence claims with at least 50% token overlap against any retrieved context.")
+            lines.append("`context_precision_stub` is the fraction of retrieved contexts whose case IDs were cited by the latest `propose_eval_case` call.")
     else:
         lines.append("- (no metrics — empty sample set)")
     lines.append("")

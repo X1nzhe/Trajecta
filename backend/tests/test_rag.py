@@ -139,6 +139,32 @@ class EvalCaseTests(RagPerTestEnv):
         # Full Pydantic round-trip.
         EvalCase.model_validate(reconstructed.model_dump(mode="json"))
 
+    def test_eval_cases_query_defaults_to_human_validated_true(self) -> None:
+        validated = _sample_eval_case(case_id="ec_valid", human_validated=True)
+        draft = _sample_eval_case(case_id="ec_draft", human_validated=False)
+
+        class FakeCollection:
+            def __init__(self) -> None:
+                self.query_kwargs = {}
+
+            def query(self, **kwargs):
+                self.query_kwargs = kwargs
+                return {
+                    "metadatas": [
+                        [
+                            rag._eval_case_metadata(validated),
+                            rag._eval_case_metadata(draft),
+                        ]
+                    ]
+                }
+
+        fake_collection = FakeCollection()
+        with mock.patch("backend.app.rag.eval_cases_collection", return_value=fake_collection):
+            results = rag.query_eval_cases("price filter", top_k=5)
+
+        self.assertEqual(fake_collection.query_kwargs["where"], {"human_validated": True})
+        self.assertEqual([case.case_id for case in results], ["ec_valid"])
+
 
 class SuccessfulRunsTests(RagPerTestEnv):
     def test_successful_runs_upsert_refuses_non_success_status(self) -> None:

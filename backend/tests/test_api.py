@@ -202,6 +202,15 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_screenshot_endpoint_returns_fixture_image(self) -> None:
+        _write_real_png("run_api")
+
+        response = self.client.get("/api/runs/run_api/screenshots/screenshot_001.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/png")
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
     def test_post_eval_case_rejects_unvalidated(self) -> None:
         case = sample_eval_case("ec_run_api_step_0").model_copy(update={"human_validated": False})
 
@@ -267,11 +276,10 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("application/x-ndjson", response.headers["content-type"])
 
-        lines = [json.loads(line) for line in response.text.splitlines()]
-        self.assertGreaterEqual(len(lines), 2)
-        self.assertTrue(all(line["type"] == "event" for line in lines[:-1]))
-        self.assertEqual(lines[-1]["type"], "done")
-        self.assertEqual(lines[0]["event"]["seq"], 0)
+        events, terminal = drain_ndjson(response)
+        self.assertGreaterEqual(len(events), 1)
+        self.assertEqual(terminal["type"], "done")
+        self.assertEqual(events[0]["seq"], 0)
 
     def test_list_runs_returns_at_least_5(self) -> None:
         for i in range(5):
@@ -329,7 +337,8 @@ class ApiTests(unittest.TestCase):
             )
         )
         # Seed a trace so we exercise the 422 path, not the 409 path.
-        self.client.post("/api/runs/run_api/analyze")
+        seed = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(seed)
 
         self.assertEqual(
             self.client.post("/api/runs/run_api/followup", json={}).status_code,
@@ -357,6 +366,7 @@ class ApiTests(unittest.TestCase):
             )
         )
         initial = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(initial)
         self.assertEqual(initial.status_code, 200)
 
         response = self.client.post(
@@ -378,7 +388,8 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
-        self.client.post("/api/runs/run_api/analyze")
+        initial = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(initial)
 
         prior = storage.load_trace("run_api")
         self.assertIsNotNone(prior)
@@ -450,9 +461,11 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
-        self.client.post("/api/runs/run_api/steps/0/analyze")
+        initial = self.client.post("/api/runs/run_api/steps/0/analyze")
+        drain_ndjson(initial)
 
-        self.client.post("/api/runs/run_api/followup", json={"message": "Check again"})
+        followup = self.client.post("/api/runs/run_api/followup", json={"message": "Check again"})
+        drain_ndjson(followup)
 
         trace = storage.load_trace("run_api")
         self.assertEqual(trace.user_intent, "analyze_step")
@@ -467,7 +480,8 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
-        self.client.post("/api/runs/run_api/analyze")
+        initial = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(initial)
 
         followup_script = [
             _tool_message(

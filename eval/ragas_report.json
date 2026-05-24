@@ -25,5 +25,6 @@
     "no_trace": 6
   },
   "ground_truth_source": "self",
-  "ragas_mode": "stub"
+  "ragas_mode": "stub",
+  "fallback_reason": "OPENAI_API_KEY is not set"
 }
