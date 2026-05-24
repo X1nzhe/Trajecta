@@ -135,7 +135,9 @@ The system prompt instructs the agent to:
 5. For `analyze_step`, call `get_step_detail(run_id, selected_step)` first, inspect adjacent steps if needed, and still allow backtracking when evidence indicates the root cause is upstream.
 6. Call `find_similar_successful_run(task, exclude_run_id=current_run_id)` once a likely failure region is identified. If a comparable success run exists, call `get_run(other_run_id)` and diff the digests step-by-step; use `get_step_detail` on the comparison run only when the digest-level diff is ambiguous.
 7. Call `search_failure_memory` and/or `search_eval_cases` with queries grounded in observed evidence — including divergence patterns surfaced by replay-and-diff.
-8. When evidence is sufficient, call `propose_eval_case` with all required fields.
+8. When evidence is sufficient, call `propose_eval_case`. Two valid call shapes (the EvalCase schema enforces XOR — half-populated drafts raise):
+   - **Failure verdict**: pass all five failure fields (`failure_step`, `failure_type`, `expected_behavior`, `actual_behavior`, `regression_rule`) plus `evidence` and `retrieved_context_ids`.
+   - **Success verdict** ("no failure found"): omit all five failure fields; pass only `evidence` and `retrieved_context_ids`. The case_id is generated in the `ec_{run_id}_success` namespace and a second success case for the same run returns 409 on validation.
 9. Never invent evidence. If a screenshot, coordinate, or successful comparison run is missing, include an `EvidenceItem` with `source="unavailable"` and a claim that states what was unavailable.
 
 The agent is constrained by a **per-turn** tool-call budget to bound cost and latency:

@@ -24,9 +24,9 @@ export async function fetchRunDigest(runId: string): Promise<TrajectoryDigest> {
   return res.json();
 }
 
-export async function reloadSampleRuns(): Promise<void> {
+export async function importDataset(): Promise<void> {
   const res = await fetch('/api/import/molmoweb-sample', { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to reload sample runs');
+  if (!res.ok) throw new Error('Failed to import dataset');
 }
 
 export async function createEvalCase(caseDraft: EvalCase): Promise<EvalCase> {

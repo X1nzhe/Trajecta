@@ -103,7 +103,7 @@ function App() {
             <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-red-600">
               <svg className="mb-4 h-14 w-14 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
               <p className="font-semibold">{runError}</p>
-              <p className="mt-2 text-sm text-slate-500">Make sure the backend is running at http://localhost:8000 and sample runs are imported.</p>
+              <p className="mt-2 text-sm text-slate-500">Make sure the backend is running at http://localhost:8000 and the dataset has been imported.</p>
             </div>
           ) : selectedRun && activeStep ? (
             <>
@@ -113,7 +113,7 @@ function App() {
                     <div className="mb-1 flex items-center gap-2">
                       <h2 className="truncate text-base font-bold text-slate-950" title={selectedRun.run_id}>Run {truncateRunId(selectedRun.run_id)}</h2>
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${runStatusClass(selectedRun.status)}`}>
-                        {selectedRun.status}
+                        {runStatusLabel(selectedRun.status)}
                       </span>
                     </div>
                     <div className="truncate text-xs leading-4 text-slate-600">
@@ -148,7 +148,7 @@ function App() {
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-slate-500">
               <svg className="mb-4 h-14 w-14 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" d="M4 7a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" /></svg>
-              <p>{loadingRuns ? 'Loading sample runs...' : 'Select a run from the left panel to view its trajectory.'}</p>
+              <p>{loadingRuns ? 'Loading runs...' : 'Select a run from the left panel to view its trajectory.'}</p>
             </div>
           )}
         </section>
@@ -161,6 +161,7 @@ function App() {
           onTraceChange={setAgentTrace}
           onDraftChange={setEvalCaseDraft}
           onSelectStep={setStepIndex}
+          onEvalCaseValidated={loadRuns}
         />
       </main>
 
@@ -195,6 +196,13 @@ function runStatusClass(status: TrajectoryRun['status']) {
   if (status === 'failed') return 'bg-red-50 text-red-700';
   if (status === 'success') return 'bg-emerald-50 text-emerald-700';
   return 'bg-amber-50 text-amber-700';
+}
+
+function runStatusLabel(status: TrajectoryRun['status']) {
+  // Title-cased to match RunList's StatusBadge labels.
+  if (status === 'failed') return 'Failed';
+  if (status === 'success') return 'Success';
+  return 'Unanalyzed';
 }
 
 function truncateRunId(id: string) {

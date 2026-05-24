@@ -32,17 +32,34 @@ def sample_run(run_id: str = "run_1", status: str = "unknown") -> TrajectoryRun:
     )
 
 
-def sample_eval_case(case_id: str = "ec_run_1_step_0") -> EvalCase:
+def sample_eval_case(case_id: str = "ec_run_1_step_0", source_run_id: str = "run_1") -> EvalCase:
     return EvalCase(
         case_id=case_id,
-        source_run_id="run_1",
+        source_run_id=source_run_id,
         task="Find a result",
         failure_step=0,
         failure_type="early_terminated",
         expected_behavior="The agent should finish the task.",
         actual_behavior="The agent stopped before finishing.",
-        evidence=[EvidenceItem(claim="Step 0 stopped.", source="trajectory", run_id="run_1", step_index=0)],
+        evidence=[EvidenceItem(claim="Step 0 stopped.", source="trajectory", run_id=source_run_id, step_index=0)],
         regression_rule="Do not stop before task evidence is visible.",
+        human_validated=True,
+    )
+
+
+def sample_success_eval_case(case_id: str = "ec_run_1_success", source_run_id: str = "run_1") -> EvalCase:
+    return EvalCase(
+        case_id=case_id,
+        source_run_id=source_run_id,
+        task="Find a result",
+        evidence=[
+            EvidenceItem(
+                claim="Step 0 reached the expected page state.",
+                source="trajectory",
+                run_id=source_run_id,
+                step_index=0,
+            )
+        ],
         human_validated=True,
     )
 

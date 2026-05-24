@@ -190,16 +190,18 @@ def _embed_text_failure_memory(case: FailureMemoryCase) -> str:
 
 
 def _embed_text_eval_case(case: EvalCase) -> str:
-    return " ".join(
-        [
-            case.task,
-            case.failure_type,
-            case.expected_behavior,
-            case.actual_behavior,
-            " ".join(e.claim for e in case.evidence),
-            case.regression_rule,
-        ]
-    ).strip()
+    # Success cases have all five failure-fields == None; treat them as
+    # empty strings rather than crash. Evidence claims still contribute
+    # signal so similarity search remains useful.
+    parts = [
+        case.task,
+        case.failure_type or "",
+        case.expected_behavior or "",
+        case.actual_behavior or "",
+        " ".join(e.claim for e in case.evidence),
+        case.regression_rule or "",
+    ]
+    return " ".join(parts).strip()
 
 
 def _embed_text_successful_run(run: TrajectoryRun) -> str:
@@ -229,13 +231,16 @@ def _failure_memory_from_metadata(meta: dict) -> FailureMemoryCase:
 
 
 def _eval_case_metadata(case: EvalCase) -> dict[str, str | int | float | bool]:
+    # Chroma metadata rejects None values; coerce success-case Nones to
+    # sentinel scalars. The authoritative shape lives in payload_json.
     return {
         "case_id": case.case_id,
         "source_run_id": case.source_run_id,
         "task": case.task,
-        "failure_step": case.failure_step,
-        "failure_type": case.failure_type,
+        "failure_step": case.failure_step if case.failure_step is not None else -1,
+        "failure_type": case.failure_type or "",
         "human_validated": case.human_validated,
+        "is_success": case.is_success,
         "payload_json": case.model_dump_json(),
     }
 

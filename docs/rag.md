@@ -16,7 +16,7 @@ use.
 
 - `failure_memory` stores reusable failure patterns. **Read-only in v1**: the seed file `data/failure_memory/cases.jsonl` is the only write path; neither the UI nor the agent can add new failure memories.
 - `eval_cases` stores human-validated eval cases only (drafts are not persisted in v1).
-- `successful_runs` indexes imported runs with `status == "success"` so the agent can pull a counter-example via `find_similar_successful_run` and do step-level replay-and-diff.
+- `successful_runs` indexes runs that humans have validated as successful via `POST /api/eval-cases` (success-shape `EvalCase`). The collection starts **empty** after `Import Dataset` and grows only as users validate success verdicts. `find_similar_successful_run` uses it to pull a counter-example for step-level replay-and-diff. Imports never seed this collection directly (cold-start contract).
 - `step_summaries` is a v2 placeholder; not implemented in v1.
 - Store full metadata needed to reconstruct schema objects where required by the contract.
 - Serialize list fields when required by the Chroma client.

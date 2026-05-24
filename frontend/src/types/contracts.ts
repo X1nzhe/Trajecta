@@ -104,12 +104,15 @@ export interface EvalCase {
   case_id: string;
   source_run_id: string;
   task: string;
-  failure_step: number;
-  failure_type: string;
-  expected_behavior: string;
-  actual_behavior: string;
+  // Failure-shape fields. Either all five are present (failure case) or all
+  // five are null (success case). The backend model_validator enforces the
+  // XOR; the frontend tolerates both shapes when rendering.
+  failure_step: number | null;
+  failure_type: string | null;
+  expected_behavior: string | null;
+  actual_behavior: string | null;
   evidence: EvidenceItem[];
-  regression_rule: string;
+  regression_rule: string | null;
   retrieved_context_ids: string[];
   human_validated: boolean;
 }

@@ -11,6 +11,7 @@ interface EvalAgentPanelProps {
   onTraceChange: Dispatch<SetStateAction<AgentTrace | null>>;
   onDraftChange: Dispatch<SetStateAction<EvalCase | null>>;
   onSelectStep: (index: number) => void;
+  onEvalCaseValidated?: () => void;
 }
 
 type AnalyzeMode = 'run' | 'step';
@@ -23,6 +24,7 @@ export function EvalAgentPanel({
   onTraceChange,
   onDraftChange,
   onSelectStep,
+  onEvalCaseValidated,
 }: EvalAgentPanelProps) {
   const [input, setInput] = useState('');
   const [inFlight, setInFlight] = useState(false);
@@ -191,6 +193,7 @@ export function EvalAgentPanel({
           draft={evalCaseDraft}
           onDraftChange={onDraftChange}
           onSelectStep={onSelectStep}
+          onValidated={onEvalCaseValidated}
         />
 
         <div className="flex gap-2">
@@ -319,17 +322,24 @@ function ObservationSummaryPanel({
   const stale = trace?.terminated_by && trace.terminated_by !== 'propose_eval_case';
   const visualEvidence = draft.evidence.filter((item) => isVisualEvidence(item));
   const unavailable = draft.evidence.filter((item) => item.source === 'unavailable');
-  const displayStep = draft.failure_step + 1;
+  const isSuccess = draft.failure_type === null;
+  const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step + 1 : null;
+  const headerTitle = isSuccess
+    ? 'Analysis Result (Success)'
+    : `Analysis Result (Step ${displayStep ?? '?'})`;
 
   return (
     <section className={`rounded-lg border bg-white shadow-sm ${stale ? 'border-amber-200' : 'border-slate-200'}`}>
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-        <h3 className="text-sm font-bold text-indigo-700">Analysis Result (Step {displayStep})</h3>
+        <h3 className={`text-sm font-bold ${isSuccess ? 'text-emerald-700' : 'text-indigo-700'}`}>{headerTitle}</h3>
         {stale && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">stale</span>}
       </div>
       <div className="space-y-3 p-3 text-sm text-slate-700">
-        <p className="leading-5">{draft.actual_behavior}</p>
+        {draft.actual_behavior && <p className="leading-5">{draft.actual_behavior}</p>}
         {draft.expected_behavior && <p className="text-xs leading-5 text-slate-500">Expected: {draft.expected_behavior}</p>}
+        {isSuccess && (
+          <p className="leading-5 text-emerald-700">The agent concluded this trajectory completed the task successfully.</p>
+        )}
 
         <div>
           <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Findings</h4>
@@ -351,10 +361,12 @@ function ObservationSummaryPanel({
           </ul>
         </div>
 
-        <div>
-          <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Suggested Failure Label</h4>
-          <span className="rounded-md border border-red-100 bg-red-50 px-2 py-1 font-mono text-xs font-semibold text-red-700">{draft.failure_type}</span>
-        </div>
+        {!isSuccess && draft.failure_type && (
+          <div>
+            <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Suggested Failure Label</h4>
+            <span className="rounded-md border border-red-100 bg-red-50 px-2 py-1 font-mono text-xs font-semibold text-red-700">{draft.failure_type}</span>
+          </div>
+        )}
 
         {visualEvidence.length > 0 && (
           <div>
@@ -584,10 +596,12 @@ function EvalCaseDraftPanel({
   draft,
   onDraftChange,
   onSelectStep,
+  onValidated,
 }: {
   draft: EvalCase | null;
   onDraftChange: (draft: EvalCase | null) => void;
   onSelectStep: (index: number) => void;
+  onValidated?: () => void;
 }) {
   const [localDraft, setLocalDraft] = useState<EvalCase | null>(draft);
   const [dirty, setDirty] = useState(false);
@@ -644,6 +658,7 @@ function EvalCaseDraftPanel({
       setDirty(false);
       dirtyRef.current = false;
       setExportStatus('Exported validated eval case.');
+      onValidated?.();
     } catch (error) {
       setExportStatus(errorMessage(error));
     }
@@ -658,10 +673,28 @@ function EvalCaseDraftPanel({
       <div className="space-y-3 p-3 text-xs text-slate-700">
         <DraftField label="Case ID" value={localDraft.case_id} readOnly />
         <DraftField label="Source Run" value={localDraft.source_run_id} readOnly />
-        <DraftNumberField label="Failure Step" value={localDraft.failure_step} onChange={(value) => update({ failure_step: value })} />
-        <DraftField label="Failure Type" value={localDraft.failure_type} onChange={(value) => update({ failure_type: value })} />
-        <DraftTextArea label="Expected Behavior" value={localDraft.expected_behavior} onChange={(value) => update({ expected_behavior: value })} />
-        <DraftTextArea label="Actual Behavior" value={localDraft.actual_behavior} onChange={(value) => update({ actual_behavior: value })} />
+        {localDraft.failure_type === null ? (
+          <div className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-2 text-[11px] text-emerald-800">
+            Success case — the Eval Agent found no failure. Validating this draft marks the run as successful and indexes it for find_similar_successful_run.
+          </div>
+        ) : (
+          <>
+            {typeof localDraft.failure_step === 'number' ? (
+              <DraftNumberField label="Failure Step" value={localDraft.failure_step} onChange={(value) => update({ failure_step: value })} />
+            ) : (
+              // The XOR validator on the backend would reject this draft on
+              // POST anyway; surface the inconsistency in the editor so the
+              // user fixes it before clicking Validate rather than discovering
+              // it via a 422.
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-800">
+                Failure step is missing or invalid for this failure case. Fix the draft (or convert to a success case) before validating.
+              </div>
+            )}
+            <DraftField label="Failure Type" value={localDraft.failure_type ?? ''} onChange={(value) => update({ failure_type: value })} />
+            <DraftTextArea label="Expected Behavior" value={localDraft.expected_behavior ?? ''} onChange={(value) => update({ expected_behavior: value })} />
+            <DraftTextArea label="Actual Behavior" value={localDraft.actual_behavior ?? ''} onChange={(value) => update({ actual_behavior: value })} />
+          </>
+        )}
 
         <div>
           <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Evidence</div>
@@ -688,7 +721,9 @@ function EvalCaseDraftPanel({
           </div>
         </div>
 
-        <DraftTextArea label="Regression Rule" value={localDraft.regression_rule} onChange={(value) => update({ regression_rule: value })} />
+        {localDraft.failure_type !== null && (
+          <DraftTextArea label="Regression Rule" value={localDraft.regression_rule ?? ''} onChange={(value) => update({ regression_rule: value })} />
+        )}
         <DraftField
           label="Retrieved Context IDs"
           value={localDraft.retrieved_context_ids.join(', ')}
