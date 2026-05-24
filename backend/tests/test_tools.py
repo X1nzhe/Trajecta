@@ -3,12 +3,20 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from backend.app import storage, tools
 from backend.app.ids import make_eval_case_id
 from backend.app.schemas import EvalCase, EvidenceItem, FailureMemoryCase
 from backend.tests.test_storage import sample_run
+
+
+def _create_tiny_png(path: Path) -> None:
+    from PIL import Image
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (1, 1), color=(255, 255, 255)).save(path, format="PNG")
 
 
 class ToolsTests(unittest.TestCase):
@@ -104,6 +112,79 @@ class ToolsTests(unittest.TestCase):
         spy.assert_called_once_with("early terminated", top_k=4, only_validated=True)
         self.assertEqual(results[0]["case_id"], "ec_run_1_step_0")
         self.assertIsInstance(results[0], dict)
+
+    def test_get_step_detail_returns_valid_shape(self) -> None:
+        storage.save_run(sample_run())
+
+        result = tools.get_step_detail("run_1", step_index=0, image_detail="high")
+
+        self.assertIn("run_id", result)
+        self.assertIn("step_index", result)
+        self.assertIn("has_screenshot", result)
+        self.assertIn("image_detail", result)
+        self.assertIn("vlm_summary", result)
+        self.assertIn("action", result)
+        self.assertIn("observation", result)
+        self.assertIn("result", result)
+        self.assertIn("coordinate_validation", result)
+        self.assertEqual(result["image_detail"], "high")
+        self.assertFalse(result["has_screenshot"])
+        self.assertIsNone(result["vlm_summary"])
+
+    def test_get_step_detail_low_detail_mode(self) -> None:
+        storage.save_run(sample_run())
+        _create_tiny_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
+
+        result = tools.get_step_detail("run_1", step_index=0, image_detail="low")
+
+        self.assertEqual(result["image_detail"], "low")
+        self.assertTrue(result["has_screenshot"])
+        self.assertIsNotNone(result["vlm_summary"])
+        self.assertLessEqual(len(result["vlm_summary"]), 200)
+
+    def test_get_step_detail_high_detail_with_screenshot(self) -> None:
+        storage.save_run(sample_run())
+        _create_tiny_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
+
+        result = tools.get_step_detail("run_1", step_index=0, image_detail="high")
+
+        self.assertTrue(result["has_screenshot"])
+        self.assertIsNotNone(result["vlm_summary"])
+
+    def test_get_step_detail_invalid_step_index_returns_tool_error(self) -> None:
+        storage.save_run(sample_run())
+
+        result = tools.get_step_detail("run_1", step_index=99)
+
+        self.assertIn("tool_error", result)
+        self.assertIsInstance(result["tool_error"], str)
+        self.assertTrue(result["tool_error"])
+
+    def test_get_step_detail_unknown_run_returns_tool_error(self) -> None:
+        result = tools.get_step_detail("nonexistent_run", step_index=0)
+
+        self.assertIn("tool_error", result)
+
+    def test_get_step_detail_no_screenshot_bytes_in_result(self) -> None:
+        storage.save_run(sample_run())
+
+        result = tools.get_step_detail("run_1", step_index=0)
+
+        self.assertNotIn("screenshot_bytes", result)
+        self.assertNotIn("image_bytes", result)
+        self.assertNotIn("image_data", result)
+        self.assertFalse(result["observation"]["screenshot"].startswith("/"))
+
+    def test_get_step_detail_screenshot_url_format(self) -> None:
+        storage.save_run(sample_run())
+        _create_tiny_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
+
+        result = tools.get_step_detail("run_1", step_index=0)
+
+        self.assertEqual(
+            result["screenshot_url"],
+            "/api/runs/run_1/screenshots/screenshot_001.png",
+        )
 
 
 if __name__ == "__main__":
