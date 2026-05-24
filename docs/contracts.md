@@ -295,7 +295,11 @@ def get_run(run_id: str) -> dict:
     """
 
 
-def find_similar_successful_run(task: str, top_k: int = 3) -> list[dict]:
+def find_similar_successful_run(
+    task: str,
+    top_k: int = 3,
+    exclude_run_id: str | None = None,
+) -> list[dict]:
     """Retrieve previously imported runs whose task is semantically similar to
     `task` AND whose `TrajectoryRun.status == "success"`.
 
@@ -310,8 +314,9 @@ def find_similar_successful_run(task: str, top_k: int = 3) -> list[dict]:
     - `status`: Literal["success"]   (filtered)
     - `step_count`: int
 
-    The currently-analyzed `run_id` (if any) is excluded from results. The
-    list is sorted by similarity, highest first. May return an empty list.
+    `exclude_run_id` is used for the currently analyzed run, when known, so it
+    is excluded from results. The list is sorted by similarity, highest first.
+    May return an empty list.
 
     Run IDs returned here are **not** part of `EvalCase.retrieved_context_ids`
     — that field stores failure-memory and eval-case IDs only. The comparison

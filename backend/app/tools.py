@@ -31,8 +31,16 @@ def get_run(run_id: str) -> dict[str, Any]:
     return payload
 
 
-def find_similar_successful_run(task: str, top_k: int = 3) -> list[dict[str, Any]]:
-    return rag.query_similar_successful_runs(task, top_k=top_k)
+def find_similar_successful_run(
+    task: str,
+    top_k: int = 3,
+    exclude_run_id: str | None = None,
+) -> list[dict[str, Any]]:
+    return rag.query_similar_successful_runs(
+        task,
+        top_k=top_k,
+        exclude_run_id=exclude_run_id,
+    )
 
 
 def get_step_detail(

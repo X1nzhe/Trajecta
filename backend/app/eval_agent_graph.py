@@ -705,7 +705,10 @@ class OfflineAgentMock:
         if self._stage == 2:
             self._stage += 1
             task = storage.load_run(run_id).task
-            return _ai_tool_call("find_similar_successful_run", {"task": task, "top_k": 1})
+            return _ai_tool_call(
+                "find_similar_successful_run",
+                {"task": task, "top_k": 1, "exclude_run_id": run_id},
+            )
         if self._stage == 3:
             successful = _last_tool_items(messages, "find_similar_successful_run")
             self._stage += 1

@@ -6,9 +6,15 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from backend.app import storage, tools
+from backend.app import rag, storage, tools
 from backend.app.ids import make_eval_case_id
-from backend.app.schemas import EvalCase, EvidenceItem, FailureMemoryCase
+from backend.app.schemas import (
+    EvalCase,
+    EvidenceItem,
+    FailureMemoryCase,
+    StepDigest,
+    TrajectoryDigest,
+)
 from backend.tests.test_storage import sample_run
 
 
@@ -23,22 +29,52 @@ class ToolsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.previous_data_dir = os.environ.get("TRAJECTA_DATA_DIR")
+        self.previous_chroma_dir = os.environ.get("TRAJECTA_CHROMA_DIR")
         os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
+        os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(self.tmp.name, "chroma")
+        rag._client_cache = None
+        rag._embedding_cache = None
 
     def tearDown(self) -> None:
+        rag._client_cache = None
+        rag._embedding_cache = None
         if self.previous_data_dir is None:
             os.environ.pop("TRAJECTA_DATA_DIR", None)
         else:
             os.environ["TRAJECTA_DATA_DIR"] = self.previous_data_dir
+        if self.previous_chroma_dir is None:
+            os.environ.pop("TRAJECTA_CHROMA_DIR", None)
+        else:
+            os.environ["TRAJECTA_CHROMA_DIR"] = self.previous_chroma_dir
         self.tmp.cleanup()
 
-    def test_get_run_returns_run_without_fake_digest(self) -> None:
+    def test_get_run_returns_run_with_attached_digest(self) -> None:
         storage.save_run(sample_run())
+        digest = TrajectoryDigest(
+            run_id="run_1",
+            task="Find a result",
+            step_count=1,
+            steps=[
+                StepDigest(
+                    index=0,
+                    action_type="wait",
+                    action_text="wait",
+                    result_status="unknown",
+                    coord_validation_status="unknown",
+                    has_screenshot=False,
+                )
+            ],
+            preprocess_model="mock",
+        )
+        storage.save_digest("run_1", digest)
 
         result = tools.get_run("run_1")
 
         self.assertEqual(result["run_id"], "run_1")
-        self.assertNotIn("digest", result)
+        self.assertIn("digest", result)
+        validated = TrajectoryDigest.model_validate(result["digest"])
+        self.assertEqual(validated.run_id, "run_1")
+        self.assertEqual(validated.step_count, 1)
 
     def test_propose_eval_case_generates_valid_draft(self) -> None:
         storage.save_run(sample_run())
@@ -89,7 +125,7 @@ class ToolsTests(unittest.TestCase):
         with mock.patch("backend.app.tools.rag.query_similar_successful_runs", return_value=canned) as spy:
             results = tools.find_similar_successful_run("Find a result", top_k=3)
 
-        spy.assert_called_once_with("Find a result", top_k=3)
+        spy.assert_called_once_with("Find a result", top_k=3, exclude_run_id=None)
         self.assertEqual([r["run_id"] for r in results], ["success_run"])
         self.assertEqual(results[0]["status"], "success")
 
@@ -185,6 +221,73 @@ class ToolsTests(unittest.TestCase):
             result["screenshot_url"],
             "/api/runs/run_1/screenshots/screenshot_001.png",
         )
+
+    def test_get_run_with_comparison_run_id(self) -> None:
+        """docs/testing.md: get_run accepts a comparison run_id distinct from
+        the run currently under analysis.
+        """
+
+        storage.save_run(sample_run("run_a"))
+        storage.save_run(sample_run("run_b"))
+
+        result_a = tools.get_run("run_a")
+        result_b = tools.get_run("run_b")
+
+        self.assertEqual(result_a["run_id"], "run_a")
+        self.assertEqual(result_b["run_id"], "run_b")
+
+    def test_find_similar_successful_run_filters_status_and_excludes_self(self) -> None:
+        """docs/testing.md: find_similar_successful_run returns only runs with
+        status=='success' and excludes the queried run_id.
+        """
+
+        self_run = sample_run("run_a", status="success")
+        success_run = sample_run("run_c", status="success")
+        failed_run = sample_run("run_b", status="failed")
+        storage.save_run(self_run)
+        storage.save_run(success_run)
+        storage.save_run(failed_run)
+        rag.upsert_successful_run(self_run)
+        rag.upsert_successful_run(success_run)
+
+        results = tools.find_similar_successful_run(
+            "Find a result", top_k=5, exclude_run_id="run_a"
+        )
+
+        self.assertGreater(len(results), 0)
+        run_ids = [r["run_id"] for r in results]
+        self.assertNotIn("run_a", run_ids)  # self exclusion
+        self.assertNotIn("run_b", run_ids)  # status filter
+        self.assertIn("run_c", run_ids)
+        self.assertTrue(all(r["status"] == "success" for r in results))
+
+    def test_find_similar_successful_run_empty_when_no_success_run_indexed(self) -> None:
+        """docs/testing.md: find_similar_successful_run returns an empty list
+        when no successful run is indexed for the task.
+        """
+
+        results = tools.find_similar_successful_run("Find a result", top_k=3)
+
+        self.assertEqual(results, [])
+
+    def test_propose_eval_case_rejects_missing_required_fields(self) -> None:
+        """docs/testing.md: propose_eval_case rejects an EvalCase draft missing
+        required fields. Python rejects omitted required terminal-tool args
+        before an incomplete EvalCase draft can be constructed.
+        """
+
+        storage.save_run(sample_run())
+
+        with self.assertRaises(TypeError):
+            tools.propose_eval_case(
+                run_id="run_1",
+                failure_step=0,
+                failure_type="early_terminated",
+                expected_behavior="x",
+                evidence=[{"claim": "c", "source": "trajectory", "run_id": "run_1"}],
+                regression_rule="r",
+                retrieved_context_ids=[],
+            )
 
 
 if __name__ == "__main__":

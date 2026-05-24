@@ -139,6 +139,32 @@ class EvalCaseTests(RagPerTestEnv):
         # Full Pydantic round-trip.
         EvalCase.model_validate(reconstructed.model_dump(mode="json"))
 
+    def test_eval_cases_query_defaults_to_human_validated_true(self) -> None:
+        validated = _sample_eval_case(case_id="ec_valid", human_validated=True)
+        draft = _sample_eval_case(case_id="ec_draft", human_validated=False)
+
+        class FakeCollection:
+            def __init__(self) -> None:
+                self.query_kwargs = {}
+
+            def query(self, **kwargs):
+                self.query_kwargs = kwargs
+                return {
+                    "metadatas": [
+                        [
+                            rag._eval_case_metadata(validated),
+                            rag._eval_case_metadata(draft),
+                        ]
+                    ]
+                }
+
+        fake_collection = FakeCollection()
+        with mock.patch("backend.app.rag.eval_cases_collection", return_value=fake_collection):
+            results = rag.query_eval_cases("price filter", top_k=5)
+
+        self.assertEqual(fake_collection.query_kwargs["where"], {"human_validated": True})
+        self.assertEqual([case.case_id for case in results], ["ec_valid"])
+
 
 class SuccessfulRunsTests(RagPerTestEnv):
     def test_successful_runs_upsert_refuses_non_success_status(self) -> None:
@@ -302,6 +328,70 @@ class EmbeddingFactoryTests(unittest.TestCase):
         self.assertNotEqual(a, c)
         norm = sum(x * x for x in a) ** 0.5
         self.assertAlmostEqual(norm, 1.0, places=5)
+
+
+class SeedFailureMemoryFileTests(unittest.TestCase):
+    """Validate the on-disk seed file, independent of TRAJECTA_DATA_DIR overrides."""
+
+    def test_failure_memory_seed_contains_five_cases_including_missed_constraint(self) -> None:
+        """docs/testing.md: failure memory seed contains at least 5 cases
+        including missed_constraint.
+        """
+
+        from backend.app.storage import REPO_ROOT
+
+        seed = REPO_ROOT / "data" / "failure_memory" / "cases.jsonl"
+        self.assertTrue(seed.exists(), f"missing seed file: {seed}")
+
+        cases: list[FailureMemoryCase] = []
+        for line in seed.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            cases.append(FailureMemoryCase.model_validate_json(line))
+
+        self.assertGreaterEqual(len(cases), 5)
+        self.assertTrue(any(c.failure_type == "missed_constraint" for c in cases))
+
+
+class RankingAndTopKTests(RagPerTestEnv):
+    def test_find_similar_successful_run_same_task_outranks_cross_task(self) -> None:
+        """docs/testing.md: find_similar_successful_run returns higher
+        similarity for same-task runs than for cross-task runs.
+        """
+
+        same_task_run = sample_run("run_same", status="success").model_copy(
+            update={"task": "Filter results under twenty dollars"}
+        )
+        cross_task_run = sample_run("run_cross", status="success").model_copy(
+            update={"task": "Send a message to a friend"}
+        )
+        rag.upsert_successful_run(same_task_run)
+        rag.upsert_successful_run(cross_task_run)
+
+        results = rag.query_similar_successful_runs(
+            "Filter results under twenty dollars", top_k=2
+        )
+
+        run_ids = [r["run_id"] for r in results]
+        self.assertIn("run_same", run_ids)
+        # Same-task run must appear before cross-task run when both are present.
+        if "run_cross" in run_ids:
+            self.assertLess(run_ids.index("run_same"), run_ids.index("run_cross"))
+
+    def test_top_k_length_respected(self) -> None:
+        """docs/testing.md: top_k length is respected."""
+
+        for i in range(5):
+            rag.upsert_failure_memory(
+                _sample_failure_memory(
+                    case_id=f"fm_missed_constraint_{i + 1:03d}",
+                    summary=f"case {i}",
+                )
+            )
+
+        results = rag.query_failure_memory("constraint", top_k=2)
+        self.assertEqual(len(results), 2)
 
 
 @pytest.mark.skipif(
