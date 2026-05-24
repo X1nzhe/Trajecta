@@ -4,9 +4,9 @@ Placeholder warning for Phase 3:
 
 ``search_failure_memory``, ``search_eval_cases``, and
 ``find_similar_successful_run`` are Phase 2 fallbacks. Phase 3 MUST replace
-them with ChromaDB-backed implementations from ``backend/app/rag.py`` and
-remove the token-overlap scoring in this file; the local fallback must not
-remain as a runtime path once the ``failure_memory`` / ``eval_cases`` /
+them with ChromaDB-backed retrieval implementations introduced in Phase 3,
+and remove the token-overlap scoring in this file; the local fallback must
+not remain as a runtime path once the ``failure_memory`` / ``eval_cases`` /
 ``successful_runs`` collections exist. ``get_step_detail`` is intentionally
 unimplemented here; the VLM step-detail tool is owned by Phase 3.
 
