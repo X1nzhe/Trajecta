@@ -295,17 +295,39 @@ Schema:
 
 Rules:
 
-- The overlay is the **final word** on `TrajectoryRun.status`: when an entry
-  exists, the imported `TrajectoryRun.status` field takes the overlay value,
-  regardless of what the source dataset provided.
-- Runs without an overlay entry keep whatever status the source data implies,
-  falling back to `"unknown"`.
-- The overlay must cover at least one `"success"` run for every fixture task
-  category, otherwise `find_similar_successful_run` returns empty for those
-  tasks and the demo loses replay-and-diff coverage.
-- The overlay is committed to the repo as part of the fixture set. It is not
-  inferred from the Eval Agent's analysis (see
-  [docs/contracts.md](contracts.md#schema-contracts) note on `TrajectoryRun.status`).
+- **Deprecated in v1.** `dataset_importer.import_sample` no longer applies
+  `run_status_overlay.json`. The file is kept under the fixture root for
+  historical reference and for the human reviewer's own QA, but the import
+  pipeline ignores it. See "Cold-Start Behavior" below for the rationale.
+- `triage_notes.csv` remains the human ground-truth source for offline
+  comparison (e.g., RAGAS scoring of agent verdicts against curated labels).
+  Neither the importer nor the Eval Agent reads it at runtime.
+
+## Cold-Start Behavior
+
+v1 deliberately **does not** pre-populate `TrajectoryRun.status` from any
+source — not from the dataset row, not from `run_status_overlay.json`, not
+from `triage_notes.csv`. The reasoning:
+
+- The Eval Agent must reach its own verdict; pre-seeded status would let the
+  agent (or its tools, via `get_run`) copy the answer.
+- The product story is "import 24 unanalyzed sessions → analyze with the
+  Eval Agent → human validates → status appears". Pre-seeded badges break
+  that demo arc.
+
+Concretely:
+
+- Every imported run lands at `status="unknown"` regardless of any raw
+  `status` / `outcome` field in the source row.
+- `POST /api/import/molmoweb-sample` does **not** seed any RAG collection.
+  `successful_runs` starts empty.
+- The frontend renders `status="unknown"` as the badge **Unanalyzed**.
+- Status flips to `"success"` or `"failed"` only when a human posts a
+  validated `EvalCase` (see [docs/contracts.md](contracts.md) "POST
+  /api/eval-cases").
+- `successful_runs` grows only as humans validate success-shape eval cases;
+  `find_similar_successful_run` returns empty until at least one success
+  case has been validated.
 
 ## Re-Import Behavior
 

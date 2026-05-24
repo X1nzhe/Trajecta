@@ -35,16 +35,17 @@ generic observability platform
 
 A thin top bar. The only interactive element is one button:
 
-- **`Reload Sample Runs`** — calls `POST /api/import/molmoweb-sample`, which re-imports the bundled `data/raw/molmoweb_humanskills_sample/` fixtures (idempotent — see [docs/dataset_import.md](dataset_import.md#re-import-behavior)). Disable while in flight; on success, refresh `RunList`. Tooltip: "Re-imports the bundled MolmoWeb-HumanSkills sample. Dataset upload from the browser is a v2 feature." Do not label this button "Import Dataset" — it does not accept user uploads in v1.
+- **`Import Dataset`** — calls `POST /api/import/molmoweb-sample`, which imports the bundled `data/raw/molmoweb_humanskills_sample/` fixtures (idempotent — see [docs/dataset_import.md](dataset_import.md#re-import-behavior)). Disable while in flight; on success, refresh `RunList`. Tooltip: "Imports the bundled MolmoWeb-HumanSkills sample. Status badges appear after Eval Agent analysis + human validation." Dataset upload from the browser is a v2 feature; v1 always reads from the bundled fixture path.
 
 ### `RunList.tsx`
 
 - List runs from `GET /api/runs`.
-- Show run status badge: `failed`, `success`, `unknown`.
+- Show run status badge: `Failed`, `Success`, `Unanalyzed`. The `unknown` storage value maps to the `Unanalyzed` badge (amber) — cold-start runs have no verdict until a human validates an `EvalCase`.
 - Show task text, date, step count, comment count.
 - Run ID rendered truncated on the card (e.g. first 8 + last 4 characters); the full `run_id` is shown in a tooltip on hover so the user can copy it.
 - Click loads the run and resets the center and right panels.
-- Search box filters by `task` substring; status filter chips (All / Failed / Success / Review).
+- Search box filters by `task` substring; status filter chips (All / Failed / Success / Unanalyzed).
+- After a successful `POST /api/eval-cases`, the panel re-fetches `/api/runs` so the badge flips immediately (`onEvalCaseValidated` callback wired from `App.tsx`).
 
 ### `StepTimeline.tsx`
 
@@ -167,10 +168,10 @@ not create a second analysis path.
 Project-level summary row at the bottom of the page:
 
 - Dataset name (e.g., `MolmoWeb-HumanSkills`).
-- Imported run count + breakdown by status (e.g., `25 runs · 8 failed · 12 success · 5 unknown`).
+- Imported run count + breakdown by status (e.g., `24 runs · 0 failed · 0 success · 24 unanalyzed` immediately after a cold-start import).
 - Latest import timestamp if available.
 
-Do not show fake database / schema version labels — Trajecta's storage is local files and ChromaDB; surfacing a schema version is misleading in v1.
+Do not show fake database / schema version labels — Trajecta's storage is the local SQLite file plus ChromaDB; surfacing a schema version is misleading in v1.
 
 ## Routing
 

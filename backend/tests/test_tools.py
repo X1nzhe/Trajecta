@@ -269,24 +269,45 @@ class ToolsTests(unittest.TestCase):
 
         self.assertEqual(results, [])
 
-    def test_propose_eval_case_rejects_missing_required_fields(self) -> None:
-        """docs/testing.md: propose_eval_case rejects an EvalCase draft missing
-        required fields. Python rejects omitted required terminal-tool args
-        before an incomplete EvalCase draft can be constructed.
+    def test_propose_eval_case_rejects_half_populated_failure_fields(self) -> None:
+        """docs/contracts.md EvalCase XOR rule: a draft must populate all
+        five failure fields (failure case) or none of them (success case).
+        Half-populated drafts are rejected by the EvalCase model_validator.
         """
+
+        from pydantic import ValidationError
 
         storage.save_run(sample_run())
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValidationError):
             tools.propose_eval_case(
                 run_id="run_1",
                 failure_step=0,
                 failure_type="early_terminated",
                 expected_behavior="x",
+                # actual_behavior and regression_rule deliberately missing
                 evidence=[{"claim": "c", "source": "trajectory", "run_id": "run_1"}],
-                regression_rule="r",
                 retrieved_context_ids=[],
             )
+
+    def test_propose_eval_case_success_shape(self) -> None:
+        """Calling propose_eval_case with no failure fields produces a
+        success-shape EvalCase draft using the success case_id namespace.
+        """
+
+        storage.save_run(sample_run())
+
+        draft = tools.propose_eval_case(
+            run_id="run_1",
+            evidence=[{"claim": "Step 0 reached the expected page.", "source": "trajectory", "run_id": "run_1", "step_index": 0}],
+            retrieved_context_ids=[],
+        )
+
+        self.assertEqual(draft["case_id"], "ec_run_1_success")
+        self.assertIsNone(draft["failure_step"])
+        self.assertIsNone(draft["failure_type"])
+        self.assertIsNone(draft["regression_rule"])
+        self.assertFalse(draft["human_validated"])
 
 
 if __name__ == "__main__":

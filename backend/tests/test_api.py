@@ -212,14 +212,14 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
 
     def test_post_eval_case_rejects_unvalidated(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0").model_copy(update={"human_validated": False})
+        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api").model_copy(update={"human_validated": False})
 
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
 
         self.assertEqual(response.status_code, 422)
 
     def test_duplicate_eval_case_returns_409(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0")
+        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api")
 
         first = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
         second = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
@@ -228,7 +228,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(second.status_code, 409)
 
     def test_post_eval_case_upserts_into_rag(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0")
+        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api")
 
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
         self.assertEqual(response.status_code, 200)
@@ -240,13 +240,62 @@ class ApiTests(unittest.TestCase):
         ids = [item["case_id"] for item in search.json()]
         self.assertIn("ec_run_api_step_0", ids)
 
-    def test_import_handler_upserts_success_runs_into_rag(self) -> None:
-        # Force the importer to yield one success row without needing a real
-        # HuggingFace dataset on disk. Mirrors the pattern used in
-        # test_dataset_importer.test_image_paths_null_mapping_does_not_fail.
+    def test_post_failure_eval_case_flips_run_status_to_failed(self) -> None:
+        """Validating a failure-shape EvalCase must flip the source run's
+        status to 'failed' so the UI badge reflects the verdict.
+        """
+
+        from backend.tests.test_storage import sample_eval_case as case_factory
+
+        case = case_factory("ec_run_api_step_0", source_run_id="run_api")
+        self.assertEqual(storage.load_run("run_api").status, "unknown")
+
+        response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(storage.load_run("run_api").status, "failed")
+
+    def test_post_success_eval_case_flips_status_and_seeds_rag(self) -> None:
+        """Validating a success-shape EvalCase must flip the run to
+        'success' AND upsert it into the successful_runs collection so
+        find_similar_successful_run starts returning matches.
+        """
+
+        from backend.tests.test_storage import sample_success_eval_case
+
+        case = sample_success_eval_case("ec_run_api_success", source_run_id="run_api")
+
+        response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(storage.load_run("run_api").status, "success")
+        results = tools.find_similar_successful_run("Find a result", top_k=3)
+        self.assertIn("run_api", [r["run_id"] for r in results])
+
+    def test_post_eval_case_unknown_source_run_returns_404(self) -> None:
+        from backend.tests.test_storage import sample_eval_case as case_factory
+
+        case = case_factory("ec_ghost_step_0", source_run_id="ghost_run")
+
+        response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_import_handler_starts_cold(self) -> None:
+        """v1 cold-start contract (docs/dataset_import.md): imported runs
+        land at status='unknown' regardless of any raw `status` field, and
+        the importer does not seed any RAG collection. RAG only grows via
+        human-validated eval cases.
+        """
+
         original_loader = dataset_importer._load_dataset_from_disk
         source_dir = Path(self.tmp.name) / "fake_hf"
         source_dir.mkdir(parents=True)
+        # Even passing a raw success status: the importer no longer applies
+        # the run_status_overlay, and the API handler no longer upserts
+        # successful_runs at import time. The raw status flows through the
+        # importer (normalize_trajectory honors it), but the handler does
+        # not seed RAG from it.
         success_row = raw_row(sample_id="imported_success", status="success")
         dataset_importer._load_dataset_from_disk = lambda path: [success_row]
         try:
@@ -259,10 +308,11 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["imported_count"], 1)
-        self.assertEqual(response.json()["runs"][0]["status"], "success")
 
+        # No RAG seeding from import — the successful_runs collection is
+        # empty until a human validates a success EvalCase.
         results = tools.find_similar_successful_run("Find the checkout button.", top_k=3)
-        self.assertIn("imported_success", [r["run_id"] for r in results])
+        self.assertEqual(results, [])
 
     def test_analyze_returns_ndjson_events_before_done(self) -> None:
         from PIL import Image
@@ -525,7 +575,7 @@ class ApiTests(unittest.TestCase):
             FailureMemoryCase.model_validate(item)
 
     def test_eval_cases_search_endpoint_returns_schema_valid_results(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0")
+        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api")
         self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
 
         response = self.client.get(

@@ -55,9 +55,11 @@ def import_sample(source_dir: Path) -> list[TrajectoryRun]:
         if assets:
             _LAST_SCREENSHOT_ASSETS[run.run_id] = assets
 
-    overlay_path = source_dir.parent / "run_status_overlay.json"
-    if overlay_path.exists():
-        runs = apply_status_overlay(runs, overlay_path)
+    # Status overlay deliberately not applied in v1: docs/dataset_import.md
+    # "Cold-Start Behavior". Run.status is set only by human-validated eval
+    # cases; imports start every run at "unknown" so the Eval Agent has
+    # nothing to copy from. apply_status_overlay() remains importable for
+    # ad-hoc scripts and tests.
     return runs
 
 

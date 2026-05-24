@@ -141,14 +141,12 @@ def import_molmoweb_sample(request: ImportRequest | None = None) -> dict:
         assets = dataset_importer.get_imported_screenshot_assets(run.run_id)
         if assets:
             storage.save_screenshots(run.run_id, assets)
-        # Re-import drop rule (docs/dataset_import.md "Re-Import Behavior"):
-        # a run that flipped away from "success" must be removed from the
-        # successful_runs collection. Delete unconditionally then upsert
-        # only when the post-overlay status is "success"; both calls are
-        # idempotent.
+        # Re-import drop rule: a run that previously had a human-validated
+        # eval case (and therefore a successful_runs row) loses that row on
+        # re-import because the trajectory is now considered re-imported and
+        # unanalyzed. The successful_runs collection only fills again when
+        # the user re-validates the new analysis.
         rag.delete_successful_run(run.run_id)
-        if run.status == "success":
-            rag.upsert_successful_run(run)
 
     return {"imported_count": len(runs), "runs": [run.model_dump(mode="json") for run in runs]}
 
@@ -158,10 +156,26 @@ def create_eval_case(case: EvalCase) -> dict:
     if not case.human_validated:
         raise HTTPException(status_code=422, detail="POST /api/eval-cases requires human_validated=true")
     try:
+        run = storage.load_run(case.source_run_id)
+    except FileNotFoundError as exc:
+        raise _not_found(f"source run not found: {case.source_run_id}") from exc
+
+    try:
         storage.save_eval_case(case)
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    rag.upsert_eval_case(case)
+
+    # Flip run.status on validation. Success cases are also indexed into
+    # successful_runs so find_similar_successful_run can use them; failure
+    # cases land in the eval_cases collection (existing behavior).
+    new_status = "success" if case.is_success else "failed"
+    updated_run = run.model_copy(update={"status": new_status})
+    storage.save_run(updated_run)
+
+    if case.is_success:
+        rag.upsert_successful_run(updated_run)
+    else:
+        rag.upsert_eval_case(case)
     return case.model_dump(mode="json")
 
 
