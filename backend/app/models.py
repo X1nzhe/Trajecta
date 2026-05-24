@@ -58,6 +58,7 @@ class Run(Base):
         back_populates="run",
         cascade="all, delete-orphan",
         order_by="Step.step_index",
+        lazy="selectin",
     )
     screenshots: Mapped[list["Screenshot"]] = relationship(
         back_populates="run",

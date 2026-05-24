@@ -57,6 +57,28 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(loaded.run_id, "run_1")
         self.assertEqual(loaded.steps[0].action.type, "wait")
 
+    def test_save_run_preserves_trace_and_screenshots(self) -> None:
+        """Re-import must not cascade-delete the user's prior analysis.
+
+        Documented in docs/dataset_import.md "Re-Import Behavior": traces
+        survive re-import; screenshots are upserted (not orphan-deleted).
+        Regression guard for the cascade-delete bug Copilot caught.
+        """
+
+        storage.save_run(sample_run())
+        storage.save_screenshots("run_1", {"screenshot_001.png": b"png-bytes"})
+        trace = AgentTrace(run_id="run_1", user_intent="analyze_run")
+        storage.save_trace("run_1", trace)
+        digest = TrajectoryDigest(run_id="run_1", task="Find a result", step_count=0, steps=[])
+        storage.save_digest("run_1", digest)
+
+        storage.save_run(sample_run(status="failed"))
+
+        self.assertIsNotNone(storage.load_trace("run_1"))
+        self.assertEqual(storage.load_screenshot("run_1", "screenshot_001.png"), b"png-bytes")
+        self.assertIsNotNone(storage.load_digest("run_1"))
+        self.assertEqual(storage.load_run("run_1").status, "failed")
+
     def test_save_run_replaces_existing(self) -> None:
         original = sample_run()
         storage.save_run(original)

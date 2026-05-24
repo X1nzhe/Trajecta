@@ -18,7 +18,7 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from backend.app import db, models
 from backend.app.schemas import (
@@ -107,14 +107,22 @@ def save_run(run: TrajectoryRun) -> None:
     _safe_id(validated.run_id, kind="run_id")
     with db.session_scope() as session:
         existing = session.get(models.Run, validated.run_id)
-        if existing is not None:
-            # Replace rather than merge: re-imports must not bleed stale steps.
-            session.delete(existing)
-            session.flush()
         run_row, step_rows = _run_to_orm(validated)
-        session.add(run_row)
-        for step in step_rows:
-            session.add(step)
+        if existing is not None:
+            # Update in place + replace only Step rows. Deleting the Run row
+            # would cascade into screenshots/digest/trace and silently wipe
+            # the user's prior analysis (docs/dataset_import.md "Re-Import
+            # Behavior" promises traces survive re-import).
+            existing.task = run_row.task
+            existing.source = run_row.source
+            existing.status = run_row.status
+            existing.run_metadata = run_row.run_metadata
+            existing.steps.clear()  # delete-orphan flushes the old Step rows
+            session.flush()
+            existing.steps.extend(step_rows)
+        else:
+            run_row.steps = step_rows
+            session.add(run_row)
 
 
 def load_run(run_id: str) -> TrajectoryRun:
@@ -371,7 +379,7 @@ def load_failure_memory() -> list[FailureMemoryCase]:
             cases.append(case)
 
     with db.session_scope() as session:
-        session.query(models.FailureMemoryRow).delete()
+        session.execute(delete(models.FailureMemoryRow))
         for case in cases:
             session.add(
                 models.FailureMemoryRow(
