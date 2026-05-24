@@ -15,7 +15,7 @@ redefine fields, endpoint lists, or tool signatures.
 
 - **Single user, single concurrency.** v1 assumes one analyze request at a time per run; concurrent analyzes on the same `run_id` race on `last_trace.json` and have undefined behavior.
 - **No force-rebuild knob.** `POST /api/runs/{run_id}/preprocess` is cache-first with no override; rebuilding a digest requires deleting `digest.json` on disk or bumping `preprocess_version` in code.
-- **Missing screenshots are non-fatal.** If `StepObservation.screenshot` points to a file that does not exist, `has_screenshot=false` is recorded in the digest, `get_step_detail` returns a `tool_error` naming the missing file, and `GET /api/runs/{run_id}/screenshots/{filename}` returns `404`.
+- **Missing screenshots are non-fatal.** If `StepObservation.screenshot` references a row that is absent from the `screenshots` table, `has_screenshot=false` is recorded in the digest, `get_step_detail` returns no VLM summary, and `GET /api/runs/{run_id}/screenshots/{filename}` returns `404`.
 
 ## Schema Contracts
 
@@ -202,14 +202,12 @@ ID generators:
 
 ## Screenshot Contract
 
-`StepObservation.screenshot` stores a filename or run-relative path under:
+`StepObservation.screenshot` stores a plain filename (no directory component).
+The bytes live as a BLOB row in the SQLite `screenshots` table keyed by
+`(run_id, filename)`; storage is **not** filesystem-backed. The filename must
+not contain path separators or absolute paths.
 
-```text
-data/runs/{run_id}/screenshots/
-```
-
-It must not store an absolute local filesystem path. API responses may add a
-derived frontend URL:
+API responses surface a derived frontend URL:
 
 ```text
 /api/runs/{run_id}/screenshots/{filename}
@@ -217,15 +215,16 @@ derived frontend URL:
 
 Screenshot endpoint rules:
 
-- Return the image file with the correct media type.
-- Return `404` if the run or screenshot file does not exist.
-- Reject path traversal; `filename` must resolve inside the run's screenshot directory.
+- Stream the BLOB bytes from SQLite with the correct media type.
+- Return `404` if the run or screenshot row does not exist.
+- Reject path traversal in the filename component (`storage._safe_id` enforces `^[A-Za-z0-9_.-]{1,256}$`).
 - Do not expose raw absolute filesystem paths to the frontend.
 
 ## Storage Contract
 
-Local-disk persistence is owned by `backend/app/storage.py`. All other modules
-must reach disk through these functions; no direct path-joining elsewhere.
+Persistence is owned by `backend/app/storage.py`. Backed by a single SQLite
+database (`data/trajecta.db`) accessed through SQLAlchemy 2.0; all other
+modules must reach the DB through `storage.*` — no direct queries elsewhere.
 
 Layout:
 
@@ -233,15 +232,17 @@ Layout:
 data/
   raw/molmoweb_humanskills_sample/
     run_status_overlay.json          # hand-curated status, see docs/dataset_import.md
-  runs/{run_id}/
-    trajectory.json                  # TrajectoryRun
-    digest.json                      # TrajectoryDigest (cache; see preprocessing.md)
-    last_trace.json                  # AgentTrace from most recent analyze
-    screenshots/                     # PNG/JPEG files referenced by StepObservation.screenshot
-  failure_memory/cases.jsonl         # FailureMemoryCase rows
-  eval_cases/validated/{case_id}.json  # one EvalCase per file, human_validated=true
+  trajecta.db                        # SQLite: runs, steps, screenshots,
+                                     # digests, traces, eval_cases, failure_memory
+  failure_memory/cases.jsonl         # FailureMemoryCase seed corpus (hydrated into DB on load)
   chroma/                            # ChromaDB persistence (TRAJECTA_CHROMA_DIR override)
 ```
+
+Schema is defined as SQLAlchemy declarative models in `backend/app/models.py`
+and tracked by Alembic in `backend/alembic/versions/`. The app calls
+`Base.metadata.create_all` on startup so a fresh checkout boots without
+running `alembic upgrade head` manually; production deployments should still
+prefer `alembic upgrade head` for migration safety.
 
 Function surface:
 
@@ -274,12 +275,13 @@ Behavior rules:
 
 - `load_run` and `load_digest` raise `FileNotFoundError` for unknown run IDs; API layer converts to `404`.
 - `load_trace`, `load_digest`, `load_eval_case` return `None` when the artifact does not exist (it is normal for a run to have no trace yet).
-- `save_run`, `save_trace`, `save_digest`, `save_eval_case` overwrite atomically (write to tempfile + `os.replace`) so a crash mid-write cannot corrupt the JSON.
-- `list_runs` scans `data/runs/*/trajectory.json` at request time. v1 has no run index file; the scan is acceptable because demo fixtures are small (≤ ~50 runs).
-- `load_failure_memory` validates every row as `FailureMemoryCase` and raises on duplicate `case_id`. Used both for ChromaDB seeding and for direct API responses.
-- `save_eval_case` writes `data/eval_cases/validated/{case_id}.json` and refuses to overwrite an existing file (raises; the API layer surfaces this as 409). To replace an existing case, delete the file first. It must also call into `rag.upsert_eval_case(case)` so ChromaDB stays in sync; see "Index trigger" rules below.
+- `save_run`, `save_trace`, `save_digest`, `save_eval_case` write inside a transaction (`session_scope`); commit on clean exit, rollback on exception. `save_run` replaces the existing row + cascades step deletes, so re-imports cannot leave stale step rows.
+- `list_runs` executes one `SELECT * FROM runs ORDER BY run_id` plus per-row step joins (relationship loaded eagerly). Demo fixtures are small (≤ ~50 runs) so the simple read pattern is fine.
+- `load_failure_memory` reads `data/failure_memory/cases.jsonl` as source of truth, validates every row, raises on duplicate `case_id`, then refreshes the `failure_memory` DB table from the file on each call. The JSONL stays editable by hand; the DB is just a queryable mirror.
+- `save_eval_case` inserts into the `eval_cases` table and refuses duplicate `case_id` (raises; the API layer surfaces this as 409). It must also call into `rag.upsert_eval_case(case)` so ChromaDB stays in sync; see "Index trigger" rules below.
 - Eval-case drafts (`human_validated=false`) are **not** persisted in v1. The draft survives only in the API response and in the trace's `propose_eval_case` tool-call args. Refreshing the page = lose the draft = re-analyze.
-- `run_exists` is used by `ids.make_eval_case_id` for collision checks; it must be cheap (a `Path.exists` on `trajectory.json`).
+- `run_exists` is used by `ids.make_eval_case_id` for collision checks; it must be cheap (a single primary-key lookup against `runs`).
+- `load_screenshot(run_id, filename) -> bytes | None` is the only way to read screenshot bytes (there is no path-on-disk anymore). VLM callers pass the bytes directly to `llm.summarize_*`.
 
 
 
@@ -495,7 +497,7 @@ Persistence directory:
 Indexing model:
 
 - Index writes are **synchronous** with the request that produces the data. No background workers in v1.
-- On FastAPI startup, the failure_memory collection is hydrated from `data/failure_memory/cases.jsonl` if empty. successful_runs is hydrated by scanning `data/runs/*/trajectory.json` for any record whose post-overlay `status == "success"` and upserting one row per such run.
+- On FastAPI startup, the failure_memory collection is hydrated from `data/failure_memory/cases.jsonl` (the seed corpus is also mirrored into the `failure_memory` SQLite table). successful_runs is hydrated by querying the `runs` table for any row with post-overlay `status == "success"` and upserting one row per such run.
 - All `upsert` operations are idempotent: re-indexing the same `case_id` / `run_id` overwrites the existing row.
 
 ### `failure_memory`
@@ -579,7 +581,7 @@ Index trigger:
 
 - Synchronous inside `POST /api/import/molmoweb-sample`: for each imported run whose post-overlay status is `"success"`, upsert one row keyed by `run_id`.
 - Re-importing an existing `run_id` upserts (overwrites) the row.
-- FastAPI startup: rebuild the collection from `data/runs/*/trajectory.json` if empty.
+- FastAPI startup: rebuild the collection from the `runs` SQLite table if empty.
 
 ### `step_summaries` (v2 placeholder)
 

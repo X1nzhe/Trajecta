@@ -93,11 +93,13 @@ def _happy_script() -> list:
     ]
 
 
-def _write_png(path: Path) -> None:
+def _attach_tiny_png(run_id: str, filename: str = "screenshot_001.png") -> None:
     from PIL import Image
+    import io
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (1, 1), color=(255, 255, 255)).save(path, format="PNG")
+    buf = io.BytesIO()
+    Image.new("RGB", (1, 1), color=(255, 255, 255)).save(buf, format="PNG")
+    storage.save_screenshots(run_id, {filename: buf.getvalue()})
 
 
 def _payload_has_forbidden_image_key(payload: object) -> bool:
@@ -495,7 +497,7 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(persisted.events[-1].name, "graph_execution")
 
     def test_no_screenshot_bytes_in_trace(self) -> None:
-        _write_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
+        _attach_tiny_png("run_1")
 
         result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
 

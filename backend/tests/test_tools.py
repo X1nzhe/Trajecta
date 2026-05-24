@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import io
 import os
-import tempfile
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from backend.app import rag, storage, tools
@@ -18,35 +17,35 @@ from backend.app.schemas import (
 from backend.tests.test_storage import sample_run
 
 
-def _create_tiny_png(path: Path) -> None:
+def _tiny_png_bytes() -> bytes:
     from PIL import Image
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (1, 1), color=(255, 255, 255)).save(path, format="PNG")
+    buf = io.BytesIO()
+    Image.new("RGB", (1, 1), color=(255, 255, 255)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _attach_screenshot(run_id: str, filename: str = "screenshot_001.png") -> None:
+    storage.save_screenshots(run_id, {filename: _tiny_png_bytes()})
 
 
 class ToolsTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.previous_data_dir = os.environ.get("TRAJECTA_DATA_DIR")
+        # conftest already isolates TRAJECTA_DATA_DIR per test; we only need to
+        # point Chroma inside the same temp dir so RAG state resets between tests.
+        data_dir = os.environ["TRAJECTA_DATA_DIR"]
         self.previous_chroma_dir = os.environ.get("TRAJECTA_CHROMA_DIR")
-        os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
-        os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(self.tmp.name, "chroma")
+        os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(data_dir, "chroma")
         rag._client_cache = None
         rag._embedding_cache = None
 
     def tearDown(self) -> None:
         rag._client_cache = None
         rag._embedding_cache = None
-        if self.previous_data_dir is None:
-            os.environ.pop("TRAJECTA_DATA_DIR", None)
-        else:
-            os.environ["TRAJECTA_DATA_DIR"] = self.previous_data_dir
         if self.previous_chroma_dir is None:
             os.environ.pop("TRAJECTA_CHROMA_DIR", None)
         else:
             os.environ["TRAJECTA_CHROMA_DIR"] = self.previous_chroma_dir
-        self.tmp.cleanup()
 
     def test_get_run_returns_run_with_attached_digest(self) -> None:
         storage.save_run(sample_run())
@@ -169,7 +168,7 @@ class ToolsTests(unittest.TestCase):
 
     def test_get_step_detail_low_detail_mode(self) -> None:
         storage.save_run(sample_run())
-        _create_tiny_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
+        _attach_screenshot("run_1")
 
         result = tools.get_step_detail("run_1", step_index=0, image_detail="low")
 
@@ -180,7 +179,7 @@ class ToolsTests(unittest.TestCase):
 
     def test_get_step_detail_high_detail_with_screenshot(self) -> None:
         storage.save_run(sample_run())
-        _create_tiny_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
+        _attach_screenshot("run_1")
 
         result = tools.get_step_detail("run_1", step_index=0, image_detail="high")
 
@@ -213,7 +212,7 @@ class ToolsTests(unittest.TestCase):
 
     def test_get_step_detail_screenshot_url_format(self) -> None:
         storage.save_run(sample_run())
-        _create_tiny_png(storage.screenshots_dir("run_1") / "screenshot_001.png")
+        _attach_screenshot("run_1")
 
         result = tools.get_step_detail("run_1", step_index=0)
 

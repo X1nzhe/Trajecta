@@ -3,13 +3,15 @@
 The factory returns one of two duck-typed clients exposing:
 
 - ``model_name: str``
-- ``summarize_low_detail(image_path: Path, *, action_type: str, step_index: int) -> str | None``
-- ``summarize_high_detail(image_path: Path, *, action_type: str, step_index: int) -> str | None``
+- ``summarize_low_detail(image_bytes: bytes, *, image_name: str, action_type: str, step_index: int) -> str | None``
+- ``summarize_high_detail(image_bytes: bytes, *, image_name: str, action_type: str, step_index: int) -> str | None``
 
-The real client is selected when ``OPENAI_API_KEY`` is set AND
-``TRAJECTA_VLM_MODEL`` is configured. Otherwise the deterministic mock is
-returned. This is the only client construction path; ``preprocess.py`` and
-the future ``get_step_detail`` tool must go through ``get_vlm_client``.
+Screenshots live in SQLite as BLOBs (see ``backend.app.storage.load_screenshot``);
+callers pass the raw bytes plus a stable identifier so the mock client can keep
+its deterministic seeding. The real client is selected when ``OPENAI_API_KEY``
+is set AND ``TRAJECTA_VLM_MODEL`` is configured. Otherwise the deterministic
+mock is returned. This is the only client construction path; ``preprocess.py``
+and the ``get_step_detail`` tool must go through ``get_vlm_client``.
 """
 
 from __future__ import annotations
@@ -17,7 +19,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
-from pathlib import Path
 from typing import Protocol
 
 
@@ -71,16 +72,18 @@ class VLMClient(Protocol):
 
     def summarize_low_detail(
         self,
-        image_path: Path,
+        image_bytes: bytes,
         *,
+        image_name: str,
         action_type: str,
         step_index: int,
     ) -> str | None: ...
 
     def summarize_high_detail(
         self,
-        image_path: Path,
+        image_bytes: bytes,
         *,
+        image_name: str,
         action_type: str,
         step_index: int,
     ) -> str | None: ...
@@ -100,20 +103,24 @@ def _normalize_summary(text: str | None, *, max_chars: int = _MAX_SUMMARY_CHARS)
 class MockVLMClient:
     """Deterministic, network-free VLM stub used by tests and offline runs.
 
-    Output is fully determined by ``(image_path.name, action_type, step_index)``
-    so the digest is byte-stable across rebuilds.
+    Output is fully determined by ``(image_name, action_type, step_index)``
+    so the digest is byte-stable across rebuilds. ``image_bytes`` is accepted
+    for API symmetry but intentionally unused — the test corpus relies on
+    name-based determinism, not content-based hashing.
     """
 
     model_name = "mock"
 
     def summarize_low_detail(
         self,
-        image_path: Path,
+        image_bytes: bytes,
         *,
+        image_name: str,
         action_type: str,
         step_index: int,
     ) -> str | None:
-        seed = f"{image_path.name}|{action_type}|{step_index}".encode("utf-8")
+        del image_bytes
+        seed = f"{image_name}|{action_type}|{step_index}".encode("utf-8")
         digest = hashlib.sha256(seed).digest()
         bucket = int.from_bytes(digest[:4], "big")
         page = _PAGE_TYPES[bucket % len(_PAGE_TYPES)]
@@ -126,12 +133,14 @@ class MockVLMClient:
 
     def summarize_high_detail(
         self,
-        image_path: Path,
+        image_bytes: bytes,
         *,
+        image_name: str,
         action_type: str,
         step_index: int,
     ) -> str | None:
-        seed = f"{image_path.name}|{action_type}|{step_index}".encode("utf-8")
+        del image_bytes
+        seed = f"{image_name}|{action_type}|{step_index}".encode("utf-8")
         digest = hashlib.sha256(seed).digest()
         page = _PAGE_TYPES[digest[0] % len(_PAGE_TYPES)]
         layout = _LAYOUT_STRUCTURES[digest[1] % len(_LAYOUT_STRUCTURES)]
@@ -161,14 +170,14 @@ class RealVLMClient:
 
     def summarize_low_detail(
         self,
-        image_path: Path,
+        image_bytes: bytes,
         *,
+        image_name: str,
         action_type: str,
         step_index: int,
     ) -> str | None:
-        try:
-            image_bytes = image_path.read_bytes()
-        except OSError:
+        del image_name, action_type, step_index
+        if not image_bytes:
             return None
         try:
             from openai import OpenAI
@@ -208,14 +217,14 @@ class RealVLMClient:
 
     def summarize_high_detail(
         self,
-        image_path: Path,
+        image_bytes: bytes,
         *,
+        image_name: str,
         action_type: str,
         step_index: int,
     ) -> str | None:
-        try:
-            image_bytes = image_path.read_bytes()
-        except OSError:
+        del image_name, action_type, step_index
+        if not image_bytes:
             return None
         try:
             from openai import OpenAI

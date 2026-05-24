@@ -2,24 +2,24 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import io
 
 from backend.app.schemas import CoordinateValidation, StepAction
 
 
-def _read_image_dimensions(image_path: Path | None) -> tuple[int | None, int | None]:
-    if image_path is None or not image_path.exists():
+def _read_image_dimensions(image_bytes: bytes | None) -> tuple[int | None, int | None]:
+    if not image_bytes:
         return None, None
 
     from PIL import Image
 
-    with Image.open(image_path) as image:
+    with Image.open(io.BytesIO(image_bytes)) as image:
         return int(image.width), int(image.height)
 
 
 def validate_coordinates(
     action: StepAction,
-    image_path: Path | None = None,
+    image_bytes: bytes | None = None,
     image_width: int | None = None,
     image_height: int | None = None,
 ) -> CoordinateValidation:
@@ -27,8 +27,8 @@ def validate_coordinates(
 
     width = image_width
     height = image_height
-    if (width is None or height is None) and image_path is not None and image_path.exists():
-        width, height = _read_image_dimensions(image_path)
+    if (width is None or height is None) and image_bytes:
+        width, height = _read_image_dimensions(image_bytes)
 
     if action.coordinates is None:
         return CoordinateValidation(

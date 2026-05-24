@@ -47,10 +47,16 @@ If a future subdirectory contains its own `AGENTS.md`, follow that nearest file 
 5. Prefer simple local fixtures and deterministic tests over full dataset or network-dependent flows.
 6. Report any command you could not run and why.
 
+## Persistence
+- Runs, steps, screenshots (BLOB), digests, traces, eval cases, and the failure-memory mirror live in `data/trajecta.db` (SQLite, single file). Schema in `backend/app/models.py`, Alembic migrations in `backend/alembic/versions/`.
+- ChromaDB persists separately under `data/chroma/`. Do not collapse the two stores.
+- Always reach the DB through `backend/app/storage.py`. No raw SQL or `Session()` construction elsewhere.
+
 ## Commands
 Backend:
 - cd backend
 - pip install -r requirements.txt
+- alembic upgrade head  # optional in dev; lifespan also runs create_all
 - uvicorn app.main:app --reload
 
 Tests:

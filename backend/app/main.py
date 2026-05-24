@@ -9,15 +9,16 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from backend.app import dataset_importer, eval_agent_graph, preprocess, rag, storage, tools
+from backend.app import db, dataset_importer, eval_agent_graph, preprocess, rag, storage, tools
 from backend.app.schemas import EvalCase
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    db.init_schema()
     rag.hydrate_all()
     yield
 
@@ -98,16 +99,14 @@ def get_step_detail(
 
 
 @app.get("/api/runs/{run_id}/screenshots/{filename:path}")
-def get_screenshot(run_id: str, filename: str) -> FileResponse:
+def get_screenshot(run_id: str, filename: str) -> Response:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    try:
-        path = storage.screenshot_path(run_id, filename)
-    except ValueError as exc:
-        raise _not_found("screenshot not found") from exc
-    if not path.exists() or not path.is_file():
+    data = storage.load_screenshot(run_id, filename)
+    if data is None:
         raise _not_found("screenshot not found")
-    return FileResponse(path)
+    media_type = storage.screenshot_content_type(run_id, filename) or "application/octet-stream"
+    return Response(content=data, media_type=media_type)
 
 
 @app.post("/api/import/molmoweb-sample")
