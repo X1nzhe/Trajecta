@@ -60,7 +60,7 @@ Fields and how they are populated:
 | `result_status` | source step result | `"unknown"` if not provided |
 | `coord_validation_status` | computed by `coordinate_validator.py` | see [docs/dataset_import.md](dataset_import.md) |
 | `vlm_low_detail_summary` | low-detail VLM call | see below |
-| `has_screenshot` | filesystem check | `True` if the file referenced by `StepObservation.screenshot` exists |
+| `has_screenshot` | `screenshots` table lookup | `True` if a `screenshots` row exists for `(run_id, StepObservation.screenshot)` |
 
 `vlm_low_detail_summary` is **a retrieval hint, not authoritative evidence.** See [docs/eval_agent.md](eval_agent.md) "Screenshot Detail Policy".
 
@@ -100,18 +100,14 @@ deterministic (no VLM calls).
 
 ## Caching
 
-Preprocessing is idempotent for a given `(run_id, preprocess_version, preprocess_model)`. Cache the digest at:
-
-```text
-data/runs/{run_id}/digest.json
-```
+Preprocessing is idempotent for a given `(run_id, preprocess_version, preprocess_model)`. The cached digest is persisted as the `digests` row keyed by `run_id` (one row per run; `payload_json` carries the full `TrajectoryDigest`).
 
 On API request:
 
-1. If a cached digest exists for the current `preprocess_version` and `preprocess_model`, return it.
-2. Otherwise run preprocessing, write the cache, and return it.
+1. If a `digests` row exists and its `preprocess_version` + `preprocess_model` match the current ones, return it.
+2. Otherwise run preprocessing, upsert the row via `storage.save_digest`, and return the fresh digest.
 
-Bumping `preprocess_version` in code invalidates all cached digests; this is the supported way to roll out a contract change.
+Bumping `preprocess_version` in code invalidates all cached digests; this is the supported way to roll out a contract change. Re-imports also invalidate the digest — the API handler calls `storage.delete_digest(run_id)` after each `storage.save_run` because the upstream changed.
 
 ## Fallback and Offline Tests
 
@@ -142,9 +138,9 @@ Preprocessing **does not write to ChromaDB**. RAG ingestion of `failure_memory`,
 - Running preprocessing on any imported run produces a `TrajectoryDigest` that validates against the schema.
 - The digest contains one `StepDigest` per step in the source run, in order.
 - `coord_validation_status` is set for every step that has both an action coordinate and screenshot dimensions.
-- `has_screenshot` is `True` if and only if the screenshot file exists on disk.
+- `has_screenshot` is `True` if and only if a `screenshots` row exists for `(run_id, filename)`.
 - With no API key, the digest is still produced using the mock VLM and is byte-stable across runs.
-- The cached `digest.json` round-trips through the `TrajectoryDigest` schema.
+- The cached `digests` row's `payload_json` round-trips through the `TrajectoryDigest` schema.
 - For any step whose source `StepObservation.visible_text` is non-empty, `StepDigest.vlm_low_detail_summary` is `None` and no VLM call is recorded for that step.
 
 ## Implementation Notes
@@ -166,8 +162,15 @@ def load_or_build_digest(run_id: str) -> TrajectoryDigest: ...
 `backend/app/coordinate_validator.py` should expose:
 
 ```python
-def validate_coordinate(
-    coord: Coordinate | None,
-    screenshot_path: str | None,
+def validate_coordinates(
+    action: StepAction,
+    image_bytes: bytes | None = None,
+    image_width: int | None = None,
+    image_height: int | None = None,
 ) -> CoordinateValidation: ...
 ```
+
+Callers pass `image_bytes` (loaded via `storage.load_screenshot`) when the
+step's image dimensions are not already known from the source row's metadata.
+The validator reads PIL dimensions from the bytes only as a fallback; it
+never accesses the filesystem.

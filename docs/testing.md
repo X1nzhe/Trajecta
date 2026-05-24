@@ -2,7 +2,7 @@
 
 ## RAGAS Evaluation
 
-Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads cached `last_trace.json` files (no live agent re-runs, no live retrieval) and writes the report files below.
+Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads persisted `AgentTrace` records via `storage.load_trace(run_id)` (the `traces` SQLite table — no live agent re-runs, no live retrieval) and writes the report files below.
 
 Run one minimal RAGAS eval over failure memory RAG.
 
@@ -123,7 +123,7 @@ tests/test_api.py
 - analyze endpoint returns an application/x-ndjson stream with at least one event line and a terminal done line
 - analyze done line carries eval_case_draft and agent_trace; agent_trace exposes tool_call_count, turn_count, and terminated_by
 - analyze streamed event.seq values are strictly increasing and start at 0
-- followup endpoint returns 409 (as a single error response, not a stream) when last_trace.json does not exist
+- followup endpoint returns 409 (as a single error response, not a stream) when no `traces` row exists for the run
 - followup endpoint returns 422 when message is missing, empty, or > 2000 chars
 - followup endpoint streams a user_message event with the next turn value as the first event line
 - followup endpoint enforces its own per-turn budget (default 4) independent of the initial analyze
@@ -173,7 +173,7 @@ Project is complete when:
 - Coordinate overlay is shown only when validated
 - Trajectory Preprocessing produces a trajectory digest for any imported run
 - Eval Agent autonomously inspects suspicious steps, retrieves similar cases, and terminates via `propose_eval_case`
-- Per-run agent trace is written to `data/runs/{run_id}/last_trace.json` and rendered in the frontend
+- Per-run agent trace is persisted as the `traces` SQLite row keyed by `run_id` (`storage.save_trace`) and rendered in the frontend
 - ChromaDB retrieves similar failure cases and eval cases
 - Eval case draft is generated as a fully-populated EvalCase JSON
 - User can review, edit, and export the eval case

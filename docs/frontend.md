@@ -235,6 +235,6 @@ The same `streamAnalyze` shape is used for `/followup` and the two step-scoped a
 ## State Rules
 
 - A run's trace lifecycle: `none` → `fresh` (first analyze) → `extended` (one or more follow-ups). The `EvalAgentPanel` infers state from `AgentTrace.turn_count`.
-- Switching the selected run discards in-flight chat input but does not delete `last_trace.json`. Re-opening the run reloads the persisted trace from `GET /api/runs/{run_id}` (or the dedicated trace endpoint, whichever is wired up).
+- Switching the selected run discards in-flight chat input but does not delete the persisted `traces` row. Re-opening the run reloads the persisted trace from `GET /api/runs/{run_id}` (or the dedicated trace endpoint, whichever is wired up).
 - Concurrent follow-ups are not supported in v1 — disable the send button while a request is in flight.
 - Draft state is **client-only** until the user clicks `Export`. Page refresh = lose unsaved draft edits.

@@ -159,7 +159,7 @@ After the initial analyze has produced a trace, the user may ask follow-up quest
 
 ### Lifecycle
 
-1. The handler loads `data/runs/{run_id}/last_trace.json`. If absent, returns `409` — follow-up has no meaning before an analyze.
+1. The handler loads the persisted trace via `storage.load_trace(run_id)`. If absent (no `traces` row for this `run_id`), returns `409` — follow-up has no meaning before an analyze.
 2. The handler appends one `AgentTraceEvent(type="user_message", message=..., turn=prior_turn_count)` with the next `seq`.
 3. The handler resumes the `agent_loop` node with the existing `messages` (LangGraph state-continuation), reset per-turn budget counter, and the new user message attached as the latest entry.
 4. The loop runs the standard `reason → call tool → observe → reason` cycle, appending new events with the same `turn` value.
@@ -167,7 +167,7 @@ After the initial analyze has produced a trace, the user may ask follow-up quest
    - Agent calls `propose_eval_case` → the new draft **replaces** the previous draft in the response. `terminated_by="propose_eval_case"`. `AgentTrace.turn_count` increments.
    - Per-turn budget exhausted → `terminated_by="budget_exceeded"`. The user may follow up again.
    - Terminal tool validation error → `terminated_by="error"`. The user may follow up again to correct.
-6. The updated trace is atomically persisted back to `last_trace.json`.
+6. The updated trace is written back via `storage.save_trace(run_id, trace)`, replacing the previous `traces` row inside one transaction.
 
 ### Prompt context
 
@@ -226,7 +226,7 @@ observability layer.
 
 Persistence and consumers:
 
-- Written to `data/runs/{run_id}/last_trace.json`, overwritten on each `/analyze` (fresh trace) and on each `/followup` (in-place append of new events). Older traces are not retained in v1.
+- Persisted as the `traces` row keyed by `run_id`, written by `storage.save_trace`. Overwritten on each `/analyze` (fresh trace) and on each `/followup` (in-place update with appended events). Older traces are not retained in v1.
 - Returned in full on `POST /api/runs/{run_id}/analyze` and `POST /api/runs/{run_id}/followup`.
 - Rendered by the frontend `EvalAgentPanel` as a chat-style timeline (`user_message`, `agent_message`, `tool_call` / `tool_result` summaries), grouped by `turn`. See [docs/frontend.md](frontend.md).
 - Read by `ragas_eval.py`. The latest `propose_eval_case` tool-call args provide the RAGAS `answer` ([docs/testing.md](testing.md)). All `tool_result` events whose `name` is `search_failure_memory` or `search_eval_cases` — **across all turns of the trace** — provide the retrieved contexts. RAGAS must not re-run retrieval.

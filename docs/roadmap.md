@@ -19,9 +19,9 @@ Do not spend more than half a day on MCP.
 - Create repo
 - Add schemas
 - Add at least 5 small MolmoWeb-HumanSkills sample fixtures
-- Commit `data/raw/molmoweb_humanskills_sample/run_status_overlay.json` covering those fixtures (≥1 `success` entry per task category)
-- Commit 1 example `data/eval_cases/validated/{case_id}.json` so `GET /api/eval-cases` is non-empty on a fresh clone
-- Commit 1 example `data/runs/{run_id}/last_trace.json` so frontend dev has a fixture before the agent loop is wired up
+- Commit `data/raw/molmoweb_humanskills_sample/run_status_overlay.json` covering those fixtures (≥1 `success` entry per task category — the overlay file is retained as a historical artifact; v1 cold-start ignores it, see [docs/dataset_import.md](dataset_import.md) "Cold-Start Behavior")
+- Seed one example validated `EvalCase` so `GET /api/eval-cases` is non-empty on a fresh clone (originally committed as `data/eval_cases/validated/{case_id}.json`; now seeded into the SQLite `eval_cases` table via `storage.save_eval_case`)
+- Seed one example `AgentTrace` (originally a `last_trace.json` fixture; superseded by the SQLite `traces` table after the storage refactor — frontend dev now seeds via `storage.save_trace` against a temp DB)
 - Add failure memory cases
 - Add basic tests
 
@@ -36,7 +36,7 @@ Do not spend more than half a day on MCP.
 - Implement Trajectory Preprocessing (`preprocess.py`) per [docs/preprocessing.md](preprocessing.md): build the `trajectory_digest` with low-detail VLM hints, parsed actions, and coordinate validation
 - Implement ChromaDB RAG (`failure_memory` + `eval_cases` + `successful_runs` collections)
 - Implement the LangGraph tool-calling Eval Agent with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and the terminal `propose_eval_case` tool
-- Convert the agent loop's final `messages` into an `AgentTrace` and persist to `data/runs/{run_id}/last_trace.json` (overwritten each analyze)
+- Convert the agent loop's final `messages` into an `AgentTrace` and persist via `storage.save_trace(run_id, trace)` (writes the `traces` SQLite row, overwritten each analyze; originally written as `data/runs/{run_id}/last_trace.json` pre-SQLite refactor)
 
 ### Phase 4 - Done
 
