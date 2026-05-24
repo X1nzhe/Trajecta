@@ -218,6 +218,29 @@ class EvalAgentTests(unittest.TestCase):
         self.assertGreater(len(result.errors), 0)
         self.assertTrue(any(event.type == "tool_error" for event in result.trace.events))
 
+    def test_malformed_tool_call_arguments_terminate_with_trace_error(self) -> None:
+        bad_message = AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_bad_json",
+                    "function": {"name": "get_run", "arguments": "{"},
+                }
+            ],
+        )
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))
+
+        self.assertEqual(result.trace.terminated_by, "error")
+        self.assertIsNone(result.eval_case_draft)
+        self.assertTrue(any("invalid tool call from agent" in error for error in result.errors))
+        self.assertTrue(
+            any(
+                event.type == "tool_error" and event.error and "invalid tool call from agent" in event.error
+                for event in result.trace.events
+            )
+        )
+
     def test_retrieved_context_ids_must_appear_in_trace(self) -> None:
         result = eval_agent_graph.analyze_run(
             "run_1",

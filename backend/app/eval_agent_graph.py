@@ -447,7 +447,18 @@ def _agent_node(state: GraphState) -> GraphState:
     state["messages"].append(message)
     _append_event(state["trace"], "agent_message", turn=state["turn"], message=_message_content(message))
 
-    tool_calls = _extract_tool_calls(message)
+    try:
+        tool_calls = _extract_tool_calls(message)
+    except (TypeError, ValueError) as exc:
+        error = f"invalid tool call from agent: {exc}"
+        state["errors"].append(error)
+        state["trace"].terminated_by = "error"
+        state["eval_case_draft"] = None
+        state["pending_tool_calls"] = []
+        state["active_tool_call"] = None
+        state["done"] = True
+        _append_event(state["trace"], "tool_error", turn=state["turn"], error=error)
+        return state
     state["pending_tool_calls"] = tool_calls
     state["active_tool_call"] = None
     if tool_calls:

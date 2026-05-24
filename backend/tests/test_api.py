@@ -75,6 +75,23 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["index"], 0)
 
+    def test_get_step_detail_accepts_image_detail_query(self) -> None:
+        response = self.client.get("/api/runs/run_api/steps/0/detail", params={"image_detail": "low"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["image_detail"], "low")
+
+    def test_get_step_detail_missing_step_returns_404(self) -> None:
+        response = self.client.get("/api/runs/run_api/steps/99/detail")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "step not found")
+
+    def test_get_step_detail_invalid_image_detail_returns_422(self) -> None:
+        response = self.client.get("/api/runs/run_api/steps/0/detail", params={"image_detail": "medium"})
+
+        self.assertEqual(response.status_code, 422)
+
     def test_screenshot_traversal_rejected(self) -> None:
         response = self.client.get("/api/runs/run_api/screenshots/%2E%2E/trajectory.json")
 

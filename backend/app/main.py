@@ -6,6 +6,7 @@ import json
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
@@ -80,10 +81,22 @@ def get_step(run_id: str, step_index: int) -> dict:
 
 
 @app.get("/api/runs/{run_id}/steps/{step_index}/detail")
-def get_step_detail(run_id: str, step_index: int) -> dict:
+def get_step_detail(
+    run_id: str,
+    step_index: int,
+    image_detail: Literal["low", "high"] = Query("high"),
+) -> dict:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    return tools.get_step_detail(run_id, step_index)
+    result = tools.get_step_detail(run_id, step_index, image_detail=image_detail)
+    tool_error = result.get("tool_error") if isinstance(result, dict) else None
+    if tool_error:
+        if "step_index" in tool_error and "not found" in tool_error:
+            raise _not_found("step not found")
+        if "unsupported image_detail" in tool_error:
+            raise HTTPException(status_code=422, detail=tool_error)
+        raise HTTPException(status_code=422, detail=tool_error)
+    return result
 
 
 @app.get("/api/runs/{run_id}/screenshots/{filename:path}")
