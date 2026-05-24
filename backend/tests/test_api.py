@@ -6,13 +6,113 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from backend.app import dataset_importer, rag, storage, tools
+from backend.app import dataset_importer, eval_agent_graph, rag, storage, tools
+from backend.app.eval_agent_graph import AIMessage
 from backend.app.main import app
+from backend.app.schemas import EvalCase, EvidenceItem, FailureMemoryCase
 from backend.tests.test_dataset_importer import raw_row
 from backend.tests.test_storage import sample_eval_case, sample_run
+
+
+def drain_ndjson(response) -> tuple[list[dict], dict]:
+    """Drain a streaming NDJSON response. Returns (events, terminal_line).
+
+    Short-circuits with ([], {}) when response.status_code != 200 — HTTP
+    4xx are NOT streamed (see docs/testing.md). Splits response.text by
+    newline, json.loads each non-empty line, and partitions into events
+    (type=="event") vs terminal (type in {"done","error"}).
+    """
+
+    if response.status_code != 200:
+        return [], {}
+    events: list[dict] = []
+    terminal: dict = {}
+    for line in response.text.splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if record.get("type") == "event":
+            events.append(record["event"])
+        elif record.get("type") in {"done", "error"}:
+            terminal = record
+    return events, terminal
+
+
+def _write_real_png(run_id: str, filename: str = "screenshot_001.png") -> None:
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (1, 1), color=(255, 255, 255)).save(buf, format="PNG")
+    storage.save_screenshots(run_id, {filename: buf.getvalue()})
+
+
+class _ScriptedLLM:
+    """Mirror of test_eval_agent.ScriptedLLM, routed through API monkey-patch."""
+
+    def __init__(self, messages: list) -> None:
+        self.messages = messages
+        self.invocations = 0
+
+    def invoke(self, messages: list) -> object:
+        if self.invocations >= len(self.messages):
+            return AIMessage(content="no more scripted messages")
+        message = self.messages[self.invocations]
+        self.invocations += 1
+        return message
+
+
+def _tool_message(name: str, args: dict) -> object:
+    return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}])
+
+
+def _proposal_args(
+    *,
+    run_id: str = "run_api",
+    failure_type: str = "missed_constraint",
+    retrieved_context_ids: list[str] | None = None,
+) -> dict:
+    retrieved_context_ids = (
+        retrieved_context_ids if retrieved_context_ids is not None else ["fm_missed_constraint_001"]
+    )
+    evidence: list[dict] = [
+        {
+            "claim": "Step 0 was inspected.",
+            "source": "trajectory",
+            "run_id": run_id,
+            "step_index": 0,
+        }
+    ]
+    if retrieved_context_ids:
+        evidence.append(
+            {
+                "claim": "Retrieved memory covers missed constraints.",
+                "source": "failure_memory",
+                "context_id": retrieved_context_ids[0],
+            }
+        )
+    return {
+        "run_id": run_id,
+        "failure_step": 0,
+        "failure_type": failure_type,
+        "expected_behavior": "The agent should satisfy the task constraint.",
+        "actual_behavior": "The trajectory does not show the constraint being satisfied.",
+        "evidence": evidence,
+        "regression_rule": "Check the constraint before completing the task.",
+        "retrieved_context_ids": retrieved_context_ids,
+    }
+
+
+def _patched_default_llm(messages: list[object]):
+    """Replacement for eval_agent_graph._default_llm_client tied to a script."""
+
+    def factory(state):  # noqa: ARG001
+        return _ScriptedLLM(list(messages))
+
+    return factory
 
 
 class ApiTests(unittest.TestCase):
@@ -92,10 +192,24 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
 
-    def test_screenshot_traversal_rejected(self) -> None:
+    def test_screenshot_path_traversal_rejected(self) -> None:
         response = self.client.get("/api/runs/run_api/screenshots/%2E%2E/trajectory.json")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_screenshot_missing_returns_404(self) -> None:
+        response = self.client.get("/api/runs/run_api/screenshots/nonexistent.png")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_screenshot_endpoint_returns_fixture_image(self) -> None:
+        _write_real_png("run_api")
+
+        response = self.client.get("/api/runs/run_api/screenshots/screenshot_001.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/png")
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
 
     def test_post_eval_case_rejects_unvalidated(self) -> None:
         case = sample_eval_case("ec_run_api_step_0").model_copy(update={"human_validated": False})
@@ -162,11 +276,267 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("application/x-ndjson", response.headers["content-type"])
 
-        lines = [json.loads(line) for line in response.text.splitlines()]
-        self.assertGreaterEqual(len(lines), 2)
-        self.assertTrue(all(line["type"] == "event" for line in lines[:-1]))
-        self.assertEqual(lines[-1]["type"], "done")
-        self.assertEqual(lines[0]["event"]["seq"], 0)
+        events, terminal = drain_ndjson(response)
+        self.assertGreaterEqual(len(events), 1)
+        self.assertEqual(terminal["type"], "done")
+        self.assertEqual(events[0]["seq"], 0)
+
+    def test_list_runs_returns_at_least_5(self) -> None:
+        for i in range(5):
+            storage.save_run(sample_run(f"run_seed_{i}"))
+
+        response = self.client.get("/api/runs")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(response.json()), 5)
+
+    def test_analyze_done_line_carries_eval_case_draft_and_trace_meta(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+
+        response = self.client.post("/api/runs/run_api/analyze")
+
+        events, terminal = drain_ndjson(response)
+        self.assertEqual(terminal["type"], "done")
+        self.assertIsNotNone(terminal["eval_case_draft"])
+        agent_trace = terminal["agent_trace"]
+        self.assertIn("tool_call_count", agent_trace)
+        self.assertIn("turn_count", agent_trace)
+        self.assertIn("terminated_by", agent_trace)
+        self.assertGreater(len(events), 0)
+
+    def test_analyze_event_seqs_strictly_increasing_from_zero(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+
+        response = self.client.post("/api/runs/run_api/analyze")
+        events, _ = drain_ndjson(response)
+
+        seqs = [event["seq"] for event in events]
+        self.assertEqual(seqs, list(range(len(seqs))))
+
+    def test_followup_422_when_message_missing_empty_or_too_long(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+        # Seed a trace so we exercise the 422 path, not the 409 path.
+        seed = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(seed)
+
+        self.assertEqual(
+            self.client.post("/api/runs/run_api/followup", json={}).status_code,
+            422,
+        )
+        self.assertEqual(
+            self.client.post("/api/runs/run_api/followup", json={"message": ""}).status_code,
+            422,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/api/runs/run_api/followup",
+                json={"message": "x" * 2001},
+            ).status_code,
+            422,
+        )
+
+    def test_followup_first_event_is_user_message_with_next_turn(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+        initial = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(initial)
+        self.assertEqual(initial.status_code, 200)
+
+        response = self.client.post(
+            "/api/runs/run_api/followup", json={"message": "Anything else?"}
+        )
+
+        events, _ = drain_ndjson(response)
+        self.assertGreater(len(events), 0)
+        first = events[0]
+        self.assertEqual(first["type"], "user_message")
+        self.assertEqual(first["turn"], 1)
+
+    def test_followup_event_seqs_start_at_prior_max_plus_one(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+        initial = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(initial)
+
+        prior = storage.load_trace("run_api")
+        self.assertIsNotNone(prior)
+        prior_max_seq = max(event.seq for event in prior.events)
+
+        response = self.client.post(
+            "/api/runs/run_api/followup", json={"message": "Anything else?"}
+        )
+        events, _ = drain_ndjson(response)
+
+        self.assertGreater(len(events), 0)
+        self.assertEqual(events[0]["seq"], prior_max_seq + 1)
+
+    def test_followup_done_replaces_eval_case_draft(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_early_terminated_001",
+                failure_type="early_terminated",
+                summary="Agent stopped early.",
+            )
+        )
+
+        initial_resp = self.client.post("/api/runs/run_api/analyze")
+        _, initial_terminal = drain_ndjson(initial_resp)
+        initial_draft = initial_terminal["eval_case_draft"]
+        self.assertIsNotNone(initial_draft)
+
+        followup_script = [
+            _tool_message(
+                "search_failure_memory", {"query": "early_terminated", "top_k": 1}
+            ),
+            _tool_message(
+                "propose_eval_case",
+                _proposal_args(
+                    failure_type="early_terminated",
+                    retrieved_context_ids=["fm_early_terminated_001"],
+                ),
+            ),
+        ]
+        with mock.patch.object(
+            eval_agent_graph,
+            "_default_llm_client",
+            _patched_default_llm(followup_script),
+        ):
+            response = self.client.post(
+                "/api/runs/run_api/followup", json={"message": "Revise"}
+            )
+
+        _, terminal = drain_ndjson(response)
+        new_draft = terminal["eval_case_draft"]
+        self.assertIsNotNone(new_draft)
+        self.assertEqual(new_draft["failure_type"], "early_terminated")
+        self.assertNotEqual(new_draft["failure_type"], initial_draft["failure_type"])
+
+    def test_followup_preserves_user_intent_and_selected_step(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+        initial = self.client.post("/api/runs/run_api/steps/0/analyze")
+        drain_ndjson(initial)
+
+        followup = self.client.post("/api/runs/run_api/followup", json={"message": "Check again"})
+        drain_ndjson(followup)
+
+        trace = storage.load_trace("run_api")
+        self.assertEqual(trace.user_intent, "analyze_step")
+        self.assertEqual(trace.selected_step, 0)
+
+    def test_followup_budget_is_4_via_api(self) -> None:
+        _write_real_png("run_api")
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+        initial = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(initial)
+
+        followup_script = [
+            _tool_message(
+                "get_step_detail",
+                {"run_id": "run_api", "step_index": 0, "image_detail": "high"},
+            )
+            for _ in range(5)
+        ]
+        with mock.patch.object(
+            eval_agent_graph,
+            "_default_llm_client",
+            _patched_default_llm(followup_script),
+        ):
+            response = self.client.post(
+                "/api/runs/run_api/followup", json={"message": "Spend more tools"}
+            )
+
+        _, terminal = drain_ndjson(response)
+        self.assertEqual(terminal["type"], "done")
+        self.assertEqual(terminal["agent_trace"]["terminated_by"], "budget_exceeded")
+        self.assertIsNone(terminal["eval_case_draft"])
+
+    def test_failure_memory_search_endpoint_returns_schema_valid_results(self) -> None:
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+                tags=["constraint"],
+            )
+        )
+
+        response = self.client.get(
+            "/api/failure-memory/search", params={"q": "constraint", "top_k": 3}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        items = response.json()
+        self.assertGreater(len(items), 0)
+        for item in items:
+            FailureMemoryCase.model_validate(item)
+
+    def test_eval_cases_search_endpoint_returns_schema_valid_results(self) -> None:
+        case = sample_eval_case("ec_run_api_step_0")
+        self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
+
+        response = self.client.get(
+            "/api/eval-cases/search", params={"q": "early terminated", "top_k": 3}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        items = response.json()
+        self.assertGreater(len(items), 0)
+        for item in items:
+            EvalCase.model_validate(item)
 
 
 if __name__ == "__main__":

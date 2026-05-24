@@ -62,7 +62,7 @@ Tool design notes:
 
 - `propose_eval_case` is a **terminal tool**. The agent indicates "I have enough evidence" by calling it. The graph transitions to validation when this tool is invoked.
 - `get_step_detail` is the only multimodal tool. The agent is expected to call it sparingly (typically 1–4 times per run) on steps surfaced by the digest.
-- `find_similar_successful_run` is the replay-and-diff entry point. It returns successful runs of a similar task; the agent then calls `get_run(other_run_id)` (free; not budgeted) to load the comparison digest and reasons about divergence. Calling `get_step_detail` on a step of the comparison run is allowed and counts against the budget normally.
+- `find_similar_successful_run` is the replay-and-diff entry point. It returns successful runs of a similar task, excluding the current run when `exclude_run_id` is supplied; the agent then calls `get_run(other_run_id)` (free; not budgeted) to load the comparison digest and reasons about divergence. Calling `get_step_detail` on a step of the comparison run is allowed and counts against the budget normally.
 - `retrieved_context_ids` carries the case IDs returned by prior `search_*` calls, providing a traceable link from agent output back to retrieved evidence. Run IDs from `find_similar_successful_run` are **not** stored here; the comparison is traced through `AgentTrace` events.
 
 ## LangGraph State
@@ -133,7 +133,7 @@ The system prompt instructs the agent to:
 3. Form an initial hypothesis about where the run likely failed.
 4. For `analyze_run`, call `get_step_detail` on the most suspicious steps (typically 1–4). Backtrack to earlier steps if the root cause appears upstream.
 5. For `analyze_step`, call `get_step_detail(run_id, selected_step)` first, inspect adjacent steps if needed, and still allow backtracking when evidence indicates the root cause is upstream.
-6. Call `find_similar_successful_run(task)` once a likely failure region is identified. If a comparable success run exists, call `get_run(other_run_id)` and diff the digests step-by-step; use `get_step_detail` on the comparison run only when the digest-level diff is ambiguous.
+6. Call `find_similar_successful_run(task, exclude_run_id=current_run_id)` once a likely failure region is identified. If a comparable success run exists, call `get_run(other_run_id)` and diff the digests step-by-step; use `get_step_detail` on the comparison run only when the digest-level diff is ambiguous.
 7. Call `search_failure_memory` and/or `search_eval_cases` with queries grounded in observed evidence — including divergence patterns surfaced by replay-and-diff.
 8. When evidence is sufficient, call `propose_eval_case` with all required fields.
 9. Never invent evidence. If a screenshot, coordinate, or successful comparison run is missing, include an `EvidenceItem` with `source="unavailable"` and a claim that states what was unavailable.
@@ -197,7 +197,7 @@ configured, `eval_agent_graph.py` should use a deterministic mock agent:
 1. Call `get_run(run_id)`.
 2. For `analyze_step`, call `get_step_detail(run_id, selected_step)`.
 3. For `analyze_run`, call `get_step_detail` on the first failed step in the digest, or step 0 if no failed step is present.
-4. Call `find_similar_successful_run(task, top_k=1)`. If the result is non-empty, call `get_run(result[0]["run_id"])` to exercise the comparison path. If empty, skip silently.
+4. Call `find_similar_successful_run(task, top_k=1, exclude_run_id=current_run_id)`. If the result is non-empty, call `get_run(result[0]["run_id"])` to exercise the comparison path. If empty, skip silently.
 5. Call `search_failure_memory("missed_constraint", top_k=1)`.
 6. Call `propose_eval_case(...)` using the returned first case ID as `retrieved_context_ids[0]`.
 

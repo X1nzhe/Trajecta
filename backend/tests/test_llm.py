@@ -4,13 +4,13 @@ import importlib.util
 import os
 import sys
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from backend.app.llm import MockVLMClient, RealVLMClient, get_vlm_client
 
 
 _OPENAI_AVAILABLE = importlib.util.find_spec("openai") is not None
+_FAKE_BYTES = b"\x89PNG\r\n\x1a\n"
 
 
 class LLMFactoryTests(unittest.TestCase):
@@ -34,7 +34,7 @@ class LLMFactoryTests(unittest.TestCase):
         self.assertEqual(client.model_name, "mock")
 
         summary = client.summarize_low_detail(
-            Path("screenshot_001.png"), action_type="click", step_index=0
+            _FAKE_BYTES, image_name="screenshot_001.png", action_type="click", step_index=0
         )
         self.assertIsNotNone(summary)
         self.assertLessEqual(len(summary), 200)
@@ -78,19 +78,19 @@ class MockVLMTests(unittest.TestCase):
     def test_output_is_byte_stable(self) -> None:
         client = MockVLMClient()
         first = client.summarize_low_detail(
-            Path("dir/shot.png"), action_type="click", step_index=3
+            _FAKE_BYTES, image_name="dir/shot.png", action_type="click", step_index=3
         )
         second = client.summarize_low_detail(
-            Path("dir/shot.png"), action_type="click", step_index=3
+            _FAKE_BYTES, image_name="dir/shot.png", action_type="click", step_index=3
         )
         self.assertEqual(first, second)
 
     def test_output_varies_by_inputs(self) -> None:
         client = MockVLMClient()
-        a = client.summarize_low_detail(Path("a.png"), action_type="click", step_index=0)
-        b = client.summarize_low_detail(Path("b.png"), action_type="click", step_index=0)
-        c = client.summarize_low_detail(Path("a.png"), action_type="type", step_index=0)
-        d = client.summarize_low_detail(Path("a.png"), action_type="click", step_index=1)
+        a = client.summarize_low_detail(_FAKE_BYTES, image_name="a.png", action_type="click", step_index=0)
+        b = client.summarize_low_detail(_FAKE_BYTES, image_name="b.png", action_type="click", step_index=0)
+        c = client.summarize_low_detail(_FAKE_BYTES, image_name="a.png", action_type="type", step_index=0)
+        d = client.summarize_low_detail(_FAKE_BYTES, image_name="a.png", action_type="click", step_index=1)
         self.assertNotEqual(a, b)
         self.assertNotEqual(a, c)
         self.assertNotEqual(a, d)
@@ -98,7 +98,7 @@ class MockVLMTests(unittest.TestCase):
     def test_output_has_no_quoted_text_or_labels(self) -> None:
         client = MockVLMClient()
         summary = client.summarize_low_detail(
-            Path("x.png"), action_type="click", step_index=0
+            _FAKE_BYTES, image_name="x.png", action_type="click", step_index=0
         )
         self.assertNotIn('"', summary)
         self.assertNotIn("'", summary)
@@ -108,7 +108,7 @@ class MockVLMTests(unittest.TestCase):
     def test_output_is_single_line_and_bounded(self) -> None:
         client = MockVLMClient()
         summary = client.summarize_low_detail(
-            Path("x.png"), action_type="click", step_index=0
+            _FAKE_BYTES, image_name="x.png", action_type="click", step_index=0
         )
         self.assertLessEqual(len(summary), 200)
         self.assertNotIn("\n", summary)

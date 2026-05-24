@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import io
 import json
 import os
-import tempfile
 import unittest
-from pathlib import Path
 
 from backend.app import preprocess, storage
 from backend.app.llm import MockVLMClient
@@ -61,11 +60,16 @@ def _make_run(
     )
 
 
-def _write_png(path: Path, *, width: int = 64, height: int = 48) -> None:
+def _png_bytes(*, width: int = 64, height: int = 48) -> bytes:
     from PIL import Image
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (width, height), color=(255, 255, 255)).save(path, format="PNG")
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), color=(255, 255, 255)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _attach_screenshot(run_id: str, filename: str, *, width: int = 64, height: int = 48) -> None:
+    storage.save_screenshots(run_id, {filename: _png_bytes(width=width, height=height)})
 
 
 class SpyVLMClient:
@@ -73,29 +77,22 @@ class SpyVLMClient:
         self.model_name = model_name
         self.calls: list[tuple[str, str, int]] = []
 
-    def summarize_low_detail(self, image_path, *, action_type, step_index):
-        self.calls.append((image_path.name, action_type, step_index))
-        return f"spy summary for {image_path.name} {action_type} {step_index}"
+    def summarize_low_detail(self, image_bytes, *, image_name, action_type, step_index):
+        del image_bytes
+        self.calls.append((image_name, action_type, step_index))
+        return f"spy summary for {image_name} {action_type} {step_index}"
 
 
 class PreprocessTestBase(unittest.TestCase):
     def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.previous_data_dir = os.environ.get("TRAJECTA_DATA_DIR")
-        os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
         self.previous_api_key = os.environ.pop("OPENAI_API_KEY", None)
         self.previous_model = os.environ.pop("TRAJECTA_VLM_MODEL", None)
 
     def tearDown(self) -> None:
-        if self.previous_data_dir is None:
-            os.environ.pop("TRAJECTA_DATA_DIR", None)
-        else:
-            os.environ["TRAJECTA_DATA_DIR"] = self.previous_data_dir
         if self.previous_api_key is not None:
             os.environ["OPENAI_API_KEY"] = self.previous_api_key
         if self.previous_model is not None:
             os.environ["TRAJECTA_VLM_MODEL"] = self.previous_model
-        self.tmp.cleanup()
 
 
 class BuildDigestTests(PreprocessTestBase):
@@ -135,7 +132,7 @@ class BuildDigestTests(PreprocessTestBase):
             ]
         )
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "present.png"))
+        _attach_screenshot(run.run_id, "present.png")
 
         digest = preprocess.build_digest(run, client=MockVLMClient())
 
@@ -143,7 +140,7 @@ class BuildDigestTests(PreprocessTestBase):
         self.assertFalse(digest.steps[1].has_screenshot)
         self.assertFalse(digest.steps[2].has_screenshot)
 
-    def test_coord_validation_uses_image_path_fallback(self) -> None:
+    def test_coord_validation_uses_image_bytes_fallback(self) -> None:
         run = _make_run(
             steps=[
                 _make_step(
@@ -171,8 +168,8 @@ class BuildDigestTests(PreprocessTestBase):
             ]
         )
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "step0.png"), width=64, height=48)
-        _write_png(storage.screenshot_path(run.run_id, "step1.png"), width=64, height=48)
+        _attach_screenshot(run.run_id, "step0.png", width=64, height=48)
+        _attach_screenshot(run.run_id, "step1.png", width=64, height=48)
 
         digest = preprocess.build_digest(run, client=MockVLMClient())
 
@@ -189,8 +186,8 @@ class BuildDigestTests(PreprocessTestBase):
             ]
         )
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "a.png"))
-        _write_png(storage.screenshot_path(run.run_id, "b.png"))
+        _attach_screenshot(run.run_id, "a.png")
+        _attach_screenshot(run.run_id, "b.png")
 
         digest = preprocess.build_digest(run, client=spy)
 
@@ -219,7 +216,7 @@ class BuildDigestTests(PreprocessTestBase):
             ]
         )
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "a.png"))
+        _attach_screenshot(run.run_id, "a.png")
 
         digest = preprocess.build_digest(run, client=spy)
 
@@ -246,8 +243,8 @@ class BuildDigestTests(PreprocessTestBase):
             ]
         )
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "a.png"))
-        _write_png(storage.screenshot_path(run.run_id, "b.png"))
+        _attach_screenshot(run.run_id, "a.png")
+        _attach_screenshot(run.run_id, "b.png")
 
         first = preprocess.build_digest(run, client=MockVLMClient())
         second = preprocess.build_digest(run, client=MockVLMClient())
@@ -261,7 +258,7 @@ class LoadOrBuildDigestTests(PreprocessTestBase):
     def test_cache_hit_avoids_vlm(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "a.png"))
+        _attach_screenshot(run.run_id, "a.png")
 
         cached = preprocess.build_digest(run, client=MockVLMClient())
         storage.save_digest(run.run_id, cached)
@@ -282,7 +279,7 @@ class LoadOrBuildDigestTests(PreprocessTestBase):
     def test_rebuilds_on_model_mismatch(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "a.png"))
+        _attach_screenshot(run.run_id, "a.png")
 
         stale = preprocess.build_digest(run, client=MockVLMClient())
         stale = stale.model_copy(update={"preprocess_model": "old-model-id"})
@@ -298,7 +295,7 @@ class LoadOrBuildDigestTests(PreprocessTestBase):
     def test_rebuilds_on_version_mismatch(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "a.png"))
+        _attach_screenshot(run.run_id, "a.png")
 
         stale_payload = preprocess.build_digest(run, client=MockVLMClient()).model_dump(mode="json")
         stale_payload["preprocess_version"] = "v0"
@@ -311,7 +308,7 @@ class LoadOrBuildDigestTests(PreprocessTestBase):
     def test_builds_and_saves_when_cache_absent(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
         storage.save_run(run)
-        _write_png(storage.screenshot_path(run.run_id, "a.png"))
+        _attach_screenshot(run.run_id, "a.png")
 
         self.assertIsNone(storage.load_digest(run.run_id))
         result = preprocess.load_or_build_digest(run.run_id)

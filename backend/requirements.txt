@@ -1,6 +1,8 @@
 pydantic>=2.11,<3
 pytest>=8,<9
 fastapi>=0.115,<1
+sqlalchemy>=2.0,<3
+alembic>=1.13,<2
 uvicorn[standard]>=0.34,<1
 Pillow>=10,<12
 datasets>=3,<5
@@ -10,3 +12,4 @@ chromadb>=0.5,<2
 langgraph>=0.2,<1
 langchain-core>=0.3,<1
 langchain-openai>=0.2,<1
+ragas>=0.2,<1

@@ -17,9 +17,10 @@ Implementation strategy:
 2. Run `scripts/import_demo_fixture.py` to materialize those rows under
    `data/raw/molmoweb_humanskills_sample/hf_dataset/`.
 3. At import time, `backend/app/dataset_importer.py` converts each selected
-   trajectory into Trajecta JSON.
-4. The importer writes screenshots into `data/runs/{run_id}/screenshots/`
-   and emits one `trajectory.json` per run.
+   trajectory into Pydantic `TrajectoryRun` objects.
+4. The API handler persists each run + its screenshots into `data/trajecta.db`
+   (the `runs`, `steps`, and `screenshots` tables). There is no per-run
+   directory on disk; everything lives inside one SQLite file.
 
 ## Demo Fixture Workflow
 
@@ -310,20 +311,27 @@ Rules:
 
 `POST /api/import/molmoweb-sample` is **idempotent**:
 
-- For each imported run, `storage.save_run(run)` overwrites
-  `data/runs/{run_id}/trajectory.json` atomically. Existing `digest.json`
-  for the same `run_id` is invalidated (deleted) since the upstream changed.
-- Existing `last_trace.json` is preserved — the user's most recent analysis
-  is not destroyed by re-import.
+- For each imported run, `storage.save_run(run)` updates the `runs` row in
+  place (task / source / status / metadata) and replaces only the associated
+  `steps` rows inside one transaction. The `runs` row itself is **not**
+  deleted, so the cascading `screenshots` / `digests` / `traces` rows
+  survive untouched.
+- The API handler then calls `storage.delete_digest(run_id)` separately
+  because the upstream changed and the cached digest is now stale.
+- The existing `traces` row is preserved — the user's most recent analysis
+  is not destroyed by re-import (cascade-deleting it via save_run was the
+  bug Copilot caught on PR #1; the test
+  ``test_save_run_preserves_trace_and_screenshots`` guards it).
 - ChromaDB rows in the `successful_runs` collection keyed by `run_id` are
   upserted (overwritten). Rows for runs that drop out of `status=="success"`
   in the new import are deleted to avoid stale comparison targets.
-- Screenshots under `data/runs/{run_id}/screenshots/` are overwritten file-by-file;
-  files that exist on disk but not in the new import are left in place (no orphan deletion in v1).
+- Screenshots are upserted by `(run_id, filename)` into the `screenshots`
+  table; rows that exist in the DB but not in the new import are left in
+  place (no orphan deletion in v1).
 
 ## Run ID
 
-`run_id` is the dataset's `sample_id`, copied through unchanged. Trajecta does not invent its own ID format. Because the value flows into filesystem paths (`data/runs/{run_id}/`) and URLs (`/api/runs/{run_id}/...`), the importer rejects any `sample_id` that does not match `^[A-Za-z0-9_.-]{1,128}$` and fails the import early rather than silently sanitizing.
+`run_id` is the dataset's `sample_id`, copied through unchanged. Trajecta does not invent its own ID format. Because the value flows into DB primary keys and URLs (`/api/runs/{run_id}/...`), the importer rejects any `sample_id` that does not match `^[A-Za-z0-9_.-]{1,128}$` and fails the import early rather than silently sanitizing.
 
 ## Importer Surface
 

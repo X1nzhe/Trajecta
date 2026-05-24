@@ -31,8 +31,16 @@ def get_run(run_id: str) -> dict[str, Any]:
     return payload
 
 
-def find_similar_successful_run(task: str, top_k: int = 3) -> list[dict[str, Any]]:
-    return rag.query_similar_successful_runs(task, top_k=top_k)
+def find_similar_successful_run(
+    task: str,
+    top_k: int = 3,
+    exclude_run_id: str | None = None,
+) -> list[dict[str, Any]]:
+    return rag.query_similar_successful_runs(
+        task,
+        top_k=top_k,
+        exclude_run_id=exclude_run_id,
+    )
 
 
 def get_step_detail(
@@ -58,29 +66,27 @@ def get_step_detail(
         return {"tool_error": f"unsupported image_detail: {image_detail}"}
 
     screenshot_filename = step.observation.screenshot
-    screenshot_path = None
+    screenshot_bytes: bytes | None = None
     if screenshot_filename:
-        try:
-            candidate = storage.screenshot_path(run_id, screenshot_filename)
-        except ValueError:
-            candidate = None
-        if candidate is not None and candidate.exists() and candidate.is_file():
-            screenshot_path = candidate
+        screenshot_bytes = storage.load_screenshot(run_id, screenshot_filename)
 
-    has_screenshot = screenshot_path is not None
+    has_screenshot = screenshot_bytes is not None
     vlm_summary: str | None = None
     if has_screenshot:
         try:
             client = llm.get_vlm_client()
+            image_name = screenshot_filename or f"step_{step_index}"
             if image_detail == "low":
                 vlm_summary = client.summarize_low_detail(
-                    screenshot_path,
+                    screenshot_bytes,
+                    image_name=image_name,
                     action_type=step.action.type,
                     step_index=step_index,
                 )
             else:
                 vlm_summary = client.summarize_high_detail(
-                    screenshot_path,
+                    screenshot_bytes,
+                    image_name=image_name,
                     action_type=step.action.type,
                     step_index=step_index,
                 )
