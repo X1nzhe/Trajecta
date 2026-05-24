@@ -241,6 +241,43 @@ class EvalAgentTests(unittest.TestCase):
             )
         )
 
+    def test_missing_tool_call_name_terminates_with_trace_error(self) -> None:
+        bad_message = AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_missing_name",
+                    "function": {"arguments": "{}"},
+                }
+            ],
+        )
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))
+
+        self.assertEqual(result.trace.terminated_by, "error")
+        self.assertIsNone(result.eval_case_draft)
+        self.assertTrue(any("missing a tool name" in error for error in result.errors))
+        self.assertTrue(
+            any(
+                event.type == "tool_error" and event.error and "missing a tool name" in event.error
+                for event in result.trace.events
+            )
+        )
+
+    def test_agent_stops_without_tool_call_records_trace_error(self) -> None:
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([AIMessage(content="done")]))
+
+        self.assertEqual(result.trace.terminated_by, "error")
+        self.assertIsNone(result.eval_case_draft)
+        self.assertIn("agent stopped without calling propose_eval_case", result.errors)
+        self.assertTrue(
+            any(
+                event.type == "tool_error"
+                and event.error == "agent stopped without calling propose_eval_case"
+                for event in result.trace.events
+            )
+        )
+
     def test_retrieved_context_ids_must_appear_in_trace(self) -> None:
         result = eval_agent_graph.analyze_run(
             "run_1",

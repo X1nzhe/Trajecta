@@ -470,6 +470,7 @@ def _agent_node(state: GraphState) -> GraphState:
     state["trace"].terminated_by = "error"
     state["eval_case_draft"] = None
     state["done"] = True
+    _append_event(state["trace"], "tool_error", turn=state["turn"], error=error)
     return state
 
 
@@ -844,12 +845,17 @@ def _normalize_tool_call(raw: Any, index: int) -> dict[str, Any]:
 
     call_id = str(raw.get("id") or f"call_{index}")
     if "name" in raw:
-        name = str(raw["name"])
+        raw_name = raw.get("name")
         args = raw.get("args") or raw.get("arguments") or {}
     else:
         function = raw.get("function") or {}
-        name = str(function.get("name"))
+        if not isinstance(function, dict):
+            raise TypeError(f"tool call function at index {index} must be a dict")
+        raw_name = function.get("name")
         args = function.get("arguments") or {}
+    if not isinstance(raw_name, str) or not raw_name.strip():
+        raise ValueError(f"tool call at index {index} is missing a tool name")
+    name = raw_name.strip()
     if isinstance(args, str):
         args = json.loads(args) if args else {}
     if not isinstance(args, dict):
