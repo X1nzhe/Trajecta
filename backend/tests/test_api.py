@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import json
 import os
 import tempfile
 import unittest
@@ -18,8 +20,14 @@ class ApiTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.previous_data_dir = os.environ.get("TRAJECTA_DATA_DIR")
         self.previous_chroma_dir = os.environ.get("TRAJECTA_CHROMA_DIR")
+        self.previous_openai_api_key = os.environ.get("OPENAI_API_KEY")
+        self.previous_agent_model = os.environ.get("TRAJECTA_AGENT_MODEL")
+        self.previous_vlm_model = os.environ.get("TRAJECTA_VLM_MODEL")
         os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
         os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(self.tmp.name, "chroma_runtime")
+        os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("TRAJECTA_AGENT_MODEL", None)
+        os.environ.pop("TRAJECTA_VLM_MODEL", None)
         rag._client_cache = None
         storage.save_run(sample_run("run_api"))
         storage.save_screenshots("run_api", {"screenshot_001.png": b"not-a-real-png"})
@@ -35,6 +43,18 @@ class ApiTests(unittest.TestCase):
             os.environ.pop("TRAJECTA_CHROMA_DIR", None)
         else:
             os.environ["TRAJECTA_CHROMA_DIR"] = self.previous_chroma_dir
+        if self.previous_openai_api_key is None:
+            os.environ.pop("OPENAI_API_KEY", None)
+        else:
+            os.environ["OPENAI_API_KEY"] = self.previous_openai_api_key
+        if self.previous_agent_model is None:
+            os.environ.pop("TRAJECTA_AGENT_MODEL", None)
+        else:
+            os.environ["TRAJECTA_AGENT_MODEL"] = self.previous_agent_model
+        if self.previous_vlm_model is None:
+            os.environ.pop("TRAJECTA_VLM_MODEL", None)
+        else:
+            os.environ["TRAJECTA_VLM_MODEL"] = self.previous_vlm_model
         self.tmp.cleanup()
 
     def test_get_runs(self) -> None:
@@ -54,6 +74,23 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["index"], 0)
+
+    def test_get_step_detail_accepts_image_detail_query(self) -> None:
+        response = self.client.get("/api/runs/run_api/steps/0/detail", params={"image_detail": "low"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["image_detail"], "low")
+
+    def test_get_step_detail_missing_step_returns_404(self) -> None:
+        response = self.client.get("/api/runs/run_api/steps/99/detail")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "step not found")
+
+    def test_get_step_detail_invalid_image_detail_returns_422(self) -> None:
+        response = self.client.get("/api/runs/run_api/steps/0/detail", params={"image_detail": "medium"})
+
+        self.assertEqual(response.status_code, 422)
 
     def test_screenshot_traversal_rejected(self) -> None:
         response = self.client.get("/api/runs/run_api/screenshots/%2E%2E/trajectory.json")
@@ -112,6 +149,24 @@ class ApiTests(unittest.TestCase):
 
         results = tools.find_similar_successful_run("Find the checkout button.", top_k=3)
         self.assertIn("imported_success", [r["run_id"] for r in results])
+
+    def test_analyze_returns_ndjson_events_before_done(self) -> None:
+        from PIL import Image
+
+        png = io.BytesIO()
+        Image.new("RGB", (1, 1), color=(255, 255, 255)).save(png, format="PNG")
+        storage.save_screenshots("run_api", {"screenshot_001.png": png.getvalue()})
+
+        response = self.client.post("/api/runs/run_api/analyze")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/x-ndjson", response.headers["content-type"])
+
+        lines = [json.loads(line) for line in response.text.splitlines()]
+        self.assertGreaterEqual(len(lines), 2)
+        self.assertTrue(all(line["type"] == "event" for line in lines[:-1]))
+        self.assertEqual(lines[-1]["type"], "done")
+        self.assertEqual(lines[0]["event"]["seq"], 0)
 
 
 if __name__ == "__main__":

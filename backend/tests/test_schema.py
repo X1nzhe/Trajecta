@@ -4,7 +4,7 @@ import unittest
 
 from pydantic import ValidationError
 
-from backend.app.schemas import EvalCase, StepAction, TrajectoryRun
+from backend.app.schemas import AgentTrace, EvalCase, StepAction, TrajectoryRun
 
 
 class SchemaContractTests(unittest.TestCase):
@@ -61,6 +61,12 @@ class SchemaContractTests(unittest.TestCase):
                     "regression_rule": "Reject invalid failure type labels.",
                 }
             )
+
+    def test_agent_trace_schema_has_no_errors_field_or_property(self) -> None:
+        trace = AgentTrace(run_id="fixture_run", user_intent="analyze_run")
+
+        self.assertNotIn("errors", trace.model_dump(mode="json"))
+        self.assertFalse(hasattr(trace, "errors"))
 
 
 if __name__ == "__main__":

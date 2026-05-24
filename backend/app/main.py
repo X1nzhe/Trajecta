@@ -1,15 +1,18 @@
-"""FastAPI app for Phase 2 non-agent backend endpoints."""
+"""FastAPI app for Trajecta backend endpoints."""
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, Field, field_validator
 
-from backend.app import dataset_importer, preprocess, rag, storage, tools
+from backend.app import dataset_importer, eval_agent_graph, preprocess, rag, storage, tools
 from backend.app.schemas import EvalCase
 
 
@@ -24,6 +27,17 @@ app = FastAPI(title="Trajecta API", lifespan=_lifespan)
 
 class ImportRequest(BaseModel):
     source_dir: str | None = None
+
+
+class FollowupRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("message")
+    @classmethod
+    def message_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("message must be non-empty")
+        return value
 
 
 def _not_found(message: str) -> HTTPException:
@@ -67,10 +81,20 @@ def get_step(run_id: str, step_index: int) -> dict:
 
 
 @app.get("/api/runs/{run_id}/steps/{step_index}/detail")
-def get_step_detail(run_id: str, step_index: int) -> None:
+def get_step_detail(
+    run_id: str,
+    step_index: int,
+    image_detail: Literal["low", "high"] = Query("high"),
+) -> dict:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    raise HTTPException(status_code=501, detail="Phase 3 owns VLM step detail.")
+    result = tools.get_step_detail(run_id, step_index, image_detail=image_detail)
+    tool_error = result.get("tool_error") if isinstance(result, dict) else None
+    if tool_error:
+        if "step_index" in tool_error and "not found" in tool_error:
+            raise _not_found("step not found")
+        raise HTTPException(status_code=422, detail=tool_error)
+    return result
 
 
 @app.get("/api/runs/{run_id}/screenshots/{filename:path}")
@@ -164,21 +188,51 @@ def preprocess_run(run_id: str) -> dict:
 
 
 @app.post("/api/runs/{run_id}/analyze")
-def analyze_run(run_id: str) -> None:
+def analyze_run(run_id: str) -> StreamingResponse:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    raise HTTPException(status_code=501, detail="Phase 3 owns the LangGraph Eval Agent.")
+    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
 
 
 @app.post("/api/runs/{run_id}/steps/{step_index}/analyze")
-def analyze_step(run_id: str, step_index: int) -> None:
+def analyze_step(run_id: str, step_index: int) -> StreamingResponse:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    raise HTTPException(status_code=501, detail="Phase 3 owns the LangGraph Eval Agent.")
+    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_step(run_id, step_index))
 
 
 @app.post("/api/runs/{run_id}/followup")
-def followup(run_id: str) -> None:
+def followup(run_id: str, request: FollowupRequest) -> StreamingResponse:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    raise HTTPException(status_code=501, detail="Phase 3 owns follow-up agent turns.")
+    if storage.load_trace(run_id) is None:
+        raise HTTPException(status_code=409, detail="follow-up requires an existing analysis trace")
+    return _stream_agent_result(lambda: eval_agent_graph.stream_followup(run_id, request.message))
+
+
+def _stream_agent_result(factory) -> StreamingResponse:
+    def iter_lines() -> Iterator[str]:
+        try:
+            for item in factory():
+                if isinstance(item, eval_agent_graph.AgentStreamDone):
+                    result = item.result
+                    yield json.dumps(
+                        {
+                            "type": "done",
+                            "eval_case_draft": result.eval_case_draft,
+                            "agent_trace": result.trace.model_dump(mode="json"),
+                        },
+                        ensure_ascii=False,
+                    ) + "\n"
+                    return
+
+                yield json.dumps(
+                    {"type": "event", "event": item.model_dump(mode="json")},
+                    ensure_ascii=False,
+                ) + "\n"
+        except Exception as exc:
+            yield json.dumps({"type": "error", "error": str(exc)}, ensure_ascii=False) + "\n"
+            return
+        yield json.dumps({"type": "error", "error": "agent stream ended without a terminal result"}) + "\n"
+
+    return StreamingResponse(iter_lines(), media_type="application/x-ndjson")
