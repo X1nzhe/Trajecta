@@ -38,7 +38,7 @@ Do not spend more than half a day on MCP.
 - Implement the LangGraph tool-calling Eval Agent with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and the terminal `propose_eval_case` tool
 - Convert the agent loop's final `messages` into an `AgentTrace` and persist to `data/runs/{run_id}/last_trace.json` (overwritten each analyze)
 
-### Phase 4
+### Phase 4 - Done
 
 - Add RAGAS eval script
 - Finish pytest coverage
