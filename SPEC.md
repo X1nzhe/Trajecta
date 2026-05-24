@@ -54,7 +54,7 @@ This is an Eval Agent for browser-use agent trajectories.
 - Trajectory Preprocessing pipeline producing a per-run trajectory digest. See [docs/preprocessing.md](docs/preprocessing.md).
 - LangGraph **tool-calling Eval Agent** that autonomously inspects suspicious steps, retrieves similar failures, and proposes an eval case via a terminal tool.
 - ChromaDB-backed failure-memory and eval-case retrieval.
-- Per-run agent trace (`data/runs/{run_id}/last_trace.json`) consumed by the API, frontend, and RAGAS.
+- Per-run agent trace (the `traces` SQLite row in `data/trajecta.db`, accessed via `storage.load_trace` / `storage.save_trace`) consumed by the API, frontend, and RAGAS.
 - Human-reviewable eval case draft and export flow with structured evidence references.
 - pytest coverage plus RAGAS or fallback retrieval/grounding evaluation.
 

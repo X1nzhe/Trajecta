@@ -13,8 +13,8 @@ redefine fields, endpoint lists, or tool signatures.
 
 ## v1 Assumptions
 
-- **Single user, single concurrency.** v1 assumes one analyze request at a time per run; concurrent analyzes on the same `run_id` race on `last_trace.json` and have undefined behavior.
-- **No force-rebuild knob.** `POST /api/runs/{run_id}/preprocess` is cache-first with no override; rebuilding a digest requires deleting `digest.json` on disk or bumping `preprocess_version` in code.
+- **Single user, single concurrency.** v1 assumes one analyze request at a time per run; concurrent analyzes on the same `run_id` race on the `traces` row and have undefined behavior.
+- **No force-rebuild knob.** `POST /api/runs/{run_id}/preprocess` is cache-first with no override; rebuilding a digest requires deleting the `digests` row for the run or bumping `preprocess_version` in code.
 - **Missing screenshots are non-fatal.** If `StepObservation.screenshot` references a row that is absent from the `screenshots` table, `has_screenshot=false` is recorded in the digest, `get_step_detail` returns no VLM summary, and `GET /api/runs/{run_id}/screenshots/{filename}` returns `404`.
 
 ## Schema Contracts
@@ -443,7 +443,7 @@ Endpoint-to-agent mapping:
 
 - `POST /api/runs/{run_id}/analyze` sets `user_intent="analyze_run"` and `selected_step=None`. Creates a fresh trace at turn 0.
 - `POST /api/runs/{run_id}/steps/{step_index}/analyze` sets `user_intent="analyze_step"` and `selected_step=step_index`. Creates a fresh trace at turn 0.
-- `POST /api/runs/{run_id}/followup` continues the existing `last_trace.json`. See the follow-up contract below.
+- `POST /api/runs/{run_id}/followup` continues the existing persisted trace (the `traces` row keyed by `run_id`). See the follow-up contract below.
 
 ### Follow-up Contract
 
@@ -461,17 +461,17 @@ Response is the **same NDJSON stream** as `/analyze` (`Content-Type: application
 Preconditions:
 
 - `404` if `run_id` is unknown.
-- `409` if no `last_trace.json` exists for the run (the user must call `/analyze` first).
+- `409` if no `traces` row exists for the run (the user must call `/analyze` first).
 - `422` if `message` is missing, empty, or exceeds 2000 characters.
 
 Behavior:
 
-- The handler loads `last_trace.json`, appends a `user_message` event with the new message and the next `turn` value, then resumes the agent loop with the existing message history.
+- The handler loads the persisted trace via `storage.load_trace(run_id)`, appends a `user_message` event with the new message and the next `turn` value, then resumes the agent loop with the existing message history.
 - A fresh **per-turn tool-call budget** applies (default 4 — see [docs/eval_agent.md](eval_agent.md) "Follow-up Mode"). `AgentTrace.tool_call_count` continues to accumulate across turns.
-- The agent may call `propose_eval_case` again in a follow-up turn. When it does, the new draft **overwrites** the previous one in the response; only the latest draft is returned. Any previously persisted, human-validated `EvalCase` files under `data/eval_cases/validated/` are untouched — those are immutable once exported.
-- The updated trace is atomically written back to `last_trace.json`, replacing the previous version. There is no separate per-turn trace file in v1.
+- The agent may call `propose_eval_case` again in a follow-up turn. When it does, the new draft **overwrites** the previous one in the response; only the latest draft is returned. Any previously persisted, human-validated `EvalCase` rows in the `eval_cases` SQLite table are untouched — those are immutable once exported.
+- The updated trace is written back via `storage.save_trace(run_id, trace)`, replacing the previous `traces` row inside one transaction. There is no per-turn trace history in v1; only the latest turn's trace is retained.
 - `user_intent` and `selected_step` on the trace are **not** modified by follow-up — they record the framing of the original analyze invocation only.
-- v1 single-concurrency rule still applies: concurrent `/followup` calls on the same `run_id` race on `last_trace.json` and have undefined behavior.
+- v1 single-concurrency rule still applies: concurrent `/followup` calls on the same `run_id` race on the `traces` row and have undefined behavior.
 
 `POST /api/eval-cases` accepts a complete `EvalCase` with
 `human_validated=true` and persists it as a final regression case. The
@@ -488,12 +488,12 @@ by the schema). The handler:
 6. Returns the persisted `EvalCase`.
 
 Drafts (`human_validated=false`) returned by `POST /api/runs/{run_id}/analyze`
-are **not** persisted to disk in v1. They survive only in the API response and
-in the trace's `propose_eval_case` tool-call args (`last_trace.json`). Page
-refresh = lose the draft = re-analyze.
+are **not** persisted in v1. They survive only in the API response and in the
+trace's `propose_eval_case` tool-call args (recoverable from the `traces` row
+via `storage.load_trace`). Page refresh = lose the draft = re-analyze.
 
-`GET /api/eval-cases` returns a list of persisted `EvalCase` objects by reading
-`data/eval_cases/validated/*.json` (not via ChromaDB).
+`GET /api/eval-cases` returns a list of persisted `EvalCase` objects by
+querying the `eval_cases` SQLite table (not via ChromaDB).
 
 Search endpoint responses:
 

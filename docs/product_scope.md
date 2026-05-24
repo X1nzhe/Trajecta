@@ -51,7 +51,7 @@ The project must clearly demonstrate:
 - Tool-call budget enforcement (default 8 initial / 4 per follow-up) bounding cost and latency
 - ChromaDB-backed RAG over failure memories, eval cases, and successful runs
 - Multi-resolution VLM (low-detail for preprocessing, high-detail on demand)
-- Per-run agent trace persisted at `data/runs/{run_id}/last_trace.json`
+- Per-run agent trace persisted as the `traces` row keyed by `run_id` in `data/trajecta.db`
 - Human-reviewable eval case draft and export flow with structured evidence references
 - Basic pytest test suite
 - Minimal RAGAS evaluation script (faithfulness + context_precision); fallback allowed if RAGAS setup is too slow
