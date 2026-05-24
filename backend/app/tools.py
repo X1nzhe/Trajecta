@@ -45,18 +45,18 @@ def get_step_detail(
     except FileNotFoundError:
         return {"tool_error": f"unknown run_id: {run_id}"}
 
-    if not 0 <= step_index < len(run.steps):
+    step = next((candidate for candidate in run.steps if candidate.index == step_index), None)
+    if step is None:
         return {
             "tool_error": (
-                f"step_index {step_index} out of range for run {run_id} "
-                f"with {len(run.steps)} steps"
+                f"step_index {step_index} not found for run {run_id} "
+                f"with {len(run.steps)} stored steps"
             )
         }
 
     if image_detail not in {"low", "high"}:
         return {"tool_error": f"unsupported image_detail: {image_detail}"}
 
-    step = run.steps[step_index]
     screenshot_filename = step.observation.screenshot
     screenshot_path = None
     if screenshot_filename:
