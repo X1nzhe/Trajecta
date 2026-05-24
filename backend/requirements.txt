@@ -6,3 +6,4 @@ Pillow>=10,<12
 datasets>=3,<5
 httpx>=0.27,<1
 openai>=1.50,<2
+chromadb>=0.5,<2
