@@ -1,4 +1,19 @@
-"""Deterministic Phase 2 tool implementations."""
+"""Deterministic Phase 2 tool implementations.
+
+Placeholder warning for Phase 3:
+
+``search_failure_memory``, ``search_eval_cases``, and
+``find_similar_successful_run`` are Phase 2 fallbacks. Phase 3 MUST replace
+them with ChromaDB-backed implementations from ``backend/app/rag.py`` and
+remove the token-overlap scoring in this file; the local fallback must not
+remain as a runtime path once the ``failure_memory`` / ``eval_cases`` /
+``successful_runs`` collections exist. ``get_step_detail`` is intentionally
+unimplemented here; the VLM step-detail tool is owned by Phase 3.
+
+``propose_eval_case``'s contract responsibility to validate that every
+``retrieved_context_id`` appears in a prior ``search_*`` tool result of the
+current ``AgentTrace`` is deferred to Phase 3 — Phase 2 has no trace.
+"""
 
 from __future__ import annotations
 
@@ -94,7 +109,7 @@ def propose_eval_case(
     actual_behavior: str,
     evidence: list[EvidenceItem | dict[str, Any]],
     regression_rule: str,
-    retrieved_context_ids: list[str] | None = None,
+    retrieved_context_ids: list[str],
 ) -> dict[str, Any]:
     run = storage.load_run(run_id)
     evidence_items = [EvidenceItem.model_validate(item) for item in evidence]
@@ -108,7 +123,7 @@ def propose_eval_case(
         actual_behavior=actual_behavior,
         evidence=evidence_items,
         regression_rule=regression_rule,
-        retrieved_context_ids=retrieved_context_ids or [],
+        retrieved_context_ids=retrieved_context_ids,
         human_validated=False,
     )
     return case.model_dump(mode="json")

@@ -65,7 +65,7 @@ class ToolsTests(unittest.TestCase):
         cases_dir = storage.data_dir() / "failure_memory"
         cases_dir.mkdir(parents=True)
         case = FailureMemoryCase(
-            case_id="fm_constraint",
+            case_id="fm_missed_constraint_001",
             failure_type="missed_constraint",
             summary="The agent ignored a user constraint.",
             tags=["constraint"],
@@ -77,7 +77,7 @@ class ToolsTests(unittest.TestCase):
 
         results = tools.search_failure_memory("constraint", top_k=3)
 
-        self.assertEqual(results[0]["case_id"], "fm_constraint")
+        self.assertEqual(results[0]["case_id"], "fm_missed_constraint_001")
 
     def test_find_similar_successful_run_filters_only_success_runs(self) -> None:
         storage.save_run(sample_run("success_run", status="success"))

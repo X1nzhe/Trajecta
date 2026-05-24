@@ -106,6 +106,10 @@ def import_molmoweb_sample(request: ImportRequest | None = None) -> dict:
         assets = dataset_importer.get_imported_screenshot_assets(run.run_id)
         if assets:
             storage.save_screenshots(run.run_id, assets)
+        # TODO(phase3): if run.status == "success", upsert into the
+        # `successful_runs` ChromaDB collection here (per docs/contracts.md
+        # "RAG Collection Contracts"). Modify this handler in place; do not
+        # add a separate import endpoint.
 
     return {"imported_count": len(runs), "runs": [run.model_dump(mode="json") for run in runs]}
 

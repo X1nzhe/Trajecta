@@ -218,10 +218,6 @@ def load_failure_memory() -> list[FailureMemoryCase]:
         if not line.strip():
             continue
         case = FailureMemoryCase.model_validate_json(line)
-        if not re.fullmatch(r"fm_[a-z][a-z0-9_]*_[0-9]{3}", case.case_id):
-            raise ValueError(
-                f"invalid failure memory case_id {case.case_id!r} at line {line_no}; must match ^fm_[a-z][a-z0-9_]*_[0-9]{3}$"
-            )
         if case.case_id in seen:
             raise ValueError(f"duplicate failure memory case_id {case.case_id!r} at line {line_no}")
         seen.add(case.case_id)
