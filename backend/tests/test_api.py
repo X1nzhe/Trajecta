@@ -281,6 +281,29 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_failure_validation_evicts_prior_success_rag_entry(self) -> None:
+        """If a run was previously validated as success (and indexed into
+        successful_runs), a subsequent failure validation must remove the
+        stale row so find_similar_successful_run no longer returns it.
+        """
+
+        from backend.tests.test_storage import (
+            sample_eval_case as failure_factory,
+            sample_success_eval_case,
+        )
+
+        success_case = sample_success_eval_case("ec_run_api_success", source_run_id="run_api")
+        first = self.client.post("/api/eval-cases", json=success_case.model_dump(mode="json"))
+        self.assertEqual(first.status_code, 200)
+        self.assertIn("run_api", [r["run_id"] for r in tools.find_similar_successful_run("Find a result", top_k=3)])
+
+        failure_case = failure_factory("ec_run_api_step_0", source_run_id="run_api")
+        second = self.client.post("/api/eval-cases", json=failure_case.model_dump(mode="json"))
+        self.assertEqual(second.status_code, 200)
+
+        self.assertEqual(storage.load_run("run_api").status, "failed")
+        self.assertEqual(tools.find_similar_successful_run("Find a result", top_k=3), [])
+
     def test_import_handler_starts_cold(self) -> None:
         """v1 cold-start contract (docs/dataset_import.md): imported runs
         land at status='unknown' regardless of any raw `status` field, and
@@ -308,6 +331,11 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["imported_count"], 1)
+
+        # Even though the raw row had status="success", the importer
+        # overrides it to "unknown" per the cold-start contract.
+        self.assertEqual(response.json()["runs"][0]["status"], "unknown")
+        self.assertEqual(storage.load_run("imported_success").status, "unknown")
 
         # No RAG seeding from import — the successful_runs collection is
         # empty until a human validates a success EvalCase.

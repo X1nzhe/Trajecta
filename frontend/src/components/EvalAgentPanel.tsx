@@ -679,7 +679,17 @@ function EvalCaseDraftPanel({
           </div>
         ) : (
           <>
-            <DraftNumberField label="Failure Step" value={localDraft.failure_step ?? 0} onChange={(value) => update({ failure_step: value })} />
+            {typeof localDraft.failure_step === 'number' ? (
+              <DraftNumberField label="Failure Step" value={localDraft.failure_step} onChange={(value) => update({ failure_step: value })} />
+            ) : (
+              // The XOR validator on the backend would reject this draft on
+              // POST anyway; surface the inconsistency in the editor so the
+              // user fixes it before clicking Validate rather than discovering
+              // it via a 422.
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-800">
+                Failure step is missing or invalid for this failure case. Fix the draft (or convert to a success case) before validating.
+              </div>
+            )}
             <DraftField label="Failure Type" value={localDraft.failure_type ?? ''} onChange={(value) => update({ failure_type: value })} />
             <DraftTextArea label="Expected Behavior" value={localDraft.expected_behavior ?? ''} onChange={(value) => update({ expected_behavior: value })} />
             <DraftTextArea label="Actual Behavior" value={localDraft.actual_behavior ?? ''} onChange={(value) => update({ actual_behavior: value })} />

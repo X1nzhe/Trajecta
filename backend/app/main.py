@@ -175,6 +175,11 @@ def create_eval_case(case: EvalCase) -> dict:
     if case.is_success:
         rag.upsert_successful_run(updated_run)
     else:
+        # A run can only sit in one of the two RAG collections at a time.
+        # If a previous success-shape case had indexed this run into
+        # successful_runs, evict it now so find_similar_successful_run
+        # does not keep returning a now-failed comparator. Idempotent.
+        rag.delete_successful_run(case.source_run_id)
         rag.upsert_eval_case(case)
     return case.model_dump(mode="json")
 

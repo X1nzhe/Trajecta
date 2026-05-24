@@ -50,16 +50,21 @@ def import_sample(source_dir: Path) -> list[TrajectoryRun]:
         _validate_run_id(run_id)
 
         run = normalize_trajectory(raw, run_id=run_id)
+        # docs/dataset_import.md "Cold-Start Behavior": every imported run
+        # lands at status="unknown" regardless of any raw status / outcome
+        # field in the source row. The Eval Agent must derive its own
+        # verdict; pre-seeded labels would let the agent (or `get_run`)
+        # copy the answer. normalize_trajectory still honors raw status
+        # because ad-hoc scripts and tests rely on that path; the import
+        # pipeline overrides it here.
+        run = run.model_copy(update={"status": "unknown"})
         runs.append(run)
         assets = _extract_screenshot_assets(raw, run)
         if assets:
             _LAST_SCREENSHOT_ASSETS[run.run_id] = assets
 
-    # Status overlay deliberately not applied in v1: docs/dataset_import.md
-    # "Cold-Start Behavior". Run.status is set only by human-validated eval
-    # cases; imports start every run at "unknown" so the Eval Agent has
-    # nothing to copy from. apply_status_overlay() remains importable for
-    # ad-hoc scripts and tests.
+    # apply_status_overlay() remains importable for ad-hoc scripts and
+    # tests but is deliberately not called here.
     return runs
 
 
