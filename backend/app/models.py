@@ -30,14 +30,29 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
+    MetaData,
     String,
     Text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
+# Single project-wide naming convention so that ``create_all`` and Alembic
+# migrations emit byte-identical index / FK / PK / UQ / CK names. Without
+# this, ``index=True`` on a column produces ``ix_table_column`` via the
+# default rule, while a hand-rolled migration emitting ``idx_*`` would
+# silently diverge and confuse autogenerate forever.
+NAMING_CONVENTION = {
+    "ix": "ix_%(table_name)s_%(column_0_name)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 def _utcnow() -> datetime:

@@ -102,10 +102,10 @@ def get_step_detail(
 def get_screenshot(run_id: str, filename: str) -> Response:
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    data = storage.load_screenshot(run_id, filename)
-    if data is None:
+    loaded = storage.load_screenshot_with_meta(run_id, filename)
+    if loaded is None:
         raise _not_found("screenshot not found")
-    media_type = storage.screenshot_content_type(run_id, filename) or "application/octet-stream"
+    data, media_type = loaded
     return Response(content=data, media_type=media_type)
 
 

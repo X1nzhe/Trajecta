@@ -32,7 +32,10 @@ def upgrade() -> None:
         sa.Column("metadata_json", sa.JSON(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index("idx_runs_status", "runs", ["status"])
+    # Index name matches ``ix_%(table_name)s_%(column_0_name)s`` from
+    # ``backend.app.models.NAMING_CONVENTION`` so create_all and Alembic stay
+    # in sync; do not rename without updating both sides.
+    op.create_index("ix_runs_status", "runs", ["status"])
 
     op.create_table(
         "steps",
@@ -82,7 +85,7 @@ def upgrade() -> None:
         sa.Column("human_validated", sa.Boolean(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index("idx_eval_cases_source_run", "eval_cases", ["source_run_id"])
+    op.create_index("ix_eval_cases_source_run_id", "eval_cases", ["source_run_id"])
 
     op.create_table(
         "failure_memory",
@@ -93,11 +96,11 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("failure_memory")
-    op.drop_index("idx_eval_cases_source_run", table_name="eval_cases")
+    op.drop_index("ix_eval_cases_source_run_id", table_name="eval_cases")
     op.drop_table("eval_cases")
     op.drop_table("traces")
     op.drop_table("digests")
     op.drop_table("screenshots")
     op.drop_table("steps")
-    op.drop_index("idx_runs_status", table_name="runs")
+    op.drop_index("ix_runs_status", table_name="runs")
     op.drop_table("runs")

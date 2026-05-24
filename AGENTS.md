@@ -56,8 +56,13 @@ If a future subdirectory contains its own `AGENTS.md`, follow that nearest file 
 Backend:
 - cd backend
 - pip install -r requirements.txt
-- alembic upgrade head  # optional in dev; lifespan also runs create_all
-- uvicorn app.main:app --reload
+- uvicorn app.main:app --reload  # lifespan calls Base.metadata.create_all; no Alembic step required for dev
+
+### Alembic
+Alembic is committed (`backend/alembic/`) for future schema evolution, but it is **not** the dev bootstrap path — the FastAPI lifespan runs `create_all` and that is what populates a fresh `data/trajecta.db`. Rules:
+- Do **not** run `alembic upgrade head` against a DB the app has already created — it will fail because the tables exist but there is no `alembic_version` row to skip them.
+- To use Alembic explicitly: delete `data/trajecta.db` first and run `alembic upgrade head` before starting the app, OR run `alembic stamp head` against the existing DB to mark it as already at head.
+- `models.NAMING_CONVENTION` ensures `create_all` and Alembic produce byte-identical index / FK / PK names — do not rename the convention without rewriting `0001_initial_schema.py`.
 
 Tests:
 - cd backend

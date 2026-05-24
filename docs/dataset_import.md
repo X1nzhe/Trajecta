@@ -311,12 +311,17 @@ Rules:
 
 `POST /api/import/molmoweb-sample` is **idempotent**:
 
-- For each imported run, `storage.save_run(run)` deletes the existing `runs`
-  row (cascading the associated `steps`) and inserts the fresh payload inside
-  one transaction. The `digests` row for the same `run_id` is invalidated
-  (deleted) since the upstream changed.
+- For each imported run, `storage.save_run(run)` updates the `runs` row in
+  place (task / source / status / metadata) and replaces only the associated
+  `steps` rows inside one transaction. The `runs` row itself is **not**
+  deleted, so the cascading `screenshots` / `digests` / `traces` rows
+  survive untouched.
+- The API handler then calls `storage.delete_digest(run_id)` separately
+  because the upstream changed and the cached digest is now stale.
 - The existing `traces` row is preserved — the user's most recent analysis
-  is not destroyed by re-import.
+  is not destroyed by re-import (cascade-deleting it via save_run was the
+  bug Copilot caught on PR #1; the test
+  ``test_save_run_preserves_trace_and_screenshots`` guards it).
 - ChromaDB rows in the `successful_runs` collection keyed by `run_id` are
   upserted (overwritten). Rows for runs that drop out of `status=="success"`
   in the new import are deleted to avoid stale comparison targets.

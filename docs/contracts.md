@@ -273,10 +273,10 @@ def load_failure_memory() -> list[FailureMemoryCase]: ...
 
 Behavior rules:
 
-- `load_run` and `load_digest` raise `FileNotFoundError` for unknown run IDs; API layer converts to `404`.
-- `load_trace`, `load_digest`, `load_eval_case` return `None` when the artifact does not exist (it is normal for a run to have no trace yet).
-- `save_run`, `save_trace`, `save_digest`, `save_eval_case` write inside a transaction (`session_scope`); commit on clean exit, rollback on exception. `save_run` replaces the existing row + cascades step deletes, so re-imports cannot leave stale step rows.
-- `list_runs` executes one `SELECT * FROM runs ORDER BY run_id` plus per-row step joins (relationship loaded eagerly). Demo fixtures are small (≤ ~50 runs) so the simple read pattern is fine.
+- `load_run` raises `FileNotFoundError` for unknown run IDs; API layer converts this to `404`.
+- `load_trace`, `load_digest`, `load_eval_case` return `None` when the artifact does not exist (it is normal for a run to have no trace yet). For `load_digest` this `None` is returned whether the run is unknown or the digest has not been built yet; endpoints that need to distinguish call `run_exists` first.
+- `save_run`, `save_trace`, `save_digest`, `save_eval_case` write inside a transaction (`session_scope`); commit on clean exit, rollback on exception. `save_run` updates the existing `runs` row in place and replaces only the child `steps` rows — this is deliberate so the cascading `screenshots` / `digests` / `traces` rows survive a re-import.
+- `list_runs` issues one `SELECT * FROM runs ORDER BY run_id`; the `Run.steps` relationship uses `lazy="selectin"`, so all step rows are pulled in a single follow-up `SELECT ... WHERE run_id IN (...)` rather than per-row. Two queries total regardless of run count.
 - `load_failure_memory` reads `data/failure_memory/cases.jsonl` as source of truth, validates every row, raises on duplicate `case_id`, then refreshes the `failure_memory` DB table from the file on each call. The JSONL stays editable by hand; the DB is just a queryable mirror.
 - `save_eval_case` inserts into the `eval_cases` table and refuses duplicate `case_id` (raises; the API layer surfaces this as 409). It must also call into `rag.upsert_eval_case(case)` so ChromaDB stays in sync; see "Index trigger" rules below.
 - Eval-case drafts (`human_validated=false`) are **not** persisted in v1. The draft survives only in the API response and in the trace's `propose_eval_case` tool-call args. Refreshing the page = lose the draft = re-analyze.

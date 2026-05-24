@@ -182,17 +182,18 @@ def save_screenshots(run_id: str, screenshots: Mapping[str, bytes]) -> None:
 
 
 def load_screenshot(run_id: str, filename: str) -> bytes | None:
-    try:
-        _safe_id(run_id, kind="run_id")
-        _safe_id(filename, kind="screenshot_filename")
-    except ValueError:
-        return None
-    with db.session_scope() as session:
-        row = session.get(models.Screenshot, (run_id, filename))
-        return row.data if row is not None else None
+    result = load_screenshot_with_meta(run_id, filename)
+    return result[0] if result is not None else None
 
 
 def screenshot_content_type(run_id: str, filename: str) -> str | None:
+    result = load_screenshot_with_meta(run_id, filename)
+    return result[1] if result is not None else None
+
+
+def load_screenshot_with_meta(run_id: str, filename: str) -> tuple[bytes, str] | None:
+    """Single-query screenshot fetch. Returns ``(data, content_type)`` or ``None``."""
+
     try:
         _safe_id(run_id, kind="run_id")
         _safe_id(filename, kind="screenshot_filename")
@@ -200,7 +201,9 @@ def screenshot_content_type(run_id: str, filename: str) -> str | None:
         return None
     with db.session_scope() as session:
         row = session.get(models.Screenshot, (run_id, filename))
-        return row.content_type if row is not None else None
+        if row is None:
+            return None
+        return row.data, row.content_type
 
 
 def screenshot_exists(run_id: str, filename: str) -> bool:
