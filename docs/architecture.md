@@ -105,18 +105,11 @@ trajecta/
     raw/
       molmoweb_humanskills_sample/
         run_status_overlay.json
-    runs/
-      {run_id}/
-        trajectory.json
-        digest.json
-        last_trace.json
-        screenshots/
+    trajecta.db                          # SQLite: runs, steps, screenshots (BLOB),
+                                         # digests, traces, eval_cases, failure_memory
     failure_memory/
-      cases.jsonl
-    eval_cases/
-      validated/
-        {case_id}.json
-    chroma/
+      cases.jsonl                        # human-edited seed corpus; hydrated into DB on load
+    chroma/                              # vector store (separate persistent layer)
   skills/
     create-eval-case/
       SKILL.md
@@ -127,12 +120,18 @@ trajecta/
     ragas_report.md
 ```
 
-The repo should include at least 5 fixture runs under `data/runs/` for the MVP,
-but the structure above is shown as a template because additional run folders are
-runtime data.
+`data/trajecta.db` is a single SQLite file managed by SQLAlchemy 2.0 (sync,
+declarative models in `backend/app/models.py`). Schema is owned by Alembic
+(`backend/alembic/versions/`); the app also calls `Base.metadata.create_all`
+on startup so a fresh checkout boots without a manual `alembic upgrade head`.
+Screenshots live as BLOB rows on the `screenshots` table rather than as files
+on disk — this keeps the deployable surface to one file + the `chroma/`
+directory and one `failure_memory/cases.jsonl` seed.
 
 Module responsibilities:
 
-- `storage.py`: load and save trajectory runs, digests, traces, and eval cases from local disk; provide existence checks used by `ids.make_eval_case_id`.
+- `db.py`: SQLite engine + `session_scope()` context manager; honors `TRAJECTA_DATA_DIR`.
+- `models.py`: SQLAlchemy declarative ORM (Run, Step, Screenshot, Digest, Trace, EvalCaseRow, FailureMemoryRow).
+- `storage.py`: Pydantic ↔ ORM translation; public signatures stable across the filesystem → SQLite cutover. Each function opens its own session_scope.
 - `ids.py`: generate stable eval-case IDs and check collisions through storage.
-- `llm.py`: centralize LLM/VLM client creation, provider configuration, and deterministic offline mocks.
+- `llm.py`: centralize LLM/VLM client creation, provider configuration, and deterministic offline mocks. Takes screenshot **bytes** (not paths) so the BLOB-backed storage layer flows through unchanged.

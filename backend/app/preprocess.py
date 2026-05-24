@@ -6,8 +6,6 @@ labeling, and no LangGraph. See ``docs/preprocessing.md`` for the contract.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from backend.app import storage
 from backend.app.coordinate_validator import validate_coordinates
 from backend.app.llm import VLMClient, get_vlm_client
@@ -68,14 +66,14 @@ def load_or_build_digest(run_id: str) -> TrajectoryDigest:
 
 def _build_step_digest(run_id: str, step: TrajectoryStep, client: VLMClient) -> StepDigest:
     observation = step.observation
-    screenshot_path = _resolve_screenshot(run_id, observation.screenshot)
-    has_screenshot = screenshot_path is not None
+    screenshot_bytes = _load_screenshot_bytes(run_id, observation.screenshot)
+    has_screenshot = screenshot_bytes is not None
 
     raw_width = _coerce_int(step.metadata.get("image_width"))
     raw_height = _coerce_int(step.metadata.get("image_height"))
     coord_status = validate_coordinates(
         step.action,
-        image_path=screenshot_path,
+        image_bytes=screenshot_bytes,
         image_width=raw_width,
         image_height=raw_height,
     ).status
@@ -84,7 +82,8 @@ def _build_step_digest(run_id: str, step: TrajectoryStep, client: VLMClient) -> 
         summary: str | None = None
     else:
         summary = client.summarize_low_detail(
-            screenshot_path,
+            screenshot_bytes,
+            image_name=observation.screenshot or f"step_{step.index}",
             action_type=step.action.type,
             step_index=step.index,
         )
@@ -103,14 +102,10 @@ def _build_step_digest(run_id: str, step: TrajectoryStep, client: VLMClient) -> 
     )
 
 
-def _resolve_screenshot(run_id: str, filename: str | None) -> Path | None:
+def _load_screenshot_bytes(run_id: str, filename: str | None) -> bytes | None:
     if not filename:
         return None
-    try:
-        path = storage.screenshot_path(run_id, filename)
-    except ValueError:
-        return None
-    return path if path.exists() and path.is_file() else None
+    return storage.load_screenshot(run_id, filename)
 
 
 def _has_source_text(observation: StepObservation) -> bool:

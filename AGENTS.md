@@ -47,11 +47,22 @@ If a future subdirectory contains its own `AGENTS.md`, follow that nearest file 
 5. Prefer simple local fixtures and deterministic tests over full dataset or network-dependent flows.
 6. Report any command you could not run and why.
 
+## Persistence
+- Runs, steps, screenshots (BLOB), digests, traces, eval cases, and the failure-memory mirror live in `data/trajecta.db` (SQLite, single file). Schema in `backend/app/models.py`, Alembic migrations in `backend/alembic/versions/`.
+- ChromaDB persists separately under `data/chroma/`. Do not collapse the two stores.
+- Always reach the DB through `backend/app/storage.py`. No raw SQL or `Session()` construction elsewhere.
+
 ## Commands
 Backend:
 - cd backend
 - pip install -r requirements.txt
-- uvicorn app.main:app --reload
+- uvicorn app.main:app --reload  # lifespan calls Base.metadata.create_all; no Alembic step required for dev
+
+### Alembic
+Alembic is committed (`backend/alembic/`) for future schema evolution, but it is **not** the dev bootstrap path — the FastAPI lifespan runs `create_all` and that is what populates a fresh `data/trajecta.db`. Rules:
+- Do **not** run `alembic upgrade head` against a DB the app has already created — it will fail because the tables exist but there is no `alembic_version` row to skip them.
+- To use Alembic explicitly: delete `data/trajecta.db` first and run `alembic upgrade head` before starting the app, OR run `alembic stamp head` against the existing DB to mark it as already at head.
+- `models.NAMING_CONVENTION` ensures `create_all` and Alembic produce byte-identical index / FK / PK names — do not rename the convention without rewriting `0001_initial_schema.py`.
 
 Tests:
 - cd backend

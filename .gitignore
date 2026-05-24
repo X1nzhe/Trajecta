@@ -230,11 +230,15 @@ data/raw/molmoweb_humanskills_sample/materialize_manifest.json
 !data/raw/molmoweb_humanskills_sample/demo_sample_ids.txt
 !data/raw/molmoweb_humanskills_sample/run_status_overlay.json
 
-# Runtime artifacts under data/runs/{run_id}/: digest.json is the
-# preprocessing cache (rebuilt by load_or_build_digest on demand).
-data/runs/*/digest.json
+# Runtime SQLite database (runs, steps, screenshots BLOB, digests, traces,
+# eval_cases, failure_memory). Rebuilt by "Import Dataset" from the frontend
+# or POST /api/import/molmoweb-sample. WAL/shm sidecars are also ignored.
+data/trajecta.db
+data/trajecta.db-wal
+data/trajecta.db-shm
+
+# ChromaDB persistent store
 data/chroma/
-data/runs/*/last_trace.json
 
 .vite
 dist/

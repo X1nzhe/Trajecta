@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import tempfile
+import io
 import unittest
-from pathlib import Path
 
 from PIL import Image
 
@@ -77,14 +76,13 @@ class CoordinateValidatorTests(unittest.TestCase):
         self.assertEqual(result.image_height, 80)
 
     def test_reads_dimensions_from_png(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            image_path = Path(tmpdir) / "step.png"
-            Image.new("RGB", (64, 48)).save(image_path)
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 48)).save(buf, format="PNG")
 
-            result = validate_coordinates(
-                StepAction(type="click", coordinates=Coordinate(x=63, y=47)),
-                image_path=image_path,
-            )
+        result = validate_coordinates(
+            StepAction(type="click", coordinates=Coordinate(x=63, y=47)),
+            image_bytes=buf.getvalue(),
+        )
 
         self.assertEqual(result.status, "validated")
         self.assertEqual(result.image_width, 64)

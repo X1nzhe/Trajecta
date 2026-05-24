@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 import unittest
 
 from backend.app import storage
@@ -50,18 +48,6 @@ def sample_eval_case(case_id: str = "ec_run_1_step_0") -> EvalCase:
 
 
 class StorageTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.previous_data_dir = os.environ.get("TRAJECTA_DATA_DIR")
-        os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
-
-    def tearDown(self) -> None:
-        if self.previous_data_dir is None:
-            os.environ.pop("TRAJECTA_DATA_DIR", None)
-        else:
-            os.environ["TRAJECTA_DATA_DIR"] = self.previous_data_dir
-        self.tmp.cleanup()
-
     def test_save_and_load_run(self) -> None:
         run = sample_run()
 
@@ -70,6 +56,56 @@ class StorageTests(unittest.TestCase):
 
         self.assertEqual(loaded.run_id, "run_1")
         self.assertEqual(loaded.steps[0].action.type, "wait")
+
+    def test_save_run_preserves_trace_and_screenshots(self) -> None:
+        """Re-import must not cascade-delete the user's prior analysis.
+
+        Documented in docs/dataset_import.md "Re-Import Behavior": traces
+        survive re-import; screenshots are upserted (not orphan-deleted).
+        Regression guard for the cascade-delete bug Copilot caught.
+        """
+
+        storage.save_run(sample_run())
+        storage.save_screenshots("run_1", {"screenshot_001.png": b"png-bytes"})
+        trace = AgentTrace(run_id="run_1", user_intent="analyze_run")
+        storage.save_trace("run_1", trace)
+        digest = TrajectoryDigest(run_id="run_1", task="Find a result", step_count=0, steps=[])
+        storage.save_digest("run_1", digest)
+
+        storage.save_run(sample_run(status="failed"))
+
+        self.assertIsNotNone(storage.load_trace("run_1"))
+        self.assertEqual(storage.load_screenshot("run_1", "screenshot_001.png"), b"png-bytes")
+        self.assertIsNotNone(storage.load_digest("run_1"))
+        self.assertEqual(storage.load_run("run_1").status, "failed")
+
+    def test_save_run_replaces_existing(self) -> None:
+        original = sample_run()
+        storage.save_run(original)
+
+        modified = TrajectoryRun(
+            run_id="run_1",
+            task="Updated task",
+            status="failed",
+            steps=[
+                TrajectoryStep(
+                    index=0,
+                    observation=StepObservation(screenshot="x.png"),
+                    action=StepAction(type="click", raw="click(0,0)"),
+                ),
+                TrajectoryStep(
+                    index=1,
+                    observation=StepObservation(),
+                    action=StepAction(type="wait", raw="wait()"),
+                ),
+            ],
+        )
+        storage.save_run(modified)
+
+        loaded = storage.load_run("run_1")
+        self.assertEqual(loaded.task, "Updated task")
+        self.assertEqual(loaded.status, "failed")
+        self.assertEqual(len(loaded.steps), 2)
 
     def test_list_runs(self) -> None:
         storage.save_run(sample_run("run_b"))
@@ -81,6 +117,7 @@ class StorageTests(unittest.TestCase):
         self.assertIsNone(storage.load_digest("run_1"))
 
     def test_save_and_load_trace(self) -> None:
+        storage.save_run(sample_run())
         trace = AgentTrace(run_id="run_1", user_intent="analyze_run")
 
         storage.save_trace("run_1", trace)
@@ -90,6 +127,7 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(loaded.run_id, "run_1")
 
     def test_save_and_load_digest(self) -> None:
+        storage.save_run(sample_run())
         digest = TrajectoryDigest(run_id="run_1", task="Find a result", step_count=0, steps=[])
 
         storage.save_digest("run_1", digest)
@@ -99,6 +137,7 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(loaded.task, "Find a result")
 
     def test_save_eval_case_refuses_overwrite(self) -> None:
+        storage.save_run(sample_run())
         case = sample_eval_case()
 
         storage.save_eval_case(case)
@@ -122,13 +161,24 @@ class StorageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             storage.load_failure_memory()
 
-    def test_writes_validate_through_pydantic_models(self) -> None:
+    def test_save_and_load_screenshot(self) -> None:
         storage.save_run(sample_run())
-        path = storage.data_dir() / "runs" / "run_1" / "trajectory.json"
+        data = b"\x89PNG\r\n\x1a\nfake-bytes"
 
-        validated = TrajectoryRun.model_validate_json(path.read_text(encoding="utf-8"))
+        storage.save_screenshots("run_1", {"screenshot_001.png": data})
+        loaded = storage.load_screenshot("run_1", "screenshot_001.png")
 
-        self.assertEqual(validated.run_id, "run_1")
+        self.assertEqual(loaded, data)
+        self.assertTrue(storage.screenshot_exists("run_1", "screenshot_001.png"))
+        self.assertEqual(storage.screenshot_content_type("run_1", "screenshot_001.png"), "image/png")
+
+    def test_load_missing_screenshot_returns_none(self) -> None:
+        self.assertIsNone(storage.load_screenshot("run_1", "missing.png"))
+
+    def test_screenshot_path_traversal_rejected(self) -> None:
+        storage.save_run(sample_run())
+        # _safe_id forbids "/" so this lookup must just return None, not escape.
+        self.assertIsNone(storage.load_screenshot("run_1", "../../etc/passwd"))
 
 
 if __name__ == "__main__":
