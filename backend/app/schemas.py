@@ -93,7 +93,7 @@ class TrajectoryDigest(BaseModel):
 
 
 class FailureMemoryCase(BaseModel):
-    case_id: str
+    case_id: str = Field(pattern=r"^fm_[a-z][a-z0-9_]*_[0-9]{3}$")
     failure_type: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
     summary: str
     fix_hint: str | None = None

@@ -110,7 +110,7 @@ class StorageTests(unittest.TestCase):
         cases_dir = storage.data_dir() / "failure_memory"
         cases_dir.mkdir(parents=True)
         row = FailureMemoryCase(
-            case_id="fm_duplicate",
+            case_id="fm_early_terminated_001",
             failure_type="early_terminated",
             summary="The agent stopped early.",
         ).model_dump(mode="json")
