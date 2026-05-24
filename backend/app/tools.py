@@ -15,9 +15,9 @@ in scope here.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from backend.app import rag, storage
+from backend.app import llm, rag, storage
 from backend.app.ids import make_eval_case_id
 from backend.app.schemas import EvalCase, EvidenceItem
 
@@ -35,8 +35,74 @@ def find_similar_successful_run(task: str, top_k: int = 3) -> list[dict[str, Any
     return rag.query_similar_successful_runs(task, top_k=top_k)
 
 
-def get_step_detail(run_id: str, step_index: int, image_detail: str = "high") -> dict[str, Any]:
-    raise NotImplementedError("Phase 3 owns VLM step detail; Phase 2 does not call a VLM.")
+def get_step_detail(
+    run_id: str,
+    step_index: int,
+    image_detail: Literal["low", "high"] = "high",
+) -> dict[str, Any]:
+    try:
+        run = storage.load_run(run_id)
+    except FileNotFoundError:
+        return {"tool_error": f"unknown run_id: {run_id}"}
+
+    if not 0 <= step_index < len(run.steps):
+        return {
+            "tool_error": (
+                f"step_index {step_index} out of range for run {run_id} "
+                f"with {len(run.steps)} steps"
+            )
+        }
+
+    if image_detail not in {"low", "high"}:
+        return {"tool_error": f"unsupported image_detail: {image_detail}"}
+
+    step = run.steps[step_index]
+    screenshot_filename = step.observation.screenshot
+    screenshot_path = None
+    if screenshot_filename:
+        try:
+            candidate = storage.screenshot_path(run_id, screenshot_filename)
+        except ValueError:
+            candidate = None
+        if candidate is not None and candidate.exists() and candidate.is_file():
+            screenshot_path = candidate
+
+    has_screenshot = screenshot_path is not None
+    vlm_summary: str | None = None
+    if has_screenshot:
+        try:
+            client = llm.get_vlm_client()
+            if image_detail == "low":
+                vlm_summary = client.summarize_low_detail(
+                    screenshot_path,
+                    action_type=step.action.type,
+                    step_index=step_index,
+                )
+            else:
+                vlm_summary = client.summarize_high_detail(
+                    screenshot_path,
+                    action_type=step.action.type,
+                    step_index=step_index,
+                )
+        except Exception:
+            vlm_summary = None
+
+    screenshot_url = None
+    if has_screenshot and screenshot_filename is not None:
+        screenshot_url = f"/api/runs/{run_id}/screenshots/{screenshot_filename}"
+
+    return {
+        "run_id": run_id,
+        "step_index": step_index,
+        "has_screenshot": has_screenshot,
+        "image_detail": image_detail,
+        "vlm_summary": vlm_summary,
+        "action": step.action.model_dump(mode="json"),
+        "observation": step.observation.model_dump(mode="json"),
+        "result": step.result.model_dump(mode="json"),
+        "coordinate_validation": step.coordinate_validation.model_dump(mode="json"),
+        "screenshot_url": screenshot_url,
+    }
 
 
 def search_failure_memory(query: str, top_k: int = 3) -> list[dict[str, Any]]:
