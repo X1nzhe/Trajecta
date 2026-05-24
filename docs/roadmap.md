@@ -31,7 +31,7 @@ Do not spend more than half a day on MCP.
 - Implement coordinate validator
 - Implement backend storage and tools
 
-### Phase 3
+### Phase 3 - Done
 
 - Implement Trajectory Preprocessing (`preprocess.py`) per [docs/preprocessing.md](preprocessing.md): build the `trajectory_digest` with low-detail VLM hints, parsed actions, and coordinate validation
 - Implement ChromaDB RAG (`failure_memory` + `eval_cases` + `successful_runs` collections)
