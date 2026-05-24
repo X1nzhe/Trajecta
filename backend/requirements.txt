@@ -5,3 +5,4 @@ uvicorn[standard]>=0.34,<1
 Pillow>=10,<12
 datasets>=3,<5
 httpx>=0.27,<1
+openai>=1.50,<2
