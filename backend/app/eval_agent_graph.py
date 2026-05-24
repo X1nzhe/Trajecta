@@ -262,9 +262,16 @@ def stream_analyze(
         "llm_client": llm_client,
         "done": False,
     }
-    result = yield from _stream_graph_result(state, start_seq=0, include_preprocess=True)
-    if persist:
-        storage.save_trace(run_id, result.trace)
+    result: AgentExecutionResult | None = None
+    try:
+        result = yield from _stream_graph_result(state, start_seq=0, include_preprocess=True)
+    except Exception as exc:
+        _record_graph_execution_error(state, trace=trace, turn=0, error=str(exc))
+        yield trace.events[-1]
+        raise
+    finally:
+        if persist:
+            storage.save_trace(run_id, result.trace if result is not None else trace)
     yield AgentStreamDone(result)
 
 
@@ -300,35 +307,48 @@ def stream_followup(
         raise NoPriorTraceError(f"no prior trace for run_id: {run_id}")
 
     turn = trace.turn_count
-    digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
-    state: GraphState = {
-        "run_id": run_id,
-        "user_intent": trace.user_intent,
-        "selected_step": trace.selected_step,
-        "trajectory_digest": [step.model_dump(mode="json") for step in digest.steps],
-        "messages": _messages_from_trace(trace),
-        "tool_call_count": trace.tool_call_count,
-        "eval_case_draft": _latest_eval_case_draft(trace),
-        "errors": [],
-        "trace": trace,
-        "turn": turn,
-        "budget": budget,
-        "per_turn_budgeted_calls": 0,
-        "pending_tool_calls": [],
-        "active_tool_call": None,
-        "llm_client": llm_client,
-        "done": False,
-    }
     start_seq = len(trace.events)
     _append_event(trace, "user_message", turn=turn, message=message)
-    state["messages"].append(HumanMessage(content=message))
     yield trace.events[-1]
 
-    result = yield from _stream_graph_result(state, start_seq=start_seq, include_preprocess=False, emitted_seq=len(trace.events))
-    result.trace.turn_count = max(result.trace.turn_count, turn + 1)
-    result.new_events = result.trace.events[start_seq:]
-    if persist:
-        storage.save_trace(run_id, result.trace)
+    result: AgentExecutionResult | None = None
+    state: GraphState | None = None
+    try:
+        digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
+        state = {
+            "run_id": run_id,
+            "user_intent": trace.user_intent,
+            "selected_step": trace.selected_step,
+            "trajectory_digest": [step.model_dump(mode="json") for step in digest.steps],
+            "messages": _messages_from_trace(trace),
+            "tool_call_count": trace.tool_call_count,
+            "eval_case_draft": _latest_eval_case_draft(trace),
+            "errors": [],
+            "trace": trace,
+            "turn": turn,
+            "budget": budget,
+            "per_turn_budgeted_calls": 0,
+            "pending_tool_calls": [],
+            "active_tool_call": None,
+            "llm_client": llm_client,
+            "done": False,
+        }
+        result = yield from _stream_graph_result(
+            state,
+            start_seq=start_seq,
+            include_preprocess=False,
+            emitted_seq=len(trace.events),
+        )
+        result.trace.turn_count = max(result.trace.turn_count, turn + 1)
+        result.new_events = result.trace.events[start_seq:]
+    except Exception as exc:
+        _record_graph_execution_error(state, trace=trace, turn=turn, error=str(exc))
+        trace.turn_count = max(trace.turn_count, turn + 1)
+        yield trace.events[-1]
+        raise
+    finally:
+        if persist:
+            storage.save_trace(run_id, result.trace if result is not None else trace)
     yield AgentStreamDone(result)
 
 
@@ -597,6 +617,21 @@ def _record_terminal_tool_error(
     state["trace"].terminated_by = "error"
     state["eval_case_draft"] = None
     state["done"] = True
+
+
+def _record_graph_execution_error(
+    state: GraphState | None,
+    *,
+    trace: AgentTrace,
+    turn: int,
+    error: str,
+) -> None:
+    if state is not None:
+        state["errors"].append(error)
+        state["eval_case_draft"] = None
+        state["done"] = True
+    trace.terminated_by = "error"
+    _append_event(trace, "tool_error", turn=turn, name="graph_execution", error=error)
 
 
 def _append_tool_message(state: GraphState, *, name: str, call_id: str, payload: dict[str, Any]) -> None:

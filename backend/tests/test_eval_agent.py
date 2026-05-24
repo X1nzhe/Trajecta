@@ -27,6 +27,14 @@ class ScriptedLLM:
         return message
 
 
+class RaisingLLM:
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+    def invoke(self, messages: list) -> object:
+        raise RuntimeError(self.message)
+
+
 def _tool_message(name: str, args: dict) -> object:
     return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}])
 
@@ -324,6 +332,21 @@ class EvalAgentTests(unittest.TestCase):
         self.assertIsNotNone(persisted)
         self.assertEqual(persisted.model_dump(mode="json"), result.trace.model_dump(mode="json"))
 
+    def test_analyze_graph_exception_persists_trace_error(self) -> None:
+        events = []
+
+        with self.assertRaisesRegex(RuntimeError, "llm crashed"):
+            for item in eval_agent_graph.stream_analyze_run("run_1", llm_client=RaisingLLM("llm crashed")):
+                events.append(item)
+
+        persisted = storage.load_trace("run_1")
+        self.assertIsNotNone(persisted)
+        self.assertEqual(persisted.terminated_by, "error")
+        self.assertTrue(events)
+        self.assertEqual(persisted.events[-1].type, "tool_error")
+        self.assertEqual(persisted.events[-1].name, "graph_execution")
+        self.assertIn("llm crashed", persisted.events[-1].error or "")
+
     def test_analyze_step_uses_selected_step(self) -> None:
         result = eval_agent_graph.analyze_step("run_1", 0, llm_client=ScriptedLLM(_happy_script()))
 
@@ -368,6 +391,31 @@ class EvalAgentTests(unittest.TestCase):
             [event.model_dump(mode="json") for event in result.trace.events[: len(initial_events)]],
             initial_events,
         )
+
+    def test_followup_graph_exception_persists_user_message_and_trace_error(self) -> None:
+        initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        initial_event_count = len(initial.trace.events)
+        events = []
+
+        with self.assertRaisesRegex(RuntimeError, "followup crashed"):
+            for item in eval_agent_graph.stream_followup(
+                "run_1",
+                "Try again",
+                llm_client=RaisingLLM("followup crashed"),
+            ):
+                events.append(item)
+
+        persisted = storage.load_trace("run_1")
+        self.assertIsNotNone(persisted)
+        self.assertEqual(persisted.terminated_by, "error")
+        self.assertEqual(persisted.turn_count, 2)
+        self.assertGreaterEqual(len(events), 2)
+        new_events = persisted.events[initial_event_count:]
+        self.assertEqual(new_events[0].type, "user_message")
+        self.assertEqual(new_events[0].message, "Try again")
+        self.assertEqual(new_events[-1].type, "tool_error")
+        self.assertEqual(new_events[-1].name, "graph_execution")
+        self.assertIn("followup crashed", new_events[-1].error or "")
 
     def test_no_screenshot_bytes_in_trace(self) -> None:
         _write_png(storage.screenshots_dir("run_1") / "screenshot_001.png")

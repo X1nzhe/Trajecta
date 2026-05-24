@@ -93,8 +93,6 @@ def get_step_detail(
     if tool_error:
         if "step_index" in tool_error and "not found" in tool_error:
             raise _not_found("step not found")
-        if "unsupported image_detail" in tool_error:
-            raise HTTPException(status_code=422, detail=tool_error)
         raise HTTPException(status_code=422, detail=tool_error)
     return result
 
