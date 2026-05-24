@@ -430,7 +430,7 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
             lines.append("`faithfulness_stub` is the fraction of evidence claims with at least 50% token overlap against any retrieved context.")
             lines.append("`context_precision_stub` is the fraction of retrieved contexts whose case IDs were cited by the latest `propose_eval_case` call.")
     else:
-        lines.append("- (no metrics — empty sample set)")
+        lines.append(f"- (no metrics returned; sample count: {len(report.samples)})")
     lines.append("")
     lines.append("## Skipped traces")
     skipped = report.skipped.to_dict()
