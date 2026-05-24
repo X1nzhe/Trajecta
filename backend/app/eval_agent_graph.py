@@ -936,10 +936,44 @@ def _sanitize_for_trace(value: Any) -> Any:
 
 def _proposal_context_error(args: dict[str, Any], trace: AgentTrace) -> str | None:
     available = _retrieved_case_ids(trace)
+
+    # docs/eval_agent.md L234: every case_id in retrieved_context_ids must
+    # appear in some search_* tool_result of the same trace.
     requested = set(args.get("retrieved_context_ids") or [])
     missing = sorted(context_id for context_id in requested if context_id not in available)
     if missing:
         return "retrieved_context_ids not found in prior retrieval tool_result: " + ", ".join(missing)
+
+    # docs/eval_agent.md L235: every EvidenceItem with source in
+    # {failure_memory, eval_case} must carry a context_id that appears in
+    # a prior retrieval tool result. An evidence item that cites failure
+    # memory or a prior eval case without a verifiable context_id is
+    # unsupported evidence — fail the terminal call so the draft is never
+    # surfaced to the user.
+    contextual_sources = {"failure_memory", "eval_case"}
+    evidence_unset: list[int] = []
+    evidence_unknown: list[str] = []
+    for index, item in enumerate(args.get("evidence") or []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("source") not in contextual_sources:
+            continue
+        context_id = item.get("context_id")
+        if not isinstance(context_id, str) or not context_id:
+            evidence_unset.append(index)
+            continue
+        if context_id not in available:
+            evidence_unknown.append(context_id)
+    if evidence_unset:
+        return (
+            "evidence with source in {eval_case, failure_memory} requires "
+            f"context_id; missing at evidence indices: {evidence_unset}"
+        )
+    if evidence_unknown:
+        return (
+            "evidence context_id not found in prior retrieval tool_result: "
+            + ", ".join(sorted(set(evidence_unknown)))
+        )
     return None
 
 

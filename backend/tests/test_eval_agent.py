@@ -310,7 +310,14 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.errors, [])
         self.assertTrue(any(event.type == "tool_error" and event.name == "get_step_detail" for event in result.trace.events))
 
-    def test_evidence_context_id_is_not_terminal_context_gate(self) -> None:
+    def test_evidence_context_id_must_appear_in_trace_retrieval(self) -> None:
+        """docs/eval_agent.md L235: an EvidenceItem with source=failure_memory
+        or eval_case must carry a context_id that appears in some prior
+        search_* tool_result of the same trace. A draft that cites a
+        fabricated context_id in evidence must terminate as 'error', even if
+        retrieved_context_ids itself is empty.
+        """
+
         args = _proposal_args(retrieved_context_ids=[])
         args["evidence"].append(
             {
@@ -320,10 +327,42 @@ class EvalAgentTests(unittest.TestCase):
             }
         )
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([_tool_message("propose_eval_case", args)]))
+        result = eval_agent_graph.analyze_run(
+            "run_1",
+            llm_client=ScriptedLLM([_tool_message("propose_eval_case", args)]),
+        )
 
-        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
-        self.assertIsNotNone(result.eval_case_draft)
+        self.assertEqual(result.trace.terminated_by, "error")
+        self.assertIsNone(result.eval_case_draft)
+        self.assertIn("fm_nonexistent_999", " ".join(result.errors))
+        self.assertTrue(
+            any(
+                event.type == "tool_error" and event.name == "propose_eval_case"
+                for event in result.trace.events
+            )
+        )
+
+    def test_evidence_with_missing_context_id_for_contextual_source_terminates(self) -> None:
+        """An evidence item declared source=failure_memory but with no
+        context_id is unsupported evidence — the terminal call must fail."""
+
+        args = _proposal_args(retrieved_context_ids=[])
+        args["evidence"].append(
+            {
+                "claim": "Some failure-memory-shaped claim with no citation.",
+                "source": "failure_memory",
+                # context_id intentionally omitted
+            }
+        )
+
+        result = eval_agent_graph.analyze_run(
+            "run_1",
+            llm_client=ScriptedLLM([_tool_message("propose_eval_case", args)]),
+        )
+
+        self.assertEqual(result.trace.terminated_by, "error")
+        self.assertIsNone(result.eval_case_draft)
+        self.assertIn("context_id", " ".join(result.errors))
 
     def test_trace_persisted_to_disk(self) -> None:
         result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
