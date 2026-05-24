@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from backend.app import dataset_importer, preprocess, storage, tools
+from backend.app import dataset_importer, preprocess, rag, storage, tools
 from backend.app.schemas import EvalCase
 
 
-app = FastAPI(title="Trajecta API")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    rag.hydrate_all()
+    yield
+
+
+app = FastAPI(title="Trajecta API", lifespan=_lifespan)
 
 
 class ImportRequest(BaseModel):
@@ -106,10 +113,14 @@ def import_molmoweb_sample(request: ImportRequest | None = None) -> dict:
         assets = dataset_importer.get_imported_screenshot_assets(run.run_id)
         if assets:
             storage.save_screenshots(run.run_id, assets)
-        # TODO(phase3): if run.status == "success", upsert into the
-        # `successful_runs` ChromaDB collection here (per docs/contracts.md
-        # "RAG Collection Contracts"). Modify this handler in place; do not
-        # add a separate import endpoint.
+        # Re-import drop rule (docs/dataset_import.md "Re-Import Behavior"):
+        # a run that flipped away from "success" must be removed from the
+        # successful_runs collection. Delete unconditionally then upsert
+        # only when the post-overlay status is "success"; both calls are
+        # idempotent.
+        rag.delete_successful_run(run.run_id)
+        if run.status == "success":
+            rag.upsert_successful_run(run)
 
     return {"imported_count": len(runs), "runs": [run.model_dump(mode="json") for run in runs]}
 
@@ -122,6 +133,7 @@ def create_eval_case(case: EvalCase) -> dict:
         storage.save_eval_case(case)
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    rag.upsert_eval_case(case)
     return case.model_dump(mode="json")
 
 
