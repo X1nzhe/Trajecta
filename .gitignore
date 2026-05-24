@@ -235,3 +235,7 @@ data/raw/molmoweb_humanskills_sample/materialize_manifest.json
 data/runs/*/digest.json
 data/chroma/
 data/runs/*/last_trace.json
+
+.vite
+dist/
+node_modules/
