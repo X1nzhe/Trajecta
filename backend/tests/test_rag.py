@@ -304,6 +304,70 @@ class EmbeddingFactoryTests(unittest.TestCase):
         self.assertAlmostEqual(norm, 1.0, places=5)
 
 
+class SeedFailureMemoryFileTests(unittest.TestCase):
+    """Validate the on-disk seed file, independent of TRAJECTA_DATA_DIR overrides."""
+
+    def test_failure_memory_seed_contains_five_cases_including_missed_constraint(self) -> None:
+        """docs/testing.md: failure memory seed contains at least 5 cases
+        including missed_constraint.
+        """
+
+        from backend.app.storage import REPO_ROOT
+
+        seed = REPO_ROOT / "data" / "failure_memory" / "cases.jsonl"
+        self.assertTrue(seed.exists(), f"missing seed file: {seed}")
+
+        cases: list[FailureMemoryCase] = []
+        for line in seed.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            cases.append(FailureMemoryCase.model_validate_json(line))
+
+        self.assertGreaterEqual(len(cases), 5)
+        self.assertTrue(any(c.failure_type == "missed_constraint" for c in cases))
+
+
+class RankingAndTopKTests(RagPerTestEnv):
+    def test_find_similar_successful_run_same_task_outranks_cross_task(self) -> None:
+        """docs/testing.md: find_similar_successful_run returns higher
+        similarity for same-task runs than for cross-task runs.
+        """
+
+        same_task_run = sample_run("run_same", status="success").model_copy(
+            update={"task": "Filter results under twenty dollars"}
+        )
+        cross_task_run = sample_run("run_cross", status="success").model_copy(
+            update={"task": "Send a message to a friend"}
+        )
+        rag.upsert_successful_run(same_task_run)
+        rag.upsert_successful_run(cross_task_run)
+
+        results = rag.query_similar_successful_runs(
+            "Filter results under twenty dollars", top_k=2
+        )
+
+        run_ids = [r["run_id"] for r in results]
+        self.assertIn("run_same", run_ids)
+        # Same-task run must appear before cross-task run when both are present.
+        if "run_cross" in run_ids:
+            self.assertLess(run_ids.index("run_same"), run_ids.index("run_cross"))
+
+    def test_top_k_length_respected(self) -> None:
+        """docs/testing.md: top_k length is respected."""
+
+        for i in range(5):
+            rag.upsert_failure_memory(
+                _sample_failure_memory(
+                    case_id=f"fm_missed_constraint_{i + 1:03d}",
+                    summary=f"case {i}",
+                )
+            )
+
+        results = rag.query_failure_memory("constraint", top_k=2)
+        self.assertEqual(len(results), 2)
+
+
 @pytest.mark.skipif(
     os.environ.get("TRAJECTA_RAG_INTEGRATION") != "1",
     reason="opt-in: real sentence-transformers embedder downloads a ~80MB model",

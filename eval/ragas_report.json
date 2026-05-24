@@ -1,0 +1,29 @@
+{
+  "samples": [
+    {
+      "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+      "question": "What failure pattern does this trajectory most closely match?",
+      "answer": "The trajectory ends with an exit message before the fixture contains evidence that the layover constraint was checked.\n\nThe source task explicitly requires round-trip flights from San Francisco to Singapore with no more than two layovers.\nStep 11 is an exit message rather than an action that verifies or filters layovers.\nFailure memory case fm_early_terminated_001 describes this premature-exit pattern.",
+      "contexts": [
+        "fm_early_terminated_001: The agent exited before reaching a page state that satisfies the task. [termination,verification]"
+      ],
+      "ground_truth": "early_terminated",
+      "ground_truth_source": "self",
+      "proposed_failure_type": "early_terminated",
+      "retrieved_context_ids": [
+        "fm_early_terminated_001"
+      ]
+    }
+  ],
+  "metric_means": {
+    "faithfulness": 0.0,
+    "context_precision": 1.0
+  },
+  "skipped": {
+    "budget_exceeded": 0,
+    "error": 0,
+    "no_trace": 6
+  },
+  "ground_truth_source": "self",
+  "ragas_mode": "stub"
+}

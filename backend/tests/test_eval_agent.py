@@ -1,16 +1,27 @@
 from __future__ import annotations
 
+import math
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from backend.app import eval_agent_graph, rag, storage
+from backend.app import eval_agent_graph, preprocess, rag, storage
 from backend.app.eval_agent_graph import AIMessage
 from backend.app.main import app
-from backend.app.schemas import AgentTrace, EvalCase, FailureMemoryCase
+from backend.app.schemas import (
+    AgentTrace,
+    EvalCase,
+    FailureMemoryCase,
+    StepAction,
+    StepObservation,
+    StepResult,
+    TrajectoryRun,
+    TrajectoryStep,
+)
 from backend.tests.test_storage import sample_run
 
 
@@ -499,6 +510,194 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
         self.assertIsNotNone(result.eval_case_draft)
         EvalCase.model_validate(result.eval_case_draft)
+
+    def test_step_detail_evidence_carries_matching_trace_event_seq(self) -> None:
+        """docs/eval_agent.md L236: EvidenceItem with source in
+        {step_detail_high, step_detail_low} should carry trace_event_seq
+        pointing at a get_step_detail tool_result with the same seq.
+        """
+
+        proposal_args = {
+            "run_id": "run_1",
+            "failure_step": 0,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should satisfy the constraint.",
+            "actual_behavior": "The trajectory does not show the constraint satisfied.",
+            "evidence": [
+                {
+                    "claim": "Step 0 was inspected at high detail.",
+                    "source": "step_detail_high",
+                    "run_id": "run_1",
+                    "step_index": 0,
+                    # trace_event_seq filled in dynamically below by the test
+                    # via a scripted message rewrite — but the ScriptedLLM is
+                    # static, so we instead build the script such that the
+                    # known seq of the high-detail tool_result is predictable.
+                    "trace_event_seq": 2,
+                }
+            ],
+            "regression_rule": "Verify the constraint before finishing the task.",
+            "retrieved_context_ids": [],
+        }
+        script = [
+            _tool_message(
+                "get_step_detail",
+                {"run_id": "run_1", "step_index": 0, "image_detail": "high"},
+            ),
+            _tool_message("propose_eval_case", proposal_args),
+        ]
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
+        get_step_detail_results = [
+            event
+            for event in result.trace.events
+            if event.type == "tool_result" and event.name == "get_step_detail"
+        ]
+        self.assertEqual(len(get_step_detail_results), 1)
+        expected_seq = get_step_detail_results[0].seq
+        for item in result.eval_case_draft["evidence"]:
+            if item.get("source") in {"step_detail_high", "step_detail_low"}:
+                self.assertEqual(item.get("trace_event_seq"), expected_seq)
+
+    def test_offline_mock_get_step_detail_count_bounded(self) -> None:
+        """docs/testing.md "agent uses get_step_detail no more than
+        min(tool_call_budget, ceil(0.3 * step_count)) times on run-level
+        analysis." The offline mock calls get_step_detail at most once,
+        which trivially satisfies the bound for any step_count.
+        """
+
+        steps = [
+            TrajectoryStep(
+                index=i,
+                observation=StepObservation(screenshot=f"screenshot_{i:03d}.png"),
+                action=StepAction(type="wait", raw="wait()"),
+                result=StepResult(status="failed" if i == 5 else "unknown"),
+            )
+            for i in range(30)
+        ]
+        run = TrajectoryRun(run_id="run_big", task="Find a result", status="failed", steps=steps)
+        storage.save_run(run)
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_missed_constraint_001",
+                failure_type="missed_constraint",
+                summary="Constraint missed.",
+            )
+        )
+
+        result = eval_agent_graph.analyze_run("run_big")
+
+        step_detail_calls = sum(
+            1
+            for event in result.trace.events
+            if event.type == "tool_call" and event.name == "get_step_detail"
+        )
+        bound = min(eval_agent_graph.INITIAL_BUDGET, math.ceil(0.3 * 30))
+        self.assertLessEqual(step_detail_calls, bound)
+
+    def test_followup_does_not_invoke_preprocess_node(self) -> None:
+        """docs/testing.md: a follow-up turn re-resumes the loop from the
+        persisted messages and does not invoke the preprocess node again.
+        """
+
+        eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+
+        with mock.patch.object(
+            preprocess,
+            "load_or_build_digest",
+            wraps=preprocess.load_or_build_digest,
+        ) as spy:
+            eval_agent_graph.followup(
+                "run_1",
+                "Anything else?",
+                llm_client=ScriptedLLM([_tool_message("propose_eval_case", _proposal_args())]),
+            )
+
+        spy.assert_not_called()
+
+    def test_followup_two_propose_eval_case_latest_defines_draft(self) -> None:
+        """A follow-up turn that calls propose_eval_case produces a new draft;
+        the trace contains two propose_eval_case tool calls and the latest one
+        defines the current draft.
+        """
+
+        rag.upsert_failure_memory(
+            FailureMemoryCase(
+                case_id="fm_early_terminated_001",
+                failure_type="early_terminated",
+                summary="The agent stopped early.",
+            )
+        )
+
+        initial = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM(_happy_script())
+        )
+        self.assertEqual(initial.eval_case_draft["failure_type"], "missed_constraint")
+
+        followup_args = _proposal_args(
+            failure_type="early_terminated",
+            retrieved_context_ids=["fm_early_terminated_001"],
+        )
+        result = eval_agent_graph.followup(
+            "run_1",
+            "Revise to early_terminated",
+            llm_client=ScriptedLLM(
+                [
+                    _tool_message("search_failure_memory", {"query": "early_terminated", "top_k": 1}),
+                    _tool_message("propose_eval_case", followup_args),
+                ]
+            ),
+        )
+
+        propose_calls = [
+            event
+            for event in result.trace.events
+            if event.type == "tool_call" and event.name == "propose_eval_case"
+        ]
+        self.assertEqual(len(propose_calls), 2)
+        self.assertEqual(propose_calls[-1].args["failure_type"], "early_terminated")
+        self.assertEqual(result.eval_case_draft["failure_type"], "early_terminated")
+
+    def test_retrieved_context_ids_resolved_across_turns(self) -> None:
+        """docs/eval_agent.md L181-182: EvalCase.retrieved_context_ids returned
+        by a follow-up propose_eval_case may reference search results from
+        any earlier turn — the whole trace is the evidence pool.
+        """
+
+        initial_args = _proposal_args(retrieved_context_ids=["fm_missed_constraint_001"])
+        initial = eval_agent_graph.analyze_run(
+            "run_1",
+            llm_client=ScriptedLLM(
+                [
+                    _tool_message("search_failure_memory", {"query": "missed_constraint", "top_k": 1}),
+                    _tool_message("propose_eval_case", initial_args),
+                ]
+            ),
+        )
+        self.assertEqual(initial.trace.terminated_by, "propose_eval_case")
+
+        followup_args = _proposal_args(
+            failure_type="missed_constraint",
+            retrieved_context_ids=["fm_missed_constraint_001"],
+        )
+        # The follow-up turn re-uses the context_id from the initial turn
+        # without re-running search_failure_memory; the trace from turn 0
+        # provides the search result.
+        result = eval_agent_graph.followup(
+            "run_1",
+            "Reaffirm the same finding",
+            llm_client=ScriptedLLM([_tool_message("propose_eval_case", followup_args)]),
+        )
+
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
+        self.assertIn(
+            "fm_missed_constraint_001",
+            result.eval_case_draft["retrieved_context_ids"],
+        )
 
 
 if __name__ == "__main__":
