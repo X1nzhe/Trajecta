@@ -71,8 +71,14 @@ A single VLM call per step at low detail (~85 tokens of image input). The fixed 
 - page type (search results / form / detail / dashboard / modal / loading / error / unknown)
 - presence of a modal or large overlay
 - presence of a visually obvious error banner
-- whether the layout appears substantially changed vs the previous step
 - approximate cursor / focus region (top / center / bottom / left / right / unknown)
+
+A "layout changed vs the previous step" signal was considered and dropped
+for v1: it would require cross-step prompting (passing the previous image
+or summary), which conflicts with the one-call-per-step independence of
+the current preprocessing loop and complicates caching. The Eval Agent can
+detect layout shifts from `url` / `title` changes in the digest and from
+`get_step_detail` deep-dives.
 
 The output is a short single-line string, at most 200 characters, suitable for embedding in the digest. **It is not allowed to make claims about specific text, button labels, or small UI elements** — the resolution does not support that, and the agent must verify any text-dependent claim via `get_step_detail`.
 

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import importlib.util
 import os
+import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from backend.app.llm import MockVLMClient, RealVLMClient, get_vlm_client
+
+
+_OPENAI_AVAILABLE = importlib.util.find_spec("openai") is not None
 
 
 class LLMFactoryTests(unittest.TestCase):
@@ -42,12 +48,30 @@ class LLMFactoryTests(unittest.TestCase):
         os.environ["TRAJECTA_VLM_MODEL"] = "gpt-4o-mini"
         self.assertIsInstance(get_vlm_client(), MockVLMClient)
 
-    def test_factory_returns_real_client_when_both_env_set(self) -> None:
+    @unittest.skipUnless(_OPENAI_AVAILABLE, "openai package not installed")
+    def test_factory_returns_real_client_when_env_set_and_openai_installed(self) -> None:
         os.environ["OPENAI_API_KEY"] = "test-key"
         os.environ["TRAJECTA_VLM_MODEL"] = "gpt-4o-mini"
         client = get_vlm_client()
         self.assertIsInstance(client, RealVLMClient)
         self.assertEqual(client.model_name, "gpt-4o-mini")
+
+    def test_factory_returns_mock_when_openai_not_importable(self) -> None:
+        """Even with both env vars set, missing `openai` must fall back to Mock.
+
+        Without this, a misconfigured environment silently writes a digest
+        with ``preprocess_model="gpt-4o-mini"`` whose every step has
+        ``vlm_low_detail_summary=None`` — looks like the real model ran but
+        produced nothing.
+        """
+
+        os.environ["OPENAI_API_KEY"] = "test-key"
+        os.environ["TRAJECTA_VLM_MODEL"] = "gpt-4o-mini"
+        # Force `from openai import OpenAI` to raise ImportError regardless
+        # of whether the package is actually installed in this environment.
+        with mock.patch.dict(sys.modules, {"openai": None}):
+            client = get_vlm_client()
+        self.assertIsInstance(client, MockVLMClient)
 
 
 class MockVLMTests(unittest.TestCase):

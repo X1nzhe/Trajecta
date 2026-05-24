@@ -31,7 +31,9 @@ LOW_DETAIL_PROMPT = (
     "whether a visually obvious error banner is present, and approximate "
     "focus region (top, center, bottom, left, right, unknown). "
     "Do NOT quote text, name buttons, or describe small UI elements; the "
-    "resolution does not support it. Output exactly one line, no prose."
+    "resolution does not support it. Output exactly one line, no prose. "
+    "Per docs/preprocessing.md, layout-vs-previous-step is intentionally "
+    "out of scope here — each call is independent."
 )
 
 _MAX_SUMMARY_CHARS = 200
@@ -161,10 +163,22 @@ class RealVLMClient:
 
 
 def get_vlm_client() -> VLMClient:
-    """Return the active VLM client per environment configuration."""
+    """Return the active VLM client per environment configuration.
+
+    Falls back to ``MockVLMClient`` whenever the real client cannot be
+    constructed — missing env vars, or the ``openai`` package not being
+    importable. Without this probe, a missing dependency would still
+    produce a ``RealVLMClient`` whose calls all return ``None`` and whose
+    ``preprocess_model`` would be cached into ``digest.json`` as if a real
+    model had run, which is silently wrong.
+    """
 
     api_key = os.environ.get("OPENAI_API_KEY")
     model_name = os.environ.get("TRAJECTA_VLM_MODEL")
-    if api_key and model_name:
-        return RealVLMClient(api_key=api_key, model_name=model_name)
-    return MockVLMClient()
+    if not (api_key and model_name):
+        return MockVLMClient()
+    try:
+        from openai import OpenAI  # noqa: F401  probe availability
+    except ImportError:
+        return MockVLMClient()
+    return RealVLMClient(api_key=api_key, model_name=model_name)

@@ -148,7 +148,7 @@ def preprocess_run(run_id: str) -> dict:
         digest = preprocess.load_or_build_digest(run_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"digest": digest.model_dump(mode="json")}
+    return digest.model_dump(mode="json")
 
 
 @app.post("/api/runs/{run_id}/analyze")
