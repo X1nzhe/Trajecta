@@ -283,6 +283,8 @@ export function EvalAgentPanel({
             </button>
           </div>
         )}
+
+        {(hasTrace || inFlight) && <TraceFooter trace={trace} inFlight={inFlight} />}
       </div>
 
       <div className="border-t border-slate-200 bg-white p-3">
@@ -1394,32 +1396,60 @@ function TerminationBadge({ trace, latestToolError, inFlight }: { trace: AgentTr
       ? 'bg-slate-100 text-slate-600'
       : 'bg-red-50 text-red-700';
   return (
-    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+    <div className="mt-0.5">
       <span title={trace.terminated_by === 'error' ? latestToolError ?? undefined : undefined} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${classes}`}>
         {trace.terminated_by}
       </span>
-      <TraceCostBadge trace={trace} />
     </div>
   );
 }
 
-function TraceCostBadge({ trace }: { trace: AgentTrace }) {
-  // Per-trace cost/latency. Hide entirely when we have nothing useful
-  // to report — typically the offline mock path where usage_metadata
-  // isn't available and runtime_ms accumulation hasn't started yet.
-  const hasRuntime = trace.runtime_ms > 0;
-  const hasTokens = trace.input_tokens > 0 || trace.output_tokens > 0;
-  if (!hasRuntime && !hasTokens) return null;
+function TraceFooter({ trace, inFlight }: { trace: AgentTrace | null; inFlight: boolean }) {
+  // Live wall-clock while the agent is streaming. The backend's
+  // authoritative runtime_ms only lands once the stream's `done` event
+  // arrives, so we tick a client-side timer in the meantime — same UX
+  // pattern as Claude Code's "5.2s" running clock under the message.
+  const [liveRuntime, setLiveRuntime] = useState(0);
+  useEffect(() => {
+    if (!inFlight) return undefined;
+    setLiveRuntime(0);
+    const start = Date.now();
+    const interval = window.setInterval(() => setLiveRuntime(Date.now() - start), 250);
+    return () => window.clearInterval(interval);
+  }, [inFlight]);
+
+  const runtime = inFlight ? liveRuntime : trace?.runtime_ms ?? 0;
+  const inputTokens = trace?.input_tokens ?? 0;
+  const outputTokens = trace?.output_tokens ?? 0;
+  const hasTokens = inputTokens > 0 || outputTokens > 0;
+  if (runtime <= 0 && !hasTokens && !inFlight) return null;
+
   const parts: string[] = [];
-  if (hasRuntime) parts.push(formatRuntime(trace.runtime_ms));
-  if (hasTokens) parts.push(`${formatTokens(trace.input_tokens)} → ${formatTokens(trace.output_tokens)} tok`);
+  if (runtime > 0 || inFlight) parts.push(formatRuntime(runtime));
+  // Tokens are only known once the stream's `done` event delivers the
+  // final trace. During streaming we show a soft placeholder so the
+  // footer's width doesn't snap when the numbers land.
+  if (hasTokens) {
+    parts.push(`${formatTokens(inputTokens)} in`);
+    parts.push(`${formatTokens(outputTokens)} out`);
+  } else if (inFlight) {
+    parts.push('counting tokens…');
+  }
+
   return (
-    <span
-      className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-600"
-      title={`Wall-clock runtime: ${trace.runtime_ms} ms · Tokens (LLM only, VLM not counted): ${trace.input_tokens} in / ${trace.output_tokens} out`}
+    <div
+      className="flex items-center gap-1.5 px-1 pt-1 text-[10px] text-slate-500"
+      title={
+        `Wall-clock runtime: ${runtime} ms · LLM tokens (VLM not counted): `
+        + `${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`
+      }
     >
-      {parts.join(' · ')}
-    </span>
+      <svg className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="13" r="8" strokeWidth="1.8" />
+        <path d="M12 9v4l2 2M12 3v2" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span className="font-mono">{parts.join(' · ')}</span>
+    </div>
   );
 }
 
