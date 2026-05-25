@@ -471,6 +471,29 @@ def _agent_node(state: GraphState) -> GraphState:
         state["done"] = False
         return state
 
+    # No tool calls. Behavior depends on which turn we're in:
+    #
+    # * Initial analyze (turn == 0): the agent MUST end by calling
+    #   propose_eval_case. Stopping with plain text is an error — flip
+    #   terminated_by=error, wipe the (non-existent) draft, record the
+    #   diagnostic event so the UI surfaces it.
+    #
+    # * Followup turn (turn > 0): the followup system prompt explicitly
+    #   allows the agent to answer clarification questions in plain text
+    #   without invoking any tool ("If the user only asks a clarification
+    #   question, answer in plain text without invoking any tool."). That
+    #   case is a legitimate turn termination: the agent_message event
+    #   already records the answer the user sees, the previous turn's
+    #   draft remains valid, and terminated_by should keep reflecting the
+    #   prior verdict (typically "propose_eval_case"). Just mark the turn
+    #   done and exit — do not touch errors, eval_case_draft, or
+    #   terminated_by. (Previously this branch fired on every turn and
+    #   silently destroyed the user's draft as soon as they asked a
+    #   followup question that didn't require new tool calls.)
+    if state["turn"] > 0:
+        state["done"] = True
+        return state
+
     error = "agent stopped without calling propose_eval_case"
     state["errors"].append(error)
     state["trace"].terminated_by = "error"

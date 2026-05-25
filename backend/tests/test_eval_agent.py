@@ -445,6 +445,49 @@ class EvalAgentTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 409)
 
+    def test_followup_plain_text_answer_does_not_error_or_wipe_draft(self) -> None:
+        """Per the followup system prompt, the agent MAY answer a
+        clarification question in plain text without invoking any tool.
+        That termination is legitimate — the previous turn's draft must
+        survive and terminated_by must not flip to 'error'.
+
+        Regression for the bug where every turn-end without a tool call
+        was treated as an error, silently destroying the draft on
+        clarification followups.
+        """
+
+        initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        self.assertEqual(initial.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(initial.eval_case_draft)
+        initial_draft = initial.eval_case_draft
+
+        # Plain-text reply — single AIMessage with content, no tool_calls.
+        plain_reply = AIMessage(content="Here is a summary: the agent stopped early.")
+        result = eval_agent_graph.followup(
+            "run_1",
+            "Summarize the failure memory cases.",
+            llm_client=ScriptedLLM([plain_reply]),
+        )
+
+        # Turn ended cleanly without flipping to error.
+        self.assertNotEqual(result.trace.terminated_by, "error")
+        self.assertEqual(result.trace.turn_count, 2)
+        # Draft from the initial analyze is preserved.
+        self.assertEqual(result.eval_case_draft, initial_draft)
+        # The agent_message event is recorded so the UI renders the answer.
+        followup_agent_messages = [
+            event for event in result.trace.events
+            if event.type == "agent_message" and event.turn == 1
+        ]
+        self.assertTrue(followup_agent_messages)
+        self.assertIn("summary", followup_agent_messages[-1].message or "")
+        # No spurious tool_error event was appended.
+        followup_tool_errors = [
+            event for event in result.trace.events
+            if event.type == "tool_error" and event.turn == 1
+        ]
+        self.assertEqual(followup_tool_errors, [])
+
     def test_followup_budget_is_4(self) -> None:
         initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
         initial_events = [event.model_dump(mode="json") for event in initial.trace.events]
