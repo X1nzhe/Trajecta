@@ -116,7 +116,7 @@ function App() {
                         {runStatusLabel(selectedRun.status)}
                       </span>
                     </div>
-                    <div className="truncate text-xs leading-4 text-slate-600">
+                    <div className="break-words text-xs leading-4 text-slate-600">
                       <span className="font-semibold text-slate-700">Task:</span> {selectedRun.task}
                     </div>
                   </div>
