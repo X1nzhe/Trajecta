@@ -383,7 +383,22 @@ function ObservationSummaryPanel({
   }
 
   const stale = trace?.terminated_by && trace.terminated_by !== 'propose_eval_case';
-  const visualEvidence = draft.evidence.filter((item) => isVisualEvidence(item));
+  // Dedupe visual evidence by step_index: the agent often emits multiple
+  // EvidenceItem entries for the same step (one per claim it derived from
+  // the screenshot) and we don't want N copies of the same thumbnail.
+  // Keep the first claim as the tooltip; "Findings" still lists every claim.
+  const visualEvidence = (() => {
+    const seen = new Set<number>();
+    const out: EvidenceItem[] = [];
+    for (const item of draft.evidence) {
+      if (!isVisualEvidence(item)) continue;
+      const idx = item.step_index as number;
+      if (seen.has(idx)) continue;
+      seen.add(idx);
+      out.push(item);
+    }
+    return out;
+  })();
   const unavailable = draft.evidence.filter((item) => item.source === 'unavailable');
   const isSuccess = draft.failure_type === null;
   // failure_step on the draft is already a 1-based step index (matches
@@ -408,8 +423,8 @@ function ObservationSummaryPanel({
             <span className="text-red-500">→ Jump to step</span>
           </button>
         )}
-        {draft.actual_behavior && <p className="leading-5">{draft.actual_behavior}</p>}
-        {draft.expected_behavior && <p className="text-xs leading-5 text-slate-500">Expected: {draft.expected_behavior}</p>}
+        {draft.actual_behavior && <p className="break-words leading-5">{draft.actual_behavior}</p>}
+        {draft.expected_behavior && <p className="break-words text-xs leading-5 text-slate-500">Expected: {draft.expected_behavior}</p>}
         {isSuccess && (
           <p className="leading-5 text-emerald-700">The agent concluded this trajectory completed the task successfully.</p>
         )}
@@ -418,6 +433,9 @@ function ObservationSummaryPanel({
           <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Findings</h4>
           <ul className="space-y-1.5">
             {draft.evidence.map((item, index) => (
+              // Agent's claims can include unbroken URLs (e.g. "github.com/search?q=…")
+              // that don't have spaces. Without min-w-0 + break-words the long
+              // token pushes the flex row past the right edge of the panel.
               <li key={`${item.claim}-${index}`} className="flex gap-2 leading-5">
                 <WarningIcon muted={item.source === 'unavailable'} />
                 <button
@@ -425,7 +443,7 @@ function ObservationSummaryPanel({
                     if (typeof item.step_index === 'number') onSelectStep(item.step_index);
                     if (typeof item.trace_event_seq === 'number') onOpenTraceEvent(item.trace_event_seq);
                   }}
-                  className="text-left hover:text-indigo-700"
+                  className="min-w-0 flex-1 break-words text-left hover:text-indigo-700"
                 >
                   {item.claim}
                 </button>
