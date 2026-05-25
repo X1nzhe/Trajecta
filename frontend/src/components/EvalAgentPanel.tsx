@@ -731,7 +731,6 @@ function ToolDetailBody({
     }
     case 'get_step_detail': {
       const stepIndex = typeof a.step_index === 'number' ? a.step_index : null;
-      const detail = typeof a.image_detail === 'string' ? a.image_detail : 'high';
       const vlm = typeof r.vlm_summary === 'string' ? r.vlm_summary : null;
       const action = r.action && typeof r.action === 'object' ? (r.action as Record<string, unknown>) : null;
       const coord = r.coordinate_validation && typeof r.coordinate_validation === 'object' ? (r.coordinate_validation as Record<string, unknown>) : null;
@@ -740,7 +739,6 @@ function ToolDetailBody({
       return (
         <DetailTable>
           {stepIndex !== null && <DetailRow label="Step">{stepIndex}</DetailRow>}
-          <DetailRow label="Image detail">{detail}</DetailRow>
           {actionType && <DetailRow label="Action type">{actionType}</DetailRow>}
           {coordStatus && <DetailRow label="Coordinates">{coordStatus}</DetailRow>}
           {vlm ? (
@@ -756,16 +754,12 @@ function ToolDetailBody({
     case 'search_failure_memory':
     case 'search_eval_cases': {
       const query = typeof a.query === 'string' ? a.query : null;
-      const topK = typeof a.top_k === 'number' ? a.top_k : null;
-      const onlyValidated = typeof a.only_validated === 'boolean' ? a.only_validated : null;
       const items = Array.isArray(r.items) ? (r.items as Array<Record<string, unknown>>) : [];
       return (
         <DetailTable>
           <DetailRow label="Query" stacked>
             <span className="block break-words text-slate-700">{query ?? '—'}</span>
           </DetailRow>
-          {topK !== null && <DetailRow label="Top K">{topK}</DetailRow>}
-          {onlyValidated !== null && <DetailRow label="Only validated">{String(onlyValidated)}</DetailRow>}
           <DetailRow label="Matches">{items.length}</DetailRow>
           {items.length > 0 && (
             <DetailRow label="Cases" stacked>
@@ -792,7 +786,6 @@ function ToolDetailBody({
     }
     case 'find_similar_successful_run': {
       const task = typeof a.task === 'string' ? a.task : null;
-      const topK = typeof a.top_k === 'number' ? a.top_k : null;
       const items = Array.isArray(r.items) ? (r.items as Array<Record<string, unknown>>) : [];
       return (
         <DetailTable>
@@ -801,7 +794,6 @@ function ToolDetailBody({
               <span className="block break-words text-slate-700">{task}</span>
             </DetailRow>
           )}
-          {topK !== null && <DetailRow label="Top K">{topK}</DetailRow>}
           <DetailRow label="Matches">{items.length}</DetailRow>
           {items.length > 0 && (
             <DetailRow label="Runs" stacked>
@@ -1028,7 +1020,6 @@ function ToolErrorBullet({ event }: { event: AgentTraceEvent }) {
 function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, unknown> | undefined): string {
   const args = event.args ?? {};
   const stepIndex = typeof args.step_index === 'number' ? args.step_index : null;
-  const imageDetail = typeof args.image_detail === 'string' ? args.image_detail : 'high';
   const query = typeof args.query === 'string' ? args.query : null;
   const task = typeof args.task === 'string' ? args.task : null;
   const runId = typeof args.run_id === 'string' ? args.run_id : null;
@@ -1039,8 +1030,8 @@ function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, 
       return runId ? `Loaded run metadata for ${shortRunId(runId)}` : 'Loaded run metadata';
     case 'get_step_detail':
       return stepIndex !== null
-        ? `Inspected step ${stepIndex} (${imageDetail} detail)`
-        : `Inspected a step (${imageDetail} detail)`;
+        ? `Inspected step ${stepIndex}`
+        : 'Inspected a step';
     case 'find_similar_successful_run':
       if (itemCount === 0) return 'Looked for similar successful runs — none yet';
       if (itemCount !== null) return `Found ${itemCount} similar successful run${itemCount === 1 ? '' : 's'}`;
