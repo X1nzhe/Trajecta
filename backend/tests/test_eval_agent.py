@@ -410,16 +410,18 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(persisted.events[-1].name, "graph_execution")
         self.assertIn("llm crashed", persisted.events[-1].error or "")
 
-    def test_analyze_step_uses_selected_step(self) -> None:
-        # analyze_step is a back-compat alias; new traces it produces have
-        # user_intent="analyze_run" with selected_step set as a focus hint.
-        result = eval_agent_graph.analyze_step("run_1", 0, llm_client=ScriptedLLM(_happy_script()))
+    def test_new_traces_have_no_selected_step(self) -> None:
+        # Per-step analyze was removed; new traces always carry
+        # user_intent="analyze_run" with selected_step=None. The schema
+        # still permits the int form for back-compat reading of older
+        # persisted traces (see eval_agent_graph._make_initial_state).
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
 
         self.assertEqual(result.trace.user_intent, "analyze_run")
-        self.assertEqual(result.trace.selected_step, 0)
+        self.assertIsNone(result.trace.selected_step)
 
     def test_followup_increments_turn(self) -> None:
-        initial = eval_agent_graph.analyze_step("run_1", 0, llm_client=ScriptedLLM(_happy_script()))
+        initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
         initial_event_count = len(initial.trace.events)
 
         result = eval_agent_graph.followup(
@@ -431,10 +433,10 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.turn_count, 2)
         self.assertTrue(result.trace.events[initial_event_count:])
         self.assertTrue(all(event.turn == 1 for event in result.trace.events[initial_event_count:]))
-        # analyze_step now produces user_intent="analyze_run" with the
-        # focused step recorded as selected_step; followup preserves both.
+        # Followup preserves user_intent + selected_step from the initial
+        # analyze; both remain analyze_run / None.
         self.assertEqual(result.trace.user_intent, "analyze_run")
-        self.assertEqual(result.trace.selected_step, 0)
+        self.assertIsNone(result.trace.selected_step)
 
     def test_followup_without_prior_trace_returns_409(self) -> None:
         client = TestClient(app)

@@ -218,35 +218,31 @@ def preprocess_run(run_id: str) -> dict:
 
 
 @app.post("/api/runs/{run_id}/analyze")
-def analyze_run(
-    run_id: str,
-    focused_step: int | None = Query(default=None, ge=0),
-) -> StreamingResponse:
-    """Unified analyze endpoint.
+def analyze_run(run_id: str) -> StreamingResponse:
+    """Analyze the full trajectory.
 
-    ``focused_step`` (optional) tells the agent that the user is currently
-    looking at that step and would like it inspected first. The agent
-    still reads the full digest and may diverge based on evidence.
+    The agent always works against the entire trajectory_digest; there is
+    no per-step entry point. Step selection in the UI is a viewing aid
+    only — it does not constrain or hint the agent. Failure attribution
+    is the agent's responsibility, surfaced as ``EvalCase.failure_step``.
     """
 
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    return _stream_agent_result(
-        lambda: eval_agent_graph.stream_analyze_run(run_id, focused_step=focused_step)
-    )
+    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
 
 
 @app.post("/api/runs/{run_id}/steps/{step_index}/analyze", deprecated=True)
 def analyze_step(run_id: str, step_index: int) -> StreamingResponse:
-    """Deprecated. Use POST /api/runs/{run_id}/analyze?focused_step={n}.
-
-    Retained for backward compat with any existing client. Routes through
-    the same code path with selected_step preserved.
+    """Deprecated. The ``step_index`` is ignored — the agent now always
+    analyzes the full trajectory. Retained as a 200-returning shim so
+    older clients do not break; new code must call POST /api/runs/{id}/analyze.
     """
 
+    del step_index  # ignored; agent always analyzes the full trajectory
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_step(run_id, step_index))
+    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
 
 
 @app.post("/api/runs/{run_id}/followup")

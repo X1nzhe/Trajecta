@@ -539,17 +539,18 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
+        # Per-step analyze was removed; the deprecated /steps/{i}/analyze
+        # endpoint now ignores step_index and routes to the same full-run
+        # analyze path. New traces always carry selected_step=None.
         initial = self.client.post("/api/runs/run_api/steps/0/analyze")
         drain_ndjson(initial)
 
         followup = self.client.post("/api/runs/run_api/followup", json={"message": "Check again"})
         drain_ndjson(followup)
 
-        # analyze_step / focused_step now unify under user_intent="analyze_run"
-        # with selected_step as the focus hint preserved across followup.
         trace = storage.load_trace("run_api")
         self.assertEqual(trace.user_intent, "analyze_run")
-        self.assertEqual(trace.selected_step, 0)
+        self.assertIsNone(trace.selected_step)
 
     def test_followup_budget_is_4_via_api(self) -> None:
         _write_real_png("run_api")

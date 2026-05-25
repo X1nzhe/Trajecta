@@ -48,7 +48,7 @@ export function EvalAgentPanel({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const runAnalysis = async (focusedStep: number | null) => {
+  const runAnalysis = async () => {
     if (!run || inFlight) return;
 
     const controller = new AbortController();
@@ -59,16 +59,12 @@ export function EvalAgentPanel({
     setPendingUserMessage(null);
     setDraftViewed(false);
     onDraftChange(null);
-    onTraceChange(emptyTrace(run.run_id, focusedStep));
-
-    const url = focusedStep !== null
-      ? `/api/runs/${run.run_id}/analyze?focused_step=${focusedStep}`
-      : `/api/runs/${run.run_id}/analyze`;
+    onTraceChange(emptyTrace(run.run_id));
 
     try {
-      const done = await streamAgentRequest(url, {
+      const done = await streamAgentRequest(`/api/runs/${run.run_id}/analyze`, {
         signal: controller.signal,
-        onEvent: (event) => onTraceChange(appendEvent(run.run_id, focusedStep, event)),
+        onEvent: (event) => onTraceChange(appendEvent(run.run_id, event)),
       });
       onTraceChange(done.agent_trace);
       onDraftChange(done.eval_case_draft);
@@ -99,7 +95,7 @@ export function EvalAgentPanel({
         signal: controller.signal,
         onEvent: (event) => {
           setPendingUserMessage(null);
-          onTraceChange(appendEvent(run.run_id, trace.selected_step ?? null, event));
+          onTraceChange(appendEvent(run.run_id, event));
         },
       });
       onTraceChange(done.agent_trace);
@@ -117,7 +113,7 @@ export function EvalAgentPanel({
     if (!run || inFlight) return;
     const shouldRerun = window.confirm('Start a fresh analysis for this run? The current trace view will be replaced.');
     if (!shouldRerun) return;
-    runAnalysis(trace?.selected_step ?? null);
+    runAnalysis();
   };
 
   const chipTemplates = promptChips(selectedStepIndex);
@@ -151,15 +147,11 @@ export function EvalAgentPanel({
 
       <div className="border-b border-slate-200 bg-white p-3">
         <PrimaryAgentButton
-          label={
-            selectedStepIndex !== null
-              ? `Analyze (focused on step ${selectedStepIndex + 1})`
-              : 'Analyze'
-          }
-          icon={selectedStepIndex !== null ? 'step' : 'run'}
+          label="Analyze trajectory"
+          icon="run"
           active
           disabled={!run || inFlight}
-          onClick={() => runAnalysis(selectedStepIndex)}
+          onClick={runAnalysis}
         />
       </div>
 
@@ -931,11 +923,11 @@ function promptChips(selectedStepIndex: number | null) {
   ];
 }
 
-function emptyTrace(runId: string, focusedStep: number | null): AgentTrace {
+function emptyTrace(runId: string): AgentTrace {
   return {
     run_id: runId,
     user_intent: 'analyze_run',
-    selected_step: focusedStep ?? undefined,
+    selected_step: undefined,
     tool_call_count: 0,
     turn_count: 1,
     terminated_by: 'error',
@@ -943,9 +935,9 @@ function emptyTrace(runId: string, focusedStep: number | null): AgentTrace {
   };
 }
 
-function appendEvent(runId: string, focusedStep: number | null, event: AgentTraceEvent) {
+function appendEvent(runId: string, event: AgentTraceEvent) {
   return (current: AgentTrace | null): AgentTrace => {
-    const base = current ?? emptyTrace(runId, focusedStep);
+    const base = current ?? emptyTrace(runId);
     if (base.events.some((item) => item.seq === event.seq)) return base;
     return { ...base, events: [...base.events, event] };
   };

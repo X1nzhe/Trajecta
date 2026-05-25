@@ -156,65 +156,25 @@ def analyze_run(
 def stream_analyze_run(
     run_id: str,
     *,
-    focused_step: int | None = None,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
 ) -> Iterator[AgentStreamItem]:
-    """Unified analyze entry point.
+    """Analyze the full trajectory.
 
-    v1 originally had two modes (analyze_run / analyze_step) with separate
-    endpoints and separate user_intent values. They collapsed into one: the
-    agent always works against the full trajectory_digest; ``focused_step``
-    is just a hint that the user is currently looking at that step and
-    would like it inspected first. user_intent in the trace is always
-    "analyze_run" for new traces produced via this path.
+    There is no per-step entry point. The agent always works against the
+    entire trajectory_digest and decides which steps to deep-inspect.
+    Failure attribution is the agent's responsibility, surfaced as
+    ``EvalCase.failure_step``. New traces always carry
+    ``user_intent="analyze_run"`` and ``selected_step=None``; the
+    ``selected_step`` field is retained in the schema only for back-compat
+    reading of older traces from disk.
     """
 
     yield from stream_analyze(
         run_id,
         user_intent="analyze_run",
-        selected_step=focused_step,
-        llm_client=llm_client,
-        budget=budget,
-        persist=persist,
-    )
-
-
-def analyze_step(
-    run_id: str,
-    step_index: int,
-    *,
-    llm_client: AgentLLM | Any | None = None,
-    budget: int = INITIAL_BUDGET,
-    persist: bool = True,
-) -> AgentExecutionResult:
-    """Back-compat alias. New code should pass focused_step to analyze_run."""
-
-    return _consume_stream(
-        stream_analyze_step(
-            run_id,
-            step_index,
-            llm_client=llm_client,
-            budget=budget,
-            persist=persist,
-        )
-    )
-
-
-def stream_analyze_step(
-    run_id: str,
-    step_index: int,
-    *,
-    llm_client: AgentLLM | Any | None = None,
-    budget: int = INITIAL_BUDGET,
-    persist: bool = True,
-) -> Iterator[AgentStreamItem]:
-    """Back-compat alias. Equivalent to stream_analyze_run(focused_step=...)."""
-
-    yield from stream_analyze_run(
-        run_id,
-        focused_step=step_index,
+        selected_step=None,
         llm_client=llm_client,
         budget=budget,
         persist=persist,
@@ -810,29 +770,27 @@ def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
 
 
 def _system_prompt(*, followup: bool) -> str:
-    # Deliberately minimal. This is not prompt-tuning — only the absolute
-    # minimum required for the documented features to work (selected_step
-    # must be honored when supplied; propose_eval_case is the terminal
-    # tool; never invent evidence). Real prompt engineering is deferred.
+    # Deliberately minimal. Not prompt-tuning — only the contract minimum
+    # (propose_eval_case is the terminal tool; never invent evidence).
+    # Real prompt engineering is deferred.
     common = (
         "You are Trajecta's Eval Agent. Use the declared tools only. "
-        "The first HumanMessage carries `run_id`, the full "
-        "`trajectory_digest`, and optional `selected_step`. Survey the "
-        "digest to identify suspicious steps; when `selected_step` is "
-        "provided treat it as a focus hint (inspect it first via "
-        "`get_step_detail`, then adjacent steps as needed). Diverge from "
-        "the hint only if evidence proves the root cause lies elsewhere. "
-        "Always finish by calling `propose_eval_case` (success-shape if "
-        "no failure found). Never fabricate evidence; mark unavailable "
-        "evidence explicitly via `source=\"unavailable\"`."
+        "The first HumanMessage carries `run_id` and the full "
+        "`trajectory_digest`. Survey the digest to identify suspicious "
+        "steps, deep-inspect them with `get_step_detail` at high detail, "
+        "retrieve relevant failure memory and prior eval cases when they "
+        "would inform your verdict, and finish by calling "
+        "`propose_eval_case` (success-shape if no failure found). Never "
+        "fabricate evidence; mark unavailable evidence explicitly via "
+        "`source=\"unavailable\"`."
     )
     if followup:
         return (
             "You are Trajecta's Eval Agent resuming a previous analysis. "
-            "Use targeted tool calls, preserve the original `selected_step` "
-            "focus, and call `propose_eval_case` only when revising the "
-            "eval case draft. If the user only asks a clarification "
-            "question, answer in plain text without invoking any tool."
+            "Use targeted tool calls and call `propose_eval_case` only "
+            "when revising the eval case draft. If the user only asks a "
+            "clarification question, answer in plain text without "
+            "invoking any tool."
         )
     return common
 
