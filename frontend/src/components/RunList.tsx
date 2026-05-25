@@ -30,7 +30,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
     <aside className="flex max-h-[360px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[320px]">
       <div className="border-b border-slate-200 p-3">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-600">Runs / Sessions</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-600">Sessions</h2>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
             {runs.length} total
           </span>

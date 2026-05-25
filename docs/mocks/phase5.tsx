@@ -57,7 +57,7 @@ const App = () => {
         <aside className="w-72 bg-white rounded-xl border border-gray-200 flex flex-col shrink-0 shadow-sm overflow-hidden">
           <div className="p-3 border-b border-gray-200">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Runs / Sessions</h2>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sessions</h2>
               <button className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-100 bg-white">
                 <span className="text-lg leading-none mb-0.5">+</span> New Session
               </button>
