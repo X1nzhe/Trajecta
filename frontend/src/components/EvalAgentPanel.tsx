@@ -125,6 +125,19 @@ export function EvalAgentPanel({
     const agentChips = extractAgentSuggestions(trace);
     return agentChips.length > 0 ? agentChips : promptChips(selectedStepIndex);
   }, [trace, selectedStepIndex]);
+
+  // Split events by turn so the trace renders in two regions sandwiching
+  // the verdict (Summary + draft). Initial analyze events stay above;
+  // followup chat events go below the View Draft button so each new
+  // followup feels like an append-only conversation.
+  const initialTurnEvents = useMemo(
+    () => trace?.events.filter((event) => event.turn === 0) ?? [],
+    [trace],
+  );
+  const followupEvents = useMemo(
+    () => trace?.events.filter((event) => event.turn > 0) ?? [],
+    [trace],
+  );
   const inputDisabled = !run || !hasTrace || inFlight;
 
   return (
@@ -164,22 +177,30 @@ export function EvalAgentPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/70 p-3">
-        {/* Progressive disclosure: nothing shows here until the user clicks
-            Analyze. Order during/after a run: trace stream → observation
-            summary → draft (gated on View Draft click). */}
+        {/* Progressive disclosure with three regions:
+              1. Initial analyze events (turn 0)  — above
+              2. Verdict: Observation Summary + View Draft + (optional) Draft editor
+              3. Followup chat (turn >= 1)         — below
+
+            Splitting turn-0 above and turn-1+ below makes followup feel
+            chat-like: the verdict stays put, new messages append at the
+            bottom. Before the split, every followup triggered inFlight,
+            hid the Summary/View Draft, and reflowed the layout. */}
         <TraceHistory
-          trace={trace}
-          pendingUserMessage={pendingUserMessage}
-          inFlight={inFlight}
-          panelError={panelError}
+          events={initialTurnEvents}
+          pendingUserMessage={null}
+          inFlight={inFlight && followupEvents.length === 0 && pendingUserMessage === null}
+          panelError={!evalCaseDraft ? panelError : null}
           expandedEvents={expandedEvents}
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
         />
 
-        {/* Summary only appears once an eval-case draft exists (i.e., after
-            the agent terminated with propose_eval_case). */}
-        {evalCaseDraft && !inFlight && (
+        {/* Summary + draft persist across followups: no !inFlight gate.
+            The presence of evalCaseDraft is the sole condition — once the
+            initial analyze ends with propose_eval_case, the verdict is
+            "what's on the table" until the user re-analyzes. */}
+        {evalCaseDraft && (
           <ObservationSummaryPanel
             run={run}
             trace={trace}
@@ -189,10 +210,7 @@ export function EvalAgentPanel({
           />
         )}
 
-        {/* Standalone View Draft trigger between the Summary and the draft
-            editor. Previously embedded inside the propose_eval_case trace
-            row, which made it look like a sub-action of the trace. */}
-        {evalCaseDraft && !inFlight && !draftViewed && (
+        {evalCaseDraft && !draftViewed && (
           <button
             onClick={() => {
               setDraftViewed(true);
@@ -214,6 +232,19 @@ export function EvalAgentPanel({
             onValidated={onEvalCaseValidated}
           />
         )}
+
+        {/* Followup chat region: turn >= 1 events plus pendingUserMessage
+            and any in-flight indicator. Empty by default — only appears
+            after the user sends a followup. */}
+        <TraceHistory
+          events={followupEvents}
+          pendingUserMessage={pendingUserMessage}
+          inFlight={inFlight && (followupEvents.length > 0 || pendingUserMessage !== null)}
+          panelError={evalCaseDraft ? panelError : null}
+          expandedEvents={expandedEvents}
+          onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
+          onSelectStep={onSelectStep}
+        />
 
         {/* Thumbs feedback only shown once there is a finished trace to react
             to. hasTrace alone goes true the moment emptyTrace is created on
@@ -457,7 +488,7 @@ function ObservationSummaryPanel({
 }
 
 function TraceHistory({
-  trace,
+  events,
   pendingUserMessage,
   inFlight,
   panelError,
@@ -465,7 +496,7 @@ function TraceHistory({
   onToggleEvent,
   onSelectStep,
 }: {
-  trace: AgentTrace | null;
+  events: AgentTraceEvent[];
   pendingUserMessage: string | null;
   inFlight: boolean;
   panelError: string | null;
@@ -473,12 +504,11 @@ function TraceHistory({
   onToggleEvent: (seq: number) => void;
   onSelectStep: (index: number) => void;
 }) {
-  const rows = traceRows(trace?.events ?? []);
-  // Render nothing in the default state — no titled card, no placeholder.
-  // The empty right column is the cue for "nothing happened yet"; the only
-  // affordance the user needs is the Analyze button above. The component
-  // appears the moment the stream starts (inFlight === true) or once an
-  // error / pending followup needs to surface.
+  const rows = traceRows(events);
+  // Render nothing when there is nothing to show. The empty right column
+  // is the cue for "nothing happened yet"; inFlight keeps the wrapper
+  // mounted during the brief gap before the first event lands so we don't
+  // flicker null ↔ rendered.
   const hasContent = rows.length > 0 || Boolean(pendingUserMessage) || inFlight || Boolean(panelError);
   if (!hasContent) return null;
 
