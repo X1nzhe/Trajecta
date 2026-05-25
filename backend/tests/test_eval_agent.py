@@ -323,6 +323,34 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.terminated_by, "error")
         self.assertIn("fm_nonexistent_999", " ".join(result.errors))
 
+    def test_retrieved_context_ids_rejects_similar_run_run_id_with_specific_error(self) -> None:
+        """A common agent mistake is quoting a run_id from
+        find_similar_successful_run in retrieved_context_ids. The validator
+        should still reject it (run_ids are not case_ids per
+        docs/contracts.md L332), but produce a pedagogical error message
+        so the next retry actually drops the bad ID instead of looping.
+        """
+
+        script = [
+            _tool_message(
+                "find_similar_successful_run",
+                {"task": "find: answer to question", "top_k": 3, "exclude_run_id": "run_1"},
+            ),
+            _tool_message(
+                "propose_eval_case",
+                _proposal_args(retrieved_context_ids=["success_run"]),
+            ),
+        ]
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+
+        self.assertEqual(result.trace.terminated_by, "error")
+        joined = " ".join(result.errors)
+        self.assertIn("success_run", joined)
+        # The specific error should call out the run_id confusion so the
+        # agent's retry knows what to drop.
+        self.assertIn("find_similar_successful_run", joined)
+
     def test_nonterminal_tool_error_is_returned_to_model(self) -> None:
         script = [
             _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 99, "image_detail": "high"}),

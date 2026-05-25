@@ -1040,6 +1040,22 @@ def _proposal_context_error(args: dict[str, Any], trace: AgentTrace) -> str | No
     requested = set(args.get("retrieved_context_ids") or [])
     missing = sorted(context_id for context_id in requested if context_id not in available)
     if missing:
+        # Common agent mistake: passing run_ids from find_similar_successful_run
+        # into retrieved_context_ids. That tool's results aren't case_ids and
+        # are explicitly excluded by docs/contracts.md L332. Detect this case
+        # and tell the agent specifically what to drop on its retry — a
+        # generic "not found" message often loops the same mistake.
+        run_ids_seen = _retrieved_run_ids(trace)
+        misused_run_ids = sorted(ctx for ctx in missing if ctx in run_ids_seen)
+        if misused_run_ids:
+            return (
+                "retrieved_context_ids must contain only case_ids returned by "
+                "search_failure_memory or search_eval_cases. The following IDs "
+                "are run_ids from find_similar_successful_run and must be "
+                "omitted (similar-run comparisons are tracked via the "
+                "AgentTrace, not retrieved_context_ids): "
+                + ", ".join(misused_run_ids)
+            )
         return "retrieved_context_ids not found in prior retrieval tool_result: " + ", ".join(missing)
 
     # docs/eval_agent.md L235: every EvidenceItem with source in
@@ -1081,6 +1097,28 @@ def _retrieved_case_ids(trace: AgentTrace) -> set[str]:
         if event.type != "tool_result" or event.name not in SEARCH_TOOLS:
             continue
         ids.update(_case_ids_in_payload(event.result or {}))
+    return ids
+
+
+def _retrieved_run_ids(trace: AgentTrace) -> set[str]:
+    """Run_ids surfaced by find_similar_successful_run results.
+
+    Used to give the agent a pedagogical error when it confuses run_ids
+    (returned by find_similar_successful_run) with case_ids (the only
+    legal contents of retrieved_context_ids). NOT used to expand the set
+    of legal IDs — run_ids remain ineligible per docs/contracts.md L332.
+    """
+
+    ids: set[str] = set()
+    for event in trace.events:
+        if event.type != "tool_result" or event.name != "find_similar_successful_run":
+            continue
+        items = (event.result or {}).get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and isinstance(item.get("run_id"), str):
+                ids.add(item["run_id"])
     return ids
 
 

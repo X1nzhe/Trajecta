@@ -60,6 +60,11 @@ def find_similar_successful_run(
     run_id to avoid returning the run itself. Returns up to ``top_k`` records,
     each with run_id / task / status / step_count. Empty list is normal when
     no validated success case exists yet.
+
+    The ``run_id`` values returned here are NOT case_ids. Do NOT place them in
+    ``propose_eval_case.retrieved_context_ids`` — that field only accepts
+    case_ids from ``search_failure_memory`` or ``search_eval_cases``. Similar-
+    run comparisons are tracked through the AgentTrace itself.
     """
 
     return rag.query_similar_successful_runs(
@@ -213,6 +218,12 @@ def propose_eval_case(
 
     Half-populated calls raise via the EvalCase model_validator (XOR
     rule). The handler exposes that as HTTP 422.
+
+    ``retrieved_context_ids`` must contain ONLY case_ids returned by
+    ``search_failure_memory`` (``fm_*``) or ``search_eval_cases``
+    (``ec_*``). Run_ids returned by ``find_similar_successful_run`` are
+    NOT eligible — they live in their own namespace and are tracked via
+    the AgentTrace. Including them here is rejected and forces a retry.
 
     ``suggested_followups`` is an optional list (up to 4) of short
     ``{label, message}`` pairs the agent thinks the user might want to
