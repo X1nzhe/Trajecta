@@ -494,7 +494,6 @@ function TraceHistory({
         />
       ))}
       {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
-      {inFlight && <TypingIndicator />}
       {panelError && (
         <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
           {panelError}
@@ -929,16 +928,6 @@ function SourceBadge({ source }: { source: EvidenceItem['source'] }) {
     <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] ${muted ? 'bg-amber-50 text-amber-700' : 'bg-slate-200 text-slate-700'}`}>
       {source}
     </span>
-  );
-}
-
-function TypingIndicator() {
-  return (
-    <div className="flex justify-start">
-      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">
-        Eval Agent is analyzing...
-      </div>
-    </div>
   );
 }
 
