@@ -116,7 +116,15 @@ export function EvalAgentPanel({
     runAnalysis();
   };
 
-  const chipTemplates = promptChips(selectedStepIndex);
+  // Prefer agent-suggested chips from the latest propose_eval_case event's
+  // tool_call.args.suggested_followups (transport-only, not persisted).
+  // Falls back to the hard-coded promptChips list when the agent did not
+  // supply any (e.g., older traces, success cases the model didn't bother
+  // to annotate, model that ignored the optional field).
+  const chipTemplates = useMemo(() => {
+    const agentChips = extractAgentSuggestions(trace);
+    return agentChips.length > 0 ? agentChips : promptChips(selectedStepIndex);
+  }, [trace, selectedStepIndex]);
   const inputDisabled = !run || !hasTrace || inFlight;
 
   return (
@@ -934,7 +942,38 @@ function TypingIndicator() {
   );
 }
 
-function promptChips(selectedStepIndex: number | null) {
+type ChipTemplate = { label: string; text: string; disabled?: boolean };
+
+function extractAgentSuggestions(trace: AgentTrace | null): ChipTemplate[] {
+  // Walk events backwards to find the latest propose_eval_case tool_call.
+  // suggested_followups (if any) is on args of that call. Defensive parsing:
+  // unknown / malformed entries are dropped silently — falling back to the
+  // hard-coded list is preferable to crashing the chip rail.
+  for (const event of [...(trace?.events ?? [])].reverse()) {
+    if (event.type === 'tool_call' && event.name === 'propose_eval_case') {
+      const raw = event.args?.suggested_followups;
+      if (!Array.isArray(raw)) return [];
+      const chips: ChipTemplate[] = [];
+      for (const item of raw) {
+        if (
+          item &&
+          typeof item === 'object' &&
+          typeof (item as { label?: unknown }).label === 'string' &&
+          typeof (item as { message?: unknown }).message === 'string'
+        ) {
+          const { label, message } = item as { label: string; message: string };
+          if (label.trim() && message.trim()) {
+            chips.push({ label: label.slice(0, 40), text: message.slice(0, 200) });
+          }
+        }
+      }
+      return chips.slice(0, 4);
+    }
+  }
+  return [];
+}
+
+function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
   return [
     { label: 'Suggest failure label', text: 'Suggest the failure label for this run.' },
     { label: 'Generate eval case', text: 'Generate the eval case draft.' },

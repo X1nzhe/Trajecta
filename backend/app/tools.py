@@ -19,7 +19,10 @@ from typing import Any, Literal
 
 from backend.app import llm, rag, storage
 from backend.app.ids import make_eval_case_id, make_success_case_id
-from backend.app.schemas import EvalCase, EvidenceItem
+from backend.app.schemas import EvalCase, EvidenceItem, FollowupSuggestion
+
+
+_MAX_FOLLOWUP_SUGGESTIONS = 4
 
 
 def get_run(run_id: str) -> dict[str, Any]:
@@ -183,6 +186,7 @@ def propose_eval_case(
     expected_behavior: str | None = None,
     actual_behavior: str | None = None,
     regression_rule: str | None = None,
+    suggested_followups: list[FollowupSuggestion | dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Terminal tool for the Eval Agent. Produces a draft EvalCase.
 
@@ -197,6 +201,14 @@ def propose_eval_case(
 
     Half-populated calls raise via the EvalCase model_validator (XOR
     rule). The handler exposes that as HTTP 422.
+
+    ``suggested_followups`` is an optional list (up to 4) of short
+    ``{label, message}`` pairs the agent thinks the user might want to
+    ask next, grounded in what this trace actually surfaced. They are
+    NOT persisted as part of the EvalCase — the frontend reads them
+    off the latest propose_eval_case event's tool-call args to render
+    chips. Exceeding the cap or violating per-item length bounds raises
+    via the FollowupSuggestion schema.
     """
 
     run = storage.load_run(run_id)
@@ -226,4 +238,18 @@ def propose_eval_case(
         retrieved_context_ids=retrieved_context_ids,
         human_validated=False,
     )
-    return case.model_dump(mode="json")
+    payload = case.model_dump(mode="json")
+
+    if suggested_followups:
+        if len(suggested_followups) > _MAX_FOLLOWUP_SUGGESTIONS:
+            raise ValueError(
+                f"suggested_followups capped at {_MAX_FOLLOWUP_SUGGESTIONS}; "
+                f"got {len(suggested_followups)}"
+            )
+        validated = [FollowupSuggestion.model_validate(item) for item in suggested_followups]
+        # Transport-only: include in the tool's return payload so the
+        # event lands in the trace and the frontend can read it. The
+        # persisted EvalCase row never sees this list.
+        payload["suggested_followups"] = [item.model_dump(mode="json") for item in validated]
+
+    return payload

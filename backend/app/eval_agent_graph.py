@@ -782,7 +782,12 @@ def _system_prompt(*, followup: bool) -> str:
         "would inform your verdict, and finish by calling "
         "`propose_eval_case` (success-shape if no failure found). Never "
         "fabricate evidence; mark unavailable evidence explicitly via "
-        "`source=\"unavailable\"`."
+        "`source=\"unavailable\"`. "
+        "OPTIONAL: pass `suggested_followups` (max 4) on the terminal "
+        "call — short {label, message} pairs the user can click to ask "
+        "a useful next question grounded in THIS trace (e.g., 'Inspect "
+        "step 4 in detail', 'Compare with successful run X'). Skip if "
+        "no specific next step is obvious."
     )
     if followup:
         return (

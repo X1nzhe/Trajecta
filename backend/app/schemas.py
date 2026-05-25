@@ -101,6 +101,21 @@ class FailureMemoryCase(BaseModel):
     source_run_id: str | None = None
 
 
+class FollowupSuggestion(BaseModel):
+    """Agent-authored followup-question chip shown in the UI after analyze.
+
+    Transport-only: these are passed as a kwarg of the terminal
+    ``propose_eval_case`` tool call so the trace carries them through,
+    but they are NOT persisted as part of the ``EvalCase`` schema. The
+    frontend reads the latest ``propose_eval_case`` tool_call event's
+    args. Bounded length to keep chip rendering predictable; max 4
+    suggestions per call is enforced in ``tools.propose_eval_case``.
+    """
+
+    label: str = Field(min_length=1, max_length=40)
+    message: str = Field(min_length=1, max_length=200)
+
+
 class EvidenceItem(BaseModel):
     claim: str
     source: Literal[
