@@ -655,15 +655,253 @@ function TraceRow({
         <span className="shrink-0 text-[10px] text-slate-400">{expanded ? '⌃' : '⌄'}</span>
       </button>
       {expanded && (
-        <div className="border-t border-slate-100 px-2.5 py-2">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            {event.name}
-          </div>
-          <pre className="max-h-48 overflow-auto rounded-md bg-slate-50 p-2 text-[10px] leading-4 text-slate-700">
-{JSON.stringify({ args: event.args, result: row.result?.result, error: row.error?.error }, null, 2)}
-          </pre>
+        <ToolDetailView
+          name={event.name ?? ''}
+          args={event.args}
+          result={row.result?.result}
+          error={row.error?.error}
+        />
+      )}
+    </div>
+  );
+}
+
+// Friendly per-tool labels for the expanded row header. The row line
+// already shows a sentence-style description (e.g. "Searched failure
+// memory for ..."); this label gives the expanded section a short
+// human-readable title so the underlying tool name (snake_case
+// identifier) doesn't leak into the UI as a banner.
+const TOOL_FRIENDLY_NAME: Record<string, string> = {
+  get_run: 'Run metadata lookup',
+  get_step_detail: 'Step detail inspection',
+  search_failure_memory: 'Failure memory search',
+  search_eval_cases: 'Prior eval-case search',
+  find_similar_successful_run: 'Similar successful runs search',
+  propose_eval_case: 'Eval-case proposal',
+};
+
+function ToolDetailView({
+  name,
+  args,
+  result,
+  error,
+}: {
+  name: string;
+  args?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  error?: string;
+}) {
+  const [showRaw, setShowRaw] = useState(false);
+  const friendly = TOOL_FRIENDLY_NAME[name] ?? name;
+  return (
+    <div className="border-t border-slate-100 px-2.5 py-2">
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <div className="text-[11px] font-semibold text-slate-700">{friendly}</div>
+        <code className="text-[10px] text-slate-400">{name}</code>
+      </div>
+      {error && (
+        <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+          <div className="font-semibold">Tool error</div>
+          <div className="break-words">{error}</div>
         </div>
       )}
+      <ToolDetailBody name={name} args={args} result={result} />
+      <button
+        type="button"
+        onClick={() => setShowRaw((value) => !value)}
+        className="mt-2 text-[10px] text-slate-400 hover:text-slate-600"
+      >
+        {showRaw ? '▾ Hide raw payload' : '▸ Show raw payload'}
+      </button>
+      {showRaw && (
+        <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-slate-50 p-2 text-[10px] leading-4 text-slate-700">
+{JSON.stringify({ args, result, error }, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function ToolDetailBody({
+  name,
+  args,
+  result,
+}: {
+  name: string;
+  args?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+}) {
+  const a = args ?? {};
+  const r = result ?? {};
+  switch (name) {
+    case 'get_run': {
+      const steps = Array.isArray(r.steps) ? (r.steps as unknown[]).length : null;
+      return (
+        <DetailTable>
+          <DetailRow label="Task">{typeof r.task === 'string' ? r.task : '—'}</DetailRow>
+          {typeof r.source === 'string' && <DetailRow label="Source"><code className="text-[10px]">{r.source}</code></DetailRow>}
+          {typeof r.status === 'string' && <DetailRow label="Status">{r.status}</DetailRow>}
+          {steps !== null && <DetailRow label="Steps">{steps}</DetailRow>}
+        </DetailTable>
+      );
+    }
+    case 'get_step_detail': {
+      const stepIndex = typeof a.step_index === 'number' ? a.step_index : null;
+      const detail = typeof a.image_detail === 'string' ? a.image_detail : 'high';
+      const vlm = typeof r.vlm_summary === 'string' ? r.vlm_summary : null;
+      const action = r.action && typeof r.action === 'object' ? (r.action as Record<string, unknown>) : null;
+      const coord = r.coordinate_validation && typeof r.coordinate_validation === 'object' ? (r.coordinate_validation as Record<string, unknown>) : null;
+      const actionType = action && typeof action.type === 'string' ? action.type : null;
+      const coordStatus = coord && typeof coord.status === 'string' ? coord.status : null;
+      return (
+        <DetailTable>
+          {stepIndex !== null && <DetailRow label="Step">{stepIndex}</DetailRow>}
+          <DetailRow label="Image detail">{detail}</DetailRow>
+          {actionType && <DetailRow label="Action type">{actionType}</DetailRow>}
+          {coordStatus && <DetailRow label="Coordinates">{coordStatus}</DetailRow>}
+          {vlm ? (
+            <DetailRow label="VLM summary" stacked>
+              <span className="block whitespace-pre-wrap break-words text-slate-700">{vlm}</span>
+            </DetailRow>
+          ) : (
+            <DetailRow label="VLM summary"><em className="text-slate-400">unavailable</em></DetailRow>
+          )}
+        </DetailTable>
+      );
+    }
+    case 'search_failure_memory':
+    case 'search_eval_cases': {
+      const query = typeof a.query === 'string' ? a.query : null;
+      const topK = typeof a.top_k === 'number' ? a.top_k : null;
+      const onlyValidated = typeof a.only_validated === 'boolean' ? a.only_validated : null;
+      const items = Array.isArray(r.items) ? (r.items as Array<Record<string, unknown>>) : [];
+      return (
+        <DetailTable>
+          <DetailRow label="Query" stacked>
+            <span className="block break-words text-slate-700">{query ?? '—'}</span>
+          </DetailRow>
+          {topK !== null && <DetailRow label="Top K">{topK}</DetailRow>}
+          {onlyValidated !== null && <DetailRow label="Only validated">{String(onlyValidated)}</DetailRow>}
+          <DetailRow label="Matches">{items.length}</DetailRow>
+          {items.length > 0 && (
+            <DetailRow label="Cases" stacked>
+              <ul className="space-y-1">
+                {items.map((item, index) => {
+                  const caseId = typeof item.case_id === 'string' ? item.case_id : `match_${index}`;
+                  const failureType = typeof item.failure_type === 'string' ? item.failure_type : null;
+                  const summary = typeof item.summary === 'string' ? item.summary : null;
+                  return (
+                    <li key={caseId} className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
+                      <div className="flex flex-wrap items-baseline gap-1.5">
+                        <code className="font-mono text-slate-600">{caseId}</code>
+                        {failureType && <span className="rounded bg-red-50 px-1 font-semibold text-red-700">{failureType}</span>}
+                      </div>
+                      {summary && <div className="mt-0.5 break-words text-slate-500">{summary}</div>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </DetailRow>
+          )}
+        </DetailTable>
+      );
+    }
+    case 'find_similar_successful_run': {
+      const task = typeof a.task === 'string' ? a.task : null;
+      const topK = typeof a.top_k === 'number' ? a.top_k : null;
+      const items = Array.isArray(r.items) ? (r.items as Array<Record<string, unknown>>) : [];
+      return (
+        <DetailTable>
+          {task && (
+            <DetailRow label="Task" stacked>
+              <span className="block break-words text-slate-700">{task}</span>
+            </DetailRow>
+          )}
+          {topK !== null && <DetailRow label="Top K">{topK}</DetailRow>}
+          <DetailRow label="Matches">{items.length}</DetailRow>
+          {items.length > 0 && (
+            <DetailRow label="Runs" stacked>
+              <ul className="space-y-1">
+                {items.map((item, index) => {
+                  const runId = typeof item.run_id === 'string' ? item.run_id : `match_${index}`;
+                  const itemTask = typeof item.task === 'string' ? item.task : null;
+                  return (
+                    <li key={runId} className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
+                      <code className="font-mono text-slate-600">{shortRunId(runId)}</code>
+                      {itemTask && <div className="mt-0.5 break-words text-slate-500">{itemTask}</div>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </DetailRow>
+          )}
+        </DetailTable>
+      );
+    }
+    case 'propose_eval_case': {
+      const caseId = typeof r.case_id === 'string' ? r.case_id : null;
+      const failureType = typeof r.failure_type === 'string' ? r.failure_type : null;
+      const failureStep = typeof r.failure_step === 'number' ? r.failure_step : null;
+      const evidence = Array.isArray(r.evidence) ? (r.evidence as Array<Record<string, unknown>>) : [];
+      const retrieved = Array.isArray(r.retrieved_context_ids) ? (r.retrieved_context_ids as unknown[]).filter((id) => typeof id === 'string') as string[] : [];
+      return (
+        <DetailTable>
+          {caseId && <DetailRow label="Case ID"><code className="font-mono text-[10px]">{caseId}</code></DetailRow>}
+          <DetailRow label="Verdict">
+            {failureType ? (
+              <span className="rounded bg-red-50 px-1 text-red-700">failure · {failureType}</span>
+            ) : (
+              <span className="rounded bg-emerald-50 px-1 text-emerald-700">success</span>
+            )}
+          </DetailRow>
+          {failureStep !== null && <DetailRow label="Failure step">{failureStep}</DetailRow>}
+          <DetailRow label="Evidence items">{evidence.length}</DetailRow>
+          {retrieved.length > 0 && (
+            <DetailRow label="Retrieved context" stacked>
+              <div className="flex flex-wrap gap-1">
+                {retrieved.map((id) => (
+                  <code key={id} className="rounded bg-indigo-50 px-1 font-mono text-[10px] text-indigo-700">{id}</code>
+                ))}
+              </div>
+            </DetailRow>
+          )}
+        </DetailTable>
+      );
+    }
+    default:
+      return (
+        <div className="text-[11px] text-slate-500">
+          No friendly view for this tool yet. Use "Show raw payload" below.
+        </div>
+      );
+  }
+}
+
+function DetailTable({ children }: { children: ReactNode }) {
+  return <dl className="space-y-1.5 text-[11px] leading-4">{children}</dl>;
+}
+
+function DetailRow({
+  label,
+  children,
+  stacked = false,
+}: {
+  label: string;
+  children: ReactNode;
+  stacked?: boolean;
+}) {
+  if (stacked) {
+    return (
+      <div className="space-y-0.5">
+        <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+        <dd className="text-slate-700">{children}</dd>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-baseline gap-2">
+      <dt className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className="min-w-0 flex-1 break-words text-slate-700">{children}</dd>
     </div>
   );
 }
