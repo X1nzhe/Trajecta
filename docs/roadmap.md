@@ -43,7 +43,7 @@ Do not spend more than half a day on MCP.
 - Add RAGAS eval script
 - Finish pytest coverage
 
-### Phase 5
+### Phase 5 - Done
 
 - Build React UI
 - Run list
@@ -51,7 +51,7 @@ Do not spend more than half a day on MCP.
 - Screenshot viewer
 - Step details (Action / Observation / Coordinate Validation / Metadata tabs)
 
-### Phase 6
+### Phase 6 - Done except SKILL.md and MCP server
 
 - Add Eval Agent panel as a chat-style timeline (renders trace events grouped by turn)
 - Wire Analyze Run / Analyze Step as the only fresh-trace entrypoints
