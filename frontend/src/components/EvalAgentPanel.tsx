@@ -207,8 +207,13 @@ export function EvalAgentPanel({
           />
         )}
 
-        {/* Thumbs feedback only shown once there is a real trace to react to. */}
-        {hasTrace && (
+        {/* Thumbs feedback only shown once there is a finished trace to react
+            to. hasTrace alone goes true the moment emptyTrace is created on
+            Analyze click, which is too early — the user is still watching the
+            agent work. Gate on !inFlight so thumbs appear only after the
+            stream completes (or after a failure, where the user might want
+            to thumb-down). */}
+        {hasTrace && !inFlight && (
           <div className="flex gap-2">
             <button
               onClick={() => setFeedback('up')}
@@ -229,15 +234,18 @@ export function EvalAgentPanel({
       </div>
 
       <div className="border-t border-slate-200 bg-white p-3">
-        {/* Prompt chips are only meaningful as followup shortcuts after a
-            trace exists; hide them on first open to declutter. */}
-        {hasTrace && (
+        {/* Prompt chips are only meaningful as followup shortcuts AFTER a
+            trace exists AND the agent is idle. Hiding during inFlight
+            matches the chat input (also disabled) and avoids dangling
+            "Suggest failure label" buttons while the failure is still
+            being computed. */}
+        {hasTrace && !inFlight && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {chipTemplates.map((chip) => (
               <button
                 key={chip.label}
                 onClick={() => setInput(chip.text)}
-                disabled={chip.disabled || inFlight}
+                disabled={chip.disabled}
                 className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {chip.label}
