@@ -1098,7 +1098,16 @@ function EvalCaseDraftPanel({
       lastFailureFieldsRef.current = null;
       return;
     }
-    if (dirtyRef.current && JSON.stringify(draft) !== JSON.stringify(localDraftRef.current)) {
+    // Echo of our own edit: every local `update()` calls onDraftChange,
+    // the parent re-renders, and the same value comes back here as the
+    // `draft` prop. Without this guard the effect would run end-to-end
+    // — including the lastFailureFieldsRef reset — and wipe the
+    // success/failure-toggle stash one tick after setMode populated it,
+    // which is why the failure fields kept disappearing on toggle-back.
+    if (JSON.stringify(draft) === JSON.stringify(localDraftRef.current)) {
+      return;
+    }
+    if (dirtyRef.current) {
       const overwrite = window.confirm('The agent produced a new draft. Replace your unsaved edits?');
       if (!overwrite) return;
     }
