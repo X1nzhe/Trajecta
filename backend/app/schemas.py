@@ -207,3 +207,15 @@ class AgentTrace(BaseModel):
     turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"
     events: list[AgentTraceEvent] = Field(default_factory=list)
+    # Per-trace observability — spec (docs/eval_agent.md "Observability")
+    # requires the trace itself to be the observability surface, so cost
+    # and latency counters live here, not on a separate APM. runtime_ms
+    # is wall-clock for the agent loop (analyze + followups combined,
+    # accumulated across turns). input_tokens / output_tokens come from
+    # AIMessage.usage_metadata when the underlying client provides it
+    # (real OpenAI path); offline mocks leave the fields at 0. VLM calls
+    # (preprocess + get_step_detail) are NOT counted yet — they live
+    # outside the agent's _invoke_model and need a separate hook.
+    runtime_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0

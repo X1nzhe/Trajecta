@@ -1394,12 +1394,48 @@ function TerminationBadge({ trace, latestToolError, inFlight }: { trace: AgentTr
       ? 'bg-slate-100 text-slate-600'
       : 'bg-red-50 text-red-700';
   return (
-    <div className="mt-0.5">
+    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
       <span title={trace.terminated_by === 'error' ? latestToolError ?? undefined : undefined} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${classes}`}>
         {trace.terminated_by}
       </span>
+      <TraceCostBadge trace={trace} />
     </div>
   );
+}
+
+function TraceCostBadge({ trace }: { trace: AgentTrace }) {
+  // Per-trace cost/latency. Hide entirely when we have nothing useful
+  // to report — typically the offline mock path where usage_metadata
+  // isn't available and runtime_ms accumulation hasn't started yet.
+  const hasRuntime = trace.runtime_ms > 0;
+  const hasTokens = trace.input_tokens > 0 || trace.output_tokens > 0;
+  if (!hasRuntime && !hasTokens) return null;
+  const parts: string[] = [];
+  if (hasRuntime) parts.push(formatRuntime(trace.runtime_ms));
+  if (hasTokens) parts.push(`${formatTokens(trace.input_tokens)} → ${formatTokens(trace.output_tokens)} tok`);
+  return (
+    <span
+      className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-600"
+      title={`Wall-clock runtime: ${trace.runtime_ms} ms · Tokens (LLM only, VLM not counted): ${trace.input_tokens} in / ${trace.output_tokens} out`}
+    >
+      {parts.join(' · ')}
+    </span>
+  );
+}
+
+function formatRuntime(ms: number): string {
+  if (ms < 1000) return `${ms} ms`;
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.round(seconds % 60);
+  return `${minutes}m ${remainder}s`;
+}
+
+function formatTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 10_000) return `${(n / 1000).toFixed(1)}k`;
+  return `${Math.round(n / 1000)}k`;
 }
 
 function WarningIcon({ muted = false }: { muted?: boolean }) {
@@ -1485,6 +1521,9 @@ function emptyTrace(runId: string): AgentTrace {
     turn_count: 1,
     terminated_by: 'error',
     events: [],
+    runtime_ms: 0,
+    input_tokens: 0,
+    output_tokens: 0,
   };
 }
 

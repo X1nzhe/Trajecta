@@ -136,4 +136,9 @@ export interface AgentTrace {
   turn_count: number;
   terminated_by: "propose_eval_case" | "budget_exceeded" | "error";
   events: AgentTraceEvent[];
+  // Per-trace cost/latency counters. Accumulated across all turns;
+  // 0 on offline mock paths where usage_metadata isn't available.
+  runtime_ms: number;
+  input_tokens: number;
+  output_tokens: number;
 }

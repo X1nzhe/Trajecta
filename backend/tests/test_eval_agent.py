@@ -163,6 +163,47 @@ class EvalAgentTests(unittest.TestCase):
         draft = EvalCase.model_validate(result.eval_case_draft)
         self.assertFalse(draft.human_validated)
 
+    def test_trace_accumulates_runtime_and_token_counts(self) -> None:
+        """docs/eval_agent.md "Observability" — per-trace cost/latency
+        counters live on AgentTrace so the UI can render real numbers
+        for the cost ablation claim. Offline mocks have no
+        usage_metadata, so token counts stay 0; runtime_ms is wall-clock
+        and must be positive after any real loop iteration.
+        """
+
+        class UsageMessage(AIMessage):
+            def __init__(self, name: str, args: dict, *, input_tokens: int, output_tokens: int) -> None:
+                super().__init__(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}])
+                self.usage_metadata = {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                }
+
+        script = [
+            UsageMessage("get_run", {"run_id": "run_1"}, input_tokens=120, output_tokens=18),
+            UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=240, output_tokens=64),
+        ]
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertEqual(result.trace.input_tokens, 360)
+        self.assertEqual(result.trace.output_tokens, 82)
+        # Wall-clock runtime is real time — just assert it's been set.
+        self.assertGreaterEqual(result.trace.runtime_ms, 0)
+
+    def test_trace_token_counts_stay_zero_when_usage_metadata_missing(self) -> None:
+        """Offline / mock LLM path has no usage_metadata; the trace should
+        still validate with zeroed counters rather than crashing the loop.
+        """
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+
+        self.assertEqual(result.trace.input_tokens, 0)
+        self.assertEqual(result.trace.output_tokens, 0)
+        self.assertGreaterEqual(result.trace.runtime_ms, 0)
+
     def test_trace_seq_is_strictly_monotonic(self) -> None:
         result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
 

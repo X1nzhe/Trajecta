@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import lru_cache
@@ -242,6 +243,7 @@ def stream_analyze(
         "done": False,
     }
     result: AgentExecutionResult | None = None
+    start = time.perf_counter()
     try:
         # Always surface the preprocess phase so the UI can render a row
         # that the user can expand to view the per-step digest. On a cold
@@ -279,8 +281,11 @@ def stream_analyze(
         yield trace.events[-1]
         raise
     finally:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        final_trace = result.trace if result is not None else trace
+        final_trace.runtime_ms += elapsed_ms
         if persist:
-            storage.save_trace(run_id, result.trace if result is not None else trace)
+            storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
 
 
@@ -344,6 +349,7 @@ def stream_followup(
 
     result: AgentExecutionResult | None = None
     state: GraphState | None = None
+    start = time.perf_counter()
     try:
         digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
         state = {
@@ -378,8 +384,11 @@ def stream_followup(
         yield trace.events[-1]
         raise
     finally:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        final_trace = result.trace if result is not None else trace
+        final_trace.runtime_ms += elapsed_ms
         if persist:
-            storage.save_trace(run_id, result.trace if result is not None else trace)
+            storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
 
 
@@ -502,6 +511,7 @@ def _agent_node(state: GraphState) -> GraphState:
         state["llm_client"] = client
     message = _invoke_model(client, state["messages"])
     state["messages"].append(message)
+    _accumulate_token_usage(state["trace"], message)
     # Only record an agent_message event when the model produced actual text.
     # When the model returns only tool_calls (content == ""), the tool_call
     # events that follow already represent the agent's intent — emitting a
@@ -717,6 +727,28 @@ def _execution_result(trace: AgentTrace, state: EvalState, start_seq: int) -> Ag
         new_events=trace.events[start_seq:],
         errors=list(state["errors"]),
     )
+
+
+def _accumulate_token_usage(trace: AgentTrace, message: Any) -> None:
+    """Pull ``usage_metadata`` off an AIMessage and add it to the trace.
+
+    Real OpenAI calls populate ``AIMessage.usage_metadata`` as
+    ``{input_tokens, output_tokens, total_tokens}``. Offline mocks and
+    the fallback message classes don't have the attribute — the
+    ``getattr`` default keeps the call site loop-safe so we silently
+    record 0 for those turns instead of crashing.
+    """
+
+    usage = getattr(message, "usage_metadata", None)
+    if not isinstance(usage, dict):
+        return
+    try:
+        trace.input_tokens += int(usage.get("input_tokens", 0) or 0)
+        trace.output_tokens += int(usage.get("output_tokens", 0) or 0)
+    except (TypeError, ValueError):
+        # A model returning non-numeric token counts shouldn't take down
+        # the whole agent loop — just skip the increment.
+        return
 
 
 def _invoke_model(client: AgentLLM | Any, messages: list[AnyMessage]) -> AnyMessage:
