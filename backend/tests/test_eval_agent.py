@@ -240,14 +240,20 @@ class EvalAgentTests(unittest.TestCase):
         self.assertTrue(any(event.type == "tool_error" for event in result.trace.events))
 
     def test_malformed_tool_call_arguments_terminate_with_trace_error(self) -> None:
+        # langchain-core 0.3.x rejects the raw OpenAI {"function": {...}} shape
+        # in AIMessage.tool_calls, so we route the malformed call through
+        # additional_kwargs — that's where real OpenAI raw responses land too
+        # and _extract_tool_calls reads it as a fallback.
         bad_message = AIMessage(
             content="",
-            tool_calls=[
-                {
-                    "id": "call_bad_json",
-                    "function": {"name": "get_run", "arguments": "{"},
-                }
-            ],
+            additional_kwargs={
+                "tool_calls": [
+                    {
+                        "id": "call_bad_json",
+                        "function": {"name": "get_run", "arguments": "{"},
+                    }
+                ]
+            },
         )
 
         result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))
@@ -265,12 +271,14 @@ class EvalAgentTests(unittest.TestCase):
     def test_missing_tool_call_name_terminates_with_trace_error(self) -> None:
         bad_message = AIMessage(
             content="",
-            tool_calls=[
-                {
-                    "id": "call_missing_name",
-                    "function": {"arguments": "{}"},
-                }
-            ],
+            additional_kwargs={
+                "tool_calls": [
+                    {
+                        "id": "call_missing_name",
+                        "function": {"arguments": "{}"},
+                    }
+                ]
+            },
         )
 
         result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))

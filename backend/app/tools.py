@@ -23,6 +23,15 @@ from backend.app.schemas import EvalCase, EvidenceItem
 
 
 def get_run(run_id: str) -> dict[str, Any]:
+    """Load a trajectory run by ID, including its preprocessed digest if cached.
+
+    Returns the full TrajectoryRun (task, status, steps with action/observation/result
+    per step) plus an optional ``digest`` key carrying the cached TrajectoryDigest
+    (low-detail VLM summaries per step). Call this once at the start of analysis
+    to orient on the task and the per-step digest before deciding which steps
+    to inspect at high detail.
+    """
+
     run = storage.load_run(run_id)
     payload = run.model_dump(mode="json")
     digest = storage.load_digest(run_id)
@@ -36,6 +45,16 @@ def find_similar_successful_run(
     top_k: int = 3,
     exclude_run_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Retrieve previously human-validated successful runs whose task is similar.
+
+    Use this to find a counter-example for replay-and-diff once a likely failure
+    region is identified. ``task`` is the natural-language task description from
+    the run under analysis. ``exclude_run_id`` should be set to the current
+    run_id to avoid returning the run itself. Returns up to ``top_k`` records,
+    each with run_id / task / status / step_count. Empty list is normal when
+    no validated success case exists yet.
+    """
+
     return rag.query_similar_successful_runs(
         task,
         top_k=top_k,
@@ -48,6 +67,21 @@ def get_step_detail(
     step_index: int,
     image_detail: Literal["low", "high"] = "high",
 ) -> dict[str, Any]:
+    """Inspect one step in depth, optionally invoking a high-detail VLM call on its screenshot.
+
+    Returns the step's action / observation / result / coordinate_validation
+    plus a ``vlm_summary`` string when a screenshot exists.
+
+    ``image_detail`` controls VLM token cost: ``"high"`` (default, ~1500
+    tokens) is required for any claim about visible text, button labels,
+    target identity, or coordinate correctness; ``"low"`` (~85 tokens) is
+    cheap orientation only and must not be cited as sole evidence in the
+    final EvalCase.
+
+    Use this on the most suspicious steps surfaced by the digest, not on
+    every step — high-detail calls are budgeted.
+    """
+
     try:
         run = storage.load_run(run_id)
     except FileNotFoundError:
@@ -112,11 +146,30 @@ def get_step_detail(
 
 
 def search_failure_memory(query: str, top_k: int = 3) -> list[dict[str, Any]]:
+    """Retrieve curated failure-pattern memory cases (FailureMemoryCase) similar to the query.
+
+    These are reusable failure patterns (e.g., "missed_constraint",
+    "early_terminated") with summary + fix_hint. Query with a short
+    natural-language description of the failure mode you suspect, grounded
+    in evidence you have observed. Returns up to ``top_k`` cases. Each
+    case has a ``case_id`` you must include in EvalCase.retrieved_context_ids
+    if you rely on it for the final eval case.
+    """
+
     cases = rag.query_failure_memory(query, top_k=top_k)
     return [case.model_dump(mode="json") for case in cases]
 
 
 def search_eval_cases(query: str, top_k: int = 3, only_validated: bool = True) -> list[dict[str, Any]]:
+    """Retrieve prior human-validated EvalCase records similar to the query.
+
+    Use this to find precedent — has the agent seen a similar failure on
+    another run before, and if so, what regression rule was authored? With
+    ``only_validated=True`` (default), only cases that survived human review
+    are returned. The ``case_id`` of any case you rely on must appear in
+    EvalCase.retrieved_context_ids.
+    """
+
     cases = rag.query_eval_cases(query, top_k=top_k, only_validated=only_validated)
     return [case.model_dump(mode="json") for case in cases]
 
