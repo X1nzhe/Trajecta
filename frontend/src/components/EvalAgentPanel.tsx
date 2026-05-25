@@ -769,9 +769,9 @@ function ToolDetailBody({
                   const failureType = typeof item.failure_type === 'string' ? item.failure_type : null;
                   const summary = typeof item.summary === 'string' ? item.summary : null;
                   return (
-                    <li key={caseId} className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
+                    <li key={caseId} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
                       <div className="flex flex-wrap items-baseline gap-1.5">
-                        <code className="font-mono text-slate-600">{caseId}</code>
+                        <code className="min-w-0 break-all font-mono text-slate-600" title={caseId}>{shortenCaseId(caseId)}</code>
                         {failureType && <span className="rounded bg-red-50 px-1 font-semibold text-red-700">{failureType}</span>}
                       </div>
                       {summary && <div className="mt-0.5 break-words text-slate-500">{summary}</div>}
@@ -802,8 +802,8 @@ function ToolDetailBody({
                   const runId = typeof item.run_id === 'string' ? item.run_id : `match_${index}`;
                   const itemTask = typeof item.task === 'string' ? item.task : null;
                   return (
-                    <li key={runId} className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
-                      <code className="font-mono text-slate-600">{shortRunId(runId)}</code>
+                    <li key={runId} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
+                      <code className="min-w-0 break-all font-mono text-slate-600" title={runId}>{shortRunId(runId)}</code>
                       {itemTask && <div className="mt-0.5 break-words text-slate-500">{itemTask}</div>}
                     </li>
                   );
@@ -822,7 +822,11 @@ function ToolDetailBody({
       const retrieved = Array.isArray(r.retrieved_context_ids) ? (r.retrieved_context_ids as unknown[]).filter((id) => typeof id === 'string') as string[] : [];
       return (
         <DetailTable>
-          {caseId && <DetailRow label="Case ID"><code className="font-mono text-[10px]">{caseId}</code></DetailRow>}
+          {caseId && (
+            <DetailRow label="Case ID">
+              <code className="block break-all font-mono text-[10px]" title={caseId}>{shortenCaseId(caseId)}</code>
+            </DetailRow>
+          )}
           <DetailRow label="Verdict">
             {failureType ? (
               <span className="rounded bg-red-50 px-1 text-red-700">failure · {failureType}</span>
@@ -836,7 +840,13 @@ function ToolDetailBody({
             <DetailRow label="Retrieved context" stacked>
               <div className="flex flex-wrap gap-1">
                 {retrieved.map((id) => (
-                  <code key={id} className="rounded bg-indigo-50 px-1 font-mono text-[10px] text-indigo-700">{id}</code>
+                  <code
+                    key={id}
+                    title={id}
+                    className="max-w-full break-all rounded bg-indigo-50 px-1 font-mono text-[10px] text-indigo-700"
+                  >
+                    {shortenCaseId(id)}
+                  </code>
                 ))}
               </div>
             </DetailRow>
