@@ -691,14 +691,10 @@ function ToolDetailView({
   result?: Record<string, unknown>;
   error?: string;
 }) {
-  const [showRaw, setShowRaw] = useState(false);
-  const friendly = TOOL_FRIENDLY_NAME[name] ?? name;
+  const friendly = TOOL_FRIENDLY_NAME[name] ?? 'Tool call';
   return (
     <div className="border-t border-slate-100 px-2.5 py-2">
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <div className="text-[11px] font-semibold text-slate-700">{friendly}</div>
-        <code className="text-[10px] text-slate-400">{name}</code>
-      </div>
+      <div className="mb-1.5 text-[11px] font-semibold text-slate-700">{friendly}</div>
       {error && (
         <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
           <div className="font-semibold">Tool error</div>
@@ -706,18 +702,6 @@ function ToolDetailView({
         </div>
       )}
       <ToolDetailBody name={name} args={args} result={result} />
-      <button
-        type="button"
-        onClick={() => setShowRaw((value) => !value)}
-        className="mt-2 text-[10px] text-slate-400 hover:text-slate-600"
-      >
-        {showRaw ? '▾ Hide raw payload' : '▸ Show raw payload'}
-      </button>
-      {showRaw && (
-        <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-slate-50 p-2 text-[10px] leading-4 text-slate-700">
-{JSON.stringify({ args, result, error }, null, 2)}
-        </pre>
-      )}
     </div>
   );
 }
@@ -760,11 +744,11 @@ function ToolDetailBody({
           {actionType && <DetailRow label="Action type">{actionType}</DetailRow>}
           {coordStatus && <DetailRow label="Coordinates">{coordStatus}</DetailRow>}
           {vlm ? (
-            <DetailRow label="VLM summary" stacked>
+            <DetailRow label="Visual summary" stacked>
               <span className="block whitespace-pre-wrap break-words text-slate-700">{vlm}</span>
             </DetailRow>
           ) : (
-            <DetailRow label="VLM summary"><em className="text-slate-400">unavailable</em></DetailRow>
+            <DetailRow label="Visual summary"><em className="text-slate-400">unavailable</em></DetailRow>
           )}
         </DetailTable>
       );
