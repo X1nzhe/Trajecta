@@ -712,9 +712,9 @@ function EvalCaseDraftPanel({
     update({ evidence });
   };
 
-  const exportDraft = async () => {
+  const saveDraft = async () => {
     if (!localDraft.human_validated) return;
-    setExportStatus('Exporting...');
+    setExportStatus('Saving…');
     try {
       const saved = await createEvalCase(localDraft);
       setLocalDraft(saved);
@@ -722,7 +722,7 @@ function EvalCaseDraftPanel({
       onDraftChange(saved);
       setDirty(false);
       dirtyRef.current = false;
-      setExportStatus('Exported validated eval case.');
+      setExportStatus('Saved. Indexed into RAG; run status updated.');
       onValidated?.();
     } catch (error) {
       setExportStatus(errorMessage(error));
@@ -805,11 +805,12 @@ function EvalCaseDraftPanel({
           Mark validated
         </label>
         <button
-          onClick={exportDraft}
+          onClick={saveDraft}
           disabled={!localDraft.human_validated}
           className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          title="Persists the validated EvalCase to SQLite (eval_cases table), flips the source run's status, and indexes it into ChromaDB for RAG."
         >
-          Export Eval Case
+          Save validated case
         </button>
         {exportStatus && <div className="text-xs text-slate-500">{exportStatus}</div>}
       </div>
