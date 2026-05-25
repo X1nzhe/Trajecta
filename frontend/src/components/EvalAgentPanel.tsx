@@ -167,7 +167,6 @@ export function EvalAgentPanel({
           expandedEvents={expandedEvents}
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
-          onViewDraft={() => setDraftViewed(true)}
         />
 
         {/* Summary only appears once an eval-case draft exists (i.e., after
@@ -180,6 +179,23 @@ export function EvalAgentPanel({
             onSelectStep={onSelectStep}
             onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           />
+        )}
+
+        {/* Standalone View Draft trigger between the Summary and the draft
+            editor. Previously embedded inside the propose_eval_case trace
+            row, which made it look like a sub-action of the trace. */}
+        {evalCaseDraft && !inFlight && !draftViewed && (
+          <button
+            onClick={() => {
+              setDraftViewed(true);
+              requestAnimationFrame(() => {
+                document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+            }}
+            className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+          >
+            View draft eval case →
+          </button>
         )}
 
         {draftViewed && (
@@ -323,18 +339,28 @@ function ObservationSummaryPanel({
   const visualEvidence = draft.evidence.filter((item) => isVisualEvidence(item));
   const unavailable = draft.evidence.filter((item) => item.source === 'unavailable');
   const isSuccess = draft.failure_type === null;
+  // Display step is a 1-based human number; failure_step on the draft is
+  // 0-based agent index. Only render the "Failure attributed to step N"
+  // chip for failure cases that name a step (success cases or malformed
+  // drafts intentionally omit it).
   const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step + 1 : null;
-  const headerTitle = isSuccess
-    ? 'Analysis Result (Success)'
-    : `Analysis Result (Step ${displayStep ?? '?'})`;
 
   return (
     <section className={`rounded-lg border bg-white shadow-sm ${stale ? 'border-amber-200' : 'border-slate-200'}`}>
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-        <h3 className={`text-sm font-bold ${isSuccess ? 'text-emerald-700' : 'text-indigo-700'}`}>{headerTitle}</h3>
+        <h3 className={`text-sm font-bold ${isSuccess ? 'text-emerald-700' : 'text-indigo-700'}`}>Analysis Result</h3>
         {stale && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">stale</span>}
       </div>
       <div className="space-y-3 p-3 text-sm text-slate-700">
+        {!isSuccess && displayStep !== null && typeof draft.failure_step === 'number' && (
+          <button
+            onClick={() => onSelectStep(draft.failure_step as number)}
+            className="flex w-full items-center justify-between gap-2 rounded-md border border-red-100 bg-red-50 px-2.5 py-1.5 text-left text-xs font-semibold text-red-700 hover:bg-red-100"
+          >
+            <span>Failure attributed to <span className="font-bold">step {displayStep}</span></span>
+            <span className="text-red-500">→ Jump to step</span>
+          </button>
+        )}
         {draft.actual_behavior && <p className="leading-5">{draft.actual_behavior}</p>}
         {draft.expected_behavior && <p className="text-xs leading-5 text-slate-500">Expected: {draft.expected_behavior}</p>}
         {isSuccess && (
@@ -422,7 +448,6 @@ function TraceHistory({
   expandedEvents,
   onToggleEvent,
   onSelectStep,
-  onViewDraft,
 }: {
   trace: AgentTrace | null;
   pendingUserMessage: string | null;
@@ -431,7 +456,6 @@ function TraceHistory({
   expandedEvents: Set<number>;
   onToggleEvent: (seq: number) => void;
   onSelectStep: (index: number) => void;
-  onViewDraft?: () => void;
 }) {
   const rows = traceRows(trace?.events ?? []);
   // Render nothing in the default state — no titled card, no placeholder.
@@ -451,7 +475,6 @@ function TraceHistory({
           expanded={expandedEvents.has(row.event.seq)}
           onToggle={() => onToggleEvent(row.event.seq)}
           onSelectStep={onSelectStep}
-          onViewDraft={onViewDraft}
         />
       ))}
       {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
@@ -498,13 +521,11 @@ function TraceRow({
   expanded,
   onToggle,
   onSelectStep,
-  onViewDraft,
 }: {
   row: TraceRowModel;
   expanded: boolean;
   onToggle: () => void;
   onSelectStep: (index: number) => void;
-  onViewDraft?: () => void;
 }) {
   const event = row.event;
   if (event.type === 'user_message') return <MessageBubble align="right" message={event.message ?? ''} />;
@@ -515,7 +536,6 @@ function TraceRow({
   const stepIndex = typeof event.args?.step_index === 'number' ? event.args.step_index : null;
   const errored = Boolean(row.error);
   const description = friendlyToolDescription(event, row.result?.result);
-  const isTerminal = event.name === 'propose_eval_case';
   const statusGlyph = errored ? '⚠' : '✓';
   const statusColor = errored ? 'text-red-600' : 'text-emerald-600';
 
@@ -533,21 +553,6 @@ function TraceRow({
         <span className={`shrink-0 text-xs font-semibold ${statusColor}`}>{statusGlyph}</span>
         <span className="shrink-0 text-[10px] text-slate-400">{expanded ? '⌃' : '⌄'}</span>
       </button>
-      {isTerminal && (
-        <div className="border-t border-slate-100 px-2.5 py-1.5">
-          <button
-            onClick={() => {
-              onViewDraft?.();
-              requestAnimationFrame(() => {
-                document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              });
-            }}
-            className="w-full rounded-md bg-indigo-50 py-1.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
-          >
-            View draft →
-          </button>
-        </div>
-      )}
       {expanded && (
         <div className="border-t border-slate-100 px-2.5 py-2">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
