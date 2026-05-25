@@ -727,12 +727,17 @@ class OfflineAgentMock:
         return self._proposal_message(messages)
 
     def _selected_failure_step(self) -> int:
+        # All step indices are 1-based (aligned with source step keys and
+        # screenshot filenames). If neither a user-selected step nor any
+        # failed step is available, fall back to the first digest step
+        # rather than the invalid sentinel 0.
         if self._state["user_intent"] == "analyze_step" and self._state["selected_step"] is not None:
             return self._state["selected_step"]
         for step in self._state["trajectory_digest"]:
             if step.get("result_status") == "failed":
-                return int(step.get("index", 0))
-        return 0
+                return int(step.get("index", 1))
+        first = self._state["trajectory_digest"][0] if self._state["trajectory_digest"] else None
+        return int(first.get("index", 1)) if isinstance(first, dict) else 1
 
     def _proposal_message(self, messages: list[AnyMessage]) -> AnyMessage:
         run_id = self._state["run_id"]
@@ -799,13 +804,15 @@ def _system_prompt(*, followup: bool) -> str:
     common = (
         "You are Trajecta's Eval Agent. Use the declared tools only. "
         "The first HumanMessage carries `run_id` and the full "
-        "`trajectory_digest`. Survey the digest to identify suspicious "
-        "steps, deep-inspect them with `get_step_detail` at high detail, "
-        "retrieve relevant failure memory and prior eval cases when they "
-        "would inform your verdict, and finish by calling "
-        "`propose_eval_case` (success-shape if no failure found). Never "
-        "fabricate evidence; mark unavailable evidence explicitly via "
-        "`source=\"unavailable\"`. "
+        "`trajectory_digest`. All step indices are 1-based and match the "
+        "source dataset's step keys and screenshot filenames (e.g., "
+        "step_index=7 ↔ screenshot_007.png). Survey the digest to "
+        "identify suspicious steps, deep-inspect them with "
+        "`get_step_detail` at high detail, retrieve relevant failure "
+        "memory and prior eval cases when they would inform your "
+        "verdict, and finish by calling `propose_eval_case` "
+        "(success-shape if no failure found). Never fabricate evidence; "
+        "mark unavailable evidence explicitly via `source=\"unavailable\"`. "
         "OPTIONAL: pass `suggested_followups` (max 4) on the terminal "
         "call — short {label, message} pairs the user can click to ask "
         "a useful next question grounded in THIS trace (e.g., 'Inspect "

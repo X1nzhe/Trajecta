@@ -12,7 +12,10 @@ export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(
     <div className="overflow-x-auto border-b border-slate-200 bg-white px-3 py-1.5">
       <div className="flex min-w-max items-start">
         {run.steps.map((step, i) => {
-          const stepIndex = step.index ?? i;
+          // step.index is 1-based (aligned with source step keys and
+          // screenshot filenames). The `?? i + 1` fallback preserves
+          // 1-based semantics for legacy data that might be missing index.
+          const stepIndex = step.index ?? i + 1;
           const isSelected = selectedStepIndex === stepIndex;
           const inspected = inspectedSteps.has(stepIndex);
           const statusClasses = stepStatusClasses(step.result.status, isSelected);
@@ -22,10 +25,10 @@ export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(
               <button
                 onClick={() => onSelectStep(stepIndex)}
                 className="group flex w-10 flex-col items-center gap-0.5 text-center"
-                title={`Step ${stepIndex + 1}: ${action}${inspected ? ' - inspected by Eval Agent' : ''}`}
+                title={`Step ${stepIndex}: ${action}${inspected ? ' - inspected by Eval Agent' : ''}`}
               >
                 <span className={`relative flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold transition-all ${statusClasses}`}>
-                  {stepIndex + 1}
+                  {stepIndex}
                   {inspected && (
                     <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-white bg-indigo-500" />
                   )}

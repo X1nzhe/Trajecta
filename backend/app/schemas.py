@@ -52,6 +52,9 @@ class CoordinateValidation(BaseModel):
 
 
 class TrajectoryStep(BaseModel):
+    # 1-based, matches the source dataset's step key and the screenshot
+    # filename suffix (step.index=7 ↔ source key "7" ↔ "screenshot_007.png").
+    # UI displays step.index directly without any offset conversion.
     index: int
     timestamp: str | None = None
     observation: StepObservation

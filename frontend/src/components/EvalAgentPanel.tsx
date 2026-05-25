@@ -386,11 +386,11 @@ function ObservationSummaryPanel({
   const visualEvidence = draft.evidence.filter((item) => isVisualEvidence(item));
   const unavailable = draft.evidence.filter((item) => item.source === 'unavailable');
   const isSuccess = draft.failure_type === null;
-  // Display step is a 1-based human number; failure_step on the draft is
-  // 0-based agent index. Only render the "Failure attributed to step N"
-  // chip for failure cases that name a step (success cases or malformed
-  // drafts intentionally omit it).
-  const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step + 1 : null;
+  // failure_step on the draft is already a 1-based step index (matches
+  // source step keys + screenshot filenames). The "Failure attributed to
+  // step N" chip is only rendered for failure cases that name a step;
+  // success cases or malformed drafts intentionally omit it.
+  const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step : null;
 
   return (
     <section className={`rounded-lg border bg-white shadow-sm ${stale ? 'border-amber-200' : 'border-slate-200'}`}>
@@ -458,7 +458,7 @@ function ObservationSummaryPanel({
                     className="h-12 w-20 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-sm hover:border-indigo-300"
                     title={item.claim}
                   >
-                    <img src={`/api/runs/${run.run_id}/screenshots/${screenshot}`} alt={`Evidence step ${step.index + 1}`} className="h-full w-full object-cover" />
+                    <img src={`/api/runs/${run.run_id}/screenshots/${screenshot}`} alt={`Evidence step ${step.index}`} className="h-full w-full object-cover" />
                   </button>
                 );
               })}
@@ -646,7 +646,7 @@ function ToolErrorBullet({ event }: { event: AgentTraceEvent }) {
 
 function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, unknown> | undefined): string {
   const args = event.args ?? {};
-  const stepIndex = typeof args.step_index === 'number' ? args.step_index + 1 : null;
+  const stepIndex = typeof args.step_index === 'number' ? args.step_index : null;
   const imageDetail = typeof args.image_detail === 'string' ? args.image_detail : 'high';
   const query = typeof args.query === 'string' ? args.query : null;
   const task = typeof args.task === 'string' ? args.task : null;
@@ -820,7 +820,7 @@ function EvalCaseDraftPanel({
                   <SourceBadge source={item.source} />
                   {typeof item.step_index === 'number' && (
                     <button onClick={() => onSelectStep(item.step_index as number)} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600 hover:text-indigo-700">
-                      step {item.step_index + 1}
+                      step {item.step_index}
                     </button>
                   )}
                   {typeof item.trace_event_seq === 'number' && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-500">trace #{item.trace_event_seq}</span>}
