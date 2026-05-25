@@ -115,7 +115,12 @@ BUDGETED_TOOLS = {
 SEARCH_TOOLS = {"search_failure_memory", "search_eval_cases"}
 TERMINAL_TOOL = "propose_eval_case"
 INITIAL_BUDGET = 8
-FOLLOWUP_BUDGET = 4
+# Followup runs the same loop as the initial analyze; giving it the same
+# budget lets a single followup do a full re-analysis (e.g. user asks the
+# agent to reconsider with a hint, agent re-inspects N steps and revises
+# the draft). Was 4 historically — bumped to 8 once we saw real followups
+# routinely needing get_step_detail + a fresh search pair.
+FOLLOWUP_BUDGET = 8
 _SENSITIVE_RESULT_KEYS = {"screenshot_bytes", "image_bytes", "image_data"}
 
 _TOOL_REGISTRY = {

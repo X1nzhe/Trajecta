@@ -126,7 +126,7 @@ tests/test_api.py
 - followup endpoint returns 409 (as a single error response, not a stream) when no `traces` row exists for the run
 - followup endpoint returns 422 when message is missing, empty, or > 2000 chars
 - followup endpoint streams a user_message event with the next turn value as the first event line
-- followup endpoint enforces its own per-turn budget (default 4) independent of the initial analyze
+- followup endpoint enforces its own per-turn budget (default 8) independent of the initial analyze
 - followup endpoint streamed event.seq values start at prior_max_seq + 1
 - followup endpoint with a propose_eval_case in the new turn produces a done line whose eval_case_draft replaces the previous one
 - followup endpoint preserves the trace's original user_intent and selected_step

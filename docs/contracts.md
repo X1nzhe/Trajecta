@@ -467,7 +467,7 @@ Preconditions:
 Behavior:
 
 - The handler loads the persisted trace via `storage.load_trace(run_id)`, appends a `user_message` event with the new message and the next `turn` value, then resumes the agent loop with the existing message history.
-- A fresh **per-turn tool-call budget** applies (default 4 — see [docs/eval_agent.md](eval_agent.md) "Follow-up Mode"). `AgentTrace.tool_call_count` continues to accumulate across turns.
+- A fresh **per-turn tool-call budget** applies (default 8 — see [docs/eval_agent.md](eval_agent.md) "Follow-up Mode"). `AgentTrace.tool_call_count` continues to accumulate across turns.
 - The agent may call `propose_eval_case` again in a follow-up turn. When it does, the new draft **overwrites** the previous one in the response; only the latest draft is returned. Any previously persisted, human-validated `EvalCase` rows in the `eval_cases` SQLite table are untouched — those are immutable once exported.
 - The updated trace is written back via `storage.save_trace(run_id, trace)`, replacing the previous `traces` row inside one transaction. There is no per-turn trace history in v1; only the latest turn's trace is retained.
 - `user_intent` and `selected_step` on the trace are **not** modified by follow-up — they record the framing of the original analyze invocation only.

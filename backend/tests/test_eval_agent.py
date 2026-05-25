@@ -488,12 +488,16 @@ class EvalAgentTests(unittest.TestCase):
         ]
         self.assertEqual(followup_tool_errors, [])
 
-    def test_followup_budget_is_4(self) -> None:
+    def test_followup_budget_is_FOLLOWUP_BUDGET(self) -> None:
+        # Script one more call than FOLLOWUP_BUDGET allows; the (budget+1)th
+        # call must trigger budget_exceeded. Reading the constant rather
+        # than hard-coding "9" keeps the test honest if FOLLOWUP_BUDGET
+        # moves again.
         initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
         initial_events = [event.model_dump(mode="json") for event in initial.trace.events]
         script = [
-            _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 0, "image_detail": "high"})
-            for _ in range(5)
+            _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 1, "image_detail": "high"})
+            for _ in range(eval_agent_graph.FOLLOWUP_BUDGET + 1)
         ]
 
         result = eval_agent_graph.followup("run_1", "Spend more tools", llm_client=ScriptedLLM(script))

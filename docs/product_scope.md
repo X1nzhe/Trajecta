@@ -47,8 +47,8 @@ The project must clearly demonstrate:
 - Trajectory Preprocessing pipeline producing a per-run trajectory digest (see [docs/preprocessing.md](preprocessing.md))
 - LangGraph **tool-calling Eval Agent** with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and a terminal `propose_eval_case` tool
 - Replay-and-diff: agent retrieves a similar successful run for the same task and reasons over step-level divergence
-- Multi-turn follow-up: after the initial analyze, the user may ask follow-up questions via `POST /api/runs/{run_id}/followup`. The agent resumes the same trace, may revise the eval case draft, and is bounded by a smaller per-turn tool-call budget
-- Tool-call budget enforcement (default 8 initial / 4 per follow-up) bounding cost and latency
+- Multi-turn follow-up: after the initial analyze, the user may ask follow-up questions via `POST /api/runs/{run_id}/followup`. The agent resumes the same trace, may revise the eval case draft, and is bounded by a per-turn tool-call budget
+- Tool-call budget enforcement (default 8 per turn, applied independently to the initial analyze and to each follow-up) bounding cost and latency
 - ChromaDB-backed RAG over failure memories, eval cases, and successful runs
 - Multi-resolution VLM (low-detail for preprocessing, high-detail on demand)
 - Per-run agent trace persisted as the `traces` row keyed by `run_id` in `data/trajecta.db`

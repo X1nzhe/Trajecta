@@ -552,7 +552,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(trace.user_intent, "analyze_run")
         self.assertIsNone(trace.selected_step)
 
-    def test_followup_budget_is_4_via_api(self) -> None:
+    def test_followup_budget_is_FOLLOWUP_BUDGET_via_api(self) -> None:
         _write_real_png("run_api")
         rag.upsert_failure_memory(
             FailureMemoryCase(
@@ -564,12 +564,13 @@ class ApiTests(unittest.TestCase):
         initial = self.client.post("/api/runs/run_api/analyze")
         drain_ndjson(initial)
 
+        # One past the limit must trip budget_exceeded.
         followup_script = [
             _tool_message(
                 "get_step_detail",
-                {"run_id": "run_api", "step_index": 0, "image_detail": "high"},
+                {"run_id": "run_api", "step_index": 1, "image_detail": "high"},
             )
-            for _ in range(5)
+            for _ in range(eval_agent_graph.FOLLOWUP_BUDGET + 1)
         ]
         with mock.patch.object(
             eval_agent_graph,
