@@ -939,6 +939,7 @@ function PhaseRow({
 }) {
   const message = event.message ?? `Running ${event.name ?? 'phase'}...`;
   const stepCount = typeof event.args?.step_count === 'number' ? event.args.step_count : null;
+  const cached = event.args?.cached === true;
   const [digest, setDigest] = useState<TrajectoryDigest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -972,6 +973,11 @@ function PhaseRow({
           </svg>
         )}
         <span className="min-w-0 flex-1 truncate">{message}</span>
+        {cached && (
+          <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+            cached
+          </span>
+        )}
         {stepCount !== null && (
           <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
             {stepCount} steps

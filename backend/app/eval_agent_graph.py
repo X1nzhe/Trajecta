@@ -243,22 +243,28 @@ def stream_analyze(
     }
     result: AgentExecutionResult | None = None
     try:
-        # Surface the preprocess phase to the stream so the UI can show
-        # "Building trajectory digest..." instead of a silent ~30s gap
-        # before the first tool_call. Only emitted on cache miss; warm
-        # starts skip straight to the agent.
-        if _needs_preprocess(run_id):
-            run = storage.load_run(run_id)
-            step_count = len(run.steps) if run else 0
-            _append_event(
-                trace,
-                "phase",
-                turn=0,
-                name="preprocess",
-                args={"step_count": step_count},
-                message="Building trajectory digest",
-            )
-            yield trace.events[-1]
+        # Always surface the preprocess phase so the UI can render a row
+        # that the user can expand to view the per-step digest. On a cold
+        # start the row spins for ~30s while the per-step low-detail VLM
+        # runs; on a cache hit the row appears already-done with a
+        # different message so the user still sees "the digest existed"
+        # instead of jumping straight to the first tool call.
+        cache_hit = not _needs_preprocess(run_id)
+        run = storage.load_run(run_id)
+        step_count = len(run.steps) if run else 0
+        _append_event(
+            trace,
+            "phase",
+            turn=0,
+            name="preprocess",
+            args={"step_count": step_count, "cached": cache_hit},
+            message=(
+                "Loaded cached trajectory digest"
+                if cache_hit
+                else "Building trajectory digest"
+            ),
+        )
+        yield trace.events[-1]
         # Pre-streamed events (currently the optional preprocess phase) must
         # not be re-yielded by _stream_graph_result. start_seq stays 0 so the
         # phase event is still counted in new_events for the final result.
