@@ -15,11 +15,15 @@ in scope here.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 from backend.app import llm, rag, storage
 from backend.app.ids import make_eval_case_id, make_success_case_id
 from backend.app.schemas import EvalCase, EvidenceItem, FollowupSuggestion
+
+
+logger = logging.getLogger(__name__)
 
 
 _MAX_FOLLOWUP_SUGGESTIONS = 4
@@ -127,7 +131,15 @@ def get_step_detail(
                     action_type=step.action.type,
                     step_index=step_index,
                 )
-        except Exception:
+        except Exception as exc:
+            # Outer guard: RealVLMClient already logs OpenAI-side failures.
+            # Anything bubbling up here is something else (bad screenshot
+            # bytes, client constructor blew up, etc.) — surface it so we
+            # never silently feed the agent vlm_summary=null without a clue.
+            logger.warning(
+                "get_step_detail VLM dispatch failed (run_id=%s, step_index=%s): %s: %s",
+                run_id, step_index, type(exc).__name__, exc,
+            )
             vlm_summary = None
 
     screenshot_url = None
