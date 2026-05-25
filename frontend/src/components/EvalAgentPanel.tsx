@@ -30,7 +30,6 @@ export function EvalAgentPanel({
   const [panelError, setPanelError] = useState<string | null>(null);
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
-  const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   const [draftViewed, setDraftViewed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -53,7 +52,6 @@ export function EvalAgentPanel({
     setPanelError(null);
     setPendingUserMessage(null);
     setExpandedEvents(new Set());
-    setFeedback(null);
     setDraftViewed(false);
   }, [run?.run_id]);
 
@@ -122,7 +120,7 @@ export function EvalAgentPanel({
 
   const rerunLatest = () => {
     if (!run || inFlight) return;
-    const shouldRerun = window.confirm('Start a fresh analysis for this run? The current trace view will be replaced.');
+    const shouldRerun = window.confirm('Start a fresh analysis for this trajectory? The current trace view will be replaced.');
     if (!shouldRerun) return;
     runAnalysis();
   };
@@ -259,31 +257,6 @@ export function EvalAgentPanel({
           runId={run?.run_id ?? null}
         />
 
-        {/* Thumbs feedback only shown once there is a finished trace to react
-            to. hasTrace alone goes true the moment emptyTrace is created on
-            Analyze click, which is too early — the user is still watching the
-            agent work. Gate on !inFlight so thumbs appear only after the
-            stream completes (or after a failure, where the user might want
-            to thumb-down). */}
-        {hasTrace && !inFlight && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFeedback('up')}
-              className={`rounded-md border px-2 py-1 text-slate-500 ${feedback === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
-              title="Helpful"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 11v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 5-8a2 2 0 0 1 3.7 1.3L15 9h4.3a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 18 21H7V11Z" /></svg>
-            </button>
-            <button
-              onClick={() => setFeedback('down')}
-              className={`rounded-md border px-2 py-1 text-slate-500 ${feedback === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
-              title="Not helpful"
-            >
-              <svg className="h-4 w-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 11v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 5-8a2 2 0 0 1 3.7 1.3L15 9h4.3a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 18 21H7V11Z" /></svg>
-            </button>
-          </div>
-        )}
-
         {(hasTrace || inFlight) && <TraceFooter trace={trace} inFlight={inFlight} />}
       </div>
 
@@ -321,7 +294,7 @@ export function EvalAgentPanel({
             disabled={inputDisabled}
             rows={1}
             maxLength={2000}
-            placeholder={hasTrace ? 'Ask about this run...' : 'Run an analysis first to start a conversation.'}
+            placeholder={hasTrace ? 'Ask about this trajectory...' : 'Run an analysis first to start a conversation.'}
             className="block max-h-28 min-h-[1.75rem] w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-1 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
           />
           <button
@@ -674,11 +647,11 @@ function TraceRow({
 // human-readable title so the underlying tool name (snake_case
 // identifier) doesn't leak into the UI as a banner.
 const TOOL_FRIENDLY_NAME: Record<string, string> = {
-  get_run: 'Run metadata lookup',
+  get_run: 'Trajectory metadata lookup',
   get_step_detail: 'Step detail inspection',
   search_failure_memory: 'Failure memory search',
   search_eval_cases: 'Prior eval-case search',
-  find_similar_successful_run: 'Similar successful runs search',
+  find_similar_successful_run: 'Similar successful trajectories search',
   propose_eval_case: 'Eval-case proposal',
 };
 
@@ -798,7 +771,7 @@ function ToolDetailBody({
           )}
           <DetailRow label="Matches">{items.length}</DetailRow>
           {items.length > 0 && (
-            <DetailRow label="Runs" stacked>
+            <DetailRow label="Trajectories" stacked>
               <ul className="space-y-1">
                 {items.map((item, index) => {
                   const runId = typeof item.run_id === 'string' ? item.run_id : `match_${index}`;
@@ -1039,15 +1012,15 @@ function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, 
 
   switch (event.name) {
     case 'get_run':
-      return runId ? `Loaded run metadata for ${shortRunId(runId)}` : 'Loaded run metadata';
+      return runId ? `Loaded trajectory metadata for ${shortRunId(runId)}` : 'Loaded trajectory metadata';
     case 'get_step_detail':
       return stepIndex !== null
         ? `Inspected step ${stepIndex}`
         : 'Inspected a step';
     case 'find_similar_successful_run':
-      if (itemCount === 0) return 'Looked for similar successful runs — none yet';
-      if (itemCount !== null) return `Found ${itemCount} similar successful run${itemCount === 1 ? '' : 's'}`;
-      return task ? `Searching for similar successful runs to: ${shorten(task, 60)}` : 'Searching for similar successful runs';
+      if (itemCount === 0) return 'Looked for similar successful trajectories — none yet';
+      if (itemCount !== null) return `Found ${itemCount} similar successful ${itemCount === 1 ? 'trajectory' : 'trajectories'}`;
+      return task ? `Searching for similar successful trajectories to: ${shorten(task, 60)}` : 'Searching for similar successful trajectories';
     case 'search_failure_memory':
       if (itemCount !== null && query) return `Searched failure memory for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
       if (query) return `Searching failure memory for "${shorten(query, 60)}"`;
@@ -1165,7 +1138,7 @@ function EvalCaseDraftPanel({
       onDraftChange(saved);
       setDirty(false);
       dirtyRef.current = false;
-      setExportStatus('Saved. Indexed into RAG; run status updated.');
+      setExportStatus('Saved. Indexed into RAG; trajectory status updated.');
       onValidated?.();
     } catch (error) {
       setExportStatus(errorMessage(error));
@@ -1216,7 +1189,7 @@ function EvalCaseDraftPanel({
       </div>
       <div className="space-y-3 p-3 text-xs text-slate-700">
         <DraftField label="Case ID" value={localDraft.case_id} readOnly />
-        <DraftField label="Source Run" value={localDraft.source_run_id} readOnly />
+        <DraftField label="Source Trajectory" value={localDraft.source_run_id} readOnly />
 
         <div className="flex gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
           <ModeButton active={!isSuccess} onClick={() => setMode(false)} tone="failure">Failure case</ModeButton>
@@ -1287,7 +1260,7 @@ function EvalCaseDraftPanel({
           onClick={saveDraft}
           disabled={!localDraft.human_validated}
           className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          title="Persists the validated EvalCase to SQLite (eval_cases table), flips the source run's status, and indexes it into ChromaDB for RAG."
+          title="Persists the validated EvalCase to SQLite (eval_cases table), flips the source trajectory's status, and indexes it into ChromaDB for RAG."
         >
           Save validated case
         </button>
@@ -1428,10 +1401,12 @@ function TraceFooter({ trace, inFlight }: { trace: AgentTrace | null; inFlight: 
   if (runtime > 0 || inFlight) parts.push(formatRuntime(runtime));
   // Tokens are only known once the stream's `done` event delivers the
   // final trace. During streaming we show a soft placeholder so the
-  // footer's width doesn't snap when the numbers land.
+  // footer's width doesn't snap when the numbers land. "tokens" suffix
+  // is appended once to the last token segment so the unit is obvious
+  // without repeating "tok" twice.
   if (hasTokens) {
     parts.push(`${formatTokens(inputTokens)} in`);
-    parts.push(`${formatTokens(outputTokens)} out`);
+    parts.push(`${formatTokens(outputTokens)} out tokens`);
   } else if (inFlight) {
     parts.push('counting tokens…');
   }
@@ -1518,10 +1493,10 @@ function extractAgentSuggestions(trace: AgentTrace | null): ChipTemplate[] {
 
 function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
   return [
-    { label: 'Suggest failure label', text: 'Suggest the failure label for this run.' },
+    { label: 'Suggest failure label', text: 'Suggest the failure label for this trajectory.' },
     { label: 'Generate eval case', text: 'Generate the eval case draft.' },
     { label: 'Find similar failures', text: 'Find similar failure cases from memory.' },
-    { label: 'Compare with another run', text: 'Compare this run with a similar successful run.' },
+    { label: 'Compare with another trajectory', text: 'Compare this trajectory with a similar successful trajectory.' },
     {
       label: 'Inspect this step',
       text: selectedStepIndex === null ? '' : `Inspect step ${selectedStepIndex} in detail.`,
@@ -1533,11 +1508,11 @@ function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
     // when revising the draft, so these chips trigger a fresh proposal.
     {
       label: 'Reclassify as success',
-      text: 'This run actually succeeded. Please re-propose the eval case as a success case (clear all failure fields).',
+      text: 'This trajectory actually succeeded. Please re-propose the eval case as a success case (clear all failure fields).',
     },
     {
       label: 'Reclassify as failure',
-      text: 'This run actually failed. Please re-propose the eval case with the correct failure step, failure type, expected behavior, and actual behavior.',
+      text: 'This trajectory actually failed. Please re-propose the eval case with the correct failure step, failure type, expected behavior, and actual behavior.',
     },
   ];
 }

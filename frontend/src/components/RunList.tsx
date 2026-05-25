@@ -38,7 +38,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
         <div className="relative mb-3">
           <input
             type="text"
-            placeholder="Search runs..."
+            placeholder="Search trajectories..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -77,7 +77,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
           >
             <div className="mb-2 flex items-start justify-between gap-3">
               <span className="min-w-0 truncate text-sm font-bold text-slate-950" title={run.run_id}>
-                Run {truncateRunId(run.run_id)}
+                Trajectory {truncateRunId(run.run_id)}
               </span>
               <StatusBadge status={run.status} />
             </div>
@@ -98,7 +98,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
         ))}
         {filteredRuns.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-sm text-slate-500">
-            No runs found
+            No trajectories found
           </div>
         )}
       </div>

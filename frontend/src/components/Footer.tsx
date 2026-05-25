@@ -19,7 +19,7 @@ export function Footer({ runs }: FooterProps) {
         {latestImport && <span>Latest import: <strong className="font-semibold text-slate-700">{latestImport}</strong></span>}
       </div>
       <div className="shrink-0">
-        {total} runs · <span className="text-red-600">{failed} failed</span> · <span className="text-emerald-600">{success} success</span> · <span className="text-amber-600">{unanalyzed} unanalyzed</span>
+        {total} trajectories · <span className="text-red-600">{failed} failed</span> · <span className="text-emerald-600">{success} success</span> · <span className="text-amber-600">{unanalyzed} unanalyzed</span>
       </div>
     </footer>
   );
