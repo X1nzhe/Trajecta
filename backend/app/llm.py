@@ -18,8 +18,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import os
 from typing import Protocol
+
+
+logger = logging.getLogger(__name__)
 
 
 # Phase 3c will reuse this verbatim for ``get_step_detail`` low-detail mode.
@@ -161,12 +165,48 @@ class RealVLMClient:
 
     Only constructed when ``OPENAI_API_KEY`` and ``TRAJECTA_VLM_MODEL`` are
     both set. Network failures degrade to ``None`` so a single flaky call
-    cannot abort an entire preprocessing run.
+    cannot abort an entire preprocessing run, but the underlying exception
+    is logged at WARNING so silent VLM dead-paths don't go unnoticed
+    (every "vlm_summary: null" in a trace should now have a corresponding
+    log line explaining why).
     """
 
     def __init__(self, *, api_key: str, model_name: str) -> None:
         self._api_key = api_key
         self.model_name = model_name
+
+    def _create_chat(self, client, *, messages: list, max_output_tokens: int):
+        """Wrap chat.completions.create with adaptive max-tokens kwarg.
+
+        OpenAI's newer reasoning-capable models (gpt-5.x, o1, o3, o4)
+        renamed ``max_tokens`` → ``max_completion_tokens`` and reject the
+        old name with HTTP 400 ``unsupported_parameter``. The kwarg name
+        depends on the model and isn't always discoverable from the
+        model id alone (preview / dated variants vary). Strategy:
+
+        1. Prefer ``max_completion_tokens`` (the forward-compatible name).
+        2. On the specific ``unsupported_parameter`` error, fall back to
+           ``max_tokens`` and retry once.
+        3. Any other error propagates and gets logged by the caller.
+        """
+
+        try:
+            return client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                max_completion_tokens=max_output_tokens,
+                temperature=0,
+            )
+        except Exception as exc:
+            if "max_completion_tokens" in str(exc) and "unsupported" in str(exc).lower():
+                # Older model — retry with the legacy kwarg.
+                return client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    max_tokens=max_output_tokens,
+                    temperature=0,
+                )
+            raise
 
     def summarize_low_detail(
         self,
@@ -187,8 +227,8 @@ class RealVLMClient:
         client = OpenAI(api_key=self._api_key)
         data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
         try:
-            response = client.chat.completions.create(
-                model=self.model_name,
+            response = self._create_chat(
+                client,
                 messages=[
                     {
                         "role": "user",
@@ -201,17 +241,32 @@ class RealVLMClient:
                         ],
                     }
                 ],
-                max_tokens=120,
-                temperature=0,
+                max_output_tokens=120,
             )
-        except Exception:
+        except Exception as exc:
+            # Was silent: vlm_summary=null in the trace looked like a
+            # mystery. Log with the model name + exception type so the
+            # operator can immediately see whether it's a 4xx / network /
+            # model-not-found / model-doesn't-support-vision issue.
+            logger.warning(
+                "VLM low-detail call failed (model=%s): %s: %s",
+                self.model_name, type(exc).__name__, exc,
+            )
             return None
 
         try:
             text = response.choices[0].message.content
         except (AttributeError, IndexError):
+            logger.warning(
+                "VLM low-detail response had no message.content (model=%s, response=%r)",
+                self.model_name, response,
+            )
             return None
         if not isinstance(text, str):
+            logger.warning(
+                "VLM low-detail returned non-string content (model=%s, type=%s)",
+                self.model_name, type(text).__name__,
+            )
             return None
         return _normalize_summary(text)
 
@@ -234,8 +289,8 @@ class RealVLMClient:
         client = OpenAI(api_key=self._api_key)
         data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
         try:
-            response = client.chat.completions.create(
-                model=self.model_name,
+            response = self._create_chat(
+                client,
                 messages=[
                     {
                         "role": "user",
@@ -248,17 +303,28 @@ class RealVLMClient:
                         ],
                     }
                 ],
-                max_tokens=500,
-                temperature=0,
+                max_output_tokens=500,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "VLM high-detail call failed (model=%s): %s: %s",
+                self.model_name, type(exc).__name__, exc,
+            )
             return None
 
         try:
             text = response.choices[0].message.content
         except (AttributeError, IndexError):
+            logger.warning(
+                "VLM high-detail response had no message.content (model=%s, response=%r)",
+                self.model_name, response,
+            )
             return None
         if not isinstance(text, str):
+            logger.warning(
+                "VLM high-detail returned non-string content (model=%s, type=%s)",
+                self.model_name, type(text).__name__,
+            )
             return None
         return _normalize_summary(text, max_chars=_MAX_HIGH_DETAIL_CHARS)
 

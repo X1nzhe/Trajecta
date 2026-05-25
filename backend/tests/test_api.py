@@ -539,6 +539,9 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
+        # Per-step analyze was removed; the deprecated /steps/{i}/analyze
+        # endpoint now ignores step_index and routes to the same full-run
+        # analyze path. New traces always carry selected_step=None.
         initial = self.client.post("/api/runs/run_api/steps/0/analyze")
         drain_ndjson(initial)
 
@@ -546,10 +549,10 @@ class ApiTests(unittest.TestCase):
         drain_ndjson(followup)
 
         trace = storage.load_trace("run_api")
-        self.assertEqual(trace.user_intent, "analyze_step")
-        self.assertEqual(trace.selected_step, 0)
+        self.assertEqual(trace.user_intent, "analyze_run")
+        self.assertIsNone(trace.selected_step)
 
-    def test_followup_budget_is_4_via_api(self) -> None:
+    def test_followup_budget_is_FOLLOWUP_BUDGET_via_api(self) -> None:
         _write_real_png("run_api")
         rag.upsert_failure_memory(
             FailureMemoryCase(
@@ -561,12 +564,13 @@ class ApiTests(unittest.TestCase):
         initial = self.client.post("/api/runs/run_api/analyze")
         drain_ndjson(initial)
 
+        # One past the limit must trip budget_exceeded.
         followup_script = [
             _tool_message(
                 "get_step_detail",
-                {"run_id": "run_api", "step_index": 0, "image_detail": "high"},
+                {"run_id": "run_api", "step_index": 1, "image_detail": "high"},
             )
-            for _ in range(5)
+            for _ in range(eval_agent_graph.FOLLOWUP_BUDGET + 1)
         ]
         with mock.patch.object(
             eval_agent_graph,

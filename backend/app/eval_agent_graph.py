@@ -115,7 +115,12 @@ BUDGETED_TOOLS = {
 SEARCH_TOOLS = {"search_failure_memory", "search_eval_cases"}
 TERMINAL_TOOL = "propose_eval_case"
 INITIAL_BUDGET = 8
-FOLLOWUP_BUDGET = 4
+# Followup runs the same loop as the initial analyze; giving it the same
+# budget lets a single followup do a full re-analysis (e.g. user asks the
+# agent to reconsider with a hint, agent re-inspects N steps and revises
+# the draft). Was 4 historically — bumped to 8 once we saw real followups
+# routinely needing get_step_detail + a fresh search pair.
+FOLLOWUP_BUDGET = 8
 _SENSITIVE_RESULT_KEYS = {"screenshot_bytes", "image_bytes", "image_data"}
 
 _TOOL_REGISTRY = {
@@ -160,47 +165,21 @@ def stream_analyze_run(
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
 ) -> Iterator[AgentStreamItem]:
+    """Analyze the full trajectory.
+
+    There is no per-step entry point. The agent always works against the
+    entire trajectory_digest and decides which steps to deep-inspect.
+    Failure attribution is the agent's responsibility, surfaced as
+    ``EvalCase.failure_step``. New traces always carry
+    ``user_intent="analyze_run"`` and ``selected_step=None``; the
+    ``selected_step`` field is retained in the schema only for back-compat
+    reading of older traces from disk.
+    """
+
     yield from stream_analyze(
         run_id,
         user_intent="analyze_run",
         selected_step=None,
-        llm_client=llm_client,
-        budget=budget,
-        persist=persist,
-    )
-
-
-def analyze_step(
-    run_id: str,
-    step_index: int,
-    *,
-    llm_client: AgentLLM | Any | None = None,
-    budget: int = INITIAL_BUDGET,
-    persist: bool = True,
-) -> AgentExecutionResult:
-    return _consume_stream(
-        stream_analyze_step(
-            run_id,
-            step_index,
-            llm_client=llm_client,
-            budget=budget,
-            persist=persist,
-        )
-    )
-
-
-def stream_analyze_step(
-    run_id: str,
-    step_index: int,
-    *,
-    llm_client: AgentLLM | Any | None = None,
-    budget: int = INITIAL_BUDGET,
-    persist: bool = True,
-) -> Iterator[AgentStreamItem]:
-    yield from stream_analyze(
-        run_id,
-        user_intent="analyze_step",
-        selected_step=step_index,
         llm_client=llm_client,
         budget=budget,
         persist=persist,
@@ -471,7 +450,13 @@ def _agent_node(state: GraphState) -> GraphState:
         state["llm_client"] = client
     message = _invoke_model(client, state["messages"])
     state["messages"].append(message)
-    _append_event(state["trace"], "agent_message", turn=state["turn"], message=_message_content(message))
+    # Only record an agent_message event when the model produced actual text.
+    # When the model returns only tool_calls (content == ""), the tool_call
+    # events that follow already represent the agent's intent — emitting a
+    # blank agent_message just renders as "(empty message)" in the UI.
+    content = _message_content(message)
+    if content.strip():
+        _append_event(state["trace"], "agent_message", turn=state["turn"], message=content)
 
     try:
         tool_calls = _extract_tool_calls(message)
@@ -489,6 +474,29 @@ def _agent_node(state: GraphState) -> GraphState:
     state["active_tool_call"] = None
     if tool_calls:
         state["done"] = False
+        return state
+
+    # No tool calls. Behavior depends on which turn we're in:
+    #
+    # * Initial analyze (turn == 0): the agent MUST end by calling
+    #   propose_eval_case. Stopping with plain text is an error — flip
+    #   terminated_by=error, wipe the (non-existent) draft, record the
+    #   diagnostic event so the UI surfaces it.
+    #
+    # * Followup turn (turn > 0): the followup system prompt explicitly
+    #   allows the agent to answer clarification questions in plain text
+    #   without invoking any tool ("If the user only asks a clarification
+    #   question, answer in plain text without invoking any tool."). That
+    #   case is a legitimate turn termination: the agent_message event
+    #   already records the answer the user sees, the previous turn's
+    #   draft remains valid, and terminated_by should keep reflecting the
+    #   prior verdict (typically "propose_eval_case"). Just mark the turn
+    #   done and exit — do not touch errors, eval_case_draft, or
+    #   terminated_by. (Previously this branch fired on every turn and
+    #   silently destroyed the user's draft as soon as they asked a
+    #   followup question that didn't require new tool calls.)
+    if state["turn"] > 0:
+        state["done"] = True
         return state
 
     error = "agent stopped without calling propose_eval_case"
@@ -724,12 +732,17 @@ class OfflineAgentMock:
         return self._proposal_message(messages)
 
     def _selected_failure_step(self) -> int:
+        # All step indices are 1-based (aligned with source step keys and
+        # screenshot filenames). If neither a user-selected step nor any
+        # failed step is available, fall back to the first digest step
+        # rather than the invalid sentinel 0.
         if self._state["user_intent"] == "analyze_step" and self._state["selected_step"] is not None:
             return self._state["selected_step"]
         for step in self._state["trajectory_digest"]:
             if step.get("result_status") == "failed":
-                return int(step.get("index", 0))
-        return 0
+                return int(step.get("index", 1))
+        first = self._state["trajectory_digest"][0] if self._state["trajectory_digest"] else None
+        return int(first.get("index", 1)) if isinstance(first, dict) else 1
 
     def _proposal_message(self, messages: list[AnyMessage]) -> AnyMessage:
         run_id = self._state["run_id"]
@@ -790,16 +803,36 @@ def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
 
 
 def _system_prompt(*, followup: bool) -> str:
+    # Deliberately minimal. Not prompt-tuning — only the contract minimum
+    # (propose_eval_case is the terminal tool; never invent evidence).
+    # Real prompt engineering is deferred.
+    common = (
+        "You are Trajecta's Eval Agent. Use the declared tools only. "
+        "The first HumanMessage carries `run_id` and the full "
+        "`trajectory_digest`. All step indices are 1-based and match the "
+        "source dataset's step keys and screenshot filenames (e.g., "
+        "step_index=7 ↔ screenshot_007.png). Survey the digest to "
+        "identify suspicious steps, deep-inspect them with "
+        "`get_step_detail` at high detail, retrieve relevant failure "
+        "memory and prior eval cases when they would inform your "
+        "verdict, and finish by calling `propose_eval_case` "
+        "(success-shape if no failure found). Never fabricate evidence; "
+        "mark unavailable evidence explicitly via `source=\"unavailable\"`. "
+        "OPTIONAL: pass `suggested_followups` (max 4) on the terminal "
+        "call — short {label, message} pairs the user can click to ask "
+        "a useful next question grounded in THIS trace (e.g., 'Inspect "
+        "step 4 in detail', 'Compare with successful run X'). Skip if "
+        "no specific next step is obvious."
+    )
     if followup:
         return (
             "You are Trajecta's Eval Agent resuming a previous analysis. "
-            "Use targeted tool calls, preserve the original user_intent and selected_step, "
-            "and call propose_eval_case only when revising the eval case draft."
+            "Use targeted tool calls and call `propose_eval_case` only "
+            "when revising the eval case draft. If the user only asks a "
+            "clarification question, answer in plain text without "
+            "invoking any tool."
         )
-    return (
-        "You are Trajecta's Eval Agent. Use the declared tools only. "
-        "Inspect evidence, retrieve relevant memory, and finish by calling propose_eval_case."
-    )
+    return common
 
 
 def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
@@ -840,6 +873,16 @@ def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
                 )
             )
         elif event.type == "tool_error":
+            # Turn-level diagnostics (e.g. "agent stopped without calling
+            # propose_eval_case", "agent graph exceeded recursion limit",
+            # "invalid tool call from agent") are recorded as tool_error
+            # events with no name + no preceding tool_call. Replaying them
+            # as ToolMessage produces an orphan that OpenAI rejects with
+            # "messages with role 'tool' must be a response to a preceeding
+            # message with 'tool_calls'". Skip them; the trace still keeps
+            # them for the UI / observability.
+            if not event.name:
+                continue
             messages.append(
                 ToolMessage(
                     content=json.dumps({"tool_error": event.error or ""}, ensure_ascii=False, sort_keys=True),

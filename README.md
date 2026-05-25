@@ -47,19 +47,40 @@ Core contracts live in [docs/contracts.md](docs/contracts.md). Behavior docs liv
 
 ## Configuration
 
-Local configuration is read from environment variables. You may use `backend/.env`; do not commit secrets.
+Local configuration is read from environment variables. You may use `.env` at the repo root; do not commit secrets.
 
 ```text
-OPENAI_API_KEY=...
-OPENAI_BASE_URL=...
-TRAJECTA_LLM_MODEL=...
-TRAJECTA_VLM_MODEL=...
-TRAJECTA_EMBEDDING_MODEL=...
+# Required for the real-LLM agent + VLM paths.
+OPENAI_API_KEY=sk-...
+
+# Tool-calling Eval Agent (LangChain ChatOpenAI). Without this, the
+# agent falls back to OfflineAgentMock (deterministic, no network).
+TRAJECTA_AGENT_MODEL=gpt-4o-mini
+
+# Trajectory Preprocessing low-detail VLM + get_step_detail high-detail
+# VLM. Without this, both VLM paths fall back to MockVLMClient.
+TRAJECTA_VLM_MODEL=gpt-4o-mini
+
+# Optional: ChromaDB embedding model. Falls back to chromadb's default
+# sentence-transformers if unset. Changing this requires clearing
+# data/chroma/ to rebuild the index — collections are not migrated.
+TRAJECTA_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
-Tests must run without network access. When credentials are missing, preprocessing and agent tests use deterministic mocks.
+**Fallback behavior** — with **no** env vars set, the backend boots
+successfully and `/api/runs/{id}/analyze` runs against:
+- `OfflineAgentMock` for the agent (5-stage deterministic script)
+- `MockVLMClient` for both low-detail preprocessing and high-detail step inspection (deterministic hash-derived summaries)
 
-Changing `TRAJECTA_EMBEDDING_MODEL` requires clearing and rebuilding persisted ChromaDB collections or using model-specific collection names.
+This is the path the default pytest suite exercises. To smoke-test the
+real LLM path end-to-end:
+
+```bash
+OPENAI_API_KEY=sk-... TRAJECTA_AGENT_MODEL=gpt-4o-mini TRAJECTA_VLM_MODEL=gpt-4o-mini \
+  pytest backend/tests/test_real_llm_integration.py -v
+```
+
+This test costs real OpenAI tokens; it's opt-in and not part of CI.
 
 ## Run Backend
 

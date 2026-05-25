@@ -34,7 +34,8 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
   }, [imageHeight, imageWidth, naturalSize, stageSize]);
 
   useEffect(() => {
-    if (!isPlaying || step.index >= totalSteps - 1) return undefined;
+    // step.index is 1-based, so the last step's index equals totalSteps.
+    if (!isPlaying || step.index >= totalSteps) return undefined;
     const timer = window.setInterval(onNext, 1000);
     return () => window.clearInterval(timer);
   }, [isPlaying, onNext, step.index, totalSteps]);
@@ -77,7 +78,7 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
     >
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50/70 px-3 py-2">
         <div className="text-sm font-semibold text-slate-900">
-          Step {step.index + 1} <span className="font-normal text-slate-400">/ {totalSteps}</span>
+          Step {step.index} <span className="font-normal text-slate-400">/ {totalSteps}</span>
           <span className="ml-3 font-normal text-slate-500">Screenshot (after action)</span>
         </div>
         <div className="flex items-center gap-1 text-slate-500">
@@ -107,7 +108,7 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
           >
             <img
               src={screenshotUrl}
-              alt={`Step ${step.index + 1}`}
+              alt={`Step ${step.index}`}
               className={fittedSize ? 'block h-full w-full object-contain' : 'block max-h-full max-w-full object-contain'}
               onLoad={(event) => {
                 setNaturalSize({
@@ -153,12 +154,12 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
 
       <div className="flex shrink-0 items-center justify-between gap-4 border-t border-slate-200 bg-white px-3 py-2">
         <div className="flex items-center gap-1">
-          <button onClick={onPrev} disabled={step.index === 0} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-30" title="Previous step">
+          <button onClick={onPrev} disabled={step.index <= 1} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-30" title="Previous step">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m15 18-6-6 6-6" />
             </svg>
           </button>
-          <button onClick={() => setIsPlaying((value) => step.index < totalSteps - 1 && !value)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700" title={isPlaying ? 'Pause playback' : 'Play steps'}>
+          <button onClick={() => setIsPlaying((value) => step.index < totalSteps && !value)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700" title={isPlaying ? 'Pause playback' : 'Play steps'}>
             {isPlaying ? (
               <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M6 4h2.5v12H6V4Zm5.5 0H14v12h-2.5V4Z" />
@@ -169,17 +170,18 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
               </svg>
             )}
           </button>
-          <button onClick={onNext} disabled={step.index === totalSteps - 1} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-30" title="Next step">
+          <button onClick={onNext} disabled={step.index >= totalSteps} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-30" title="Next step">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m9 18 6-6-6-6" />
             </svg>
           </button>
         </div>
         <div className="relative h-1.5 flex-1 rounded-full bg-slate-200">
-          <div className="absolute left-0 top-0 h-full rounded-full bg-red-400 transition-all" style={{ width: `${(step.index / (totalSteps - 1 || 1)) * 100}%` }} />
-          <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow" style={{ left: `${(step.index / (totalSteps - 1 || 1)) * 100}%` }} />
+          {/* step.index is 1-based; map onto [0%, 100%] across totalSteps - 1 intervals. */}
+          <div className="absolute left-0 top-0 h-full rounded-full bg-red-400 transition-all" style={{ width: `${((step.index - 1) / (totalSteps - 1 || 1)) * 100}%` }} />
+          <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow" style={{ left: `${((step.index - 1) / (totalSteps - 1 || 1)) * 100}%` }} />
         </div>
-        <div className="w-20 text-right text-xs font-medium text-slate-500">Step {step.index + 1} / {totalSteps}</div>
+        <div className="w-20 text-right text-xs font-medium text-slate-500">Step {step.index} / {totalSteps}</div>
       </div>
     </section>
   );

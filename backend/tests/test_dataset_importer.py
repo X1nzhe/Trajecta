@@ -89,7 +89,8 @@ class DatasetImporterTests(unittest.TestCase):
 
         self.assertEqual(run.task, "Find the checkout button.")
         self.assertEqual([step.metadata["source_step_key"] for step in run.steps], ["1", "2"])
-        self.assertEqual(run.steps[0].index, 0)
+        # 1-based step.index aligned with the source step keys.
+        self.assertEqual([step.index for step in run.steps], [1, 2])
         self.assertEqual(run.steps[0].observation.url, "https://example.com/one")
         self.assertEqual(run.steps[0].coordinate_validation.status, "validated")
         self.assertEqual(run.steps[0].action.raw, "mouse_click(x=10, y=20, button='left')")

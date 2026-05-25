@@ -309,6 +309,57 @@ class ToolsTests(unittest.TestCase):
         self.assertIsNone(draft["regression_rule"])
         self.assertFalse(draft["human_validated"])
 
+    def test_propose_eval_case_passes_suggested_followups(self) -> None:
+        """Agent-authored followup chips ride along with the terminal call.
+
+        Transport-only: they appear in the tool's returned payload (which
+        the trace event carries) but are NOT persisted into the EvalCase.
+        """
+
+        storage.save_run(sample_run())
+
+        draft = tools.propose_eval_case(
+            run_id="run_1",
+            evidence=[{"claim": "Step 0 reached the expected page.", "source": "trajectory", "run_id": "run_1", "step_index": 0}],
+            retrieved_context_ids=[],
+            suggested_followups=[
+                {"label": "Inspect step 0", "message": "Inspect step 0 in detail."},
+                {"label": "Find similar", "message": "Find similar successful runs."},
+            ],
+        )
+
+        self.assertIn("suggested_followups", draft)
+        self.assertEqual(len(draft["suggested_followups"]), 2)
+        self.assertEqual(draft["suggested_followups"][0]["label"], "Inspect step 0")
+
+    def test_propose_eval_case_rejects_too_many_followups(self) -> None:
+        storage.save_run(sample_run())
+
+        with self.assertRaises(ValueError):
+            tools.propose_eval_case(
+                run_id="run_1",
+                evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
+                retrieved_context_ids=[],
+                suggested_followups=[
+                    {"label": f"chip {i}", "message": f"msg {i}"} for i in range(5)
+                ],
+            )
+
+    def test_propose_eval_case_rejects_overlong_followup_label(self) -> None:
+        from pydantic import ValidationError
+
+        storage.save_run(sample_run())
+
+        with self.assertRaises(ValidationError):
+            tools.propose_eval_case(
+                run_id="run_1",
+                evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
+                retrieved_context_ids=[],
+                suggested_followups=[
+                    {"label": "x" * 41, "message": "ok"},
+                ],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

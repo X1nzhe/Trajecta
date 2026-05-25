@@ -38,6 +38,7 @@ import chromadb
 from chromadb.api import ClientAPI
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from chromadb.utils import embedding_functions
+from chromadb.utils.embedding_functions import register_embedding_function
 
 from backend.app import storage
 from backend.app.schemas import EvalCase, FailureMemoryCase, TrajectoryRun
@@ -77,6 +78,7 @@ def get_chroma_client() -> ClientAPI:
     return client
 
 
+@register_embedding_function
 class FakeEmbeddingFunction(EmbeddingFunction):
     """Deterministic, hash-based embedding function for tests.
 

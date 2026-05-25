@@ -79,10 +79,19 @@ def normalize_trajectory(raw: dict[str, Any], run_id: str) -> TrajectoryRun:
     step_keys = _sorted_step_keys(trajectory)
 
     steps: list[TrajectoryStep] = []
-    for index, step_key in enumerate(step_keys):
+    for step_key in step_keys:
         raw_step = trajectory[step_key]
         if not isinstance(raw_step, dict):
             continue
+        # Preserve the source dataset's 1-based step numbering. _sorted_step_keys
+        # already validates that step keys are numeric strings, so int() is
+        # safe. Aligning index with the source key (and with the 1-based
+        # screenshot filenames like "screenshot_001.png") avoids the
+        # off-by-one confusion of an enumerate-derived 0-based index where
+        # the same step is referred to by three different numbers across
+        # the stack (internal 0-based vs displayed 1-based vs filename
+        # 1-based).
+        index = int(step_key)
 
         other_obs = _as_dict(raw_step.get("other_obs"))
         action = parse_action(raw_step.get("action"))

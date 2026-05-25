@@ -13,6 +13,13 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+# Load .env from the repo root before any module reads os.environ.
+# Existing shell exports take precedence (override=False is the default)
+# so `export OPENAI_API_KEY=...` still wins over the file.
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(_REPO_ROOT / ".env")
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
@@ -212,16 +219,30 @@ def preprocess_run(run_id: str) -> dict:
 
 @app.post("/api/runs/{run_id}/analyze")
 def analyze_run(run_id: str) -> StreamingResponse:
+    """Analyze the full trajectory.
+
+    The agent always works against the entire trajectory_digest; there is
+    no per-step entry point. Step selection in the UI is a viewing aid
+    only — it does not constrain or hint the agent. Failure attribution
+    is the agent's responsibility, surfaced as ``EvalCase.failure_step``.
+    """
+
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
     return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
 
 
-@app.post("/api/runs/{run_id}/steps/{step_index}/analyze")
+@app.post("/api/runs/{run_id}/steps/{step_index}/analyze", deprecated=True)
 def analyze_step(run_id: str, step_index: int) -> StreamingResponse:
+    """Deprecated. The ``step_index`` is ignored — the agent now always
+    analyzes the full trajectory. Retained as a 200-returning shim so
+    older clients do not break; new code must call POST /api/runs/{id}/analyze.
+    """
+
+    del step_index  # ignored; agent always analyzes the full trajectory
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_step(run_id, step_index))
+    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
 
 
 @app.post("/api/runs/{run_id}/followup")

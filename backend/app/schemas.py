@@ -52,6 +52,9 @@ class CoordinateValidation(BaseModel):
 
 
 class TrajectoryStep(BaseModel):
+    # 1-based, matches the source dataset's step key and the screenshot
+    # filename suffix (step.index=7 ↔ source key "7" ↔ "screenshot_007.png").
+    # UI displays step.index directly without any offset conversion.
     index: int
     timestamp: str | None = None
     observation: StepObservation
@@ -99,6 +102,21 @@ class FailureMemoryCase(BaseModel):
     fix_hint: str | None = None
     tags: list[str] = Field(default_factory=list)
     source_run_id: str | None = None
+
+
+class FollowupSuggestion(BaseModel):
+    """Agent-authored followup-question chip shown in the UI after analyze.
+
+    Transport-only: these are passed as a kwarg of the terminal
+    ``propose_eval_case`` tool call so the trace carries them through,
+    but they are NOT persisted as part of the ``EvalCase`` schema. The
+    frontend reads the latest ``propose_eval_case`` tool_call event's
+    args. Bounded length to keep chip rendering predictable; max 4
+    suggestions per call is enforced in ``tools.propose_eval_case``.
+    """
+
+    label: str = Field(min_length=1, max_length=40)
+    message: str = Field(min_length=1, max_length=200)
 
 
 class EvidenceItem(BaseModel):

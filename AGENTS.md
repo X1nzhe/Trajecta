@@ -52,6 +52,12 @@ If a future subdirectory contains its own `AGENTS.md`, follow that nearest file 
 - ChromaDB persists separately under `data/chroma/`. Do not collapse the two stores.
 - Always reach the DB through `backend/app/storage.py`. No raw SQL or `Session()` construction elsewhere.
 
+## LLM / VLM Configuration
+The backend has two model-selection environment variables that gate the real-vs-mock split. Both default to deterministic mocks when unset, so tests + cold-start demos run without network. See [README.md](README.md) "Configuration" for the full env-var table.
+- `OPENAI_API_KEY` + `TRAJECTA_AGENT_MODEL` → tool-calling Eval Agent uses `ChatOpenAI(...).bind_tools([...])`. Without both, `OfflineAgentMock` runs a fixed 5-stage script (`get_run` → `get_step_detail` → `find_similar_successful_run` → `search_failure_memory` → `propose_eval_case`).
+- `OPENAI_API_KEY` + `TRAJECTA_VLM_MODEL` → Trajectory Preprocessing + `get_step_detail` use `RealVLMClient` against the OpenAI Chat Completions API with `image_url` content. Without both, `MockVLMClient` returns deterministic hash-derived summaries.
+- The default pytest suite covers the mock paths. The real-LLM agent path has one opt-in smoke test at `backend/tests/test_real_llm_integration.py`; it skips unless `OPENAI_API_KEY` + `TRAJECTA_AGENT_MODEL` are set.
+
 ## Commands
 Backend:
 - cd backend

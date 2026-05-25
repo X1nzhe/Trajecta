@@ -14,7 +14,6 @@ interface EvalAgentPanelProps {
   onEvalCaseValidated?: () => void;
 }
 
-type AnalyzeMode = 'run' | 'step';
 
 export function EvalAgentPanel({
   run,
@@ -32,6 +31,7 @@ export function EvalAgentPanel({
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const [draftViewed, setDraftViewed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const latestToolError = useMemo(() => latestError(trace), [trace]);
   const hasTrace = Boolean(trace && trace.turn_count > 0);
@@ -43,13 +43,13 @@ export function EvalAgentPanel({
     setPendingUserMessage(null);
     setExpandedEvents(new Set());
     setFeedback(null);
+    setDraftViewed(false);
   }, [run?.run_id]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const runAnalysis = async (mode: AnalyzeMode) => {
+  const runAnalysis = async () => {
     if (!run || inFlight) return;
-    if (mode === 'step' && selectedStepIndex === null) return;
 
     const controller = new AbortController();
     abortRef.current?.abort();
@@ -57,17 +57,14 @@ export function EvalAgentPanel({
     setInFlight(true);
     setPanelError(null);
     setPendingUserMessage(null);
+    setDraftViewed(false);
     onDraftChange(null);
-    onTraceChange(emptyTrace(run.run_id, mode, selectedStepIndex));
-
-    const url = mode === 'run'
-      ? `/api/runs/${run.run_id}/analyze`
-      : `/api/runs/${run.run_id}/steps/${selectedStepIndex}/analyze`;
+    onTraceChange(emptyTrace(run.run_id));
 
     try {
-      const done = await streamAgentRequest(url, {
+      const done = await streamAgentRequest(`/api/runs/${run.run_id}/analyze`, {
         signal: controller.signal,
-        onEvent: (event) => onTraceChange(appendEvent(run.run_id, mode, selectedStepIndex, event)),
+        onEvent: (event) => onTraceChange(appendEvent(run.run_id, event)),
       });
       onTraceChange(done.agent_trace);
       onDraftChange(done.eval_case_draft);
@@ -98,7 +95,7 @@ export function EvalAgentPanel({
         signal: controller.signal,
         onEvent: (event) => {
           setPendingUserMessage(null);
-          onTraceChange(appendEvent(run.run_id, trace.user_intent === 'analyze_step' ? 'step' : 'run', trace.selected_step ?? null, event));
+          onTraceChange(appendEvent(run.run_id, event));
         },
       });
       onTraceChange(done.agent_trace);
@@ -116,14 +113,31 @@ export function EvalAgentPanel({
     if (!run || inFlight) return;
     const shouldRerun = window.confirm('Start a fresh analysis for this run? The current trace view will be replaced.');
     if (!shouldRerun) return;
-    if (trace?.user_intent === 'analyze_step') {
-      runAnalysis('step');
-    } else {
-      runAnalysis('run');
-    }
+    runAnalysis();
   };
 
-  const chipTemplates = promptChips(selectedStepIndex);
+  // Prefer agent-suggested chips from the latest propose_eval_case event's
+  // tool_call.args.suggested_followups (transport-only, not persisted).
+  // Falls back to the hard-coded promptChips list when the agent did not
+  // supply any (e.g., older traces, success cases the model didn't bother
+  // to annotate, model that ignored the optional field).
+  const chipTemplates = useMemo(() => {
+    const agentChips = extractAgentSuggestions(trace);
+    return agentChips.length > 0 ? agentChips : promptChips(selectedStepIndex);
+  }, [trace, selectedStepIndex]);
+
+  // Split events by turn so the trace renders in two regions sandwiching
+  // the verdict (Summary + draft). Initial analyze events stay above;
+  // followup chat events go below the View Draft button so each new
+  // followup feels like an append-only conversation.
+  const initialTurnEvents = useMemo(
+    () => trace?.events.filter((event) => event.turn === 0) ?? [],
+    [trace],
+  );
+  const followupEvents = useMemo(
+    () => trace?.events.filter((event) => event.turn > 0) ?? [],
+    [trace],
+  );
   const inputDisabled = !run || !hasTrace || inFlight;
 
   return (
@@ -140,7 +154,7 @@ export function EvalAgentPanel({
               <h2 className="font-bold text-slate-950">Eval Agent</h2>
               <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Beta</span>
             </div>
-            <TerminationBadge trace={trace} latestToolError={latestToolError} />
+            <TerminationBadge trace={trace} latestToolError={latestToolError} inFlight={inFlight} />
           </div>
         </div>
         <button
@@ -153,82 +167,131 @@ export function EvalAgentPanel({
       </div>
 
       <div className="border-b border-slate-200 bg-white p-3">
-        <div className="grid grid-cols-2 gap-2">
-          <PrimaryAgentButton
-            label="Analyze this run"
-            icon="run"
-            disabled={!run || inFlight}
-            onClick={() => runAnalysis('run')}
-          />
-          <PrimaryAgentButton
-            label="Analyze this step"
-            icon="step"
-            active
-            disabled={!run || selectedStepIndex === null || inFlight}
-            onClick={() => runAnalysis('step')}
-          />
-        </div>
+        <PrimaryAgentButton
+          label="Analyze trajectory"
+          icon="run"
+          active
+          disabled={!run || inFlight}
+          onClick={runAnalysis}
+        />
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/70 p-3">
-        <ObservationSummaryPanel
-          run={run}
-          trace={trace}
-          draft={evalCaseDraft}
-          onSelectStep={onSelectStep}
-          onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
-        />
+        {/* Progressive disclosure with three regions:
+              1. Initial analyze events (turn 0)  — above
+              2. Verdict: Observation Summary + View Draft + (optional) Draft editor
+              3. Followup chat (turn >= 1)         — below
 
+            Splitting turn-0 above and turn-1+ below makes followup feel
+            chat-like: the verdict stays put, new messages append at the
+            bottom. Before the split, every followup triggered inFlight,
+            hid the Summary/View Draft, and reflowed the layout. */}
         <TraceHistory
-          trace={trace}
-          pendingUserMessage={pendingUserMessage}
-          inFlight={inFlight}
-          panelError={panelError}
+          events={initialTurnEvents}
+          pendingUserMessage={null}
+          inFlight={inFlight && followupEvents.length === 0 && pendingUserMessage === null}
+          panelError={!evalCaseDraft ? panelError : null}
           expandedEvents={expandedEvents}
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
         />
 
-        <EvalCaseDraftPanel
-          draft={evalCaseDraft}
-          onDraftChange={onDraftChange}
+        {/* Summary + draft persist across followups: no !inFlight gate.
+            The presence of evalCaseDraft is the sole condition — once the
+            initial analyze ends with propose_eval_case, the verdict is
+            "what's on the table" until the user re-analyzes. */}
+        {evalCaseDraft && (
+          <ObservationSummaryPanel
+            run={run}
+            trace={trace}
+            draft={evalCaseDraft}
+            onSelectStep={onSelectStep}
+            onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
+          />
+        )}
+
+        {evalCaseDraft && !draftViewed && (
+          <button
+            onClick={() => {
+              setDraftViewed(true);
+              requestAnimationFrame(() => {
+                document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+            }}
+            className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+          >
+            View draft eval case →
+          </button>
+        )}
+
+        {draftViewed && (
+          <EvalCaseDraftPanel
+            draft={evalCaseDraft}
+            onDraftChange={onDraftChange}
+            onSelectStep={onSelectStep}
+            onValidated={onEvalCaseValidated}
+          />
+        )}
+
+        {/* Followup chat region: turn >= 1 events plus pendingUserMessage
+            and any in-flight indicator. Empty by default — only appears
+            after the user sends a followup. */}
+        <TraceHistory
+          events={followupEvents}
+          pendingUserMessage={pendingUserMessage}
+          inFlight={inFlight && (followupEvents.length > 0 || pendingUserMessage !== null)}
+          panelError={evalCaseDraft ? panelError : null}
+          expandedEvents={expandedEvents}
+          onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
-          onValidated={onEvalCaseValidated}
         />
 
-        <div className="flex gap-2">
-          <button
-            onClick={() => setFeedback('up')}
-            disabled={!hasTrace}
-            className={`rounded-md border px-2 py-1 text-slate-500 disabled:cursor-not-allowed disabled:opacity-40 ${feedback === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
-            title="Helpful"
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 11v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 5-8a2 2 0 0 1 3.7 1.3L15 9h4.3a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 18 21H7V11Z" /></svg>
-          </button>
-          <button
-            onClick={() => setFeedback('down')}
-            disabled={!hasTrace}
-            className={`rounded-md border px-2 py-1 text-slate-500 disabled:cursor-not-allowed disabled:opacity-40 ${feedback === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
-            title="Not helpful"
-          >
-            <svg className="h-4 w-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 11v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 5-8a2 2 0 0 1 3.7 1.3L15 9h4.3a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 18 21H7V11Z" /></svg>
-          </button>
-        </div>
+        {/* Thumbs feedback only shown once there is a finished trace to react
+            to. hasTrace alone goes true the moment emptyTrace is created on
+            Analyze click, which is too early — the user is still watching the
+            agent work. Gate on !inFlight so thumbs appear only after the
+            stream completes (or after a failure, where the user might want
+            to thumb-down). */}
+        {hasTrace && !inFlight && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setFeedback('up')}
+              className={`rounded-md border px-2 py-1 text-slate-500 ${feedback === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+              title="Helpful"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 11v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 5-8a2 2 0 0 1 3.7 1.3L15 9h4.3a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 18 21H7V11Z" /></svg>
+            </button>
+            <button
+              onClick={() => setFeedback('down')}
+              className={`rounded-md border px-2 py-1 text-slate-500 ${feedback === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+              title="Not helpful"
+            >
+              <svg className="h-4 w-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 11v10H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h3Zm0 0 5-8a2 2 0 0 1 3.7 1.3L15 9h4.3a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 18 21H7V11Z" /></svg>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-slate-200 bg-white p-3">
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {chipTemplates.map((chip) => (
-            <button
-              key={chip.label}
-              onClick={() => setInput(chip.text)}
-              disabled={!hasTrace || chip.disabled || inFlight}
-              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
+        {/* Prompt chips are only meaningful as followup shortcuts AFTER a
+            trace exists AND the agent is idle. Hiding during inFlight
+            matches the chat input (also disabled) and avoids dangling
+            "Suggest failure label" buttons while the failure is still
+            being computed. */}
+        {hasTrace && !inFlight && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {chipTemplates.map((chip) => (
+              <button
+                key={chip.label}
+                onClick={() => setInput(chip.text)}
+                disabled={chip.disabled}
+                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="relative">
           <textarea
             value={input}
@@ -320,23 +383,48 @@ function ObservationSummaryPanel({
   }
 
   const stale = trace?.terminated_by && trace.terminated_by !== 'propose_eval_case';
-  const visualEvidence = draft.evidence.filter((item) => isVisualEvidence(item));
+  // Dedupe visual evidence by step_index: the agent often emits multiple
+  // EvidenceItem entries for the same step (one per claim it derived from
+  // the screenshot) and we don't want N copies of the same thumbnail.
+  // Keep the first claim as the tooltip; "Findings" still lists every claim.
+  const visualEvidence = (() => {
+    const seen = new Set<number>();
+    const out: EvidenceItem[] = [];
+    for (const item of draft.evidence) {
+      if (!isVisualEvidence(item)) continue;
+      const idx = item.step_index as number;
+      if (seen.has(idx)) continue;
+      seen.add(idx);
+      out.push(item);
+    }
+    return out;
+  })();
   const unavailable = draft.evidence.filter((item) => item.source === 'unavailable');
   const isSuccess = draft.failure_type === null;
-  const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step + 1 : null;
-  const headerTitle = isSuccess
-    ? 'Analysis Result (Success)'
-    : `Analysis Result (Step ${displayStep ?? '?'})`;
+  // failure_step on the draft is already a 1-based step index (matches
+  // source step keys + screenshot filenames). The "Failure attributed to
+  // step N" chip is only rendered for failure cases that name a step;
+  // success cases or malformed drafts intentionally omit it.
+  const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step : null;
 
   return (
     <section className={`rounded-lg border bg-white shadow-sm ${stale ? 'border-amber-200' : 'border-slate-200'}`}>
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-        <h3 className={`text-sm font-bold ${isSuccess ? 'text-emerald-700' : 'text-indigo-700'}`}>{headerTitle}</h3>
+        <h3 className={`text-sm font-bold ${isSuccess ? 'text-emerald-700' : 'text-indigo-700'}`}>Analysis Result</h3>
         {stale && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">stale</span>}
       </div>
       <div className="space-y-3 p-3 text-sm text-slate-700">
-        {draft.actual_behavior && <p className="leading-5">{draft.actual_behavior}</p>}
-        {draft.expected_behavior && <p className="text-xs leading-5 text-slate-500">Expected: {draft.expected_behavior}</p>}
+        {!isSuccess && displayStep !== null && typeof draft.failure_step === 'number' && (
+          <button
+            onClick={() => onSelectStep(draft.failure_step as number)}
+            className="flex w-full items-center justify-between gap-2 rounded-md border border-red-100 bg-red-50 px-2.5 py-1.5 text-left text-xs font-semibold text-red-700 hover:bg-red-100"
+          >
+            <span>Failure attributed to <span className="font-bold">step {displayStep}</span></span>
+            <span className="text-red-500">→ Jump to step</span>
+          </button>
+        )}
+        {draft.actual_behavior && <p className="break-words leading-5">{draft.actual_behavior}</p>}
+        {draft.expected_behavior && <p className="break-words text-xs leading-5 text-slate-500">Expected: {draft.expected_behavior}</p>}
         {isSuccess && (
           <p className="leading-5 text-emerald-700">The agent concluded this trajectory completed the task successfully.</p>
         )}
@@ -345,6 +433,9 @@ function ObservationSummaryPanel({
           <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Findings</h4>
           <ul className="space-y-1.5">
             {draft.evidence.map((item, index) => (
+              // Agent's claims can include unbroken URLs (e.g. "github.com/search?q=…")
+              // that don't have spaces. Without min-w-0 + break-words the long
+              // token pushes the flex row past the right edge of the panel.
               <li key={`${item.claim}-${index}`} className="flex gap-2 leading-5">
                 <WarningIcon muted={item.source === 'unavailable'} />
                 <button
@@ -352,7 +443,7 @@ function ObservationSummaryPanel({
                     if (typeof item.step_index === 'number') onSelectStep(item.step_index);
                     if (typeof item.trace_event_seq === 'number') onOpenTraceEvent(item.trace_event_seq);
                   }}
-                  className="text-left hover:text-indigo-700"
+                  className="min-w-0 flex-1 break-words text-left hover:text-indigo-700"
                 >
                   {item.claim}
                 </button>
@@ -385,7 +476,7 @@ function ObservationSummaryPanel({
                     className="h-12 w-20 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-sm hover:border-indigo-300"
                     title={item.claim}
                   >
-                    <img src={`/api/runs/${run.run_id}/screenshots/${screenshot}`} alt={`Evidence step ${step.index + 1}`} className="h-full w-full object-cover" />
+                    <img src={`/api/runs/${run.run_id}/screenshots/${screenshot}`} alt={`Evidence step ${step.index}`} className="h-full w-full object-cover" />
                   </button>
                 );
               })}
@@ -415,7 +506,7 @@ function ObservationSummaryPanel({
 }
 
 function TraceHistory({
-  trace,
+  events,
   pendingUserMessage,
   inFlight,
   panelError,
@@ -423,7 +514,7 @@ function TraceHistory({
   onToggleEvent,
   onSelectStep,
 }: {
-  trace: AgentTrace | null;
+  events: AgentTraceEvent[];
   pendingUserMessage: string | null;
   inFlight: boolean;
   panelError: string | null;
@@ -431,33 +522,31 @@ function TraceHistory({
   onToggleEvent: (seq: number) => void;
   onSelectStep: (index: number) => void;
 }) {
-  const rows = traceRows(trace?.events ?? []);
+  const rows = traceRows(events);
+  // Render nothing when there is nothing to show. The empty right column
+  // is the cue for "nothing happened yet"; inFlight keeps the wrapper
+  // mounted during the brief gap before the first event lands so we don't
+  // flicker null ↔ rendered.
+  const hasContent = rows.length > 0 || Boolean(pendingUserMessage) || inFlight || Boolean(panelError);
+  if (!hasContent) return null;
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-        <h3 className="text-sm font-bold text-slate-900">Trace Timeline</h3>
-        {trace && <span className="text-[11px] text-slate-500">{trace.tool_call_count} tool calls · {trace.turn_count} turns</span>}
-      </div>
-      <div className="space-y-3 p-3">
-        {!trace && !panelError && <p className="text-sm text-slate-500">Trace events will appear here as the agent calls tools.</p>}
-        {rows.map((row) => (
-          <TraceRow
-            key={row.event.seq}
-            row={row}
-            expanded={expandedEvents.has(row.event.seq)}
-            onToggle={() => onToggleEvent(row.event.seq)}
-            onSelectStep={onSelectStep}
-          />
-        ))}
-        {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
-        {inFlight && <TypingIndicator />}
-        {panelError && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-            {panelError}
-          </div>
-        )}
-      </div>
+    <section className="space-y-2">
+      {rows.map((row) => (
+        <TraceRow
+          key={row.event.seq}
+          row={row}
+          expanded={expandedEvents.has(row.event.seq)}
+          onToggle={() => onToggleEvent(row.event.seq)}
+          onSelectStep={onSelectStep}
+        />
+      ))}
+      {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
+      {panelError && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          {panelError}
+        </div>
+      )}
     </section>
   );
 }
@@ -504,44 +593,117 @@ function TraceRow({
   const event = row.event;
   if (event.type === 'user_message') return <MessageBubble align="right" message={event.message ?? ''} />;
   if (event.type === 'agent_message') return <MessageBubble align="left" message={event.message ?? ''} />;
-  if (event.type === 'tool_error') return <ToolErrorCard event={event} />;
-  if (event.type === 'tool_result') return <ToolResultCard event={event} expanded={expanded} onToggle={onToggle} />;
+  if (event.type === 'tool_error') return <ToolErrorBullet event={event} />;
+  if (event.type === 'tool_result') return null; // results are folded into the matching tool_call row
 
   const stepIndex = typeof event.args?.step_index === 'number' ? event.args.step_index : null;
-  const resultSummary = row.error?.error ?? summarizeResult(row.result?.result);
-  const isTerminal = event.name === 'propose_eval_case';
+  const errored = Boolean(row.error);
+  const description = friendlyToolDescription(event, row.result?.result);
+  const statusGlyph = errored ? '⚠' : '✓';
+  const statusColor = errored ? 'text-red-600' : 'text-emerald-600';
 
   return (
-    <div className={`rounded-lg border p-2 text-xs ${row.error ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+    <div className="rounded-md border border-slate-200 bg-white">
       <button
         onClick={() => {
           onToggle();
           if (event.name === 'get_step_detail' && stepIndex !== null) onSelectStep(stepIndex);
         }}
-        className="flex w-full items-start justify-between gap-3 text-left"
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
       >
-        <div className="min-w-0">
-          <div className="font-mono font-semibold text-slate-800">{event.name}</div>
-          <div className="mt-1 truncate text-slate-500">{summarizeArgs(event.args)}</div>
-          {resultSummary && <div className={`mt-1 ${row.error ? 'text-red-700' : 'text-slate-600'}`}>{resultSummary}</div>}
-        </div>
-        <span className="shrink-0 text-slate-400">#{event.seq}</span>
+        <ToolGlyph name={event.name ?? ''} />
+        <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{description}</span>
+        <span className={`shrink-0 text-xs font-semibold ${statusColor}`}>{statusGlyph}</span>
+        <span className="shrink-0 text-[10px] text-slate-400">{expanded ? '⌃' : '⌄'}</span>
       </button>
-      {isTerminal && (
-        <button
-          onClick={() => document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          className="mt-2 w-full rounded-md border border-slate-200 bg-white py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          View Draft
-        </button>
-      )}
       {expanded && (
-        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-white p-2 text-[11px] leading-4 text-slate-700">
+        <div className="border-t border-slate-100 px-2.5 py-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            {event.name}
+          </div>
+          <pre className="max-h-48 overflow-auto rounded-md bg-slate-50 p-2 text-[10px] leading-4 text-slate-700">
 {JSON.stringify({ args: event.args, result: row.result?.result, error: row.error?.error }, null, 2)}
-        </pre>
+          </pre>
+        </div>
       )}
     </div>
   );
+}
+
+function ToolGlyph({ name }: { name: string }) {
+  // Minimal, monochrome SVG glyphs. Could be replaced with an icon
+  // library later; deliberately not pulling lucide-react for one panel.
+  const map: Record<string, JSX.Element> = {
+    get_run: <path d="M4 6h16M4 12h16M4 18h10" strokeWidth="1.8" strokeLinecap="round" />,
+    get_step_detail: <path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm9 16-4.35-4.35" strokeWidth="1.8" strokeLinecap="round" />,
+    find_similar_successful_run: <path d="M4 12h6m4 0h6m-10-6 4 6-4 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />,
+    search_failure_memory: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" strokeWidth="1.8" strokeLinecap="round" />,
+    search_eval_cases: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z M10 7v7M7 10h7" strokeWidth="1.8" strokeLinecap="round" />,
+    propose_eval_case: <path d="M5 12l5 5L20 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />,
+  };
+  return (
+    <svg className="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      {map[name] ?? <circle cx="12" cy="12" r="3" />}
+    </svg>
+  );
+}
+
+function ToolErrorBullet({ event }: { event: AgentTraceEvent }) {
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700">
+      <div className="flex items-start gap-2">
+        <span className="font-semibold">⚠</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">{event.name ?? 'Agent error'}</div>
+          {event.error && <div className="mt-0.5 break-words text-red-700/90">{event.error}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, unknown> | undefined): string {
+  const args = event.args ?? {};
+  const stepIndex = typeof args.step_index === 'number' ? args.step_index : null;
+  const imageDetail = typeof args.image_detail === 'string' ? args.image_detail : 'high';
+  const query = typeof args.query === 'string' ? args.query : null;
+  const task = typeof args.task === 'string' ? args.task : null;
+  const runId = typeof args.run_id === 'string' ? args.run_id : null;
+  const itemCount = Array.isArray(result?.items) ? (result!.items as unknown[]).length : null;
+
+  switch (event.name) {
+    case 'get_run':
+      return runId ? `Loaded run metadata for ${shortRunId(runId)}` : 'Loaded run metadata';
+    case 'get_step_detail':
+      return stepIndex !== null
+        ? `Inspected step ${stepIndex} (${imageDetail} detail)`
+        : `Inspected a step (${imageDetail} detail)`;
+    case 'find_similar_successful_run':
+      if (itemCount === 0) return 'Looked for similar successful runs — none yet';
+      if (itemCount !== null) return `Found ${itemCount} similar successful run${itemCount === 1 ? '' : 's'}`;
+      return task ? `Searching for similar successful runs to: ${shorten(task, 60)}` : 'Searching for similar successful runs';
+    case 'search_failure_memory':
+      if (itemCount !== null && query) return `Searched failure memory for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
+      if (query) return `Searching failure memory for "${shorten(query, 60)}"`;
+      return 'Searching failure memory';
+    case 'search_eval_cases':
+      if (itemCount !== null && query) return `Searched prior eval cases for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
+      if (query) return `Searching prior eval cases for "${shorten(query, 60)}"`;
+      return 'Searching prior eval cases';
+    case 'propose_eval_case': {
+      const caseId = typeof result?.case_id === 'string' ? result.case_id : null;
+      const isSuccess = result?.failure_type === null || result?.failure_type === undefined;
+      if (caseId && isSuccess) return `Drafted success eval case (${shortenCaseId(caseId)})`;
+      if (caseId) return `Drafted eval case (${shortenCaseId(caseId)})`;
+      return 'Drafting eval case';
+    }
+    default:
+      return event.name ?? '(unknown tool)';
+  }
+}
+
+function shortRunId(runId: string) {
+  return runId.length > 12 ? `${runId.slice(0, 8)}…` : runId;
 }
 
 function MessageBubble({ align, message, muted = false }: { align: 'left' | 'right'; message: string; muted?: boolean }) {
@@ -554,40 +716,6 @@ function MessageBubble({ align, message, muted = false }: { align: 'left' | 'rig
       } ${muted ? 'opacity-70' : ''}`}>
         {message || '(empty message)'}
       </div>
-    </div>
-  );
-}
-
-function ToolErrorCard({ event }: { event: AgentTraceEvent }) {
-  return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-      <div className="font-mono font-semibold">{event.name ?? 'tool_error'}</div>
-      <div className="mt-1">{event.error}</div>
-    </div>
-  );
-}
-
-function ToolResultCard({
-  event,
-  expanded,
-  onToggle,
-}: {
-  event: AgentTraceEvent;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
-      <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 text-left">
-        <span className="font-mono font-semibold text-slate-800">{event.name ?? 'tool_result'}</span>
-        <span className="text-slate-400">#{event.seq}</span>
-      </button>
-      <div className="mt-1 text-slate-600">{summarizeResult(event.result)}</div>
-      {expanded && (
-        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-white p-2 text-[11px] leading-4 text-slate-700">
-{JSON.stringify(event.result, null, 2)}
-        </pre>
-      )}
     </div>
   );
 }
@@ -647,9 +775,9 @@ function EvalCaseDraftPanel({
     update({ evidence });
   };
 
-  const exportDraft = async () => {
+  const saveDraft = async () => {
     if (!localDraft.human_validated) return;
-    setExportStatus('Exporting...');
+    setExportStatus('Saving…');
     try {
       const saved = await createEvalCase(localDraft);
       setLocalDraft(saved);
@@ -657,7 +785,7 @@ function EvalCaseDraftPanel({
       onDraftChange(saved);
       setDirty(false);
       dirtyRef.current = false;
-      setExportStatus('Exported validated eval case.');
+      setExportStatus('Saved. Indexed into RAG; run status updated.');
       onValidated?.();
     } catch (error) {
       setExportStatus(errorMessage(error));
@@ -710,7 +838,7 @@ function EvalCaseDraftPanel({
                   <SourceBadge source={item.source} />
                   {typeof item.step_index === 'number' && (
                     <button onClick={() => onSelectStep(item.step_index as number)} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600 hover:text-indigo-700">
-                      step {item.step_index + 1}
+                      step {item.step_index}
                     </button>
                   )}
                   {typeof item.trace_event_seq === 'number' && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-500">trace #{item.trace_event_seq}</span>}
@@ -740,11 +868,12 @@ function EvalCaseDraftPanel({
           Mark validated
         </label>
         <button
-          onClick={exportDraft}
+          onClick={saveDraft}
           disabled={!localDraft.human_validated}
           className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          title="Persists the validated EvalCase to SQLite (eval_cases table), flips the source run's status, and indexes it into ChromaDB for RAG."
         >
-          Export Eval Case
+          Save validated case
         </button>
         {exportStatus && <div className="text-xs text-slate-500">{exportStatus}</div>}
       </div>
@@ -804,8 +933,21 @@ function DraftTextArea({ label, value, onChange }: { label: string; value: strin
   );
 }
 
-function TerminationBadge({ trace, latestToolError }: { trace: AgentTrace | null; latestToolError: string | null }) {
+function TerminationBadge({ trace, latestToolError, inFlight }: { trace: AgentTrace | null; latestToolError: string | null; inFlight: boolean }) {
   if (!trace) return <div className="mt-0.5 text-[11px] text-slate-400">No trace yet</div>;
+  // While the analyze stream is in flight, ignore the placeholder
+  // terminated_by="error" baked into emptyTrace — the real terminator
+  // only lands when the `done` event arrives. Showing "running" avoids
+  // misleading the user that the run failed.
+  if (inFlight) {
+    return (
+      <div className="mt-0.5">
+        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+          running…
+        </span>
+      </div>
+    );
+  }
   const classes = trace.terminated_by === 'propose_eval_case'
     ? 'bg-emerald-50 text-emerald-700'
     : trace.terminated_by === 'budget_exceeded'
@@ -837,17 +979,38 @@ function SourceBadge({ source }: { source: EvidenceItem['source'] }) {
   );
 }
 
-function TypingIndicator() {
-  return (
-    <div className="flex justify-start">
-      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">
-        Eval Agent is analyzing...
-      </div>
-    </div>
-  );
+type ChipTemplate = { label: string; text: string; disabled?: boolean };
+
+function extractAgentSuggestions(trace: AgentTrace | null): ChipTemplate[] {
+  // Walk events backwards to find the latest propose_eval_case tool_call.
+  // suggested_followups (if any) is on args of that call. Defensive parsing:
+  // unknown / malformed entries are dropped silently — falling back to the
+  // hard-coded list is preferable to crashing the chip rail.
+  for (const event of [...(trace?.events ?? [])].reverse()) {
+    if (event.type === 'tool_call' && event.name === 'propose_eval_case') {
+      const raw = event.args?.suggested_followups;
+      if (!Array.isArray(raw)) return [];
+      const chips: ChipTemplate[] = [];
+      for (const item of raw) {
+        if (
+          item &&
+          typeof item === 'object' &&
+          typeof (item as { label?: unknown }).label === 'string' &&
+          typeof (item as { message?: unknown }).message === 'string'
+        ) {
+          const { label, message } = item as { label: string; message: string };
+          if (label.trim() && message.trim()) {
+            chips.push({ label: label.slice(0, 40), text: message.slice(0, 200) });
+          }
+        }
+      }
+      return chips.slice(0, 4);
+    }
+  }
+  return [];
 }
 
-function promptChips(selectedStepIndex: number | null) {
+function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
   return [
     { label: 'Suggest failure label', text: 'Suggest the failure label for this run.' },
     { label: 'Generate eval case', text: 'Generate the eval case draft.' },
@@ -862,11 +1025,11 @@ function promptChips(selectedStepIndex: number | null) {
   ];
 }
 
-function emptyTrace(runId: string, mode: AnalyzeMode, selectedStepIndex: number | null): AgentTrace {
+function emptyTrace(runId: string): AgentTrace {
   return {
     run_id: runId,
-    user_intent: mode === 'run' ? 'analyze_run' : 'analyze_step',
-    selected_step: mode === 'step' ? selectedStepIndex ?? undefined : undefined,
+    user_intent: 'analyze_run',
+    selected_step: undefined,
     tool_call_count: 0,
     turn_count: 1,
     terminated_by: 'error',
@@ -874,9 +1037,9 @@ function emptyTrace(runId: string, mode: AnalyzeMode, selectedStepIndex: number 
   };
 }
 
-function appendEvent(runId: string, mode: AnalyzeMode, selectedStepIndex: number | null, event: AgentTraceEvent) {
+function appendEvent(runId: string, event: AgentTraceEvent) {
   return (current: AgentTrace | null): AgentTrace => {
-    const base = current ?? emptyTrace(runId, mode, selectedStepIndex);
+    const base = current ?? emptyTrace(runId);
     if (base.events.some((item) => item.seq === event.seq)) return base;
     return { ...base, events: [...base.events, event] };
   };
@@ -889,24 +1052,20 @@ function isVisualEvidence(item: EvidenceItem) {
   );
 }
 
-function summarizeArgs(args?: Record<string, unknown>) {
-  if (!args) return 'no args';
-  return shorten(JSON.stringify(args), 120);
-}
-
-function summarizeResult(result?: Record<string, unknown>) {
-  if (!result) return null;
-  if (typeof result.tool_error === 'string') return result.tool_error;
-  if (typeof result.case_id === 'string') return `draft ${result.case_id}`;
-  if (typeof result.failure_type === 'string') return `failure_type: ${result.failure_type}`;
-  if (typeof result.vlm_summary === 'string') return shorten(result.vlm_summary, 120);
-  if (Array.isArray(result.items)) return `${result.items.length} item${result.items.length === 1 ? '' : 's'}`;
-  if (typeof result.has_screenshot === 'boolean') return result.has_screenshot ? 'screenshot available' : 'screenshot unavailable';
-  return shorten(JSON.stringify(result), 120);
-}
-
 function shorten(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max - 1)}...` : value;
+}
+
+function shortenCaseId(caseId: string) {
+  // Case IDs are ec_{64-char-hash}_step_{n} or ec_{64-char-hash}_success.
+  // The full hash is unhelpful in a one-line summary. Keep the prefix +
+  // first 10 chars of the hash + the suffix (_step_n / _success) so the
+  // semantic shape (failure vs success, which step) survives.
+  const match = caseId.match(/^(ec_)([A-Za-z0-9_.-]+?)(_step_\d+(?:_[a-z][a-z0-9_]*)?|_success)$/);
+  if (!match) return caseId;
+  const [, prefix, hash, tail] = match;
+  if (hash.length <= 12) return caseId;
+  return `${prefix}${hash.slice(0, 10)}…${tail}`;
 }
 
 function latestError(trace: AgentTrace | null) {

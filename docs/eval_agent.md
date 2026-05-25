@@ -143,7 +143,7 @@ The system prompt instructs the agent to:
 The agent is constrained by a **per-turn** tool-call budget to bound cost and latency:
 
 - **Initial analyze** (`/analyze` or `/steps/{i}/analyze`): default `8`.
-- **Follow-up turn** (`/followup`): default `4`. Smaller because follow-up questions are targeted and should not require fresh broad exploration.
+- **Follow-up turn** (`/followup`): default `8`. Same as initial — a single follow-up may include a full re-analysis (e.g. user asks the agent to reconsider with new information; agent re-inspects N steps and revises the draft). Per-turn isolation still applies; cost is bounded per turn, not across the whole conversation.
 
 Budget accounting:
 
@@ -175,7 +175,7 @@ The agent's system prompt for follow-up turns must explicitly state:
 
 - The user is asking a follow-up about the previous analysis. The earlier `messages` (including the prior `propose_eval_case` call) are visible in context.
 - A follow-up is allowed to revise the earlier eval case by calling `propose_eval_case` again. The new draft fully replaces the old one — there is no merge.
-- Re-running broad exploration is discouraged; targeted tool use is preferred. The smaller per-turn budget enforces this.
+- Targeted tool use is preferred over fresh broad exploration when the user's question is narrow — the per-turn budget bounds cost but does not forbid a re-analysis when the user explicitly asks for one.
 - If the user's follow-up is a clarification question (no new evidence needed), the agent should answer in a single `agent_message` and not call `propose_eval_case`.
 
 ### Invariants

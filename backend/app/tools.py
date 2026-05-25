@@ -15,14 +15,30 @@ in scope here.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 from backend.app import llm, rag, storage
 from backend.app.ids import make_eval_case_id, make_success_case_id
-from backend.app.schemas import EvalCase, EvidenceItem
+from backend.app.schemas import EvalCase, EvidenceItem, FollowupSuggestion
+
+
+logger = logging.getLogger(__name__)
+
+
+_MAX_FOLLOWUP_SUGGESTIONS = 4
 
 
 def get_run(run_id: str) -> dict[str, Any]:
+    """Load a trajectory run by ID, including its preprocessed digest if cached.
+
+    Returns the full TrajectoryRun (task, status, steps with action/observation/result
+    per step) plus an optional ``digest`` key carrying the cached TrajectoryDigest
+    (low-detail VLM summaries per step). Call this once at the start of analysis
+    to orient on the task and the per-step digest before deciding which steps
+    to inspect at high detail.
+    """
+
     run = storage.load_run(run_id)
     payload = run.model_dump(mode="json")
     digest = storage.load_digest(run_id)
@@ -36,6 +52,16 @@ def find_similar_successful_run(
     top_k: int = 3,
     exclude_run_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Retrieve previously human-validated successful runs whose task is similar.
+
+    Use this to find a counter-example for replay-and-diff once a likely failure
+    region is identified. ``task`` is the natural-language task description from
+    the run under analysis. ``exclude_run_id`` should be set to the current
+    run_id to avoid returning the run itself. Returns up to ``top_k`` records,
+    each with run_id / task / status / step_count. Empty list is normal when
+    no validated success case exists yet.
+    """
+
     return rag.query_similar_successful_runs(
         task,
         top_k=top_k,
@@ -48,6 +74,21 @@ def get_step_detail(
     step_index: int,
     image_detail: Literal["low", "high"] = "high",
 ) -> dict[str, Any]:
+    """Inspect one step in depth, optionally invoking a high-detail VLM call on its screenshot.
+
+    Returns the step's action / observation / result / coordinate_validation
+    plus a ``vlm_summary`` string when a screenshot exists.
+
+    ``image_detail`` controls VLM token cost: ``"high"`` (default, ~1500
+    tokens) is required for any claim about visible text, button labels,
+    target identity, or coordinate correctness; ``"low"`` (~85 tokens) is
+    cheap orientation only and must not be cited as sole evidence in the
+    final EvalCase.
+
+    Use this on the most suspicious steps surfaced by the digest, not on
+    every step — high-detail calls are budgeted.
+    """
+
     try:
         run = storage.load_run(run_id)
     except FileNotFoundError:
@@ -90,7 +131,15 @@ def get_step_detail(
                     action_type=step.action.type,
                     step_index=step_index,
                 )
-        except Exception:
+        except Exception as exc:
+            # Outer guard: RealVLMClient already logs OpenAI-side failures.
+            # Anything bubbling up here is something else (bad screenshot
+            # bytes, client constructor blew up, etc.) — surface it so we
+            # never silently feed the agent vlm_summary=null without a clue.
+            logger.warning(
+                "get_step_detail VLM dispatch failed (run_id=%s, step_index=%s): %s: %s",
+                run_id, step_index, type(exc).__name__, exc,
+            )
             vlm_summary = None
 
     screenshot_url = None
@@ -112,11 +161,30 @@ def get_step_detail(
 
 
 def search_failure_memory(query: str, top_k: int = 3) -> list[dict[str, Any]]:
+    """Retrieve curated failure-pattern memory cases (FailureMemoryCase) similar to the query.
+
+    These are reusable failure patterns (e.g., "missed_constraint",
+    "early_terminated") with summary + fix_hint. Query with a short
+    natural-language description of the failure mode you suspect, grounded
+    in evidence you have observed. Returns up to ``top_k`` cases. Each
+    case has a ``case_id`` you must include in EvalCase.retrieved_context_ids
+    if you rely on it for the final eval case.
+    """
+
     cases = rag.query_failure_memory(query, top_k=top_k)
     return [case.model_dump(mode="json") for case in cases]
 
 
 def search_eval_cases(query: str, top_k: int = 3, only_validated: bool = True) -> list[dict[str, Any]]:
+    """Retrieve prior human-validated EvalCase records similar to the query.
+
+    Use this to find precedent — has the agent seen a similar failure on
+    another run before, and if so, what regression rule was authored? With
+    ``only_validated=True`` (default), only cases that survived human review
+    are returned. The ``case_id`` of any case you rely on must appear in
+    EvalCase.retrieved_context_ids.
+    """
+
     cases = rag.query_eval_cases(query, top_k=top_k, only_validated=only_validated)
     return [case.model_dump(mode="json") for case in cases]
 
@@ -130,6 +198,7 @@ def propose_eval_case(
     expected_behavior: str | None = None,
     actual_behavior: str | None = None,
     regression_rule: str | None = None,
+    suggested_followups: list[FollowupSuggestion | dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Terminal tool for the Eval Agent. Produces a draft EvalCase.
 
@@ -144,6 +213,14 @@ def propose_eval_case(
 
     Half-populated calls raise via the EvalCase model_validator (XOR
     rule). The handler exposes that as HTTP 422.
+
+    ``suggested_followups`` is an optional list (up to 4) of short
+    ``{label, message}`` pairs the agent thinks the user might want to
+    ask next, grounded in what this trace actually surfaced. They are
+    NOT persisted as part of the EvalCase — the frontend reads them
+    off the latest propose_eval_case event's tool-call args to render
+    chips. Exceeding the cap or violating per-item length bounds raises
+    via the FollowupSuggestion schema.
     """
 
     run = storage.load_run(run_id)
@@ -173,4 +250,18 @@ def propose_eval_case(
         retrieved_context_ids=retrieved_context_ids,
         human_validated=False,
     )
-    return case.model_dump(mode="json")
+    payload = case.model_dump(mode="json")
+
+    if suggested_followups:
+        if len(suggested_followups) > _MAX_FOLLOWUP_SUGGESTIONS:
+            raise ValueError(
+                f"suggested_followups capped at {_MAX_FOLLOWUP_SUGGESTIONS}; "
+                f"got {len(suggested_followups)}"
+            )
+        validated = [FollowupSuggestion.model_validate(item) for item in suggested_followups]
+        # Transport-only: include in the tool's return payload so the
+        # event lands in the trace and the frontend can read it. The
+        # persisted EvalCase row never sees this list.
+        payload["suggested_followups"] = [item.model_dump(mode="json") for item in validated]
+
+    return payload
