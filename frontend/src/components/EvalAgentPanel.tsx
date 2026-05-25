@@ -871,6 +871,18 @@ function EvalCaseDraftPanel({
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const dirtyRef = useRef(false);
   const localDraftRef = useRef<EvalCase | null>(draft);
+  // Stash of the most recent failure-mode field values so toggling
+  // failure → success → failure restores the user's prior edits instead
+  // of resetting to placeholders. Cleared whenever a new draft arrives
+  // from props (agent re-proposed) so the snapshot can't leak across
+  // distinct drafts.
+  const lastFailureFieldsRef = useRef<{
+    failure_step: number;
+    failure_type: string;
+    expected_behavior: string;
+    actual_behavior: string;
+    regression_rule: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!draft) {
@@ -879,6 +891,7 @@ function EvalCaseDraftPanel({
       setDirty(false);
       dirtyRef.current = false;
       setExportStatus(null);
+      lastFailureFieldsRef.current = null;
       return;
     }
     if (dirtyRef.current && JSON.stringify(draft) !== JSON.stringify(localDraftRef.current)) {
@@ -890,6 +903,7 @@ function EvalCaseDraftPanel({
     setDirty(false);
     dirtyRef.current = false;
     setExportStatus(null);
+    lastFailureFieldsRef.current = null;
   }, [draft]);
 
   if (!localDraft) {
@@ -928,13 +942,22 @@ function EvalCaseDraftPanel({
   };
 
   const isSuccess = localDraft.failure_type === null;
-  // Toggling between success/failure modes mutates all 5 XOR fields at once
-  // (the backend validator rejects half-populated drafts). Success → null
-  // for everything; failure → seed each field with an editable placeholder
-  // ('' for free-text, a numeric step, a regex-passing failure_type).
+  // Toggling between modes mutates all 5 XOR fields at once (the backend
+  // validator rejects half-populated drafts). When switching failure →
+  // success we stash the current failure values; switching back restores
+  // them so the user doesn't lose unsaved edits to a misclick.
   const setMode = (toSuccess: boolean) => {
     if (toSuccess === isSuccess) return;
     if (toSuccess) {
+      lastFailureFieldsRef.current = {
+        failure_step: typeof localDraft.failure_step === 'number' ? localDraft.failure_step : 1,
+        // failure_type backend pattern is /^[a-z][a-z0-9_]*$/ — fall back
+        // to a regex-valid placeholder if the field is somehow empty.
+        failure_type: localDraft.failure_type ?? 'unspecified',
+        expected_behavior: localDraft.expected_behavior ?? '',
+        actual_behavior: localDraft.actual_behavior ?? '',
+        regression_rule: localDraft.regression_rule ?? '',
+      };
       update({
         failure_step: null,
         failure_type: null,
@@ -943,14 +966,13 @@ function EvalCaseDraftPanel({
         regression_rule: null,
       });
     } else {
+      const stash = lastFailureFieldsRef.current;
       update({
-        failure_step: typeof localDraft.failure_step === 'number' ? localDraft.failure_step : 1,
-        // failure_type backend pattern is /^[a-z][a-z0-9_]*$/ — seed with a
-        // valid placeholder so the draft remains XOR-valid; user replaces.
-        failure_type: localDraft.failure_type ?? 'unspecified',
-        expected_behavior: localDraft.expected_behavior ?? '',
-        actual_behavior: localDraft.actual_behavior ?? '',
-        regression_rule: localDraft.regression_rule ?? '',
+        failure_step: stash?.failure_step ?? 1,
+        failure_type: stash?.failure_type ?? 'unspecified',
+        expected_behavior: stash?.expected_behavior ?? '',
+        actual_behavior: stash?.actual_behavior ?? '',
+        regression_rule: stash?.regression_rule ?? '',
       });
     }
   };
