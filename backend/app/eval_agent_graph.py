@@ -256,9 +256,7 @@ def stream_analyze(
                 turn=0,
                 name="preprocess",
                 args={"step_count": step_count},
-                message=(
-                    f"Building trajectory digest ({step_count} steps, low-detail VLM per step)..."
-                ),
+                message="Building trajectory digest",
             )
             yield trace.events[-1]
         # Pre-streamed events (currently the optional preprocess phase) must

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
-import { createEvalCase } from '../api/client';
+import { createEvalCase, fetchRunDigest } from '../api/client';
 import { streamAgentRequest } from '../api/stream';
-import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryRun } from '../types/contracts';
+import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryDigest, TrajectoryRun } from '../types/contracts';
 
 interface EvalAgentPanelProps {
   run: TrajectoryRun | null;
@@ -205,6 +205,7 @@ export function EvalAgentPanel({
           expandedEvents={expandedEvents}
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
+          runId={run?.run_id ?? null}
         />
 
         {/* Summary + draft persist across followups: no !inFlight gate.
@@ -255,6 +256,7 @@ export function EvalAgentPanel({
           expandedEvents={expandedEvents}
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
+          runId={run?.run_id ?? null}
         />
 
         {/* Thumbs feedback only shown once there is a finished trace to react
@@ -525,6 +527,7 @@ function TraceHistory({
   expandedEvents,
   onToggleEvent,
   onSelectStep,
+  runId,
 }: {
   events: AgentTraceEvent[];
   pendingUserMessage: string | null;
@@ -533,6 +536,7 @@ function TraceHistory({
   expandedEvents: Set<number>;
   onToggleEvent: (seq: number) => void;
   onSelectStep: (index: number) => void;
+  runId: string | null;
 }) {
   const rows = traceRows(events);
   // Render nothing when there is nothing to show. The empty right column
@@ -551,6 +555,7 @@ function TraceHistory({
           expanded={expandedEvents.has(row.event.seq)}
           onToggle={() => onToggleEvent(row.event.seq)}
           onSelectStep={onSelectStep}
+          runId={runId}
         />
       ))}
       {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
@@ -606,14 +611,24 @@ function TraceRow({
   expanded,
   onToggle,
   onSelectStep,
+  runId,
 }: {
   row: TraceRowModel;
   expanded: boolean;
   onToggle: () => void;
   onSelectStep: (index: number) => void;
+  runId: string | null;
 }) {
   const event = row.event;
-  if (event.type === 'phase') return <PhaseRow event={event} done={Boolean(row.phaseDone)} />;
+  if (event.type === 'phase') return (
+    <PhaseRow
+      event={event}
+      done={Boolean(row.phaseDone)}
+      runId={runId}
+      expanded={expanded}
+      onToggle={onToggle}
+    />
+  );
   if (event.type === 'user_message') return <MessageBubble align="right" message={event.message ?? ''} />;
   if (event.type === 'agent_message') return <MessageBubble align="left" message={event.message ?? ''} />;
   if (event.type === 'tool_error') return <ToolErrorBullet event={event} />;
@@ -671,21 +686,99 @@ function ToolGlyph({ name }: { name: string }) {
   );
 }
 
-function PhaseRow({ event, done }: { event: AgentTraceEvent; done: boolean }) {
+function PhaseRow({
+  event,
+  done,
+  runId,
+  expanded,
+  onToggle,
+}: {
+  event: AgentTraceEvent;
+  done: boolean;
+  runId: string | null;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const message = event.message ?? `Running ${event.name ?? 'phase'}...`;
+  const stepCount = typeof event.args?.step_count === 'number' ? event.args.step_count : null;
+  const [digest, setDigest] = useState<TrajectoryDigest | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const canExpand = done && Boolean(runId);
+
+  useEffect(() => {
+    if (!expanded || !canExpand || digest || loading || error || !runId) return;
+    setLoading(true);
+    fetchRunDigest(runId)
+      .then((data) => setDigest(data))
+      .catch((err) => setError(errorMessage(err)))
+      .finally(() => setLoading(false));
+  }, [canExpand, digest, error, expanded, loading, runId]);
+
   return (
-    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
-      {done ? (
-        <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" d="M5 12l5 5L20 7" />
-        </svg>
-      ) : (
-        <svg className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
-          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-        </svg>
+    <div className="rounded-md border border-slate-200 bg-slate-50">
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={!canExpand}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-xs text-slate-600 disabled:cursor-default"
+      >
+        {done ? (
+          <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" d="M5 12l5 5L20 7" />
+          </svg>
+        ) : (
+          <svg className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+        )}
+        <span className="min-w-0 flex-1 truncate">{message}</span>
+        {stepCount !== null && (
+          <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
+            {stepCount} steps
+          </span>
+        )}
+        {canExpand && (
+          <span className="shrink-0 text-[10px] text-slate-400">{expanded ? '⌃' : '⌄'}</span>
+        )}
+      </button>
+      {expanded && canExpand && (
+        <div className="border-t border-slate-200 px-2.5 py-2">
+          {loading && <div className="text-[11px] text-slate-500">Loading digest...</div>}
+          {error && <div className="text-[11px] text-red-600">{error}</div>}
+          {digest && <DigestPreview digest={digest} />}
+        </div>
       )}
-      <span className="min-w-0 flex-1 truncate">{message}</span>
+    </div>
+  );
+}
+
+function DigestPreview({ digest }: { digest: TrajectoryDigest }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] text-slate-500">
+        <span className="font-mono">{digest.preprocess_model ?? 'unknown'}</span>
+        {' · '}
+        <span>v{digest.preprocess_version}</span>
+      </div>
+      <ol className="space-y-1.5">
+        {digest.steps.map((step) => (
+          <li key={step.index} className="rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] leading-4 text-slate-700">
+            <div className="flex flex-wrap items-baseline gap-1.5">
+              <span className="font-mono text-slate-500">step {step.index}</span>
+              <span className="rounded bg-slate-100 px-1 font-semibold text-slate-700">{step.action_type}</span>
+              {step.action_text && <span className="min-w-0 flex-1 break-words text-slate-700">{step.action_text}</span>}
+            </div>
+            {step.vlm_low_detail_summary && (
+              <div className="mt-1 break-words text-slate-500">{step.vlm_low_detail_summary}</div>
+            )}
+            {!step.vlm_low_detail_summary && !step.has_screenshot && (
+              <div className="mt-1 text-[10px] italic text-slate-400">no screenshot — VLM skipped</div>
+            )}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
