@@ -119,7 +119,7 @@ export interface EvalCase {
 
 export interface AgentTraceEvent {
   seq: number;
-  type: "agent_message" | "user_message" | "tool_call" | "tool_result" | "tool_error";
+  type: "agent_message" | "user_message" | "tool_call" | "tool_result" | "tool_error" | "phase";
   name?: string;
   args?: Record<string, unknown>;
   result?: Record<string, unknown>;

@@ -190,7 +190,7 @@ class EvalCase(BaseModel):
 
 class AgentTraceEvent(BaseModel):
     seq: int
-    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error"]
+    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error", "phase"]
     name: str | None = None
     args: dict[str, Any] | None = None
     result: dict[str, Any] | None = None

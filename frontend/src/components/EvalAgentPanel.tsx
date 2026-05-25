@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { createEvalCase } from '../api/client';
 import { streamAgentRequest } from '../api/stream';
 import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryRun } from '../types/contracts';
@@ -567,9 +567,10 @@ interface TraceRowModel {
   event: AgentTraceEvent;
   result?: AgentTraceEvent;
   error?: AgentTraceEvent;
+  phaseDone?: boolean;
 }
 
-function traceRows(events: AgentTraceEvent[]) {
+function traceRows(events: AgentTraceEvent[]): TraceRowModel[] {
   const rows: TraceRowModel[] = [];
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
@@ -588,6 +589,15 @@ function traceRows(events: AgentTraceEvent[]) {
       rows.push({ event });
     }
   }
+  // Mark phase rows as resolved once a later non-phase event arrives. This
+  // lets the UI flip the spinner to a checkmark without needing a paired
+  // phase_done event from the backend.
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (row.event.type !== 'phase') continue;
+    const hasFollowup = rows.slice(index + 1).some((later) => later.event.type !== 'phase');
+    row.phaseDone = hasFollowup;
+  }
   return rows;
 }
 
@@ -603,6 +613,7 @@ function TraceRow({
   onSelectStep: (index: number) => void;
 }) {
   const event = row.event;
+  if (event.type === 'phase') return <PhaseRow event={event} done={Boolean(row.phaseDone)} />;
   if (event.type === 'user_message') return <MessageBubble align="right" message={event.message ?? ''} />;
   if (event.type === 'agent_message') return <MessageBubble align="left" message={event.message ?? ''} />;
   if (event.type === 'tool_error') return <ToolErrorBullet event={event} />;
@@ -657,6 +668,25 @@ function ToolGlyph({ name }: { name: string }) {
     <svg className="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
       {map[name] ?? <circle cx="12" cy="12" r="3" />}
     </svg>
+  );
+}
+
+function PhaseRow({ event, done }: { event: AgentTraceEvent; done: boolean }) {
+  const message = event.message ?? `Running ${event.name ?? 'phase'}...`;
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+      {done ? (
+        <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" d="M5 12l5 5L20 7" />
+        </svg>
+      ) : (
+        <svg className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      )}
+      <span className="min-w-0 flex-1 truncate">{message}</span>
+    </div>
   );
 }
 
@@ -804,6 +834,34 @@ function EvalCaseDraftPanel({
     }
   };
 
+  const isSuccess = localDraft.failure_type === null;
+  // Toggling between success/failure modes mutates all 5 XOR fields at once
+  // (the backend validator rejects half-populated drafts). Success → null
+  // for everything; failure → seed each field with an editable placeholder
+  // ('' for free-text, a numeric step, a regex-passing failure_type).
+  const setMode = (toSuccess: boolean) => {
+    if (toSuccess === isSuccess) return;
+    if (toSuccess) {
+      update({
+        failure_step: null,
+        failure_type: null,
+        expected_behavior: null,
+        actual_behavior: null,
+        regression_rule: null,
+      });
+    } else {
+      update({
+        failure_step: typeof localDraft.failure_step === 'number' ? localDraft.failure_step : 1,
+        // failure_type backend pattern is /^[a-z][a-z0-9_]*$/ — seed with a
+        // valid placeholder so the draft remains XOR-valid; user replaces.
+        failure_type: localDraft.failure_type ?? 'unspecified',
+        expected_behavior: localDraft.expected_behavior ?? '',
+        actual_behavior: localDraft.actual_behavior ?? '',
+        regression_rule: localDraft.regression_rule ?? '',
+      });
+    }
+  };
+
   return (
     <section id="eval-case-draft" className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
@@ -813,23 +871,23 @@ function EvalCaseDraftPanel({
       <div className="space-y-3 p-3 text-xs text-slate-700">
         <DraftField label="Case ID" value={localDraft.case_id} readOnly />
         <DraftField label="Source Run" value={localDraft.source_run_id} readOnly />
-        {localDraft.failure_type === null ? (
+
+        <div className="flex gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
+          <ModeButton active={!isSuccess} onClick={() => setMode(false)} tone="failure">Failure case</ModeButton>
+          <ModeButton active={isSuccess} onClick={() => setMode(true)} tone="success">Success case</ModeButton>
+        </div>
+
+        {isSuccess ? (
           <div className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-2 text-[11px] text-emerald-800">
-            Success case — the Eval Agent found no failure. Validating this draft marks the run as successful and indexes it for find_similar_successful_run.
+            Success case — validating this draft marks the run as successful and indexes it for find_similar_successful_run.
           </div>
         ) : (
           <>
-            {typeof localDraft.failure_step === 'number' ? (
-              <DraftNumberField label="Failure Step" value={localDraft.failure_step} onChange={(value) => update({ failure_step: value })} />
-            ) : (
-              // The XOR validator on the backend would reject this draft on
-              // POST anyway; surface the inconsistency in the editor so the
-              // user fixes it before clicking Validate rather than discovering
-              // it via a 422.
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-800">
-                Failure step is missing or invalid for this failure case. Fix the draft (or convert to a success case) before validating.
-              </div>
-            )}
+            <DraftNumberField
+              label="Failure Step"
+              value={typeof localDraft.failure_step === 'number' ? localDraft.failure_step : 1}
+              onChange={(value) => update({ failure_step: value })}
+            />
             <DraftField label="Failure Type" value={localDraft.failure_type ?? ''} onChange={(value) => update({ failure_type: value })} />
             <DraftTextArea label="Expected Behavior" value={localDraft.expected_behavior ?? ''} onChange={(value) => update({ expected_behavior: value })} />
             <DraftTextArea label="Actual Behavior" value={localDraft.actual_behavior ?? ''} onChange={(value) => update({ actual_behavior: value })} />
@@ -861,7 +919,7 @@ function EvalCaseDraftPanel({
           </div>
         </div>
 
-        {localDraft.failure_type !== null && (
+        {!isSuccess && (
           <DraftTextArea label="Regression Rule" value={localDraft.regression_rule ?? ''} onChange={(value) => update({ regression_rule: value })} />
         )}
         <DraftField
@@ -890,6 +948,32 @@ function EvalCaseDraftPanel({
         {exportStatus && <div className="text-xs text-slate-500">{exportStatus}</div>}
       </div>
     </section>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  tone,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  tone: 'success' | 'failure';
+  children: ReactNode;
+}) {
+  const activeClasses = tone === 'success'
+    ? 'bg-emerald-600 text-white shadow-sm'
+    : 'bg-red-600 text-white shadow-sm';
+  const idleClasses = 'text-slate-600 hover:bg-white hover:text-slate-900';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 rounded px-2 py-1 text-[11px] font-semibold transition-colors ${active ? activeClasses : idleClasses}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -1034,6 +1118,17 @@ function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
       disabled: selectedStepIndex === null,
     },
     { label: 'Explain your reasoning', text: 'Explain why you flagged the failure step.' },
+    // Override paths when the user disagrees with the agent's verdict. The
+    // followup system prompt explicitly allows re-calling propose_eval_case
+    // when revising the draft, so these chips trigger a fresh proposal.
+    {
+      label: 'Reclassify as success',
+      text: 'This run actually succeeded. Please re-propose the eval case as a success case (clear all failure fields).',
+    },
+    {
+      label: 'Reclassify as failure',
+      text: 'This run actually failed. Please re-propose the eval case with the correct failure step, failure type, expected behavior, and actual behavior.',
+    },
   ];
 }
 

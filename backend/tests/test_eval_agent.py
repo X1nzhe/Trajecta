@@ -181,10 +181,12 @@ class EvalAgentTests(unittest.TestCase):
         first = next(stream)
 
         # The happy-path script emits tool-only AIMessages (no text content),
-        # so no agent_message event is produced — first event is the first
-        # tool_call. Either is a valid streamed event.
+        # so no agent_message event is produced. First event is either the
+        # preprocess "phase" event (cache miss, emitted before the graph
+        # runs) or the first tool_call. agent_message would also be valid
+        # if a script ever produces text first.
         self.assertIsInstance(first, eval_agent_graph.AgentTraceEvent)
-        self.assertIn(first.type, {"agent_message", "tool_call"})
+        self.assertIn(first.type, {"agent_message", "tool_call", "phase"})
 
     def test_budget_exceeded_terminates_turn(self) -> None:
         script = [
@@ -595,12 +597,13 @@ class EvalAgentTests(unittest.TestCase):
                     "source": "step_detail_high",
                     "run_id": "run_1",
                     "step_index": 0,
-                    # Predictable seq: tool_call(get_step_detail)=0,
-                    # tool_result(get_step_detail)=1, tool_call(propose...)=2,
-                    # tool_result(propose...)=3. Empty agent_message events
-                    # are not recorded (the scripted AIMessages carry only
-                    # tool_calls), so the high-detail result is at seq 1.
-                    "trace_event_seq": 1,
+                    # Predictable seq: phase(preprocess)=0,
+                    # tool_call(get_step_detail)=1, tool_result(get_step_detail)=2,
+                    # tool_call(propose...)=3, tool_result(propose...)=4. Empty
+                    # agent_message events are not recorded (scripted AIMessages
+                    # carry only tool_calls), so the high-detail result is at
+                    # seq 2 once the preprocess phase event is included.
+                    "trace_event_seq": 2,
                 }
             ],
             "regression_rule": "Verify the constraint before finishing the task.",

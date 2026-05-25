@@ -243,7 +243,33 @@ def stream_analyze(
     }
     result: AgentExecutionResult | None = None
     try:
-        result = yield from _stream_graph_result(state, start_seq=0, include_preprocess=True)
+        # Surface the preprocess phase to the stream so the UI can show
+        # "Building trajectory digest..." instead of a silent ~30s gap
+        # before the first tool_call. Only emitted on cache miss; warm
+        # starts skip straight to the agent.
+        if _needs_preprocess(run_id):
+            run = storage.load_run(run_id)
+            step_count = len(run.steps) if run else 0
+            _append_event(
+                trace,
+                "phase",
+                turn=0,
+                name="preprocess",
+                args={"step_count": step_count},
+                message=(
+                    f"Building trajectory digest ({step_count} steps, low-detail VLM per step)..."
+                ),
+            )
+            yield trace.events[-1]
+        # Pre-streamed events (currently the optional preprocess phase) must
+        # not be re-yielded by _stream_graph_result. start_seq stays 0 so the
+        # phase event is still counted in new_events for the final result.
+        result = yield from _stream_graph_result(
+            state,
+            start_seq=0,
+            include_preprocess=True,
+            emitted_seq=len(trace.events),
+        )
     except Exception as exc:
         _record_graph_execution_error(state, trace=trace, turn=0, error=str(exc))
         yield trace.events[-1]
@@ -252,6 +278,28 @@ def stream_analyze(
         if persist:
             storage.save_trace(run_id, result.trace if result is not None else trace)
     yield AgentStreamDone(result)
+
+
+def _needs_preprocess(run_id: str) -> bool:
+    """Return True if the digest cache is missing or stale for the active VLM.
+
+    Mirrors the freshness check inside ``preprocess.load_or_build_digest``
+    so the streaming layer can warn the user *before* the (potentially
+    30s+) per-step VLM loop runs. False means the digest will be served
+    from cache and no phase event needs to be emitted.
+    """
+
+    from backend.app.llm import get_vlm_client
+    from backend.app.preprocess import PREPROCESS_VERSION
+
+    cached = storage.load_digest(run_id)
+    if cached is None:
+        return True
+    client = get_vlm_client()
+    return not (
+        cached.preprocess_version == PREPROCESS_VERSION
+        and cached.preprocess_model == client.model_name
+    )
 
 
 def followup(
