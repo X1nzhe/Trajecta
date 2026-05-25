@@ -13,6 +13,13 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+# Load .env from the repo root before any module reads os.environ.
+# Existing shell exports take precedence (override=False is the default)
+# so `export OPENAI_API_KEY=...` still wins over the file.
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(_REPO_ROOT / ".env")
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator

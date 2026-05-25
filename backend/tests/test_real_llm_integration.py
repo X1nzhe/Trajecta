@@ -15,25 +15,21 @@ for "is the real-LLM wiring still alive after a refactor".
 
 from __future__ import annotations
 
-import os
 import unittest
 
 import pytest
 
 from backend.app import eval_agent_graph, storage
 from backend.app.schemas import AgentTrace
+from backend.tests.conftest import real_llm_configured
 from backend.tests.test_storage import sample_run
 
 
-_REAL_LLM_CONFIGURED = bool(
-    os.environ.get("OPENAI_API_KEY") and os.environ.get("TRAJECTA_AGENT_MODEL")
-)
-
-
 @pytest.mark.skipif(
-    not _REAL_LLM_CONFIGURED,
-    reason="Set OPENAI_API_KEY + TRAJECTA_AGENT_MODEL to enable.",
+    not real_llm_configured(),
+    reason="Set OPENAI_API_KEY + TRAJECTA_AGENT_MODEL (in .env or shell) to enable.",
 )
+@pytest.mark.usefixtures("real_llm_env")
 class RealLLMIntegrationTests(unittest.TestCase):
     """Smoke-gate the production LangChain ChatOpenAI agent path.
 
