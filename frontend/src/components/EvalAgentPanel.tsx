@@ -33,8 +33,19 @@ export function EvalAgentPanel({
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   const [draftViewed, setDraftViewed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const latestToolError = useMemo(() => latestError(trace), [trace]);
   const hasTrace = Boolean(trace && trace.turn_count > 0);
+
+  // Auto-grow the textarea up to its max-height (112px = max-h-28) so
+  // multi-line followups are visible while typing instead of scrolling
+  // inside a single-line box.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 112)}px`;
+  }, [input]);
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -292,8 +303,9 @@ export function EvalAgentPanel({
             ))}
           </div>
         )}
-        <div className="relative">
+        <div className="flex items-end gap-1.5 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(event) => setInput(event.target.value.slice(0, 2000))}
             onKeyDown={(event) => {
@@ -306,12 +318,12 @@ export function EvalAgentPanel({
             rows={1}
             maxLength={2000}
             placeholder={hasTrace ? 'Ask about this run...' : 'Run an analysis first to start a conversation.'}
-            className="max-h-28 min-h-10 w-full resize-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-11 text-sm text-slate-800 shadow-sm outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+            className="block max-h-28 min-h-[1.75rem] w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-1 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
           />
           <button
             onClick={sendFollowup}
             disabled={inputDisabled || !input.trim()}
-            className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="flex h-7 w-7 shrink-0 items-center justify-center self-end rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             title="Send follow-up"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

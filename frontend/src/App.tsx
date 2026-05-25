@@ -76,7 +76,7 @@ function App() {
 
   useEffect(() => {
     setStepDetailsExpanded(false);
-  }, [runId, stepIndex]);
+  }, [runId]);
 
   const activeStepIndex = stepIndex !== null ? stepIndex : selectedRun?.steps[0]?.index ?? 0;
   const activeStepPosition = selectedRun ? selectedRun.steps.findIndex((step) => step.index === activeStepIndex) : -1;
