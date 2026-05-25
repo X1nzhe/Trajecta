@@ -14,7 +14,6 @@ interface EvalAgentPanelProps {
   onEvalCaseValidated?: () => void;
 }
 
-type AnalyzeMode = 'run' | 'step';
 
 export function EvalAgentPanel({
   run,
@@ -32,6 +31,7 @@ export function EvalAgentPanel({
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const [draftViewed, setDraftViewed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const latestToolError = useMemo(() => latestError(trace), [trace]);
   const hasTrace = Boolean(trace && trace.turn_count > 0);
@@ -43,13 +43,13 @@ export function EvalAgentPanel({
     setPendingUserMessage(null);
     setExpandedEvents(new Set());
     setFeedback(null);
+    setDraftViewed(false);
   }, [run?.run_id]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const runAnalysis = async (mode: AnalyzeMode) => {
+  const runAnalysis = async (focusedStep: number | null) => {
     if (!run || inFlight) return;
-    if (mode === 'step' && selectedStepIndex === null) return;
 
     const controller = new AbortController();
     abortRef.current?.abort();
@@ -57,17 +57,18 @@ export function EvalAgentPanel({
     setInFlight(true);
     setPanelError(null);
     setPendingUserMessage(null);
+    setDraftViewed(false);
     onDraftChange(null);
-    onTraceChange(emptyTrace(run.run_id, mode, selectedStepIndex));
+    onTraceChange(emptyTrace(run.run_id, focusedStep));
 
-    const url = mode === 'run'
-      ? `/api/runs/${run.run_id}/analyze`
-      : `/api/runs/${run.run_id}/steps/${selectedStepIndex}/analyze`;
+    const url = focusedStep !== null
+      ? `/api/runs/${run.run_id}/analyze?focused_step=${focusedStep}`
+      : `/api/runs/${run.run_id}/analyze`;
 
     try {
       const done = await streamAgentRequest(url, {
         signal: controller.signal,
-        onEvent: (event) => onTraceChange(appendEvent(run.run_id, mode, selectedStepIndex, event)),
+        onEvent: (event) => onTraceChange(appendEvent(run.run_id, focusedStep, event)),
       });
       onTraceChange(done.agent_trace);
       onDraftChange(done.eval_case_draft);
@@ -98,7 +99,7 @@ export function EvalAgentPanel({
         signal: controller.signal,
         onEvent: (event) => {
           setPendingUserMessage(null);
-          onTraceChange(appendEvent(run.run_id, trace.user_intent === 'analyze_step' ? 'step' : 'run', trace.selected_step ?? null, event));
+          onTraceChange(appendEvent(run.run_id, trace.selected_step ?? null, event));
         },
       });
       onTraceChange(done.agent_trace);
@@ -116,11 +117,7 @@ export function EvalAgentPanel({
     if (!run || inFlight) return;
     const shouldRerun = window.confirm('Start a fresh analysis for this run? The current trace view will be replaced.');
     if (!shouldRerun) return;
-    if (trace?.user_intent === 'analyze_step') {
-      runAnalysis('step');
-    } else {
-      runAnalysis('run');
-    }
+    runAnalysis(trace?.selected_step ?? null);
   };
 
   const chipTemplates = promptChips(selectedStepIndex);
@@ -140,7 +137,7 @@ export function EvalAgentPanel({
               <h2 className="font-bold text-slate-950">Eval Agent</h2>
               <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Beta</span>
             </div>
-            <TerminationBadge trace={trace} latestToolError={latestToolError} />
+            <TerminationBadge trace={trace} latestToolError={latestToolError} inFlight={inFlight} />
           </div>
         </div>
         <button
@@ -153,21 +150,17 @@ export function EvalAgentPanel({
       </div>
 
       <div className="border-b border-slate-200 bg-white p-3">
-        <div className="grid grid-cols-2 gap-2">
-          <PrimaryAgentButton
-            label="Analyze this run"
-            icon="run"
-            disabled={!run || inFlight}
-            onClick={() => runAnalysis('run')}
-          />
-          <PrimaryAgentButton
-            label="Analyze this step"
-            icon="step"
-            active
-            disabled={!run || selectedStepIndex === null || inFlight}
-            onClick={() => runAnalysis('step')}
-          />
-        </div>
+        <PrimaryAgentButton
+          label={
+            selectedStepIndex !== null
+              ? `Analyze (focused on step ${selectedStepIndex + 1})`
+              : 'Analyze'
+          }
+          icon={selectedStepIndex !== null ? 'step' : 'run'}
+          active
+          disabled={!run || inFlight}
+          onClick={() => runAnalysis(selectedStepIndex)}
+        />
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/70 p-3">
@@ -187,14 +180,17 @@ export function EvalAgentPanel({
           expandedEvents={expandedEvents}
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
+          onViewDraft={() => setDraftViewed(true)}
         />
 
-        <EvalCaseDraftPanel
-          draft={evalCaseDraft}
-          onDraftChange={onDraftChange}
-          onSelectStep={onSelectStep}
-          onValidated={onEvalCaseValidated}
-        />
+        {draftViewed && (
+          <EvalCaseDraftPanel
+            draft={evalCaseDraft}
+            onDraftChange={onDraftChange}
+            onSelectStep={onSelectStep}
+            onValidated={onEvalCaseValidated}
+          />
+        )}
 
         <div className="flex gap-2">
           <button
@@ -422,6 +418,7 @@ function TraceHistory({
   expandedEvents,
   onToggleEvent,
   onSelectStep,
+  onViewDraft,
 }: {
   trace: AgentTrace | null;
   pendingUserMessage: string | null;
@@ -430,6 +427,7 @@ function TraceHistory({
   expandedEvents: Set<number>;
   onToggleEvent: (seq: number) => void;
   onSelectStep: (index: number) => void;
+  onViewDraft?: () => void;
 }) {
   const rows = traceRows(trace?.events ?? []);
 
@@ -448,6 +446,7 @@ function TraceHistory({
             expanded={expandedEvents.has(row.event.seq)}
             onToggle={() => onToggleEvent(row.event.seq)}
             onSelectStep={onSelectStep}
+            onViewDraft={onViewDraft}
           />
         ))}
         {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
@@ -495,53 +494,144 @@ function TraceRow({
   expanded,
   onToggle,
   onSelectStep,
+  onViewDraft,
 }: {
   row: TraceRowModel;
   expanded: boolean;
   onToggle: () => void;
   onSelectStep: (index: number) => void;
+  onViewDraft?: () => void;
 }) {
   const event = row.event;
   if (event.type === 'user_message') return <MessageBubble align="right" message={event.message ?? ''} />;
   if (event.type === 'agent_message') return <MessageBubble align="left" message={event.message ?? ''} />;
-  if (event.type === 'tool_error') return <ToolErrorCard event={event} />;
-  if (event.type === 'tool_result') return <ToolResultCard event={event} expanded={expanded} onToggle={onToggle} />;
+  if (event.type === 'tool_error') return <ToolErrorBullet event={event} />;
+  if (event.type === 'tool_result') return null; // results are folded into the matching tool_call row
 
   const stepIndex = typeof event.args?.step_index === 'number' ? event.args.step_index : null;
-  const resultSummary = row.error?.error ?? summarizeResult(row.result?.result);
+  const errored = Boolean(row.error);
+  const description = friendlyToolDescription(event, row.result?.result);
   const isTerminal = event.name === 'propose_eval_case';
+  const statusGlyph = errored ? '⚠' : '✓';
+  const statusColor = errored ? 'text-red-600' : 'text-emerald-600';
 
   return (
-    <div className={`rounded-lg border p-2 text-xs ${row.error ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+    <div className="rounded-md border border-slate-200 bg-white">
       <button
         onClick={() => {
           onToggle();
           if (event.name === 'get_step_detail' && stepIndex !== null) onSelectStep(stepIndex);
         }}
-        className="flex w-full items-start justify-between gap-3 text-left"
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
       >
-        <div className="min-w-0">
-          <div className="font-mono font-semibold text-slate-800">{event.name}</div>
-          <div className="mt-1 truncate text-slate-500">{summarizeArgs(event.args)}</div>
-          {resultSummary && <div className={`mt-1 ${row.error ? 'text-red-700' : 'text-slate-600'}`}>{resultSummary}</div>}
-        </div>
-        <span className="shrink-0 text-slate-400">#{event.seq}</span>
+        <ToolGlyph name={event.name ?? ''} />
+        <span className="min-w-0 flex-1 truncate text-xs text-slate-700">{description}</span>
+        <span className={`shrink-0 text-xs font-semibold ${statusColor}`}>{statusGlyph}</span>
+        <span className="shrink-0 text-[10px] text-slate-400">{expanded ? '⌃' : '⌄'}</span>
       </button>
       {isTerminal && (
-        <button
-          onClick={() => document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          className="mt-2 w-full rounded-md border border-slate-200 bg-white py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          View Draft
-        </button>
+        <div className="border-t border-slate-100 px-2.5 py-1.5">
+          <button
+            onClick={() => {
+              onViewDraft?.();
+              requestAnimationFrame(() => {
+                document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+            }}
+            className="w-full rounded-md bg-indigo-50 py-1.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
+          >
+            View draft →
+          </button>
+        </div>
       )}
       {expanded && (
-        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-white p-2 text-[11px] leading-4 text-slate-700">
+        <div className="border-t border-slate-100 px-2.5 py-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            {event.name}
+          </div>
+          <pre className="max-h-48 overflow-auto rounded-md bg-slate-50 p-2 text-[10px] leading-4 text-slate-700">
 {JSON.stringify({ args: event.args, result: row.result?.result, error: row.error?.error }, null, 2)}
-        </pre>
+          </pre>
+        </div>
       )}
     </div>
   );
+}
+
+function ToolGlyph({ name }: { name: string }) {
+  // Minimal, monochrome SVG glyphs. Could be replaced with an icon
+  // library later; deliberately not pulling lucide-react for one panel.
+  const map: Record<string, JSX.Element> = {
+    get_run: <path d="M4 6h16M4 12h16M4 18h10" strokeWidth="1.8" strokeLinecap="round" />,
+    get_step_detail: <path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm9 16-4.35-4.35" strokeWidth="1.8" strokeLinecap="round" />,
+    find_similar_successful_run: <path d="M4 12h6m4 0h6m-10-6 4 6-4 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />,
+    search_failure_memory: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" strokeWidth="1.8" strokeLinecap="round" />,
+    search_eval_cases: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z M10 7v7M7 10h7" strokeWidth="1.8" strokeLinecap="round" />,
+    propose_eval_case: <path d="M5 12l5 5L20 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />,
+  };
+  return (
+    <svg className="h-4 w-4 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      {map[name] ?? <circle cx="12" cy="12" r="3" />}
+    </svg>
+  );
+}
+
+function ToolErrorBullet({ event }: { event: AgentTraceEvent }) {
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700">
+      <div className="flex items-start gap-2">
+        <span className="font-semibold">⚠</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">{event.name ?? 'Agent error'}</div>
+          {event.error && <div className="mt-0.5 break-words text-red-700/90">{event.error}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, unknown> | undefined): string {
+  const args = event.args ?? {};
+  const stepIndex = typeof args.step_index === 'number' ? args.step_index + 1 : null;
+  const imageDetail = typeof args.image_detail === 'string' ? args.image_detail : 'high';
+  const query = typeof args.query === 'string' ? args.query : null;
+  const task = typeof args.task === 'string' ? args.task : null;
+  const runId = typeof args.run_id === 'string' ? args.run_id : null;
+  const itemCount = Array.isArray(result?.items) ? (result!.items as unknown[]).length : null;
+
+  switch (event.name) {
+    case 'get_run':
+      return runId ? `Loaded run metadata for ${shortRunId(runId)}` : 'Loaded run metadata';
+    case 'get_step_detail':
+      return stepIndex !== null
+        ? `Inspected step ${stepIndex} (${imageDetail} detail)`
+        : `Inspected a step (${imageDetail} detail)`;
+    case 'find_similar_successful_run':
+      if (itemCount === 0) return 'Looked for similar successful runs — none yet';
+      if (itemCount !== null) return `Found ${itemCount} similar successful run${itemCount === 1 ? '' : 's'}`;
+      return task ? `Searching for similar successful runs to: ${shorten(task, 60)}` : 'Searching for similar successful runs';
+    case 'search_failure_memory':
+      if (itemCount !== null && query) return `Searched failure memory for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
+      if (query) return `Searching failure memory for "${shorten(query, 60)}"`;
+      return 'Searching failure memory';
+    case 'search_eval_cases':
+      if (itemCount !== null && query) return `Searched prior eval cases for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
+      if (query) return `Searching prior eval cases for "${shorten(query, 60)}"`;
+      return 'Searching prior eval cases';
+    case 'propose_eval_case': {
+      const caseId = typeof result?.case_id === 'string' ? result.case_id : null;
+      const isSuccess = result?.failure_type === null || result?.failure_type === undefined;
+      if (caseId && isSuccess) return `Drafted success eval case (${shortenCaseId(caseId)})`;
+      if (caseId) return `Drafted eval case (${shortenCaseId(caseId)})`;
+      return 'Drafting eval case';
+    }
+    default:
+      return event.name ?? '(unknown tool)';
+  }
+}
+
+function shortRunId(runId: string) {
+  return runId.length > 12 ? `${runId.slice(0, 8)}…` : runId;
 }
 
 function MessageBubble({ align, message, muted = false }: { align: 'left' | 'right'; message: string; muted?: boolean }) {
@@ -554,40 +644,6 @@ function MessageBubble({ align, message, muted = false }: { align: 'left' | 'rig
       } ${muted ? 'opacity-70' : ''}`}>
         {message || '(empty message)'}
       </div>
-    </div>
-  );
-}
-
-function ToolErrorCard({ event }: { event: AgentTraceEvent }) {
-  return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-      <div className="font-mono font-semibold">{event.name ?? 'tool_error'}</div>
-      <div className="mt-1">{event.error}</div>
-    </div>
-  );
-}
-
-function ToolResultCard({
-  event,
-  expanded,
-  onToggle,
-}: {
-  event: AgentTraceEvent;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
-      <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 text-left">
-        <span className="font-mono font-semibold text-slate-800">{event.name ?? 'tool_result'}</span>
-        <span className="text-slate-400">#{event.seq}</span>
-      </button>
-      <div className="mt-1 text-slate-600">{summarizeResult(event.result)}</div>
-      {expanded && (
-        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-white p-2 text-[11px] leading-4 text-slate-700">
-{JSON.stringify(event.result, null, 2)}
-        </pre>
-      )}
     </div>
   );
 }
@@ -804,8 +860,21 @@ function DraftTextArea({ label, value, onChange }: { label: string; value: strin
   );
 }
 
-function TerminationBadge({ trace, latestToolError }: { trace: AgentTrace | null; latestToolError: string | null }) {
+function TerminationBadge({ trace, latestToolError, inFlight }: { trace: AgentTrace | null; latestToolError: string | null; inFlight: boolean }) {
   if (!trace) return <div className="mt-0.5 text-[11px] text-slate-400">No trace yet</div>;
+  // While the analyze stream is in flight, ignore the placeholder
+  // terminated_by="error" baked into emptyTrace — the real terminator
+  // only lands when the `done` event arrives. Showing "running" avoids
+  // misleading the user that the run failed.
+  if (inFlight) {
+    return (
+      <div className="mt-0.5">
+        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+          running…
+        </span>
+      </div>
+    );
+  }
   const classes = trace.terminated_by === 'propose_eval_case'
     ? 'bg-emerald-50 text-emerald-700'
     : trace.terminated_by === 'budget_exceeded'
@@ -862,11 +931,11 @@ function promptChips(selectedStepIndex: number | null) {
   ];
 }
 
-function emptyTrace(runId: string, mode: AnalyzeMode, selectedStepIndex: number | null): AgentTrace {
+function emptyTrace(runId: string, focusedStep: number | null): AgentTrace {
   return {
     run_id: runId,
-    user_intent: mode === 'run' ? 'analyze_run' : 'analyze_step',
-    selected_step: mode === 'step' ? selectedStepIndex ?? undefined : undefined,
+    user_intent: 'analyze_run',
+    selected_step: focusedStep ?? undefined,
     tool_call_count: 0,
     turn_count: 1,
     terminated_by: 'error',
@@ -874,9 +943,9 @@ function emptyTrace(runId: string, mode: AnalyzeMode, selectedStepIndex: number 
   };
 }
 
-function appendEvent(runId: string, mode: AnalyzeMode, selectedStepIndex: number | null, event: AgentTraceEvent) {
+function appendEvent(runId: string, focusedStep: number | null, event: AgentTraceEvent) {
   return (current: AgentTrace | null): AgentTrace => {
-    const base = current ?? emptyTrace(runId, mode, selectedStepIndex);
+    const base = current ?? emptyTrace(runId, focusedStep);
     if (base.events.some((item) => item.seq === event.seq)) return base;
     return { ...base, events: [...base.events, event] };
   };
@@ -889,24 +958,20 @@ function isVisualEvidence(item: EvidenceItem) {
   );
 }
 
-function summarizeArgs(args?: Record<string, unknown>) {
-  if (!args) return 'no args';
-  return shorten(JSON.stringify(args), 120);
-}
-
-function summarizeResult(result?: Record<string, unknown>) {
-  if (!result) return null;
-  if (typeof result.tool_error === 'string') return result.tool_error;
-  if (typeof result.case_id === 'string') return `draft ${result.case_id}`;
-  if (typeof result.failure_type === 'string') return `failure_type: ${result.failure_type}`;
-  if (typeof result.vlm_summary === 'string') return shorten(result.vlm_summary, 120);
-  if (Array.isArray(result.items)) return `${result.items.length} item${result.items.length === 1 ? '' : 's'}`;
-  if (typeof result.has_screenshot === 'boolean') return result.has_screenshot ? 'screenshot available' : 'screenshot unavailable';
-  return shorten(JSON.stringify(result), 120);
-}
-
 function shorten(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max - 1)}...` : value;
+}
+
+function shortenCaseId(caseId: string) {
+  // Case IDs are ec_{64-char-hash}_step_{n} or ec_{64-char-hash}_success.
+  // The full hash is unhelpful in a one-line summary. Keep the prefix +
+  // first 10 chars of the hash + the suffix (_step_n / _success) so the
+  // semantic shape (failure vs success, which step) survives.
+  const match = caseId.match(/^(ec_)([A-Za-z0-9_.-]+?)(_step_\d+(?:_[a-z][a-z0-9_]*)?|_success)$/);
+  if (!match) return caseId;
+  const [, prefix, hash, tail] = match;
+  if (hash.length <= 12) return caseId;
+  return `${prefix}${hash.slice(0, 10)}…${tail}`;
 }
 
 function latestError(trace: AgentTrace | null) {

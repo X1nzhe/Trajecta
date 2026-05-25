@@ -156,14 +156,25 @@ def analyze_run(
 def stream_analyze_run(
     run_id: str,
     *,
+    focused_step: int | None = None,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
 ) -> Iterator[AgentStreamItem]:
+    """Unified analyze entry point.
+
+    v1 originally had two modes (analyze_run / analyze_step) with separate
+    endpoints and separate user_intent values. They collapsed into one: the
+    agent always works against the full trajectory_digest; ``focused_step``
+    is just a hint that the user is currently looking at that step and
+    would like it inspected first. user_intent in the trace is always
+    "analyze_run" for new traces produced via this path.
+    """
+
     yield from stream_analyze(
         run_id,
         user_intent="analyze_run",
-        selected_step=None,
+        selected_step=focused_step,
         llm_client=llm_client,
         budget=budget,
         persist=persist,
@@ -178,6 +189,8 @@ def analyze_step(
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
 ) -> AgentExecutionResult:
+    """Back-compat alias. New code should pass focused_step to analyze_run."""
+
     return _consume_stream(
         stream_analyze_step(
             run_id,
@@ -197,10 +210,11 @@ def stream_analyze_step(
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
 ) -> Iterator[AgentStreamItem]:
-    yield from stream_analyze(
+    """Back-compat alias. Equivalent to stream_analyze_run(focused_step=...)."""
+
+    yield from stream_analyze_run(
         run_id,
-        user_intent="analyze_step",
-        selected_step=step_index,
+        focused_step=step_index,
         llm_client=llm_client,
         budget=budget,
         persist=persist,
@@ -471,7 +485,13 @@ def _agent_node(state: GraphState) -> GraphState:
         state["llm_client"] = client
     message = _invoke_model(client, state["messages"])
     state["messages"].append(message)
-    _append_event(state["trace"], "agent_message", turn=state["turn"], message=_message_content(message))
+    # Only record an agent_message event when the model produced actual text.
+    # When the model returns only tool_calls (content == ""), the tool_call
+    # events that follow already represent the agent's intent — emitting a
+    # blank agent_message just renders as "(empty message)" in the UI.
+    content = _message_content(message)
+    if content.strip():
+        _append_event(state["trace"], "agent_message", turn=state["turn"], message=content)
 
     try:
         tool_calls = _extract_tool_calls(message)
@@ -790,16 +810,31 @@ def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
 
 
 def _system_prompt(*, followup: bool) -> str:
+    # Deliberately minimal. This is not prompt-tuning — only the absolute
+    # minimum required for the documented features to work (selected_step
+    # must be honored when supplied; propose_eval_case is the terminal
+    # tool; never invent evidence). Real prompt engineering is deferred.
+    common = (
+        "You are Trajecta's Eval Agent. Use the declared tools only. "
+        "The first HumanMessage carries `run_id`, the full "
+        "`trajectory_digest`, and optional `selected_step`. Survey the "
+        "digest to identify suspicious steps; when `selected_step` is "
+        "provided treat it as a focus hint (inspect it first via "
+        "`get_step_detail`, then adjacent steps as needed). Diverge from "
+        "the hint only if evidence proves the root cause lies elsewhere. "
+        "Always finish by calling `propose_eval_case` (success-shape if "
+        "no failure found). Never fabricate evidence; mark unavailable "
+        "evidence explicitly via `source=\"unavailable\"`."
+    )
     if followup:
         return (
             "You are Trajecta's Eval Agent resuming a previous analysis. "
-            "Use targeted tool calls, preserve the original user_intent and selected_step, "
-            "and call propose_eval_case only when revising the eval case draft."
+            "Use targeted tool calls, preserve the original `selected_step` "
+            "focus, and call `propose_eval_case` only when revising the "
+            "eval case draft. If the user only asks a clarification "
+            "question, answer in plain text without invoking any tool."
         )
-    return (
-        "You are Trajecta's Eval Agent. Use the declared tools only. "
-        "Inspect evidence, retrieve relevant memory, and finish by calling propose_eval_case."
-    )
+    return common
 
 
 def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
@@ -840,6 +875,16 @@ def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
                 )
             )
         elif event.type == "tool_error":
+            # Turn-level diagnostics (e.g. "agent stopped without calling
+            # propose_eval_case", "agent graph exceeded recursion limit",
+            # "invalid tool call from agent") are recorded as tool_error
+            # events with no name + no preceding tool_call. Replaying them
+            # as ToolMessage produces an orphan that OpenAI rejects with
+            # "messages with role 'tool' must be a response to a preceeding
+            # message with 'tool_calls'". Skip them; the trace still keeps
+            # them for the UI / observability.
+            if not event.name:
+                continue
             messages.append(
                 ToolMessage(
                     content=json.dumps({"tool_error": event.error or ""}, ensure_ascii=False, sort_keys=True),

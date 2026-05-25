@@ -545,8 +545,10 @@ class ApiTests(unittest.TestCase):
         followup = self.client.post("/api/runs/run_api/followup", json={"message": "Check again"})
         drain_ndjson(followup)
 
+        # analyze_step / focused_step now unify under user_intent="analyze_run"
+        # with selected_step as the focus hint preserved across followup.
         trace = storage.load_trace("run_api")
-        self.assertEqual(trace.user_intent, "analyze_step")
+        self.assertEqual(trace.user_intent, "analyze_run")
         self.assertEqual(trace.selected_step, 0)
 
     def test_followup_budget_is_4_via_api(self) -> None:

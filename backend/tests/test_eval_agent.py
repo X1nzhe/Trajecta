@@ -180,8 +180,11 @@ class EvalAgentTests(unittest.TestCase):
 
         first = next(stream)
 
+        # The happy-path script emits tool-only AIMessages (no text content),
+        # so no agent_message event is produced — first event is the first
+        # tool_call. Either is a valid streamed event.
         self.assertIsInstance(first, eval_agent_graph.AgentTraceEvent)
-        self.assertEqual(first.type, "agent_message")
+        self.assertIn(first.type, {"agent_message", "tool_call"})
 
     def test_budget_exceeded_terminates_turn(self) -> None:
         script = [
@@ -408,9 +411,11 @@ class EvalAgentTests(unittest.TestCase):
         self.assertIn("llm crashed", persisted.events[-1].error or "")
 
     def test_analyze_step_uses_selected_step(self) -> None:
+        # analyze_step is a back-compat alias; new traces it produces have
+        # user_intent="analyze_run" with selected_step set as a focus hint.
         result = eval_agent_graph.analyze_step("run_1", 0, llm_client=ScriptedLLM(_happy_script()))
 
-        self.assertEqual(result.trace.user_intent, "analyze_step")
+        self.assertEqual(result.trace.user_intent, "analyze_run")
         self.assertEqual(result.trace.selected_step, 0)
 
     def test_followup_increments_turn(self) -> None:
@@ -426,7 +431,9 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.turn_count, 2)
         self.assertTrue(result.trace.events[initial_event_count:])
         self.assertTrue(all(event.turn == 1 for event in result.trace.events[initial_event_count:]))
-        self.assertEqual(result.trace.user_intent, "analyze_step")
+        # analyze_step now produces user_intent="analyze_run" with the
+        # focused step recorded as selected_step; followup preserves both.
+        self.assertEqual(result.trace.user_intent, "analyze_run")
         self.assertEqual(result.trace.selected_step, 0)
 
     def test_followup_without_prior_trace_returns_409(self) -> None:
@@ -539,11 +546,12 @@ class EvalAgentTests(unittest.TestCase):
                     "source": "step_detail_high",
                     "run_id": "run_1",
                     "step_index": 0,
-                    # trace_event_seq filled in dynamically below by the test
-                    # via a scripted message rewrite — but the ScriptedLLM is
-                    # static, so we instead build the script such that the
-                    # known seq of the high-detail tool_result is predictable.
-                    "trace_event_seq": 2,
+                    # Predictable seq: tool_call(get_step_detail)=0,
+                    # tool_result(get_step_detail)=1, tool_call(propose...)=2,
+                    # tool_result(propose...)=3. Empty agent_message events
+                    # are not recorded (the scripted AIMessages carry only
+                    # tool_calls), so the high-detail result is at seq 1.
+                    "trace_event_seq": 1,
                 }
             ],
             "regression_rule": "Verify the constraint before finishing the task.",

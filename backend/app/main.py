@@ -218,14 +218,32 @@ def preprocess_run(run_id: str) -> dict:
 
 
 @app.post("/api/runs/{run_id}/analyze")
-def analyze_run(run_id: str) -> StreamingResponse:
+def analyze_run(
+    run_id: str,
+    focused_step: int | None = Query(default=None, ge=0),
+) -> StreamingResponse:
+    """Unified analyze endpoint.
+
+    ``focused_step`` (optional) tells the agent that the user is currently
+    looking at that step and would like it inspected first. The agent
+    still reads the full digest and may diverge based on evidence.
+    """
+
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
-    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
+    return _stream_agent_result(
+        lambda: eval_agent_graph.stream_analyze_run(run_id, focused_step=focused_step)
+    )
 
 
-@app.post("/api/runs/{run_id}/steps/{step_index}/analyze")
+@app.post("/api/runs/{run_id}/steps/{step_index}/analyze", deprecated=True)
 def analyze_step(run_id: str, step_index: int) -> StreamingResponse:
+    """Deprecated. Use POST /api/runs/{run_id}/analyze?focused_step={n}.
+
+    Retained for backward compat with any existing client. Routes through
+    the same code path with selected_step preserved.
+    """
+
     if not storage.run_exists(run_id):
         raise _not_found("run not found")
     return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_step(run_id, step_index))
