@@ -202,7 +202,7 @@ function runStatusLabel(status: TrajectoryRun['status']) {
   // Title-cased to match RunList's StatusBadge labels.
   if (status === 'failed') return 'Failed';
   if (status === 'success') return 'Success';
-  return 'Unanalyzed';
+  return 'Unverified';
 }
 
 function truncateRunId(id: string) {

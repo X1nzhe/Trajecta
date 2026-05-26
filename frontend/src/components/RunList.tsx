@@ -15,14 +15,14 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
     All: runs.length,
     Failed: runs.filter((run) => run.status === 'failed').length,
     Success: runs.filter((run) => run.status === 'success').length,
-    Unanalyzed: runs.filter((run) => run.status === 'unknown').length,
+    Unverified: runs.filter((run) => run.status === 'unknown').length,
   }), [runs]);
 
   const filteredRuns = runs.filter((run) => {
     if (search && !run.task.toLowerCase().includes(search.toLowerCase())) return false;
     if (filter === 'Failed' && run.status !== 'failed') return false;
     if (filter === 'Success' && run.status !== 'success') return false;
-    if (filter === 'Unanalyzed' && run.status !== 'unknown') return false;
+    if (filter === 'Unverified' && run.status !== 'unknown') return false;
     return true;
   });
 
@@ -106,9 +106,9 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
   );
 }
 
-type RunFilter = 'All' | 'Failed' | 'Success' | 'Unanalyzed';
+type RunFilter = 'All' | 'Failed' | 'Success' | 'Unverified';
 
-const filters: RunFilter[] = ['All', 'Failed', 'Success', 'Unanalyzed'];
+const filters: RunFilter[] = ['All', 'Failed', 'Success', 'Unverified'];
 
 function StatusBadge({ status }: { status: TrajectoryRun['status'] }) {
   const classes = {
@@ -116,14 +116,14 @@ function StatusBadge({ status }: { status: TrajectoryRun['status'] }) {
     success: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     unknown: 'bg-amber-50 text-amber-700 border-amber-100',
   }[status];
-  const label = status === 'failed' ? 'Failed' : status === 'success' ? 'Success' : 'Unanalyzed';
+  const label = status === 'failed' ? 'Failed' : status === 'success' ? 'Success' : 'Unverified';
   return <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${classes}`}>{label}</span>;
 }
 
 function activeFilterClass(filter: RunFilter) {
   if (filter === 'Failed') return 'bg-red-50 text-red-700';
   if (filter === 'Success') return 'bg-emerald-50 text-emerald-700';
-  if (filter === 'Unanalyzed') return 'bg-amber-50 text-amber-700';
+  if (filter === 'Unverified') return 'bg-amber-50 text-amber-700';
   return 'bg-slate-900 text-white';
 }
 
