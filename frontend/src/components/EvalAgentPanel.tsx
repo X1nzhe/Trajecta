@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createEvalCase, fetchRunDigest } from '../api/client';
@@ -40,6 +40,10 @@ export function EvalAgentPanel({
   // inFlight true → false transition, and on a page reload that brings
   // up a pre-existing draft.
   const [traceCollapsed, setTraceCollapsed] = useState(false);
+  // Per-followup-turn user override for "show tool calls again". Default
+  // empty Set = every completed tool run is collapsed. User clicks the
+  // toggle row to add/remove that run's first-seq key.
+  const [expandedFollowupRuns, setExpandedFollowupRuns] = useState<Set<number>>(new Set());
   const wasInFlight = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -66,6 +70,7 @@ export function EvalAgentPanel({
     // Run switch: collapse iff a draft is already on the table from the
     // server (page reload landed on a previously-analyzed run).
     setTraceCollapsed(Boolean(evalCaseDraft));
+    setExpandedFollowupRuns(new Set());
     wasInFlight.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.run_id]);
@@ -282,8 +287,11 @@ export function EvalAgentPanel({
 
         {/* Followup chat region: turn >= 1 events plus pendingUserMessage
             and any in-flight indicator. Empty by default — only appears
-            after the user sends a followup. */}
-        <TraceHistory
+            after the user sends a followup. Each completed followup
+            turn's tool calls collapse into a one-line summary so the
+            chat reads as messages + verdict, with the implementation
+            detail folded away. */}
+        <FollowupTimeline
           events={followupEvents}
           pendingUserMessage={pendingUserMessage}
           inFlight={inFlight && (followupEvents.length > 0 || pendingUserMessage !== null)}
@@ -292,6 +300,8 @@ export function EvalAgentPanel({
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
           runId={run?.run_id ?? null}
+          expandedRuns={expandedFollowupRuns}
+          onToggleRun={(seq) => setExpandedFollowupRuns((current) => toggleSet(current, seq))}
         />
 
         {/* Second render position for the verdict trio — used when a
@@ -696,6 +706,158 @@ function ObservationSummaryPanel({
         </div>
       )}
     </section>
+  );
+}
+
+// Group followup events into alternating runs of "messages" (always
+// visible) and "tools" (collapsible). Orphan tool_error events (no
+// preceding tool_call — these are turn-level diagnostics like budget
+// exhaustion) stay with messages so the user never loses sight of an
+// error. The first event's seq is used as a stable identity for the
+// run, used both as a React key and as the expanded-set key.
+type FollowupGroup =
+  | { kind: 'messages'; firstSeq: number; events: AgentTraceEvent[] }
+  | { kind: 'tools'; firstSeq: number; events: AgentTraceEvent[] };
+
+function groupFollowupEvents(events: AgentTraceEvent[]): FollowupGroup[] {
+  const groups: FollowupGroup[] = [];
+  for (const event of events) {
+    const isToolEvent =
+      event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'tool_error';
+    // A tool_error with no name is an orphan diagnostic (e.g. "agent
+    // stopped without calling propose_eval_case"). Keep it inline with
+    // messages so the user always sees it.
+    const isOrphanToolError = event.type === 'tool_error' && !event.name;
+    const targetKind: FollowupGroup['kind'] =
+      isToolEvent && !isOrphanToolError ? 'tools' : 'messages';
+    const last = groups[groups.length - 1];
+    if (last && last.kind === targetKind) {
+      last.events.push(event);
+    } else {
+      groups.push({ kind: targetKind, firstSeq: event.seq, events: [event] });
+    }
+  }
+  return groups;
+}
+
+function FollowupTimeline({
+  events,
+  pendingUserMessage,
+  inFlight,
+  panelError,
+  expandedEvents,
+  onToggleEvent,
+  onSelectStep,
+  runId,
+  expandedRuns,
+  onToggleRun,
+}: {
+  events: AgentTraceEvent[];
+  pendingUserMessage: string | null;
+  inFlight: boolean;
+  panelError: string | null;
+  expandedEvents: Set<number>;
+  onToggleEvent: (seq: number) => void;
+  onSelectStep: (index: number) => void;
+  runId: string | null;
+  expandedRuns: Set<number>;
+  onToggleRun: (firstSeq: number) => void;
+}) {
+  const groups = useMemo(() => groupFollowupEvents(events), [events]);
+
+  // Last tool group is auto-expanded while the stream is in-flight so the
+  // user sees the agent's tool work live. Other completed tool groups
+  // collapse by default and require an explicit click to expand.
+  const lastToolGroupIndex = useMemo(() => {
+    for (let i = groups.length - 1; i >= 0; i -= 1) {
+      if (groups[i].kind === 'tools') return i;
+    }
+    return -1;
+  }, [groups]);
+
+  const hasContent =
+    groups.length > 0 || Boolean(pendingUserMessage) || inFlight || Boolean(panelError);
+  if (!hasContent) return null;
+
+  return (
+    <section className="space-y-2">
+      {groups.map((group, index) => {
+        if (group.kind === 'messages') {
+          return (
+            <TraceHistory
+              key={`m-${group.firstSeq}`}
+              events={group.events}
+              pendingUserMessage={null}
+              inFlight={false}
+              panelError={null}
+              expandedEvents={expandedEvents}
+              onToggleEvent={onToggleEvent}
+              onSelectStep={onSelectStep}
+              runId={runId}
+            />
+          );
+        }
+        const isStreamingGroup = inFlight && index === lastToolGroupIndex;
+        const expanded = isStreamingGroup || expandedRuns.has(group.firstSeq);
+        return (
+          <Fragment key={`t-${group.firstSeq}`}>
+            {!isStreamingGroup && (
+              <FollowupToolRunToggle
+                collapsed={!expanded}
+                events={group.events}
+                onToggle={() => onToggleRun(group.firstSeq)}
+              />
+            )}
+            {expanded && (
+              <TraceHistory
+                events={group.events}
+                pendingUserMessage={null}
+                inFlight={isStreamingGroup}
+                panelError={null}
+                expandedEvents={expandedEvents}
+                onToggleEvent={onToggleEvent}
+                onSelectStep={onSelectStep}
+                runId={runId}
+              />
+            )}
+          </Fragment>
+        );
+      })}
+
+      {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
+      {panelError && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          {panelError}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FollowupToolRunToggle({
+  collapsed,
+  events,
+  onToggle,
+}: {
+  collapsed: boolean;
+  events: AgentTraceEvent[];
+  onToggle: () => void;
+}) {
+  const toolCallCount = events.filter((event) => event.type === 'tool_call').length;
+  const label = `${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}`;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center gap-2 text-left text-[11px] text-slate-500 hover:text-indigo-600"
+      title={collapsed ? 'Expand tool calls' : 'Collapse tool calls'}
+    >
+      <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 12l5 5L20 7" />
+      </svg>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="shrink-0 text-slate-400">{collapsed ? '▾ Show' : '▴ Hide'}</span>
+    </button>
   );
 }
 
