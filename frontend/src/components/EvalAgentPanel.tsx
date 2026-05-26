@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { createEvalCase, fetchRunDigest } from '../api/client';
 import { streamAgentRequest } from '../api/stream';
 import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryDigest, TrajectoryRun } from '../types/contracts';
@@ -1121,6 +1123,7 @@ function shortRunId(runId: string) {
 }
 
 function MessageBubble({ align, message, muted = false }: { align: 'left' | 'right'; message: string; muted?: boolean }) {
+  const empty = !message;
   return (
     <div className={`flex ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-5 ${
@@ -1128,8 +1131,78 @@ function MessageBubble({ align, message, muted = false }: { align: 'left' | 'rig
           ? 'bg-indigo-600 text-white'
           : 'border border-slate-200 bg-white text-slate-700'
       } ${muted ? 'opacity-70' : ''}`}>
-        {message || '(empty message)'}
+        {empty ? '(empty message)' : align === 'left' ? <AgentMarkdown source={message} /> : message}
       </div>
+    </div>
+  );
+}
+
+// Agent messages frequently carry Markdown (bullets, **bold**, `code`,
+// occasional code fences). Rendering them as plain text leaks the raw
+// asterisks/backticks into the UI. Use react-markdown with remark-gfm
+// for tables/strikethrough/task-lists, and pin the component overrides
+// to Tailwind classes so the output stays inside the bubble's typography
+// budget. Raw HTML is NOT enabled (no rehype-raw) so agent-produced
+// `<script>` tags are still rendered as literal text.
+function AgentMarkdown({ source }: { source: string }) {
+  return (
+    <div className="space-y-2">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        skipHtml
+        components={{
+          p: ({ children }) => <p className="leading-5">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 leading-5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 leading-5">{children}</ol>,
+          li: ({ children }) => <li className="leading-5">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline hover:text-indigo-700">
+              {children}
+            </a>
+          ),
+          code: ({ children, className }) => {
+            // remark passes `className="language-xxx"` for fenced code blocks
+            // and no className for inline code. Use that to switch presentation.
+            const isBlock = Boolean(className);
+            if (isBlock) {
+              return (
+                <code className={`block w-full ${className ?? ''}`}>{children}</code>
+              );
+            }
+            return (
+              <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] text-slate-700">{children}</code>
+            );
+          },
+          pre: ({ children }) => (
+            <pre className="max-h-64 overflow-auto rounded-md bg-slate-100 p-2 font-mono text-[11px] leading-4 text-slate-700">
+              {children}
+            </pre>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-slate-300 pl-3 text-slate-600">{children}</blockquote>
+          ),
+          h1: ({ children }) => <h4 className="text-sm font-bold text-slate-900">{children}</h4>,
+          h2: ({ children }) => <h4 className="text-sm font-bold text-slate-900">{children}</h4>,
+          h3: ({ children }) => <h4 className="text-sm font-semibold text-slate-900">{children}</h4>,
+          h4: ({ children }) => <h4 className="text-sm font-semibold text-slate-900">{children}</h4>,
+          h5: ({ children }) => <h5 className="text-xs font-semibold text-slate-900">{children}</h5>,
+          h6: ({ children }) => <h6 className="text-xs font-semibold text-slate-900">{children}</h6>,
+          hr: () => <hr className="border-slate-200" />,
+          table: ({ children }) => (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-[12px]">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border-b border-slate-200 px-2 py-1 text-left font-semibold text-slate-700">{children}</th>
+          ),
+          td: ({ children }) => <td className="border-b border-slate-100 px-2 py-1 align-top">{children}</td>,
+        }}
+      >
+        {source}
+      </ReactMarkdown>
     </div>
   );
 }
