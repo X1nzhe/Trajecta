@@ -19,7 +19,7 @@ from backend.app.schemas import (
 )
 
 
-PREPROCESS_VERSION = "v1"
+PREPROCESS_VERSION = "v2"
 
 
 def build_digest(run: TrajectoryRun, *, client: VLMClient | None = None) -> TrajectoryDigest:

@@ -66,21 +66,22 @@ Fields and how they are populated:
 
 ## The Low-Detail VLM Call
 
-A single VLM call per step at low detail (~85 tokens of image input). The fixed prompt asks for a short structural hint covering at most:
+A single VLM call per step at low detail (~85 tokens of image input). The fixed prompt asks for a one-line, ≤300-character hint with two segments separated by ` | `:
 
-- page type (search results / form / detail / dashboard / modal / loading / error / unknown)
-- presence of a modal or large overlay
-- presence of a visually obvious error banner
-- approximate cursor / focus region (top / center / bottom / left / right / unknown)
+1. **Structured tags**: `page_type=<one of search_results / form / detail / dashboard / modal / loading / error / unknown>; modal=<yes|no>; error_banner=<yes|no>; focus=<top|center|bottom|left|right|unknown>`
+2. **Visible cue**: up to ~20 words naming the most prominent legible content — hero headline, large image subject, big button label, empty-state copy, item count, or whatever visually distinguishes this page from a generic page of its type.
 
-A "layout changed vs the previous step" signal was considered and dropped
-for v1: it would require cross-step prompting (passing the previous image
-or summary), which conflicts with the one-call-per-step independence of
-the current preprocessing loop and complicates caching. The Eval Agent can
-detect layout shifts from `url` / `title` changes in the digest and from
-`get_step_detail` deep-dives.
+Example:
 
-The output is a short single-line string, at most 200 characters, suitable for embedding in the digest. **It is not allowed to make claims about specific text, button labels, or small UI elements** — the resolution does not support that, and the agent must verify any text-dependent claim via `get_step_detail`.
+```
+page_type=detail; modal=no; error_banner=no; focus=center | large product image, Add to Cart button visible, price prominently shown
+```
+
+The "visible cue" segment was added in `PREPROCESS_VERSION="v2"` (replacing the v1 tags-only output). The structured tags alone tended to collapse into the same string across many product / list / dashboard pages, which gave the Eval Agent no signal for picking suspicious steps. Adding ~20 words of cue lifts per-step distinguishability while keeping image input at ~85 tokens (response cost grows from ~50 to ~100 output tokens — still well below high-detail's ~1500).
+
+A "layout changed vs the previous step" signal was considered and dropped: it would require cross-step prompting (passing the previous image or summary), which conflicts with the one-call-per-step independence of the current preprocessing loop and complicates caching. The Eval Agent can detect layout shifts from `url` / `title` changes in the digest and from `get_step_detail` deep-dives.
+
+**It is still not allowed to transcribe small UI labels, body paragraphs, table cells, or footer links** — the resolution does not support reliable transcription, and the agent must verify any text-dependent claim via `get_step_detail`. The cue should name *what is plainly legible at a glance*, not quote arbitrary on-page strings.
 
 ### Skip Condition
 

@@ -105,7 +105,7 @@ class TrajectoryDigest(BaseModel):
     step_count: int
     steps: List[StepDigest]
     preprocess_model: Optional[str] = None
-    preprocess_version: str = "v1"
+    preprocess_version: str = "v2"
 
 
 class FailureMemoryCase(BaseModel):
