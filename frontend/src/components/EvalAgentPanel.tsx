@@ -31,6 +31,14 @@ export function EvalAgentPanel({
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
   const [draftViewed, setDraftViewed] = useState(false);
+  // Once analyze finishes and a draft lands, fold the tool-call timeline
+  // into a one-line summary so the Analysis Result moves up to the top
+  // of the scroll region. Streaming keeps the timeline expanded so the
+  // user can watch the agent work; the auto-collapse triggers on the
+  // inFlight true → false transition, and on a page reload that brings
+  // up a pre-existing draft.
+  const [traceCollapsed, setTraceCollapsed] = useState(false);
+  const wasInFlight = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const latestToolError = useMemo(() => latestError(trace), [trace]);
@@ -53,7 +61,20 @@ export function EvalAgentPanel({
     setPendingUserMessage(null);
     setExpandedEvents(new Set());
     setDraftViewed(false);
+    // Run switch: collapse iff a draft is already on the table from the
+    // server (page reload landed on a previously-analyzed run).
+    setTraceCollapsed(Boolean(evalCaseDraft));
+    wasInFlight.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.run_id]);
+
+  useEffect(() => {
+    // Auto-collapse the moment streaming ends with a draft on the table.
+    if (wasInFlight.current && !inFlight && evalCaseDraft) {
+      setTraceCollapsed(true);
+    }
+    wasInFlight.current = inFlight;
+  }, [inFlight, evalCaseDraft]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -148,40 +169,28 @@ export function EvalAgentPanel({
     [trace],
   );
   const inputDisabled = !run || !hasTrace || inFlight;
+  // Initial analyze = stream is in flight AND no draft has been produced
+  // yet. Used to override the auto-collapse: while the initial analyze
+  // is happening, the user needs to see events stream live. Followup
+  // streams run with a draft already on the table and don't override.
+  const initialAnalyzeStreaming = inFlight && !evalCaseDraft;
 
   return (
     <aside className="flex max-h-[680px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[410px]">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-50 text-indigo-700">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M13 3 4 14h7l-1 7 9-11h-7l1-7Z" />
-            </svg>
-          </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-950">Eval Agent</h2>
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Beta</span>
-            </div>
-            <TerminationBadge trace={trace} latestToolError={latestToolError} inFlight={inFlight} />
-          </div>
+      <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+        
+        <h2 className="shrink-0 font-bold text-slate-950">Eval Agent</h2>
+        <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Beta</span>
+        <div className="min-w-0 flex-1">
+          <TerminationBadge trace={trace} latestToolError={latestToolError} inFlight={inFlight} />
         </div>
-        <button
-          onClick={rerunLatest}
-          disabled={!run || inFlight}
-          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          New Chat
-        </button>
-      </div>
-
-      <div className="border-b border-slate-200 bg-white p-3">
-        <PrimaryAgentButton
-          label="Analyze trajectory"
-          icon="run"
-          active
-          disabled={!run || inFlight}
-          onClick={runAnalysis}
+        <AnalyzeButton
+          hasTrace={hasTrace}
+          inFlight={inFlight}
+          disabled={!run}
+          trace={trace}
+          onAnalyze={runAnalysis}
+          onReanalyze={rerunLatest}
         />
       </div>
 
@@ -195,16 +204,32 @@ export function EvalAgentPanel({
             chat-like: the verdict stays put, new messages append at the
             bottom. Before the split, every followup triggered inFlight,
             hid the Summary/View Draft, and reflowed the layout. */}
-        <TraceHistory
-          events={initialTurnEvents}
-          pendingUserMessage={null}
-          inFlight={inFlight && followupEvents.length === 0 && pendingUserMessage === null}
-          panelError={!evalCaseDraft ? panelError : null}
-          expandedEvents={expandedEvents}
-          onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
-          onSelectStep={onSelectStep}
-          runId={run?.run_id ?? null}
-        />
+        {/* Auto-collapse the tool-call timeline once an initial analyze
+            has finished with a draft, so the Analysis Result floats to
+            the top. The override condition `initialAnalyzeStreaming`
+            keeps the timeline visible while the initial analyze is in
+            flight (no draft yet); followup streams (which run with the
+            draft already on the table) do NOT re-expand it. */}
+        {evalCaseDraft && (
+          <TraceCollapseToggle
+            collapsed={traceCollapsed}
+            events={initialTurnEvents}
+            runtimeMs={trace?.runtime_ms ?? 0}
+            onToggle={() => setTraceCollapsed((value) => !value)}
+          />
+        )}
+        {(initialAnalyzeStreaming || !traceCollapsed || !evalCaseDraft) && (
+          <TraceHistory
+            events={initialTurnEvents}
+            pendingUserMessage={null}
+            inFlight={inFlight && followupEvents.length === 0 && pendingUserMessage === null}
+            panelError={!evalCaseDraft ? panelError : null}
+            expandedEvents={expandedEvents}
+            onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
+            onSelectStep={onSelectStep}
+            runId={run?.run_id ?? null}
+          />
+        )}
 
         {/* Summary + draft persist across followups: no !inFlight gate.
             The presence of evalCaseDraft is the sole condition — once the
@@ -314,37 +339,81 @@ export function EvalAgentPanel({
   );
 }
 
-function PrimaryAgentButton({
-  label,
-  icon,
-  active = false,
+function AnalyzeButton({
+  hasTrace,
+  inFlight,
   disabled,
-  onClick,
+  trace,
+  onAnalyze,
+  onReanalyze,
 }: {
-  label: string;
-  icon: 'run' | 'step';
-  active?: boolean;
+  hasTrace: boolean;
+  inFlight: boolean;
   disabled: boolean;
-  onClick: () => void;
+  trace: AgentTrace | null;
+  onAnalyze: () => void;
+  onReanalyze: () => void;
 }) {
+  // Live wall-clock + tool-call counter while streaming. The backend's
+  // runtime_ms only lands once `done` fires, so we tick a client-side
+  // timer in the meantime (250ms is the same cadence TraceFooter uses).
+  const [elapsedMs, setElapsedMs] = useState(0);
+  useEffect(() => {
+    if (!inFlight) return undefined;
+    setElapsedMs(0);
+    const start = Date.now();
+    const interval = window.setInterval(() => setElapsedMs(Date.now() - start), 250);
+    return () => window.clearInterval(interval);
+  }, [inFlight]);
+
+  if (inFlight) {
+    const toolCalls = trace?.events.filter((event) => event.type === 'tool_call').length ?? 0;
+    return (
+      <button
+        type="button"
+        disabled
+        className="flex shrink-0 items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm disabled:cursor-wait"
+      >
+        <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+        <span>Analyzing… {formatRuntime(elapsedMs)}</span>
+        {toolCalls > 0 && (
+          <span className="text-indigo-500/80">· {toolCalls} tool call{toolCalls === 1 ? '' : 's'}</span>
+        )}
+      </button>
+    );
+  }
+
+  if (hasTrace) {
+    return (
+      <button
+        type="button"
+        onClick={onReanalyze}
+        disabled={disabled}
+        title="Replace the current analysis with a fresh run"
+        className="flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M3 12a9 9 0 0 1 15.5-6.3M21 4v5h-5M21 12a9 9 0 0 1-15.5 6.3M3 20v-5h5" />
+        </svg>
+        Re-analyze
+      </button>
+    );
+  }
+
   return (
     <button
-      onClick={onClick}
+      type="button"
+      onClick={onAnalyze}
       disabled={disabled}
-      className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-        active
-          ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-      }`}
+      className="flex shrink-0 items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <span className={`flex h-6 w-6 items-center justify-center rounded-md ${active ? 'bg-white text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
-        {icon === 'run' ? (
-          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M13 3 4 14h7l-1 7 9-11h-7l1-7Z" /></svg>
-        ) : (
-          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
-        )}
-      </span>
-      {label}
+      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M13 3 4 14h7l-1 7 9-11h-7l1-7Z" />
+      </svg>
+      Analyze
     </button>
   );
 }
@@ -1364,31 +1433,67 @@ function DraftTextArea({ label, value, onChange }: { label: string; value: strin
 }
 
 function TerminationBadge({ trace, latestToolError, inFlight }: { trace: AgentTrace | null; latestToolError: string | null; inFlight: boolean }) {
-  if (!trace) return <div className="mt-0.5 text-[11px] text-slate-400">No trace yet</div>;
-  // While the analyze stream is in flight, ignore the placeholder
-  // terminated_by="error" baked into emptyTrace — the real terminator
-  // only lands when the `done` event arrives. Showing "running" avoids
-  // misleading the user that the run failed.
-  if (inFlight) {
-    return (
-      <div className="mt-0.5">
-        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-          running…
-        </span>
-      </div>
-    );
-  }
+  // In the compact single-row header the AnalyzeButton itself communicates
+  // "no trace yet" (idle state) and "running…" (inFlight). The termination
+  // badge only adds value once a trace has actually terminated, so we
+  // render nothing in those transient cases.
+  if (!trace || inFlight) return null;
+  // Skip the emptyTrace placeholder ("error" baked in before the real
+  // `done` event lands) — only show once a real event has been recorded.
+  if (trace.events.length === 0) return null;
   const classes = trace.terminated_by === 'propose_eval_case'
     ? 'bg-emerald-50 text-emerald-700'
     : trace.terminated_by === 'budget_exceeded'
       ? 'bg-slate-100 text-slate-600'
       : 'bg-red-50 text-red-700';
+  // Raw snake_case terminators are internal contract values (mirrored in
+  // docs/eval_agent.md). Translate to human-readable labels for the UI;
+  // hover title still carries the underlying tool error when present.
+  const label = trace.terminated_by === 'propose_eval_case'
+    ? 'Analysis complete'
+    : trace.terminated_by === 'budget_exceeded'
+      ? 'Budget exceeded'
+      : 'Error';
   return (
-    <div className="mt-0.5">
+    <div>
       <span title={trace.terminated_by === 'error' ? latestToolError ?? undefined : undefined} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${classes}`}>
-        {trace.terminated_by}
+        {label}
       </span>
     </div>
+  );
+}
+
+function TraceCollapseToggle({
+  collapsed,
+  events,
+  runtimeMs,
+  onToggle,
+}: {
+  collapsed: boolean;
+  events: AgentTraceEvent[];
+  runtimeMs: number;
+  onToggle: () => void;
+}) {
+  const toolCallCount = events.filter((event) => event.type === 'tool_call').length;
+  const label = `${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}`;
+  const runtime = runtimeMs > 0 ? ` · ${formatRuntime(runtimeMs)}` : '';
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"
+      title={collapsed ? 'Expand tool-call timeline' : 'Collapse tool-call timeline'}
+    >
+      <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 12l5 5L20 7" />
+      </svg>
+      <span className="min-w-0 flex-1 truncate">
+        {label}{runtime}
+      </span>
+      <span className="shrink-0 text-[10px] text-slate-400">
+        {collapsed ? '▾ Show' : '▴ Hide'}
+      </span>
+    </button>
   );
 }
 
