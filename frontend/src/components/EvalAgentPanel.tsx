@@ -2,7 +2,15 @@ import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type Rea
 import remarkGfm from 'remark-gfm';
 import { Streamdown } from 'streamdown';
 import { createEvalCase, fetchRunDigest } from '../api/client';
-import { streamAgentRequest } from '../api/stream';
+import { streamAgentRequest, type AgentDelta } from '../api/stream';
+
+// Local helper type for the streamingText Map. Holds the running
+// concatenation of token deltas plus the originating turn so the
+// bubble can be rendered next to the right message group.
+interface StreamingMessage {
+  turn: number;
+  text: string;
+}
 import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryDigest, TrajectoryRun } from '../types/contracts';
 
 interface EvalAgentPanelProps {
@@ -44,6 +52,14 @@ export function EvalAgentPanel({
   // empty Set = every completed tool run is collapsed. User clicks the
   // toggle row to add/remove that run's first-seq key.
   const [expandedFollowupRuns, setExpandedFollowupRuns] = useState<Set<number>>(new Set());
+  // In-flight streaming text per LLM generation. Keyed by stream_id
+  // (LangChain AIMessageChunk.id, same across all chunks of one call).
+  // An entry stays in the map until either:
+  //   (a) the final agent_message trace event lands carrying the same
+  //       full content (then we drop the entry to avoid duplicate
+  //       rendering — the trace event becomes authoritative), or
+  //   (b) inFlight goes false (stream ended; clear all).
+  const [streamingText, setStreamingText] = useState<Map<string, StreamingMessage>>(new Map());
   const wasInFlight = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -71,6 +87,7 @@ export function EvalAgentPanel({
     // server (page reload landed on a previously-analyzed run).
     setTraceCollapsed(Boolean(evalCaseDraft));
     setExpandedFollowupRuns(new Set());
+    setStreamingText(new Map());
     wasInFlight.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.run_id]);
@@ -95,13 +112,24 @@ export function EvalAgentPanel({
     setPanelError(null);
     setPendingUserMessage(null);
     setDraftViewed(false);
+    setStreamingText(new Map());
     onDraftChange(null);
     onTraceChange(emptyTrace(run.run_id));
 
     try {
       const done = await streamAgentRequest(`/api/runs/${run.run_id}/analyze`, {
         signal: controller.signal,
-        onEvent: (event) => onTraceChange(appendEvent(run.run_id, event)),
+        onEvent: (event) => {
+          // The full agent_message event supersedes any streaming
+          // buffer with the same content — drop matching entries so
+          // the bubble doesn't render twice during the small window
+          // between final delta and final event arrival.
+          if (event.type === 'agent_message') {
+            setStreamingText((current) => dropFinalizedStream(current, event.message ?? ''));
+          }
+          onTraceChange(appendEvent(run.run_id, event));
+        },
+        onDelta: (delta) => setStreamingText((current) => appendDelta(current, delta)),
       });
       onTraceChange(done.agent_trace);
       onDraftChange(done.eval_case_draft);
@@ -110,6 +138,7 @@ export function EvalAgentPanel({
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setInFlight(false);
+      setStreamingText(new Map());
     }
   };
 
@@ -132,8 +161,12 @@ export function EvalAgentPanel({
         signal: controller.signal,
         onEvent: (event) => {
           setPendingUserMessage(null);
+          if (event.type === 'agent_message') {
+            setStreamingText((current) => dropFinalizedStream(current, event.message ?? ''));
+          }
           onTraceChange(appendEvent(run.run_id, event));
         },
+        onDelta: (delta) => setStreamingText((current) => appendDelta(current, delta)),
       });
       onTraceChange(done.agent_trace);
       if (done.eval_case_draft) onDraftChange(done.eval_case_draft);
@@ -143,6 +176,7 @@ export function EvalAgentPanel({
       if (abortRef.current === controller) abortRef.current = null;
       setPendingUserMessage(null);
       setInFlight(false);
+      setStreamingText(new Map());
     }
   };
 
@@ -282,6 +316,17 @@ export function EvalAgentPanel({
           />
         )}
 
+        {/* Streaming bubbles for the initial analyze (turn 0). Free-text
+            agent replies during analyze are rare but supported — render
+            them between the tool-call timeline and the verdict so the
+            user sees the agent's intermediate text typing in. Followup
+            streams (turn >= 1) live inside FollowupTimeline instead. */}
+        {Array.from(streamingText.entries())
+          .filter(([, value]) => value.turn === 0 && value.text)
+          .map(([id, value]) => (
+            <MessageBubble key={`stream-${id}`} align="left" message={value.text} />
+          ))}
+
         {/* Verdict trio (Observation summary + View draft button + draft
             editor). There's only one evalCaseDraft at a time, so the trio
             renders in exactly one position — the END of the turn that
@@ -311,6 +356,7 @@ export function EvalAgentPanel({
             evalCaseDraft && latestProposeTurn !== null && latestProposeTurn > 0 ? verdictNode : null
           }
           verdictAfterTurn={latestProposeTurn !== null && latestProposeTurn > 0 ? latestProposeTurn : null}
+          streamingMessages={streamingText}
         />
 
         {(hasTrace || inFlight) && <TraceFooter trace={trace} inFlight={inFlight} />}
@@ -745,6 +791,7 @@ function FollowupTimeline({
   onToggleRun,
   verdictBlock,
   verdictAfterTurn,
+  streamingMessages,
 }: {
   events: AgentTraceEvent[];
   pendingUserMessage: string | null;
@@ -763,8 +810,27 @@ function FollowupTimeline({
   // timeline) or doesn't exist yet.
   verdictBlock: ReactNode;
   verdictAfterTurn: number | null;
+  // In-flight streaming text per LLM generation. Each entry is
+  // rendered as a left-aligned bubble at the end of its originating
+  // turn — typewriter-style typing while OpenAI streams.
+  streamingMessages: Map<string, StreamingMessage>;
 }) {
   const groups = useMemo(() => groupFollowupEvents(events), [events]);
+
+  // Group streaming bubbles by turn so we can render them next to the
+  // right message cluster. Multiple streams per turn are rare (one
+  // turn = one LLM call typically) but supported — Map iteration
+  // preserves insertion order, matching arrival order.
+  const streamingByTurn = useMemo(() => {
+    const byTurn = new Map<number, Array<{ id: string; text: string }>>();
+    for (const [id, entry] of streamingMessages.entries()) {
+      if (!entry.text) continue;
+      const list = byTurn.get(entry.turn) ?? [];
+      list.push({ id, text: entry.text });
+      byTurn.set(entry.turn, list);
+    }
+    return byTurn;
+  }, [streamingMessages]);
 
   // Last tool group is auto-expanded while the stream is in-flight so the
   // user sees the agent's tool work live. Other completed tool groups
@@ -836,9 +902,13 @@ function FollowupTimeline({
             </>
           );
         }
+        const turnStreams = isLastGroupInTurn ? streamingByTurn.get(groupTurn) ?? [] : [];
         return (
           <Fragment key={`g-${group.firstSeq}`}>
             {groupNode}
+            {turnStreams.map((stream) => (
+              <MessageBubble key={`stream-${stream.id}`} align="left" message={stream.text} />
+            ))}
             {shouldRenderVerdictAfter && verdictBlock}
           </Fragment>
         );
@@ -2056,6 +2126,45 @@ function appendEvent(runId: string, event: AgentTraceEvent) {
     if (base.events.some((item) => item.seq === event.seq)) return base;
     return { ...base, events: [...base.events, event] };
   };
+}
+
+// Streaming bubble helpers — kept as plain functions (not hooks) so
+// they can be inlined in onDelta/onEvent without adding a dep on the
+// component's state setters.
+
+function appendDelta(
+  current: Map<string, StreamingMessage>,
+  delta: AgentDelta,
+): Map<string, StreamingMessage> {
+  const next = new Map(current);
+  const existing = next.get(delta.stream_id);
+  next.set(delta.stream_id, {
+    turn: existing?.turn ?? delta.turn,
+    text: (existing?.text ?? '') + delta.text,
+  });
+  return next;
+}
+
+function dropFinalizedStream(
+  current: Map<string, StreamingMessage>,
+  finalMessage: string,
+): Map<string, StreamingMessage> {
+  // The persisted agent_message event has the full content. Drop any
+  // streaming entry whose accumulated text matches (the same LLM
+  // generation just landed in the trace), so the bubble doesn't
+  // render twice during the small finalization window. If nothing
+  // matches exactly we still leave the entry; it'll get cleared on
+  // inFlight=false anyway.
+  let changed = false;
+  const next = new Map<string, StreamingMessage>();
+  for (const [key, value] of current.entries()) {
+    if (value.text === finalMessage) {
+      changed = true;
+      continue;
+    }
+    next.set(key, value);
+  }
+  return changed ? next : current;
 }
 
 function isVisualEvidence(item: EvidenceItem) {

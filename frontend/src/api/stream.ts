@@ -6,8 +6,15 @@ export interface AgentStreamDone {
   agent_trace: AgentTrace;
 }
 
+export interface AgentDelta {
+  turn: number;
+  text: string;
+  stream_id: string;
+}
+
 type AgentStreamLine =
   | { type: 'event'; event: AgentTraceEvent }
+  | { type: 'agent_delta'; event: AgentDelta }
   | AgentStreamDone
   | { type: 'error'; error: string };
 
@@ -15,11 +22,16 @@ interface StreamAgentOptions {
   body?: unknown;
   signal?: AbortSignal;
   onEvent: (event: AgentTraceEvent) => void;
+  // Optional — only set by callers that want token-by-token streaming
+  // for free-text agent replies. Each delta is INCREMENTAL (not
+  // cumulative); the caller appends. The eventual agent_message
+  // trace event with the full content still arrives via onEvent.
+  onDelta?: (delta: AgentDelta) => void;
 }
 
 export async function streamAgentRequest(
   url: string,
-  { body, signal, onEvent }: StreamAgentOptions,
+  { body, signal, onEvent, onDelta }: StreamAgentOptions,
 ): Promise<AgentStreamDone> {
   const res = await fetch(url, {
     method: 'POST',
@@ -46,12 +58,12 @@ export async function streamAgentRequest(
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() ?? '';
-    const terminal = parseLines(lines, onEvent);
+    const terminal = parseLines(lines, onEvent, onDelta);
     if (terminal) return terminal;
   }
 
   buffer += decoder.decode();
-  const terminal = parseLines(buffer.split('\n'), onEvent);
+  const terminal = parseLines(buffer.split('\n'), onEvent, onDelta);
   if (terminal) return terminal;
   throw new Error('Agent stream ended without a terminal result.');
 }
@@ -59,12 +71,15 @@ export async function streamAgentRequest(
 function parseLines(
   lines: string[],
   onEvent: (event: AgentTraceEvent) => void,
+  onDelta: ((delta: AgentDelta) => void) | undefined,
 ): AgentStreamDone | null {
   for (const line of lines) {
     if (!line.trim()) continue;
     const message = JSON.parse(line) as AgentStreamLine;
     if (message.type === 'event') {
       onEvent(message.event);
+    } else if (message.type === 'agent_delta') {
+      onDelta?.(message.event);
     } else if (message.type === 'done') {
       return message;
     } else if (message.type === 'error') {
