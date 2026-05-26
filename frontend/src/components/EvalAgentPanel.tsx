@@ -521,8 +521,8 @@ function ObservationSummaryPanel({
 }) {
   if (!draft) {
     return (
-      <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        <h3 className="text-sm font-bold text-slate-900">Observation Summary</h3>
+      <section>
+        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Analysis Result</h3>
         <p className="mt-2 text-sm leading-5 text-slate-500">No findings yet. Run an analysis to produce a trace and draft verdict.</p>
       </section>
     );
@@ -532,7 +532,7 @@ function ObservationSummaryPanel({
   // Dedupe visual evidence by step_index: the agent often emits multiple
   // EvidenceItem entries for the same step (one per claim it derived from
   // the screenshot) and we don't want N copies of the same thumbnail.
-  // Keep the first claim as the tooltip; "Findings" still lists every claim.
+  // Keep the first claim as the tooltip; the evidence list still lists every claim.
   const visualEvidence = (() => {
     const seen = new Set<number>();
     const out: EvidenceItem[] = [];
@@ -548,111 +548,153 @@ function ObservationSummaryPanel({
   const unavailable = draft.evidence.filter((item) => item.source === 'unavailable');
   const isSuccess = draft.failure_type === null;
   // failure_step on the draft is already a 1-based step index (matches
-  // source step keys + screenshot filenames). The "Failure attributed to
-  // step N" chip is only rendered for failure cases that name a step;
-  // success cases or malformed drafts intentionally omit it.
+  // source step keys + screenshot filenames). The "step N ↗" pill is
+  // only rendered for failure cases that name a step; success cases or
+  // malformed drafts intentionally omit it.
   const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step : null;
 
+  // No card border — section lives directly on the scroll bg. Whitespace
+  // + section labels carry the structure. Reduces "card-on-card" nesting
+  // when this section sits below the collapsed trace toggle.
   return (
-    <section className={`rounded-lg border bg-white shadow-sm ${stale ? 'border-amber-200' : 'border-slate-200'}`}>
-      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-        <h3 className={`text-sm font-bold ${isSuccess ? 'text-emerald-700' : 'text-indigo-700'}`}>Analysis Result</h3>
-        {stale && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">stale</span>}
+    <section className="space-y-3">
+      {/* Header row: small eyebrow label + optional step-N pill on the right */}
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Analysis Result</h3>
+        <div className="flex items-center gap-1.5">
+          {stale && (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">stale</span>
+          )}
+          {!isSuccess && displayStep !== null && typeof draft.failure_step === 'number' && (
+            <button
+              onClick={() => onSelectStep(draft.failure_step as number)}
+              className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 hover:bg-red-100"
+              title="Jump to the step the agent attributed failure to"
+            >
+              step {displayStep}
+              <span aria-hidden="true">↗</span>
+            </button>
+          )}
+        </div>
       </div>
-      <div className="space-y-3 p-3 text-sm text-slate-700">
-        {!isSuccess && displayStep !== null && typeof draft.failure_step === 'number' && (
-          <button
-            onClick={() => onSelectStep(draft.failure_step as number)}
-            className="flex w-full items-center justify-between gap-2 rounded-md border border-red-100 bg-red-50 px-2.5 py-1.5 text-left text-xs font-semibold text-red-700 hover:bg-red-100"
-          >
-            <span>Failure attributed to <span className="font-bold">step {displayStep}</span></span>
-            <span className="text-red-500">→ Jump to step</span>
-          </button>
-        )}
-        {draft.actual_behavior && <p className="break-words leading-5">{draft.actual_behavior}</p>}
-        {draft.expected_behavior && <p className="break-words text-xs leading-5 text-slate-500">Expected: {draft.expected_behavior}</p>}
-        {isSuccess && (
-          <p className="leading-5 text-emerald-700">The agent concluded this trajectory completed the task successfully.</p>
-        )}
 
+      {/* Primary headline: actual_behavior promoted to the visual anchor */}
+      {draft.actual_behavior && (
+        <p className="break-words text-[15px] font-medium leading-6 text-slate-900">
+          {draft.actual_behavior}
+        </p>
+      )}
+      {isSuccess && (
+        <p className="break-words text-[15px] font-medium leading-6 text-emerald-700">
+          The agent concluded this trajectory completed the task successfully.
+        </p>
+      )}
+
+      {/* Expected behavior in a quiet tinted block with an eyebrow label.
+          Visually distinct from the headline without competing with it. */}
+      {draft.expected_behavior && (
+        <div className="rounded-md bg-slate-100/70 px-3 py-2">
+          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Expected behavior
+          </div>
+          <p className="break-words text-xs leading-5 text-slate-600">{draft.expected_behavior}</p>
+        </div>
+      )}
+
+      {/* Supporting evidence: neutral grey bullets via :before pseudo. No
+          red ! icons — the page is already about a failure verdict, every
+          item being "alarming" added noise without information. */}
+      {draft.evidence.length > 0 && (
         <div>
-          <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Findings</h4>
-          <ul className="space-y-1.5">
-            {draft.evidence.map((item, index) => (
-              // Agent's claims can include unbroken URLs (e.g. "github.com/search?q=…")
-              // that don't have spaces. Without min-w-0 + break-words the long
-              // token pushes the flex row past the right edge of the panel.
-              <li key={`${item.claim}-${index}`} className="flex gap-2 leading-5">
-                <WarningIcon muted={item.source === 'unavailable'} />
-                <button
-                  onClick={() => {
-                    if (typeof item.step_index === 'number') onSelectStep(item.step_index);
-                    if (typeof item.trace_event_seq === 'number') onOpenTraceEvent(item.trace_event_seq);
-                  }}
-                  className="min-w-0 flex-1 break-words text-left hover:text-indigo-700"
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Supporting evidence
+          </div>
+          <ul className="ml-1 space-y-2 text-[13px] leading-5 text-slate-700">
+            {draft.evidence.map((item, index) => {
+              const muted = item.source === 'unavailable';
+              return (
+                <li
+                  key={`${item.claim}-${index}`}
+                  className={`relative pl-4 before:absolute before:left-0 before:top-2 before:h-1 before:w-1 before:rounded-full ${muted ? 'before:bg-amber-400' : 'before:bg-slate-400'}`}
                 >
-                  {item.claim}
-                </button>
-              </li>
-            ))}
+                  <button
+                    onClick={() => {
+                      if (typeof item.step_index === 'number') onSelectStep(item.step_index);
+                      if (typeof item.trace_event_seq === 'number') onOpenTraceEvent(item.trace_event_seq);
+                    }}
+                    className="block w-full min-w-0 break-words text-left hover:text-indigo-700"
+                  >
+                    {item.claim}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
+      )}
 
-        {!isSuccess && draft.failure_type && (
-          <div>
-            <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Suggested Failure Label</h4>
-            <span className="rounded-md border border-red-100 bg-red-50 px-2 py-1 font-mono text-xs font-semibold text-red-700">{draft.failure_type}</span>
+      {!isSuccess && draft.failure_type && (
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Suggested failure label
           </div>
-        )}
+          <span className="rounded bg-red-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-red-700">
+            {draft.failure_type}
+          </span>
+        </div>
+      )}
 
-        {visualEvidence.length > 0 && (
-          <div>
-            <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Visual Evidence</h4>
-            <div className="flex flex-wrap gap-2">
-              {visualEvidence.map((item, index) => {
-                const step = typeof item.step_index === 'number'
-                  ? run?.steps.find((candidate) => candidate.index === item.step_index)
-                  : null;
-                const screenshot = step?.observation.screenshot;
-                if (!run || !step || !screenshot) return null;
-                return (
-                  <button
-                    key={`${item.claim}-${index}`}
-                    onClick={() => onSelectStep(step.index)}
-                    className="h-12 w-20 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-sm hover:border-indigo-300"
-                    title={item.claim}
-                  >
-                    <img src={`/api/runs/${run.run_id}/screenshots/${screenshot}`} alt={`Evidence step ${step.index}`} className="h-full w-full object-cover" />
-                  </button>
-                );
-              })}
-            </div>
+      {visualEvidence.length > 0 && (
+        <div>
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Visual evidence
           </div>
-        )}
-
-        {draft.retrieved_context_ids.length > 0 && (
-          <div>
-            <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Retrieved Context</h4>
-            <div className="flex flex-wrap gap-1.5">
-              {draft.retrieved_context_ids.map((id) => (
-                <span
-                  key={id}
-                  title={id}
-                  className="max-w-full break-all rounded-full border border-indigo-100 bg-indigo-50 px-2 py-1 font-mono text-[11px] text-indigo-700"
+          <div className="flex flex-wrap gap-2">
+            {visualEvidence.map((item, index) => {
+              const step = typeof item.step_index === 'number'
+                ? run?.steps.find((candidate) => candidate.index === item.step_index)
+                : null;
+              const screenshot = step?.observation.screenshot;
+              if (!run || !step || !screenshot) return null;
+              return (
+                <button
+                  key={`${item.claim}-${index}`}
+                  onClick={() => onSelectStep(step.index)}
+                  className="h-12 w-20 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-sm hover:border-indigo-300"
+                  title={item.claim}
                 >
-                  {shortenCaseId(id)}
-                </span>
-              ))}
-            </div>
+                  <img src={`/api/runs/${run.run_id}/screenshots/${screenshot}`} alt={`Evidence step ${step.index}`} className="h-full w-full object-cover" />
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
+      )}
 
-        {unavailable.length > 0 && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
-            {unavailable.length} evidence item{unavailable.length === 1 ? '' : 's'} marked unavailable.
+      {draft.retrieved_context_ids.length > 0 && (
+        <div>
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Retrieved context
           </div>
-        )}
-      </div>
+          <div className="flex flex-wrap gap-1.5">
+            {draft.retrieved_context_ids.map((id) => (
+              <span
+                key={id}
+                title={id}
+                className="max-w-full break-all rounded-full bg-indigo-50 px-2 py-0.5 font-mono text-[11px] text-indigo-700"
+              >
+                {shortenCaseId(id)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {unavailable.length > 0 && (
+        <div className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+          {unavailable.length} evidence item{unavailable.length === 1 ? '' : 's'} marked unavailable.
+        </div>
+      )}
     </section>
   );
 }
@@ -1643,22 +1685,22 @@ function TraceCollapseToggle({
   const toolCallCount = events.filter((event) => event.type === 'tool_call').length;
   const label = `${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}`;
   const runtime = runtimeMs > 0 ? ` · ${formatRuntime(runtimeMs)}` : '';
+  // Plain-text affordance, no bordered card. Once the verdict is the
+  // visual focus, the timeline summary should fade — user opens it on
+  // demand. The hover state lifts the text color to indigo so it still
+  // reads as interactive.
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-600 hover:bg-slate-50"
+      className="flex w-full items-center gap-2 text-left text-[11px] text-slate-500 hover:text-indigo-600"
       title={collapsed ? 'Expand tool-call timeline' : 'Collapse tool-call timeline'}
     >
       <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 12l5 5L20 7" />
       </svg>
-      <span className="min-w-0 flex-1 truncate">
-        {label}{runtime}
-      </span>
-      <span className="shrink-0 text-[10px] text-slate-400">
-        {collapsed ? '▾ Show' : '▴ Hide'}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{label}{runtime}</span>
+      <span className="shrink-0 text-slate-400">{collapsed ? '▾ Show timeline' : '▴ Hide timeline'}</span>
     </button>
   );
 }
@@ -1736,14 +1778,6 @@ function formatTokens(n: number): string {
   if (n < 1000) return String(n);
   if (n < 10_000) return `${(n / 1000).toFixed(1)}k`;
   return `${Math.round(n / 1000)}k`;
-}
-
-function WarningIcon({ muted = false }: { muted?: boolean }) {
-  return (
-    <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px] ${muted ? 'border-amber-300 text-amber-600' : 'border-red-300 text-red-600'}`}>
-      !
-    </span>
-  );
 }
 
 function SourceBadge({ source }: { source: EvidenceItem['source'] }) {
