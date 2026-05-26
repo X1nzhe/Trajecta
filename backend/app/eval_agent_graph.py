@@ -100,7 +100,27 @@ class AgentStreamDone:
     result: AgentExecutionResult
 
 
-AgentStreamItem = AgentTraceEvent | AgentStreamDone
+@dataclass
+class AgentDelta:
+    """Transient streaming chunk — text portion of an in-flight
+    agent message. NOT persisted to trace; only goes over the wire
+    to give the UI a token-by-token typewriter effect. The full
+    agent_message event still lands in the trace at end-of-stream
+    (built up by LangChain's aggregation when streaming=True), so
+    everything downstream of trace persistence keeps working.
+
+    stream_id is the LangChain AIMessageChunk.id — stable across all
+    chunks of a single LLM generation, so the frontend can group
+    deltas back into one bubble (matters if a turn contains
+    text→tool→text and produces two separate streams).
+    """
+
+    turn: int
+    text: str
+    stream_id: str
+
+
+AgentStreamItem = AgentTraceEvent | AgentStreamDone | AgentDelta
 
 
 class NoPriorTraceError(RuntimeError):
@@ -410,14 +430,25 @@ def _stream_graph_result(
     start_seq: int,
     include_preprocess: bool,
     emitted_seq: int | None = None,
-) -> Iterator[AgentTraceEvent]:
+) -> Iterator[AgentStreamItem]:
     emitted_seq = start_seq if emitted_seq is None else emitted_seq
     final_state = state
-    for final_state in _run_graph_stream(state, include_preprocess=include_preprocess):
-        trace = final_state["trace"]
-        while emitted_seq < len(trace.events):
-            yield trace.events[emitted_seq]
-            emitted_seq += 1
+    for kind, payload in _run_graph_stream(state, include_preprocess=include_preprocess):
+        if kind == "snapshot":
+            final_state = payload
+            trace = final_state["trace"]
+            while emitted_seq < len(trace.events):
+                yield trace.events[emitted_seq]
+                emitted_seq += 1
+        elif kind == "delta":
+            # payload is (AIMessageChunk, metadata) from LangGraph's
+            # stream_mode="messages". Surface only the text delta; the
+            # AIMessage with the merged content + tool_calls still
+            # arrives via the next snapshot (LangGraph aggregates it
+            # back into state["messages"]).
+            delta = _build_agent_delta(payload, final_state)
+            if delta is not None:
+                yield delta
 
     trace = final_state["trace"]
     while emitted_seq < len(trace.events):
@@ -426,19 +457,67 @@ def _stream_graph_result(
     return _execution_result(trace, final_state, start_seq)
 
 
-def _run_graph_stream(state: GraphState, *, include_preprocess: bool) -> Iterator[GraphState]:
+def _build_agent_delta(payload: Any, state: GraphState) -> AgentDelta | None:
+    """Extract a wire-friendly AgentDelta from a (chunk, metadata) tuple.
+
+    Returns None when the chunk carries no streamable text (tool-call
+    only chunks, empty content, malformed payloads). The agent_message
+    that eventually lands in the trace is the authoritative copy; we
+    deliberately don't try to also expose tool-call streaming for
+    now — tool args can't be acted on until complete anyway.
+    """
+
+    if not isinstance(payload, tuple) or len(payload) < 1:
+        return None
+    chunk = payload[0]
+    content = getattr(chunk, "content", "")
+    if not isinstance(content, str) or not content:
+        return None
+    stream_id = getattr(chunk, "id", None)
+    if not isinstance(stream_id, str) or not stream_id:
+        # Without a stable id we can't reliably group deltas of one
+        # message on the client — skip rather than emit ambiguous frames.
+        return None
+    return AgentDelta(turn=int(state.get("turn", 0) or 0), text=content, stream_id=stream_id)
+
+
+def _run_graph_stream(
+    state: GraphState, *, include_preprocess: bool
+) -> Iterator[tuple[str, Any]]:
+    """Tagged graph stream.
+
+    Yields ``("snapshot", GraphState)`` for full-state updates (used to
+    extract new trace events) and ``("delta", (AIMessageChunk, metadata))``
+    for LLM token chunks emitted during a node call. Streaming requires
+    LangGraph + an LLM client with streaming=True; the fallback path
+    never emits "delta" tuples.
+
+    The tagged shape replaces the original "yield raw GraphState"
+    interface so callers can dispatch the two kinds of events without
+    inspecting payload types.
+    """
+
     if StateGraph is None:
-        yield from _fallback_graph_stream(state, include_preprocess=include_preprocess)
+        for snapshot in _fallback_graph_stream(state, include_preprocess=include_preprocess):
+            yield ("snapshot", snapshot)
         return
 
     graph = _compiled_graph(include_preprocess)
-    for snapshot in graph.stream(
+    # stream_mode=["values", "messages"] is multi-mode: each yield is
+    # (mode, payload). "values" → full state snapshot (same as before);
+    # "messages" → (AIMessageChunk, metadata) tuple for an LLM token
+    # delta. The latter only fires when the active client has
+    # streaming=True; mocks never produce these.
+    for mode, payload in graph.stream(
         state,
-        stream_mode="values",
+        stream_mode=["values", "messages"],
         config={"recursion_limit": _graph_recursion_limit(state["budget"])},
     ):
-        if isinstance(snapshot, dict) and "trace" in snapshot:
-            yield snapshot
+        if mode == "values":
+            if isinstance(payload, dict) and "trace" in payload:
+                yield ("snapshot", payload)
+        elif mode == "messages":
+            yield ("delta", payload)
 
 
 @lru_cache(maxsize=2)
@@ -795,7 +874,19 @@ def _default_llm_client(state: EvalState) -> AgentLLM:
         except ImportError:
             pass
         else:
-            model = ChatOpenAI(model=model_name, temperature=0)
+            # streaming=True makes .invoke() internally stream + aggregate
+            # AND emit chunk callbacks. LangGraph's stream_mode="messages"
+            # listens to those callbacks, so the node code keeps using
+            # blocking .invoke() while the streaming layer surfaces deltas.
+            # stream_usage / include_usage on the request preserves
+            # token accumulation at end-of-stream (without it, the final
+            # AIMessage.usage_metadata is None on streamed calls).
+            model = ChatOpenAI(
+                model=model_name,
+                temperature=0,
+                streaming=True,
+                stream_usage=True,
+            )
             if hasattr(model, "bind_tools"):
                 return model.bind_tools(list(_TOOL_REGISTRY.values()))
             return model

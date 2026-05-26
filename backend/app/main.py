@@ -286,6 +286,24 @@ def _stream_agent_result(factory) -> StreamingResponse:
                     ) + "\n"
                     return
 
+                if isinstance(item, eval_agent_graph.AgentDelta):
+                    # Transient streaming chunk — frontend appends to
+                    # the in-flight bubble. Not a trace event; no seq,
+                    # no persistence. Tagged with stream_id so the
+                    # client can group deltas of one LLM generation.
+                    yield json.dumps(
+                        {
+                            "type": "agent_delta",
+                            "event": {
+                                "turn": item.turn,
+                                "text": item.text,
+                                "stream_id": item.stream_id,
+                            },
+                        },
+                        ensure_ascii=False,
+                    ) + "\n"
+                    continue
+
                 yield json.dumps(
                     {"type": "event", "event": item.model_dump(mode="json")},
                     ensure_ascii=False,
