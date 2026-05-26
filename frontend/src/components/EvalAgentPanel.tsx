@@ -1210,13 +1210,20 @@ function shortRunId(runId: string) {
 
 function MessageBubble({ align, message, muted = false }: { align: 'left' | 'right'; message: string; muted?: boolean }) {
   const empty = !message;
+  // overflow-wrap:anywhere lets unbreakable tokens (long hashes like
+  // ec_<64-char>, run_ids, URLs) wrap mid-token instead of pushing
+  // past the bubble's max-w. Cascades to every descendant
+  // <strong>/<code>/<li>/<a> inside AgentMarkdown so the markdown
+  // renderer doesn't need per-element fixes.
   return (
-    <div className={`flex ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-5 ${
-        align === 'right'
-          ? 'bg-indigo-600 text-white'
-          : 'border border-slate-200 bg-white text-slate-700'
-      } ${muted ? 'opacity-70' : ''}`}>
+    <div className={`flex min-w-0 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`max-w-[85%] min-w-0 rounded-lg px-3 py-2 text-sm leading-5 [overflow-wrap:anywhere] ${
+          align === 'right'
+            ? 'bg-indigo-600 text-white'
+            : 'border border-slate-200 bg-white text-slate-700'
+        } ${muted ? 'opacity-70' : ''}`}
+      >
         {empty ? '(empty message)' : align === 'left' ? <AgentMarkdown source={message} /> : message}
       </div>
     </div>
