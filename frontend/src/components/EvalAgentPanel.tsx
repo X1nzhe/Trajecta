@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
-import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Streamdown } from 'streamdown';
 import { createEvalCase, fetchRunDigest } from '../api/client';
 import { streamAgentRequest } from '../api/stream';
 import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryDigest, TrajectoryRun } from '../types/contracts';
@@ -1456,17 +1456,23 @@ function MessageBubble({ align, message, muted = false }: { align: 'left' | 'rig
 
 // Agent messages frequently carry Markdown (bullets, **bold**, `code`,
 // occasional code fences). Rendering them as plain text leaks the raw
-// asterisks/backticks into the UI. Use react-markdown with remark-gfm
-// for tables/strikethrough/task-lists, and pin the component overrides
-// to Tailwind classes so the output stays inside the bubble's typography
-// budget. Raw HTML is NOT enabled (no rehype-raw) so agent-produced
-// `<script>` tags are still rendered as literal text.
+// asterisks/backticks into the UI. Streamdown is a react-markdown
+// drop-in that auto-closes unterminated emphasis/code-fence tokens
+// (`**bold` → renders as **bold** while the closing `**` is still
+// streaming), which removes the typewriter jitter when we move to real
+// token streaming. For already-complete agent_message events it
+// behaves identically to react-markdown, so wiring it now costs nothing
+// and removes a future migration step.
+//
+// Component overrides remain pinned to Tailwind classes so output stays
+// inside the bubble's typography budget. Raw HTML is NOT enabled
+// (Streamdown's default sanitization is on) — agent-produced `<script>`
+// tags still render as literal text.
 function AgentMarkdown({ source }: { source: string }) {
   return (
     <div className="space-y-2">
-      <ReactMarkdown
+      <Streamdown
         remarkPlugins={[remarkGfm]}
-        skipHtml
         components={{
           p: ({ children }) => <p className="leading-5">{children}</p>,
           ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 leading-5">{children}</ul>,
@@ -1519,7 +1525,7 @@ function AgentMarkdown({ source }: { source: string }) {
         }}
       >
         {source}
-      </ReactMarkdown>
+      </Streamdown>
     </div>
   );
 }
