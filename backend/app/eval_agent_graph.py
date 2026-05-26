@@ -465,11 +465,26 @@ def _build_agent_delta(payload: Any, state: GraphState) -> AgentDelta | None:
     that eventually lands in the trace is the authoritative copy; we
     deliberately don't try to also expose tool-call streaming for
     now — tool args can't be acted on until complete anyway.
+
+    Critically: LangGraph's stream_mode="messages" yields chunks for
+    EVERY message touched by a node — including SystemMessage and
+    HumanMessage that the node loads into state["messages"]. Without
+    a type filter the system prompt and the initial HumanMessage
+    (which carries run_id + trajectory_digest) would leak verbatim to
+    the wire. Restrict to AIMessageChunk so only LLM-generated tokens
+    cross the boundary.
     """
 
     if not isinstance(payload, tuple) or len(payload) < 1:
         return None
     chunk = payload[0]
+    # Duck-typed check — LangChain core's AIMessageChunk.type is the
+    # literal string "AIMessageChunk". Final aggregated AIMessage has
+    # type "ai" and is filtered out here too (its content arrives via
+    # the agent_message trace event, no need to duplicate as a delta).
+    chunk_type = getattr(chunk, "type", None)
+    if chunk_type != "AIMessageChunk":
+        return None
     content = getattr(chunk, "content", "")
     if not isinstance(content, str) or not content:
         return None
