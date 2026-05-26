@@ -195,7 +195,31 @@ export function EvalAgentPanel({
     }
     return null;
   }, [trace]);
-  const verdictBelowFollowup = latestProposeTurn !== null && latestProposeTurn > 0;
+
+  // Build the verdict trio once and let the parent / FollowupTimeline
+  // decide where to slot it. There's exactly one draft at a time, so
+  // exactly one rendered position is needed. EvalCaseDraftPanel keeps
+  // its own state internally — re-anchoring across followup turns will
+  // unmount/remount it, but the user's unsaved edits to the *previous*
+  // draft are already stale by the time a new propose_eval_case fires.
+  const verdictNode: ReactNode = evalCaseDraft ? (
+    <VerdictBlock
+      run={run}
+      trace={trace}
+      draft={evalCaseDraft}
+      draftViewed={draftViewed}
+      onSelectStep={onSelectStep}
+      onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
+      onViewDraft={() => {
+        setDraftViewed(true);
+        requestAnimationFrame(() => {
+          document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }}
+      onDraftChange={onDraftChange}
+      onValidated={onEvalCaseValidated}
+    />
+  ) : null;
 
   return (
     <aside className="flex max-h-[680px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[410px]">
@@ -260,37 +284,18 @@ export function EvalAgentPanel({
 
         {/* Verdict trio (Observation summary + View draft button + draft
             editor). There's only one evalCaseDraft at a time, so the trio
-            renders in only one position — determined by which turn
+            renders in exactly one position — the END of the turn that
             produced the latest propose_eval_case. turn 0 (initial
             analyze) keeps it above the followup chat; followup repropose
-            (turn >= 1) moves it below the chat so a new card appears
-            below the user's message instead of silently updating in
-            place above. */}
-        {evalCaseDraft && !verdictBelowFollowup && (
-          <VerdictBlock
-            run={run}
-            trace={trace}
-            draft={evalCaseDraft}
-            draftViewed={draftViewed}
-            onSelectStep={onSelectStep}
-            onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
-            onViewDraft={() => {
-              setDraftViewed(true);
-              requestAnimationFrame(() => {
-                document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              });
-            }}
-            onDraftChange={onDraftChange}
-            onValidated={onEvalCaseValidated}
-          />
-        )}
+            (turn N >= 1) inserts it inside FollowupTimeline right after
+            turn N's last event, so an unrelated turn N+1 message can't
+            push the verdict to the bottom of the conversation. */}
+        {evalCaseDraft && latestProposeTurn === 0 && verdictNode}
 
         {/* Followup chat region: turn >= 1 events plus pendingUserMessage
-            and any in-flight indicator. Empty by default — only appears
-            after the user sends a followup. Each completed followup
-            turn's tool calls collapse into a one-line summary so the
-            chat reads as messages + verdict, with the implementation
-            detail folded away. */}
+            and any in-flight indicator. Each completed followup turn's
+            tool calls collapse into a one-line summary; the verdictNode
+            is injected after the turn that produced it. */}
         <FollowupTimeline
           events={followupEvents}
           pendingUserMessage={pendingUserMessage}
@@ -302,29 +307,11 @@ export function EvalAgentPanel({
           runId={run?.run_id ?? null}
           expandedRuns={expandedFollowupRuns}
           onToggleRun={(seq) => setExpandedFollowupRuns((current) => toggleSet(current, seq))}
+          verdictBlock={
+            evalCaseDraft && latestProposeTurn !== null && latestProposeTurn > 0 ? verdictNode : null
+          }
+          verdictAfterTurn={latestProposeTurn !== null && latestProposeTurn > 0 ? latestProposeTurn : null}
         />
-
-        {/* Second render position for the verdict trio — used when a
-            followup reproposed the verdict. Original position above
-            renders nothing in that case (only one verdict ever shows). */}
-        {evalCaseDraft && verdictBelowFollowup && (
-          <VerdictBlock
-            run={run}
-            trace={trace}
-            draft={evalCaseDraft}
-            draftViewed={draftViewed}
-            onSelectStep={onSelectStep}
-            onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
-            onViewDraft={() => {
-              setDraftViewed(true);
-              requestAnimationFrame(() => {
-                document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              });
-            }}
-            onDraftChange={onDraftChange}
-            onValidated={onEvalCaseValidated}
-          />
-        )}
 
         {(hasTrace || inFlight) && <TraceFooter trace={trace} inFlight={inFlight} />}
       </div>
@@ -731,7 +718,12 @@ function groupFollowupEvents(events: AgentTraceEvent[]): FollowupGroup[] {
     const targetKind: FollowupGroup['kind'] =
       isToolEvent && !isOrphanToolError ? 'tools' : 'messages';
     const last = groups[groups.length - 1];
-    if (last && last.kind === targetKind) {
+    const lastTurn = last ? last.events[last.events.length - 1].turn : null;
+    // Break on turn boundary too — even if the kind matches, an
+    // event from a different turn starts a new group. The verdict
+    // block needs to slot in cleanly between turns, so each group
+    // must belong to exactly one turn.
+    if (last && last.kind === targetKind && lastTurn === event.turn) {
       last.events.push(event);
     } else {
       groups.push({ kind: targetKind, firstSeq: event.seq, events: [event] });
@@ -751,6 +743,8 @@ function FollowupTimeline({
   runId,
   expandedRuns,
   onToggleRun,
+  verdictBlock,
+  verdictAfterTurn,
 }: {
   events: AgentTraceEvent[];
   pendingUserMessage: string | null;
@@ -762,6 +756,13 @@ function FollowupTimeline({
   runId: string | null;
   expandedRuns: Set<number>;
   onToggleRun: (firstSeq: number) => void;
+  // The verdict trio (Analysis Result + draft editor) follows whichever
+  // turn produced the latest propose_eval_case. The parent passes the
+  // pre-built node + which turn to anchor it after. null means the
+  // verdict belongs to turn 0 (rendered by the parent above this
+  // timeline) or doesn't exist yet.
+  verdictBlock: ReactNode;
+  verdictAfterTurn: number | null;
 }) {
   const groups = useMemo(() => groupFollowupEvents(events), [events]);
 
@@ -782,10 +783,22 @@ function FollowupTimeline({
   return (
     <section className="space-y-2">
       {groups.map((group, index) => {
+        const groupTurn = group.events[0]?.turn ?? 0;
+        const nextGroup = groups[index + 1];
+        const nextTurn = nextGroup ? nextGroup.events[0]?.turn ?? null : null;
+        // True when this is the last group belonging to its turn — i.e.
+        // the next group exists in a different turn, or there is no
+        // next group. Used to decide where to drop the verdict block so
+        // it appears at the *end* of the producing turn rather than
+        // immediately after the propose_eval_case tool call.
+        const isLastGroupInTurn = nextTurn === null || nextTurn !== groupTurn;
+        const shouldRenderVerdictAfter =
+          verdictBlock !== null && verdictAfterTurn === groupTurn && isLastGroupInTurn;
+
+        let groupNode: ReactNode;
         if (group.kind === 'messages') {
-          return (
+          groupNode = (
             <TraceHistory
-              key={`m-${group.firstSeq}`}
               events={group.events}
               pendingUserMessage={null}
               inFlight={false}
@@ -796,30 +809,37 @@ function FollowupTimeline({
               runId={runId}
             />
           );
+        } else {
+          const isStreamingGroup = inFlight && index === lastToolGroupIndex;
+          const expanded = isStreamingGroup || expandedRuns.has(group.firstSeq);
+          groupNode = (
+            <>
+              {!isStreamingGroup && (
+                <FollowupToolRunToggle
+                  collapsed={!expanded}
+                  events={group.events}
+                  onToggle={() => onToggleRun(group.firstSeq)}
+                />
+              )}
+              {expanded && (
+                <TraceHistory
+                  events={group.events}
+                  pendingUserMessage={null}
+                  inFlight={isStreamingGroup}
+                  panelError={null}
+                  expandedEvents={expandedEvents}
+                  onToggleEvent={onToggleEvent}
+                  onSelectStep={onSelectStep}
+                  runId={runId}
+                />
+              )}
+            </>
+          );
         }
-        const isStreamingGroup = inFlight && index === lastToolGroupIndex;
-        const expanded = isStreamingGroup || expandedRuns.has(group.firstSeq);
         return (
-          <Fragment key={`t-${group.firstSeq}`}>
-            {!isStreamingGroup && (
-              <FollowupToolRunToggle
-                collapsed={!expanded}
-                events={group.events}
-                onToggle={() => onToggleRun(group.firstSeq)}
-              />
-            )}
-            {expanded && (
-              <TraceHistory
-                events={group.events}
-                pendingUserMessage={null}
-                inFlight={isStreamingGroup}
-                panelError={null}
-                expandedEvents={expandedEvents}
-                onToggleEvent={onToggleEvent}
-                onSelectStep={onSelectStep}
-                runId={runId}
-              />
-            )}
+          <Fragment key={`g-${group.firstSeq}`}>
+            {groupNode}
+            {shouldRenderVerdictAfter && verdictBlock}
           </Fragment>
         );
       })}
