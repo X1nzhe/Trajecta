@@ -555,7 +555,7 @@ def _compiled_graph(include_preprocess: bool) -> Any:
     graph.add_conditional_edges(
         "agent",
         _after_agent_node,
-        {"tool_call": "tool_call", END: END},
+        {"tool_call": "tool_call", "agent": "agent", END: END},
     )
     graph.add_edge("tool_call", "execute_tool")
     graph.add_conditional_edges(
@@ -577,8 +577,13 @@ def _fallback_graph_stream(state: GraphState, *, include_preprocess: bool) -> It
         steps = _advance_graph_step(steps, limit)
         state = _agent_node(state)
         yield state
-        if _after_agent_node(state) == END:
+        next_after_agent = _after_agent_node(state)
+        if next_after_agent == END:
             return
+        if next_after_agent == "agent":
+            # _nudge_agent_retry queued a corrective HumanMessage; loop
+            # straight back to agent_node without running any tools.
+            continue
         while _after_execute_tool_node(state) == "tool_call":
             steps = _advance_graph_step(steps, limit)
             state = _tool_call_node(state)
@@ -619,14 +624,20 @@ def _agent_node(state: GraphState) -> GraphState:
     try:
         tool_calls = _extract_tool_calls(message)
     except (TypeError, ValueError) as exc:
-        error = f"invalid tool call from agent: {exc}"
-        state["errors"].append(error)
-        state["trace"].terminated_by = "error"
-        state["eval_case_draft"] = None
-        state["pending_tool_calls"] = []
-        state["active_tool_call"] = None
-        state["done"] = True
-        _append_event(state["trace"], "tool_error", turn=state["turn"], error=error)
+        # Agent-side bug: the tool_calls payload is malformed (missing
+        # name, args not a dict, etc.). Recoverable — feed the
+        # diagnostic back as a HumanMessage hint and let the agent
+        # try again on the next graph iteration.
+        _nudge_agent_retry(
+            state,
+            error=f"invalid tool call from agent: {exc}",
+            hint=(
+                "The previous response's tool_calls payload was malformed. "
+                "Each tool call must include a non-empty `name` and an `args` "
+                "object matching that tool's schema. Try again with a valid "
+                "tool call."
+            ),
+        )
         return state
     state["pending_tool_calls"] = tool_calls
     state["active_tool_call"] = None
@@ -657,12 +668,21 @@ def _agent_node(state: GraphState) -> GraphState:
         state["done"] = True
         return state
 
-    error = "agent stopped without calling propose_eval_case"
-    state["errors"].append(error)
-    state["trace"].terminated_by = "error"
-    state["eval_case_draft"] = None
-    state["done"] = True
-    _append_event(state["trace"], "tool_error", turn=state["turn"], error=error)
+    # Initial analyze stopped without calling propose_eval_case.
+    # Recoverable: the agent might have produced an explanatory text
+    # reply by mistake; nudge it to actually invoke the terminal tool.
+    # LangGraph's recursion limit eventually surfaces a real graph
+    # execution error if the agent never recovers.
+    _nudge_agent_retry(
+        state,
+        error="agent stopped without calling propose_eval_case",
+        hint=(
+            "You must terminate the initial analysis by calling "
+            "`propose_eval_case` (success-shape if no failure was found). "
+            "A plain-text reply with no tool call is not a valid "
+            "termination for turn 0. Please call propose_eval_case now."
+        ),
+    )
     return state
 
 
@@ -752,9 +772,14 @@ def _execute_tool_node(state: GraphState) -> GraphState:
 
 
 def _after_agent_node(state: GraphState) -> str:
-    if state.get("done") or not state.get("pending_tool_calls"):
+    if state.get("done"):
         return END
-    return "tool_call"
+    if state.get("pending_tool_calls"):
+        return "tool_call"
+    # No pending tool calls and not done — _nudge_agent_retry queued a
+    # corrective HumanMessage for the agent. Loop back to agent_node
+    # for another LLM call. Bounded by the graph's recursion_limit.
+    return "agent"
 
 
 def _after_execute_tool_node(state: GraphState) -> str:
@@ -763,6 +788,34 @@ def _after_execute_tool_node(state: GraphState) -> str:
     if state.get("pending_tool_calls"):
         return "tool_call"
     return "agent"
+
+
+def _nudge_agent_retry(state: GraphState, *, error: str, hint: str) -> None:
+    """Recover from an agent-side mistake by feeding back a corrective hint.
+
+    Used when the LLM produced output we can't act on (no tool calls
+    when one was required, malformed tool_calls payload, etc.).
+    Instead of flipping terminated_by="error" and surfacing a "Tool
+    error" in the UI, we:
+      - record the diagnostic as a tool_error trace event so the
+        observability surface still sees it,
+      - append a HumanMessage with the error + a one-line hint
+        explaining what to do differently next,
+      - leave done=False so _after_agent_node routes us back to the
+        agent for another attempt.
+
+    LangGraph's recursion_limit (5x budget by default) bounds the
+    retry loop; if the agent keeps misbehaving we'll surface a
+    legitimate graph-execution error via _record_graph_execution_error.
+    """
+
+    trace = state["trace"]
+    _append_event(trace, "tool_error", turn=state["turn"], error=error)
+    state["errors"].append(error)
+    state["messages"].append(HumanMessage(content=f"{error}\n\n{hint}"))
+    state["pending_tool_calls"] = []
+    state["active_tool_call"] = None
+    state["done"] = False
 
 
 def _record_recoverable_tool_error(

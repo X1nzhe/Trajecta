@@ -328,7 +328,14 @@ class EvalAgentTests(unittest.TestCase):
         self.assertGreater(len(result.errors), 0)
         self.assertTrue(any(event.type == "tool_error" for event in result.trace.events))
 
-    def test_malformed_tool_call_arguments_terminate_with_trace_error(self) -> None:
+    def test_malformed_tool_call_recovers_via_retry(self) -> None:
+        """Malformed tool_calls payloads no longer terminate the trace.
+        The diagnostic lands as a tool_error event and a HumanMessage
+        nudge is appended; the agent gets another LLM call to fix its
+        output. Here the second scripted reply is a valid
+        propose_eval_case, so the trace terminates cleanly.
+        """
+
         # langchain-core 0.3.x rejects the raw OpenAI {"function": {...}} shape
         # in AIMessage.tool_calls, so we route the malformed call through
         # additional_kwargs — that's where real OpenAI raw responses land too
@@ -344,12 +351,17 @@ class EvalAgentTests(unittest.TestCase):
                 ]
             },
         )
+        good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))
+        result = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM([bad_message, good_message])
+        )
 
-        self.assertEqual(result.trace.terminated_by, "error")
-        self.assertIsNone(result.eval_case_draft)
-        self.assertTrue(any("invalid tool call from agent" in error for error in result.errors))
+        # Recovered — terminated cleanly via propose_eval_case.
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
+        # Diagnostic for the bad message is still recorded for
+        # observability.
         self.assertTrue(
             any(
                 event.type == "tool_error" and event.error and "invalid tool call from agent" in event.error
@@ -357,7 +369,7 @@ class EvalAgentTests(unittest.TestCase):
             )
         )
 
-    def test_missing_tool_call_name_terminates_with_trace_error(self) -> None:
+    def test_missing_tool_call_name_recovers_via_retry(self) -> None:
         bad_message = AIMessage(
             content="",
             additional_kwargs={
@@ -369,12 +381,14 @@ class EvalAgentTests(unittest.TestCase):
                 ]
             },
         )
+        good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))
+        result = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM([bad_message, good_message])
+        )
 
-        self.assertEqual(result.trace.terminated_by, "error")
-        self.assertIsNone(result.eval_case_draft)
-        self.assertTrue(any("missing a tool name" in error for error in result.errors))
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
         self.assertTrue(
             any(
                 event.type == "tool_error" and event.error and "missing a tool name" in event.error
@@ -382,12 +396,22 @@ class EvalAgentTests(unittest.TestCase):
             )
         )
 
-    def test_agent_stops_without_tool_call_records_trace_error(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([AIMessage(content="done")]))
+    def test_agent_stops_without_tool_call_recovers_via_retry(self) -> None:
+        """When the LLM replies with plain text on turn 0, the loop
+        nudges it with a HumanMessage reminding that propose_eval_case
+        is required, then re-invokes. Recovery via a good follow-up
+        scripted reply ends the trace cleanly.
+        """
 
-        self.assertEqual(result.trace.terminated_by, "error")
-        self.assertIsNone(result.eval_case_draft)
-        self.assertIn("agent stopped without calling propose_eval_case", result.errors)
+        plain_text = AIMessage(content="I think this run was successful but I'll stop here.")
+        good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
+
+        result = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM([plain_text, good_message])
+        )
+
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
         self.assertTrue(
             any(
                 event.type == "tool_error"
