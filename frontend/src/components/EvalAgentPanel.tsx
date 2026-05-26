@@ -177,12 +177,25 @@ export function EvalAgentPanel({
   // streams run with a draft already on the table and don't override.
   const initialAnalyzeStreaming = inFlight && !evalCaseDraft;
 
+  // Locate the latest propose_eval_case tool_call so the verdict trio
+  // (ObservationSummaryPanel + View draft button + EvalCaseDraftPanel)
+  // can follow it. When the agent reproposes via followup, the verdict
+  // moves below the followup chat so the new card appears right after
+  // the user's message — instead of silently updating in place above.
+  const latestProposeTurn = useMemo(() => {
+    for (const event of [...(trace?.events ?? [])].reverse()) {
+      if (event.type === 'tool_call' && event.name === 'propose_eval_case') {
+        return event.turn;
+      }
+    }
+    return null;
+  }, [trace]);
+  const verdictBelowFollowup = latestProposeTurn !== null && latestProposeTurn > 0;
+
   return (
     <aside className="flex max-h-[680px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[410px]">
       <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
-        
         <h2 className="shrink-0 font-bold text-slate-950">Eval Agent</h2>
-        <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">Beta</span>
         <div className="min-w-0 flex-1">
           <TerminationBadge trace={trace} latestToolError={latestToolError} inFlight={inFlight} />
         </div>
@@ -240,39 +253,29 @@ export function EvalAgentPanel({
           />
         )}
 
-        {/* Summary + draft persist across followups: no !inFlight gate.
-            The presence of evalCaseDraft is the sole condition — once the
-            initial analyze ends with propose_eval_case, the verdict is
-            "what's on the table" until the user re-analyzes. */}
-        {evalCaseDraft && (
-          <ObservationSummaryPanel
+        {/* Verdict trio (Observation summary + View draft button + draft
+            editor). There's only one evalCaseDraft at a time, so the trio
+            renders in only one position — determined by which turn
+            produced the latest propose_eval_case. turn 0 (initial
+            analyze) keeps it above the followup chat; followup repropose
+            (turn >= 1) moves it below the chat so a new card appears
+            below the user's message instead of silently updating in
+            place above. */}
+        {evalCaseDraft && !verdictBelowFollowup && (
+          <VerdictBlock
             run={run}
             trace={trace}
             draft={evalCaseDraft}
+            draftViewed={draftViewed}
             onSelectStep={onSelectStep}
             onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
-          />
-        )}
-
-        {evalCaseDraft && !draftViewed && (
-          <button
-            onClick={() => {
+            onViewDraft={() => {
               setDraftViewed(true);
               requestAnimationFrame(() => {
                 document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               });
             }}
-            className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-          >
-            View draft eval case →
-          </button>
-        )}
-
-        {draftViewed && (
-          <EvalCaseDraftPanel
-            draft={evalCaseDraft}
             onDraftChange={onDraftChange}
-            onSelectStep={onSelectStep}
             onValidated={onEvalCaseValidated}
           />
         )}
@@ -290,6 +293,28 @@ export function EvalAgentPanel({
           onSelectStep={onSelectStep}
           runId={run?.run_id ?? null}
         />
+
+        {/* Second render position for the verdict trio — used when a
+            followup reproposed the eval case. Original position above
+            renders nothing in that case (only one verdict ever shows). */}
+        {evalCaseDraft && verdictBelowFollowup && (
+          <VerdictBlock
+            run={run}
+            trace={trace}
+            draft={evalCaseDraft}
+            draftViewed={draftViewed}
+            onSelectStep={onSelectStep}
+            onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
+            onViewDraft={() => {
+              setDraftViewed(true);
+              requestAnimationFrame(() => {
+                document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+            }}
+            onDraftChange={onDraftChange}
+            onValidated={onEvalCaseValidated}
+          />
+        )}
 
         {(hasTrace || inFlight) && <TraceFooter trace={trace} inFlight={inFlight} />}
       </div>
@@ -424,6 +449,60 @@ function AnalyzeButton({
       </svg>
       Analyze
     </button>
+  );
+}
+
+function VerdictBlock({
+  run,
+  trace,
+  draft,
+  draftViewed,
+  onSelectStep,
+  onOpenTraceEvent,
+  onViewDraft,
+  onDraftChange,
+  onValidated,
+}: {
+  run: TrajectoryRun | null;
+  trace: AgentTrace | null;
+  draft: EvalCase;
+  draftViewed: boolean;
+  onSelectStep: (index: number) => void;
+  onOpenTraceEvent: (seq: number) => void;
+  onViewDraft: () => void;
+  onDraftChange: (draft: EvalCase | null) => void;
+  onValidated?: () => void;
+}) {
+  // The three verdict pieces always travel together — splitting them
+  // across positions would leave half-cards in two places. The parent
+  // chooses which position to render this block in; once placed, the
+  // internals are unchanged from the legacy layout.
+  return (
+    <>
+      <ObservationSummaryPanel
+        run={run}
+        trace={trace}
+        draft={draft}
+        onSelectStep={onSelectStep}
+        onOpenTraceEvent={onOpenTraceEvent}
+      />
+      {!draftViewed && (
+        <button
+          onClick={onViewDraft}
+          className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+        >
+          View draft eval case →
+        </button>
+      )}
+      {draftViewed && (
+        <EvalCaseDraftPanel
+          draft={draft}
+          onDraftChange={onDraftChange}
+          onSelectStep={onSelectStep}
+          onValidated={onValidated}
+        />
+      )}
+    </>
   );
 }
 
