@@ -431,18 +431,10 @@ function AnalyzeButton({
   onAnalyze: () => void;
   onReanalyze: () => void;
 }) {
-  // Live wall-clock + tool-call counter while streaming. The backend's
-  // runtime_ms only lands once `done` fires, so we tick a client-side
-  // timer in the meantime (250ms is the same cadence TraceFooter uses).
-  const [elapsedMs, setElapsedMs] = useState(0);
-  useEffect(() => {
-    if (!inFlight) return undefined;
-    setElapsedMs(0);
-    const start = Date.now();
-    const interval = window.setInterval(() => setElapsedMs(Date.now() - start), 250);
-    return () => window.clearInterval(interval);
-  }, [inFlight]);
-
+  // While streaming, the button shows "Analyzing…" + a live tool-call
+  // counter — runtime ticks live in the TraceFooter at the bottom of
+  // the panel, no need to repeat it in the header where it'd compete
+  // with the verdict for the user's attention.
   if (inFlight) {
     const toolCalls = trace?.events.filter((event) => event.type === 'tool_call').length ?? 0;
     return (
@@ -455,7 +447,7 @@ function AnalyzeButton({
           <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
           <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>
-        <span>Analyzing… {formatRuntime(elapsedMs)}</span>
+        <span>Analyzing…</span>
         {toolCalls > 0 && (
           <span className="text-indigo-500/80">· {toolCalls} tool call{toolCalls === 1 ? '' : 's'}</span>
         )}
