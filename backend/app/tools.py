@@ -27,6 +27,60 @@ logger = logging.getLogger(__name__)
 
 
 _MAX_FOLLOWUP_SUGGESTIONS = 4
+# Mirrors FollowupSuggestion field constraints (label 1..40, message
+# 1..200). Defined here so the coercion helper can apply them without
+# round-tripping through Pydantic on each over-long item.
+_FOLLOWUP_LABEL_MAX = 40
+_FOLLOWUP_MESSAGE_MAX = 200
+
+
+def _coerce_followup_suggestions(
+    raw: list[Any],
+) -> list["FollowupSuggestion"]:
+    """Coerce agent-emitted followup chips to the FollowupSuggestion shape.
+
+    ``suggested_followups`` is transport-only UI metadata — chips
+    rendered next to the input box. The agent occasionally emits an
+    over-long label (e.g. 41 chars when the cap is 40), which used to
+    fail strict ``FollowupSuggestion.model_validate`` and propagate
+    out as a tool error that surfaced in the UI as
+    "Verdict proposal — Tool error". Rejecting the entire verdict
+    over one cosmetic field is the wrong tradeoff: silently trim the
+    text to fit and skip items that are unrecoverable (empty after
+    strip, wrong shape, etc.) so the verdict still lands cleanly.
+
+    The agent doesn't need to retry — its over-long label was a
+    near-miss and the truncated version is a perfectly usable chip.
+    """
+
+    validated: list[FollowupSuggestion] = []
+    for item in raw:
+        coerced = _coerce_one_followup(item)
+        if coerced is not None:
+            validated.append(coerced)
+    return validated
+
+
+def _coerce_one_followup(item: Any) -> "FollowupSuggestion | None":
+    if isinstance(item, FollowupSuggestion):
+        return item
+    if not isinstance(item, dict):
+        return None
+    raw_label = item.get("label")
+    raw_message = item.get("message")
+    if not isinstance(raw_label, str) or not isinstance(raw_message, str):
+        return None
+    label = raw_label.strip()[:_FOLLOWUP_LABEL_MAX]
+    message = raw_message.strip()[:_FOLLOWUP_MESSAGE_MAX]
+    if not label or not message:
+        return None
+    if label != raw_label.strip() or message != raw_message.strip():
+        logger.info(
+            "Truncated overlong followup suggestion (label=%d→%d chars, message=%d→%d chars)",
+            len(raw_label.strip()), len(label),
+            len(raw_message.strip()), len(message),
+        )
+    return FollowupSuggestion(label=label, message=message)
 
 
 def get_run(run_id: str) -> dict[str, Any]:
@@ -269,10 +323,11 @@ def propose_eval_case(
                 f"suggested_followups capped at {_MAX_FOLLOWUP_SUGGESTIONS}; "
                 f"got {len(suggested_followups)}"
             )
-        validated = [FollowupSuggestion.model_validate(item) for item in suggested_followups]
+        validated = _coerce_followup_suggestions(suggested_followups)
         # Transport-only: include in the tool's return payload so the
         # event lands in the trace and the frontend can read it. The
         # persisted EvalCase row never sees this list.
-        payload["suggested_followups"] = [item.model_dump(mode="json") for item in validated]
+        if validated:
+            payload["suggested_followups"] = [item.model_dump(mode="json") for item in validated]
 
     return payload

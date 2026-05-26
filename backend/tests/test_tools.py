@@ -345,20 +345,56 @@ class ToolsTests(unittest.TestCase):
                 ],
             )
 
-    def test_propose_eval_case_rejects_overlong_followup_label(self) -> None:
-        from pydantic import ValidationError
+    def test_propose_eval_case_truncates_overlong_followup_fields(self) -> None:
+        """Agent occasionally emits a label/message that's one or two
+        characters over the FollowupSuggestion limit. Rejecting the
+        whole proposal for a cosmetic UI chip is the wrong tradeoff —
+        the chip is transport-only and a truncated version is still
+        usable. Truncate silently; the verdict still lands.
+        """
 
         storage.save_run(sample_run())
 
-        with self.assertRaises(ValidationError):
-            tools.propose_eval_case(
-                run_id="run_1",
-                evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
-                retrieved_context_ids=[],
-                suggested_followups=[
-                    {"label": "x" * 41, "message": "ok"},
-                ],
-            )
+        draft = tools.propose_eval_case(
+            run_id="run_1",
+            evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
+            retrieved_context_ids=[],
+            suggested_followups=[
+                {"label": "x" * 41, "message": "ok"},
+                {"label": "fine", "message": "y" * 250},
+            ],
+        )
+
+        self.assertIn("suggested_followups", draft)
+        self.assertEqual(len(draft["suggested_followups"]), 2)
+        # Label truncated to 40, message truncated to 200.
+        self.assertEqual(len(draft["suggested_followups"][0]["label"]), 40)
+        self.assertEqual(len(draft["suggested_followups"][1]["message"]), 200)
+
+    def test_propose_eval_case_drops_unrecoverable_followup_shapes(self) -> None:
+        """Items that aren't dicts, or whose label/message aren't
+        strings, or that collapse to empty after strip, are silently
+        dropped rather than raised. Valid items in the same list still
+        come through.
+        """
+
+        storage.save_run(sample_run())
+
+        draft = tools.propose_eval_case(
+            run_id="run_1",
+            evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
+            retrieved_context_ids=[],
+            suggested_followups=[
+                "not a dict",  # type: ignore[list-item]
+                {"label": "", "message": "ok"},
+                {"label": "  ", "message": "ok"},
+                {"label": "valid", "message": "valid"},
+            ],
+        )
+
+        self.assertIn("suggested_followups", draft)
+        self.assertEqual(len(draft["suggested_followups"]), 1)
+        self.assertEqual(draft["suggested_followups"][0]["label"], "valid")
 
 
 if __name__ == "__main__":
