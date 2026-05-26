@@ -216,7 +216,14 @@ export function EvalAgentPanel({
           <TraceCollapseToggle
             collapsed={traceCollapsed}
             events={initialTurnEvents}
-            runtimeMs={trace?.runtime_ms ?? 0}
+            // Initial analyze runtime only — turn 0's slice. Falls back
+            // to cumulative for legacy traces persisted before
+            // turn_metrics existed. Followup runtimes never bump this.
+            runtimeMs={
+              trace?.turn_metrics?.find((entry) => entry.turn === 0)?.runtime_ms
+                ?? trace?.runtime_ms
+                ?? 0
+            }
             onToggle={() => setTraceCollapsed((value) => !value)}
           />
         )}
@@ -1584,9 +1591,15 @@ function TraceFooter({ trace, inFlight }: { trace: AgentTrace | null; inFlight: 
     return () => window.clearInterval(interval);
   }, [inFlight]);
 
-  const runtime = inFlight ? liveRuntime : trace?.runtime_ms ?? 0;
-  const inputTokens = trace?.input_tokens ?? 0;
-  const outputTokens = trace?.output_tokens ?? 0;
+  // Read the LATEST turn's metrics, not the trace cumulative totals.
+  // Cumulative kept growing with every followup, but the user wants
+  // "this exchange just cost X" — same UX as Claude Code's per-turn
+  // counter.
+  const latestTurn = trace?.turn_metrics?.[trace.turn_metrics.length - 1] ?? null;
+  const finalRuntime = latestTurn?.runtime_ms ?? trace?.runtime_ms ?? 0;
+  const runtime = inFlight ? liveRuntime : finalRuntime;
+  const inputTokens = latestTurn?.input_tokens ?? trace?.input_tokens ?? 0;
+  const outputTokens = latestTurn?.output_tokens ?? trace?.output_tokens ?? 0;
   const hasTokens = inputTokens > 0 || outputTokens > 0;
   if (runtime <= 0 && !hasTokens && !inFlight) return null;
 
@@ -1608,7 +1621,7 @@ function TraceFooter({ trace, inFlight }: { trace: AgentTrace | null; inFlight: 
     <div
       className="flex items-center gap-1.5 px-1 pt-1 text-[10px] text-slate-500"
       title={
-        `Wall-clock runtime: ${runtime} ms · LLM tokens (VLM not counted): `
+        `Latest turn runtime: ${runtime} ms · LLM tokens (VLM not counted): `
         + `${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`
       }
     >
@@ -1622,11 +1635,14 @@ function TraceFooter({ trace, inFlight }: { trace: AgentTrace | null; inFlight: 
 }
 
 function formatRuntime(ms: number): string {
-  if (ms < 1000) return `${ms} ms`;
-  const seconds = ms / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  // Whole-second granularity only: sub-second jitter and "234 ms"
+  // readings aren't useful to the user. Round to nearest second; 0 ms
+  // stays 0s so the footer's hide-when-zero check still works.
+  if (ms <= 0) return '0s';
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
-  const remainder = Math.round(seconds % 60);
+  const remainder = seconds % 60;
   return `${minutes}m ${remainder}s`;
 }
 
@@ -1722,6 +1738,7 @@ function emptyTrace(runId: string): AgentTrace {
     runtime_ms: 0,
     input_tokens: 0,
     output_tokens: 0,
+    turn_metrics: [],
   };
 }
 

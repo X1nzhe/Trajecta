@@ -19,7 +19,7 @@ from typing import Any, Literal, Protocol, TypedDict
 from pydantic import BaseModel
 
 from backend.app import preprocess, storage, tools
-from backend.app.schemas import AgentTrace, AgentTraceEvent
+from backend.app.schemas import AgentTrace, AgentTraceEvent, TurnMetrics
 
 try:  # pragma: no cover - exercised when optional production deps are present
     from langgraph.graph import END, START, StateGraph
@@ -284,6 +284,7 @@ def stream_analyze(
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         final_trace = result.trace if result is not None else trace
         final_trace.runtime_ms += elapsed_ms
+        _current_turn_metrics(final_trace, 0).runtime_ms += elapsed_ms
         if persist:
             storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
@@ -387,6 +388,7 @@ def stream_followup(
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         final_trace = result.trace if result is not None else trace
         final_trace.runtime_ms += elapsed_ms
+        _current_turn_metrics(final_trace, turn).runtime_ms += elapsed_ms
         if persist:
             storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
@@ -511,7 +513,7 @@ def _agent_node(state: GraphState) -> GraphState:
         state["llm_client"] = client
     message = _invoke_model(client, state["messages"])
     state["messages"].append(message)
-    _accumulate_token_usage(state["trace"], message)
+    _accumulate_token_usage(state["trace"], message, turn=state["turn"])
     # Only record an agent_message event when the model produced actual text.
     # When the model returns only tool_calls (content == ""), the tool_call
     # events that follow already represent the agent's intent — emitting a
@@ -729,7 +731,7 @@ def _execution_result(trace: AgentTrace, state: EvalState, start_seq: int) -> Ag
     )
 
 
-def _accumulate_token_usage(trace: AgentTrace, message: Any) -> None:
+def _accumulate_token_usage(trace: AgentTrace, message: Any, *, turn: int) -> None:
     """Pull ``usage_metadata`` off an AIMessage and add it to the trace.
 
     Real OpenAI calls populate ``AIMessage.usage_metadata`` as
@@ -737,18 +739,43 @@ def _accumulate_token_usage(trace: AgentTrace, message: Any) -> None:
     the fallback message classes don't have the attribute — the
     ``getattr`` default keeps the call site loop-safe so we silently
     record 0 for those turns instead of crashing.
+
+    Writes to BOTH the cumulative ``AgentTrace.input_tokens`` /
+    ``output_tokens`` and the per-turn entry in ``trace.turn_metrics``.
+    The UI reads per-turn; SPEC.md cost ablation reads cumulative.
     """
 
     usage = getattr(message, "usage_metadata", None)
     if not isinstance(usage, dict):
         return
     try:
-        trace.input_tokens += int(usage.get("input_tokens", 0) or 0)
-        trace.output_tokens += int(usage.get("output_tokens", 0) or 0)
+        input_delta = int(usage.get("input_tokens", 0) or 0)
+        output_delta = int(usage.get("output_tokens", 0) or 0)
     except (TypeError, ValueError):
         # A model returning non-numeric token counts shouldn't take down
         # the whole agent loop — just skip the increment.
         return
+    trace.input_tokens += input_delta
+    trace.output_tokens += output_delta
+    metrics = _current_turn_metrics(trace, turn)
+    metrics.input_tokens += input_delta
+    metrics.output_tokens += output_delta
+
+
+def _current_turn_metrics(trace: AgentTrace, turn: int) -> TurnMetrics:
+    """Return the ``TurnMetrics`` for ``turn``, creating it if absent.
+
+    Used by both the token accumulator and the wall-clock writer in
+    ``stream_analyze`` / ``stream_followup`` so each turn's counters
+    live in one place that the UI can render verbatim.
+    """
+
+    for entry in trace.turn_metrics:
+        if entry.turn == turn:
+            return entry
+    entry = TurnMetrics(turn=turn)
+    trace.turn_metrics.append(entry)
+    return entry
 
 
 def _invoke_model(client: AgentLLM | Any, messages: list[AnyMessage]) -> AnyMessage:

@@ -141,4 +141,16 @@ export interface AgentTrace {
   runtime_ms: number;
   input_tokens: number;
   output_tokens: number;
+  // Per-turn breakdown. UI reads the latest entry for the cost
+  // footer ("this turn") and turn 0 for the collapsed-trace summary
+  // ("initial analyze"), so neither display keeps growing across
+  // followups.
+  turn_metrics: TurnMetrics[];
+}
+
+export interface TurnMetrics {
+  turn: number;
+  runtime_ms: number;
+  input_tokens: number;
+  output_tokens: number;
 }

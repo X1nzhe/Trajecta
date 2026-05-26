@@ -193,6 +193,49 @@ class EvalAgentTests(unittest.TestCase):
         # Wall-clock runtime is real time — just assert it's been set.
         self.assertGreaterEqual(result.trace.runtime_ms, 0)
 
+    def test_trace_turn_metrics_split_initial_and_followup(self) -> None:
+        """The UI needs per-turn costs (latest turn for the footer,
+        turn 0 for the collapsed-trace header) so neither display keeps
+        growing across followups. turn_metrics must carry the same
+        runtime/token deltas split by ``turn``.
+        """
+
+        class UsageMessage(AIMessage):
+            def __init__(self, name: str, args: dict, *, input_tokens: int, output_tokens: int) -> None:
+                super().__init__(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}])
+                self.usage_metadata = {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                }
+
+        analyze_script = [
+            UsageMessage("get_run", {"run_id": "run_1"}, input_tokens=100, output_tokens=10),
+            UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=200, output_tokens=20),
+        ]
+        eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(analyze_script))
+
+        followup_script = [
+            UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=50, output_tokens=5),
+        ]
+        result = eval_agent_graph.followup("run_1", "any clarification", llm_client=ScriptedLLM(followup_script))
+
+        # Cumulative on the AgentTrace stays the way SPEC.md's cost
+        # ablation reads it — sum of every turn.
+        self.assertEqual(result.trace.input_tokens, 350)
+        self.assertEqual(result.trace.output_tokens, 35)
+
+        # Per-turn split. turn 0 = initial analyze; turn 1 = followup.
+        per_turn = {entry.turn: entry for entry in result.trace.turn_metrics}
+        self.assertEqual(set(per_turn.keys()), {0, 1})
+        self.assertEqual(per_turn[0].input_tokens, 300)
+        self.assertEqual(per_turn[0].output_tokens, 30)
+        self.assertEqual(per_turn[1].input_tokens, 50)
+        self.assertEqual(per_turn[1].output_tokens, 5)
+        # Wall-clock recorded against each turn separately too.
+        self.assertGreaterEqual(per_turn[0].runtime_ms, 0)
+        self.assertGreaterEqual(per_turn[1].runtime_ms, 0)
+
     def test_trace_token_counts_stay_zero_when_usage_metadata_missing(self) -> None:
         """Offline / mock LLM path has no usage_metadata; the trace should
         still validate with zeroed counters rather than crashing the loop.

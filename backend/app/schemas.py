@@ -199,6 +199,22 @@ class AgentTraceEvent(BaseModel):
     turn: int = 0
 
 
+class TurnMetrics(BaseModel):
+    """Per-turn breakdown of the cumulative AgentTrace counters.
+
+    turn 0 == initial analyze; turn >= 1 == followups. The UI reads
+    these to show "this turn cost X seconds / Y tokens" instead of the
+    whole-session totals, which kept growing with each followup. The
+    cumulative ``AgentTrace.runtime_ms`` etc. are still maintained for
+    the SPEC.md cost-ablation demo and any downstream analytics.
+    """
+
+    turn: int
+    runtime_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
 class AgentTrace(BaseModel):
     run_id: str
     user_intent: Literal["analyze_run", "analyze_step"]
@@ -219,3 +235,10 @@ class AgentTrace(BaseModel):
     runtime_ms: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    # Per-turn breakdown of the same counters above. Empty on traces
+    # written before this field existed; new analyze/followup runs
+    # append one entry per turn. The UI reads the latest turn for the
+    # footer ("this turn") and turn 0 for the collapsed-trace summary
+    # ("initial analyze") so neither display keeps growing with every
+    # followup.
+    turn_metrics: list[TurnMetrics] = Field(default_factory=list)
