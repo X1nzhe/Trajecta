@@ -478,7 +478,13 @@ function ObservationSummaryPanel({
             <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Retrieved Context</h4>
             <div className="flex flex-wrap gap-1.5">
               {draft.retrieved_context_ids.map((id) => (
-                <span key={id} className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-1 font-mono text-[11px] text-indigo-700">{id}</span>
+                <span
+                  key={id}
+                  title={id}
+                  className="max-w-full break-all rounded-full border border-indigo-100 bg-indigo-50 px-2 py-1 font-mono text-[11px] text-indigo-700"
+                >
+                  {shortenCaseId(id)}
+                </span>
               ))}
             </div>
           </div>
