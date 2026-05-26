@@ -295,7 +295,7 @@ export function EvalAgentPanel({
         />
 
         {/* Second render position for the verdict trio — used when a
-            followup reproposed the eval case. Original position above
+            followup reproposed the verdict. Original position above
             renders nothing in that case (only one verdict ever shows). */}
         {evalCaseDraft && verdictBelowFollowup && (
           <VerdictBlock
@@ -491,7 +491,7 @@ function VerdictBlock({
           onClick={onViewDraft}
           className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
         >
-          View draft eval case →
+          View draft verdict →
         </button>
       )}
       {draftViewed && (
@@ -523,7 +523,7 @@ function ObservationSummaryPanel({
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
         <h3 className="text-sm font-bold text-slate-900">Observation Summary</h3>
-        <p className="mt-2 text-sm leading-5 text-slate-500">No findings yet. Run an analysis to produce a trace and eval-case draft.</p>
+        <p className="mt-2 text-sm leading-5 text-slate-500">No findings yet. Run an analysis to produce a trace and draft verdict.</p>
       </section>
     );
   }
@@ -812,10 +812,10 @@ function TraceRow({
 const TOOL_FRIENDLY_NAME: Record<string, string> = {
   get_run: 'Trajectory metadata lookup',
   get_step_detail: 'Step detail inspection',
-  search_failure_memory: 'Failure memory search',
-  search_eval_cases: 'Prior eval-case search',
-  find_similar_successful_run: 'Similar successful trajectories search',
-  propose_eval_case: 'Eval-case proposal',
+  search_failure_memory: 'Failure patterns retrieval',
+  search_eval_cases: 'Verified verdict retrieval',
+  find_similar_successful_run: 'Similar successful trajectories retrieval',
+  propose_eval_case: 'Verdict proposal',
 };
 
 function ToolDetailView({
@@ -1128,7 +1128,7 @@ function DigestPreview({ digest }: { digest: TrajectoryDigest }) {
       <div className="text-[10px] text-slate-500">
         <span className="font-mono">{digest.preprocess_model ?? 'unknown'}</span>
         {' · '}
-        <span>v{digest.preprocess_version}</span>
+        <span>{digest.preprocess_version}</span>
       </div>
       <ol className="space-y-1.5">
         {digest.steps.map((step) => (
@@ -1185,19 +1185,19 @@ function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, 
       if (itemCount !== null) return `Found ${itemCount} similar successful ${itemCount === 1 ? 'trajectory' : 'trajectories'}`;
       return task ? `Searching for similar successful trajectories to: ${shorten(task, 60)}` : 'Searching for similar successful trajectories';
     case 'search_failure_memory':
-      if (itemCount !== null && query) return `Searched failure memory for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
-      if (query) return `Searching failure memory for "${shorten(query, 60)}"`;
-      return 'Searching failure memory';
+      if (itemCount !== null && query) return `Retrieved failure patterns for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
+      if (query) return `Retrieving failure patterns for "${shorten(query, 60)}"`;
+      return 'Retrieving failure patterns';
     case 'search_eval_cases':
-      if (itemCount !== null && query) return `Searched prior eval cases for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
-      if (query) return `Searching prior eval cases for "${shorten(query, 60)}"`;
-      return 'Searching prior eval cases';
+      if (itemCount !== null && query) return `Retrieved verified verdicts for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
+      if (query) return `Retrieving verified verdicts for "${shorten(query, 60)}"`;
+      return 'Retrieving verified verdicts';
     case 'propose_eval_case': {
       const caseId = typeof result?.case_id === 'string' ? result.case_id : null;
       const isSuccess = result?.failure_type === null || result?.failure_type === undefined;
-      if (caseId && isSuccess) return `Drafted success eval case (${shortenCaseId(caseId)})`;
-      if (caseId) return `Drafted eval case (${shortenCaseId(caseId)})`;
-      return 'Drafting eval case';
+      if (caseId && isSuccess) return `Drafted success verdict (${shortenCaseId(caseId)})`;
+      if (caseId) return `Drafted verdict (${shortenCaseId(caseId)})`;
+      return 'Drafting verdict';
     }
     default:
       return event.name ?? '(unknown tool)';
@@ -1427,7 +1427,7 @@ function EvalCaseDraftPanel({
   return (
     <section id="eval-case-draft" className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-        <h3 className="text-sm font-bold text-slate-900">Eval Case Draft</h3>
+        <h3 className="text-sm font-bold text-slate-900">Draft Verdict</h3>
         {dirty && <span className="text-[11px] text-amber-600">edited</span>}
       </div>
       <div className="space-y-3 p-3 text-xs text-slate-700">
@@ -1782,7 +1782,7 @@ function extractAgentSuggestions(trace: AgentTrace | null): ChipTemplate[] {
 function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
   return [
     { label: 'Suggest failure label', text: 'Suggest the failure label for this trajectory.' },
-    { label: 'Generate eval case', text: 'Generate the eval case draft.' },
+    { label: 'Generate verdict', text: 'Generate the draft verdict.' },
     { label: 'Find similar failures', text: 'Find similar failure cases from memory.' },
     { label: 'Compare with another trajectory', text: 'Compare this trajectory with a similar successful trajectory.' },
     {
@@ -1796,11 +1796,11 @@ function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
     // when revising the draft, so these chips trigger a fresh proposal.
     {
       label: 'Reclassify as success',
-      text: 'This trajectory actually succeeded. Please re-propose the eval case as a success case (clear all failure fields).',
+      text: 'This trajectory actually succeeded. Please re-propose the verdict as a success case (clear all failure fields).',
     },
     {
       label: 'Reclassify as failure',
-      text: 'This trajectory actually failed. Please re-propose the eval case with the correct failure step, failure type, expected behavior, and actual behavior.',
+      text: 'This trajectory actually failed. Please re-propose the verdict with the correct failure step, failure type, expected behavior, and actual behavior.',
     },
   ];
 }
