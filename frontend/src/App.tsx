@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Header } from './components/Header';
-import { Footer } from './components/Footer';
 import { RunList } from './components/RunList';
 import { StepTimeline } from './components/StepTimeline';
 import { ScreenshotViewer } from './components/ScreenshotViewer';
@@ -8,7 +7,7 @@ import { StepDetailPanel } from './components/StepDetailPanel';
 import { EvalAgentPanel } from './components/EvalAgentPanel';
 import { useUrlState } from './hooks/useUrlState';
 import { fetchRuns, fetchRun } from './api/client';
-import type { AgentTrace, EvalCase, TrajectoryRun } from './types/contracts';
+import type { AgentTrace, EvalCase, TrajectoryDigest, TrajectoryRun } from './types/contracts';
 
 function App() {
   const { runId, stepIndex, setRunId, setStepIndex } = useUrlState();
@@ -16,6 +15,9 @@ function App() {
   const [selectedRun, setSelectedRun] = useState<TrajectoryRun | null>(null);
   const [agentTrace, setAgentTrace] = useState<AgentTrace | null>(null);
   const [evalCaseDraft, setEvalCaseDraft] = useState<EvalCase | null>(null);
+  // Cached digest comes back with the run; the right-panel cost helper
+  // uses its VLM preprocess token counts to build the total.
+  const [runDigest, setRunDigest] = useState<TrajectoryDigest | null>(null);
   const [loadingRuns, setLoadingRuns] = useState(true);
   const [loadingRunDetails, setLoadingRunDetails] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
@@ -46,6 +48,7 @@ function App() {
         try {
           const run = await fetchRun(runId);
           setSelectedRun(run);
+          setRunDigest(run.digest ?? null);
           setAgentTrace(run.last_trace ?? null);
           setEvalCaseDraft(run.eval_case_draft ?? deriveLatestDraft(run.last_trace ?? null));
           setRunError(null);
@@ -53,6 +56,7 @@ function App() {
           console.error(e);
           setRunError(`Trajectory not found: ${runId}`);
           setSelectedRun(null);
+          setRunDigest(null);
           setAgentTrace(null);
           setEvalCaseDraft(null);
         } finally {
@@ -62,6 +66,7 @@ function App() {
       loadRunDetails();
     } else {
       setSelectedRun(null);
+      setRunDigest(null);
       setAgentTrace(null);
       setEvalCaseDraft(null);
       setRunError(null);
@@ -86,8 +91,8 @@ function App() {
   const inspectedSteps = useMemo(() => inspectedStepSet(agentTrace), [agentTrace]);
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#f4f5f8] font-sans text-slate-900">
-      <Header onReload={loadRuns} />
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-[color:var(--color-canvas)] font-sans text-slate-900">
+      <Header onReload={loadRuns} runs={runs} datasetLabel={datasetLabel(runs)} />
       
       <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3 xl:flex-row xl:overflow-hidden">
         <RunList 
@@ -108,20 +113,15 @@ function App() {
           ) : selectedRun && activeStep ? (
             <>
               <div className="bg-white">
-                <div className="border-b border-slate-200 px-4 py-2.5">
+                <div className="border-b border-[color:var(--color-hairline)] px-4 py-3">
                   <div className="min-w-0">
-                    <div className="mb-1 flex items-center gap-2">
-                      <h2 className="truncate text-base font-bold text-slate-950" title={selectedRun.run_id}>Trajectory {truncateRunId(selectedRun.run_id)}</h2>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${runStatusClass(selectedRun.status)}`}>
-                        {runStatusLabel(selectedRun.status)}
-                      </span>
-                    </div>
-                    <div className="break-words text-xs leading-4 text-slate-600">
-                      <span className="font-semibold text-slate-700">Task:</span> {selectedRun.task}
-                    </div>
+                    <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">Task</div>
+                    <p className="mt-1 break-words text-[13px] leading-5 text-slate-800">
+                      <span className="text-slate-400">navigate:</span> {selectedRun.task}
+                    </p>
                   </div>
                 </div>
-                <StepTimeline 
+                <StepTimeline
                   run={selectedRun} 
                   selectedStepIndex={activeStepIndex} 
                   inspectedSteps={inspectedSteps}
@@ -155,6 +155,7 @@ function App() {
 
         <EvalAgentPanel
           run={selectedRun}
+          digest={runDigest}
           selectedStepIndex={activeStep?.index ?? null}
           trace={agentTrace}
           evalCaseDraft={evalCaseDraft}
@@ -164,8 +165,6 @@ function App() {
           onEvalCaseValidated={loadRuns}
         />
       </main>
-
-      <Footer runs={runs} />
     </div>
   );
 }
@@ -192,20 +191,8 @@ function deriveLatestDraft(trace: AgentTrace | null): EvalCase | null {
   return null;
 }
 
-function runStatusClass(status: TrajectoryRun['status']) {
-  if (status === 'failed') return 'bg-red-50 text-red-700';
-  if (status === 'success') return 'bg-emerald-50 text-emerald-700';
-  return 'bg-amber-50 text-amber-700';
-}
-
-function runStatusLabel(status: TrajectoryRun['status']) {
-  // Title-cased to match RunList's StatusBadge labels.
-  if (status === 'failed') return 'Failed';
-  if (status === 'success') return 'Success';
-  return 'Unverified';
-}
-
-function truncateRunId(id: string) {
-  if (id.length <= 18) return id;
-  return `${id.slice(0, 10)}...${id.slice(-6)}`;
+function datasetLabel(runs: TrajectoryRun[]): string {
+  // Prefer the dataset 'source' on the first run (matches what the old
+  // Footer showed). Fall back to the bundled sample's label.
+  return runs[0]?.source ?? 'allenai / MolmoWeb-HumanSkills';
 }

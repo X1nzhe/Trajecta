@@ -80,20 +80,21 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
   return (
     <section
       data-details-expanded={detailsExpanded}
-      className="m-3 mb-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-[flex-basis,height] duration-300 ease-in-out"
+      className="m-3 mb-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[color:var(--color-hairline)] bg-white shadow-sm transition-[flex-basis,height] duration-300 ease-in-out"
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50/70 px-3 py-2">
-        <div className="text-sm font-semibold text-slate-900">
-          Step {step.index} <span className="font-normal text-slate-400">/ {totalSteps}</span>
-          <span className="ml-3 font-normal text-slate-500">Screenshot (after action)</span>
+      <div className="flex shrink-0 items-center justify-between border-b border-[color:var(--color-hairline)] bg-white px-3 py-2">
+        <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          <span className="text-slate-700">Step <span className="font-mono tabular-nums">{step.index}</span></span>
+          <span className="mx-1.5 text-slate-300">·</span>
+          Screenshot (after action)
         </div>
         <div className="flex items-center gap-1 text-slate-500">
-          <button className="rounded-md border border-slate-200 bg-white p-1.5 hover:text-indigo-700" title="Zoom">
+          <button className="rounded-md border border-[color:var(--color-hairline)] bg-white p-1.5 hover:text-slate-900" title="Zoom">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm0-10v5m-2.5-2.5h5" />
             </svg>
           </button>
-          <button className="rounded-md border border-slate-200 bg-white p-1.5 hover:text-indigo-700" title="Fit screenshot">
+          <button className="rounded-md border border-[color:var(--color-hairline)] bg-white p-1.5 hover:text-slate-900" title="Fit screenshot">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3m18 0v3a2 2 0 0 1-2 2h-3" />
             </svg>
@@ -158,14 +159,25 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-4 border-t border-slate-200 bg-white px-3 py-2">
-        <div className="flex items-center gap-1">
-          <button onClick={onPrev} disabled={step.index <= 1} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-30" title="Previous step">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-t border-[color:var(--color-hairline)] bg-white px-3 py-2">
+        <div className="flex items-center gap-2 text-slate-500">
+          {/* Bare arrow icons — no rounded background. The arrow itself is
+              the affordance. Hover lifts the ink to slate-900. */}
+          <button
+            onClick={onPrev}
+            disabled={step.index <= 1}
+            className="text-slate-400 transition-colors hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-30"
+            title="Previous step"
+          >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m15 18-6-6 6-6" />
             </svg>
           </button>
-          <button onClick={() => setIsPlaying((value) => step.index < totalSteps && !value)} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700" title={isPlaying ? 'Pause playback' : 'Play steps'}>
+          <button
+            onClick={() => setIsPlaying((value) => step.index < totalSteps && !value)}
+            className="text-slate-400 transition-colors hover:text-slate-900"
+            title={isPlaying ? 'Pause playback' : 'Play steps'}
+          >
             {isPlaying ? (
               <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M6 4h2.5v12H6V4Zm5.5 0H14v12h-2.5V4Z" />
@@ -176,7 +188,12 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
               </svg>
             )}
           </button>
-          <button onClick={onNext} disabled={step.index >= totalSteps} className="rounded-full p-2 text-slate-600 hover:bg-slate-100 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-30" title="Next step">
+          <button
+            onClick={onNext}
+            disabled={step.index >= totalSteps}
+            className="text-slate-400 transition-colors hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-30"
+            title="Next step"
+          >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m9 18 6-6-6-6" />
             </svg>
@@ -187,7 +204,9 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
           <div className="absolute left-0 top-0 h-full rounded-full bg-red-400 transition-all" style={{ width: `${((step.index - 1) / (totalSteps - 1 || 1)) * 100}%` }} />
           <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-red-500 shadow" style={{ left: `${((step.index - 1) / (totalSteps - 1 || 1)) * 100}%` }} />
         </div>
-        <div className="w-20 text-right text-xs font-medium text-slate-500">Step {step.index} / {totalSteps}</div>
+        <div className="w-20 text-right font-mono text-[11px] tabular-nums text-slate-500">
+          step {pad2(step.index)} / {pad2(totalSteps)}
+        </div>
       </div>
     </section>
   );
@@ -199,6 +218,10 @@ function fitInside(sourceWidth: number, sourceHeight: number, targetWidth: numbe
     width: Math.max(1, sourceWidth * scale),
     height: Math.max(1, sourceHeight * scale),
   };
+}
+
+function pad2(n: number) {
+  return n < 10 ? `0${n}` : String(n);
 }
 
 function isBBoxInBounds(step: TrajectoryStep, imageWidth?: number, imageHeight?: number) {
