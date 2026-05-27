@@ -2114,6 +2114,7 @@ function AutoGrowTextarea({
   placeholder?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
+
   // Resize on every value change so multi-line content fits exactly
   // without an inner scrollbar. height='auto' first lets the
   // textarea shrink when content is deleted; scrollHeight then
@@ -2125,6 +2126,35 @@ function AutoGrowTextarea({
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
   }, [value]);
+
+  // Re-measure when the element first becomes visible. The verdict
+  // modal pre-mounts its children while hidden via display:none so
+  // that closing it is non-destructive — but a hidden element has
+  // scrollHeight=0, which would otherwise lock the textarea to a
+  // zero-height row even after the modal opens. IntersectionObserver
+  // fires when the element enters the viewport (which happens on the
+  // display:none → display:flex transition), giving us a clean place
+  // to remeasure once the textarea actually has layout.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const remeasure = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    if (typeof IntersectionObserver === 'undefined') {
+      remeasure();
+      return undefined;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        remeasure();
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <textarea
       ref={ref}
