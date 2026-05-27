@@ -2179,11 +2179,10 @@ function TintedTextField({
   return (
     <div className="mb-2 rounded-md bg-slate-100/70 px-3 py-2">
       <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
-      <textarea
+      <AutoGrowTextarea
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={2}
-        className="block w-full resize-y border-0 bg-transparent p-0 text-xs leading-5 text-slate-700 outline-none focus:ring-0"
+        onChange={onChange}
+        className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-xs leading-5 text-slate-700 outline-none focus:ring-0"
       />
     </div>
   );
