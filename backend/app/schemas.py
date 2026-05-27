@@ -93,6 +93,11 @@ class TrajectoryDigest(BaseModel):
     steps: list[StepDigest]
     preprocess_model: str | None = None
     preprocess_version: str = "v1"
+    # Cumulative VLM token usage spent producing this digest's low-detail
+    # summaries. Captured via vlm_usage_scope() in preprocess.build_digest.
+    # Mock path leaves them at 0. Old digests deserialize with defaults.
+    vlm_input_tokens: int = 0
+    vlm_output_tokens: int = 0
 
 
 class FailureMemoryCase(BaseModel):
@@ -223,6 +228,19 @@ class AgentTrace(BaseModel):
     turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"
     events: list[AgentTraceEvent] = Field(default_factory=list)
+    # The LLM that produced this trace. Stamped once at initial
+    # stream_analyze() so followups inherit the same value. Mirrors how
+    # TrajectoryDigest exposes preprocess_model for the VLM side. Old
+    # persisted traces deserialize with model=None (backwards compatible).
+    model: str | None = None
+    # The VLM that backed `get_step_detail` calls within this trace, plus
+    # cumulative token usage across all calls (initial + followups).
+    # `vlm_model` is stamped at trace creation from TRAJECTA_VLM_MODEL —
+    # we only attribute a VLM-id when the real client is reachable
+    # (matches how `model` is stamped). Old traces default to None / 0.
+    vlm_model: str | None = None
+    vlm_input_tokens: int = 0
+    vlm_output_tokens: int = 0
     # Per-trace observability — spec (docs/eval_agent.md "Observability")
     # requires the trace itself to be the observability surface, so cost
     # and latency counters live here, not on a separate APM. runtime_ms

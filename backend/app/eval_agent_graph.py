@@ -19,6 +19,7 @@ from typing import Any, Literal, Protocol, TypedDict
 from pydantic import BaseModel
 
 from backend.app import preprocess, storage, tools
+from backend.app.llm import vlm_usage_scope
 from backend.app.schemas import AgentTrace, AgentTraceEvent, TurnMetrics
 
 try:  # pragma: no cover - exercised when optional production deps are present
@@ -237,12 +238,27 @@ def stream_analyze(
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
 ) -> Iterator[AgentStreamItem]:
+    # Mirror the env-var split used by _default_llm_client: a real
+    # OpenAI-backed agent only runs when both OPENAI_API_KEY and
+    # TRAJECTA_AGENT_MODEL are set; otherwise OfflineAgentMock takes over.
+    # Stamp "mock" in that case so the frontend can label runs honestly
+    # instead of advertising a model that didn't actually answer.
+    _agent_model_env = os.environ.get("TRAJECTA_AGENT_MODEL")
+    _agent_api_key = os.environ.get("OPENAI_API_KEY")
+    trace_model = _agent_model_env if (_agent_model_env and _agent_api_key) else "mock"
+    # Same gate for the VLM side — TRAJECTA_VLM_MODEL needs OPENAI_API_KEY to
+    # reach the real VLM. Without both, get_step_detail goes through
+    # MockVLMClient and we stamp "mock" to match how preprocess_model behaves.
+    _vlm_model_env = os.environ.get("TRAJECTA_VLM_MODEL")
+    trace_vlm_model = _vlm_model_env if (_vlm_model_env and _agent_api_key) else "mock"
     trace = AgentTrace(
         run_id=run_id,
         user_intent=user_intent,
         selected_step=selected_step,
         turn_count=1,
         terminated_by="error",
+        model=trace_model,
+        vlm_model=trace_vlm_model,
     )
     state: GraphState = {
         "run_id": run_id,
@@ -264,49 +280,58 @@ def stream_analyze(
     }
     result: AgentExecutionResult | None = None
     start = time.perf_counter()
-    try:
-        # Always surface the preprocess phase so the UI can render a row
-        # that the user can expand to view the per-step digest. On a cold
-        # start the row spins for ~30s while the per-step low-detail VLM
-        # runs; on a cache hit the row appears already-done with a
-        # different message so the user still sees "the digest existed"
-        # instead of jumping straight to the first tool call.
-        cache_hit = not _needs_preprocess(run_id)
-        run = storage.load_run(run_id)
-        step_count = len(run.steps) if run else 0
-        _append_event(
-            trace,
-            "phase",
-            turn=0,
-            name="preprocess",
-            args={"step_count": step_count, "cached": cache_hit},
-            message=(
-                "Loaded cached trajectory digest"
-                if cache_hit
-                else "Building trajectory digest"
-            ),
-        )
-        yield trace.events[-1]
-        # Pre-streamed events (currently the optional preprocess phase) must
-        # not be re-yielded by _stream_graph_result. start_seq stays 0 so the
-        # phase event is still counted in new_events for the final result.
-        result = yield from _stream_graph_result(
-            state,
-            start_seq=0,
-            include_preprocess=True,
-            emitted_seq=len(trace.events),
-        )
-    except Exception as exc:
-        _record_graph_execution_error(state, trace=trace, turn=0, error=str(exc))
-        yield trace.events[-1]
-        raise
-    finally:
-        elapsed_ms = int((time.perf_counter() - start) * 1000)
-        final_trace = result.trace if result is not None else trace
-        final_trace.runtime_ms += elapsed_ms
-        _current_turn_metrics(final_trace, 0).runtime_ms += elapsed_ms
-        if persist:
-            storage.save_trace(run_id, final_trace)
+    # Capture every VLM call (preprocess pass + any get_step_detail tool
+    # calls inside the graph) into one bucket — at the end, we copy the
+    # totals onto the trace so the UI can show "this analyze cost N
+    # input + M output VLM tokens" without a separate API round-trip.
+    with vlm_usage_scope() as vlm_usage:
+        try:
+            # Always surface the preprocess phase so the UI can render a row
+            # that the user can expand to view the per-step digest. On a cold
+            # start the row spins for ~30s while the per-step low-detail VLM
+            # runs; on a cache hit the row appears already-done with a
+            # different message so the user still sees "the digest existed"
+            # instead of jumping straight to the first tool call.
+            cache_hit = not _needs_preprocess(run_id)
+            run = storage.load_run(run_id)
+            step_count = len(run.steps) if run else 0
+            _append_event(
+                trace,
+                "phase",
+                turn=0,
+                name="preprocess",
+                args={"step_count": step_count, "cached": cache_hit},
+                message=(
+                    "Loaded cached trajectory digest"
+                    if cache_hit
+                    else "Building trajectory digest"
+                ),
+            )
+            yield trace.events[-1]
+            # Pre-streamed events (currently the optional preprocess phase) must
+            # not be re-yielded by _stream_graph_result. start_seq stays 0 so the
+            # phase event is still counted in new_events for the final result.
+            result = yield from _stream_graph_result(
+                state,
+                start_seq=0,
+                include_preprocess=True,
+                emitted_seq=len(trace.events),
+            )
+        except Exception as exc:
+            _record_graph_execution_error(state, trace=trace, turn=0, error=str(exc))
+            yield trace.events[-1]
+            raise
+        finally:
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            final_trace = result.trace if result is not None else trace
+            final_trace.runtime_ms += elapsed_ms
+            _current_turn_metrics(final_trace, 0).runtime_ms += elapsed_ms
+            # First scope on this trace — assign rather than add, since
+            # the trace started with vlm_*_tokens=0.
+            final_trace.vlm_input_tokens = vlm_usage["input"]
+            final_trace.vlm_output_tokens = vlm_usage["output"]
+            if persist:
+                storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
 
 
@@ -371,46 +396,52 @@ def stream_followup(
     result: AgentExecutionResult | None = None
     state: GraphState | None = None
     start = time.perf_counter()
-    try:
-        digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
-        state = {
-            "run_id": run_id,
-            "user_intent": trace.user_intent,
-            "selected_step": trace.selected_step,
-            "trajectory_digest": [step.model_dump(mode="json") for step in digest.steps],
-            "messages": _messages_from_trace(trace),
-            "tool_call_count": trace.tool_call_count,
-            "eval_case_draft": _latest_eval_case_draft(trace),
-            "errors": [],
-            "trace": trace,
-            "turn": turn,
-            "budget": budget,
-            "per_turn_budgeted_calls": 0,
-            "pending_tool_calls": [],
-            "active_tool_call": None,
-            "llm_client": llm_client,
-            "done": False,
-        }
-        result = yield from _stream_graph_result(
-            state,
-            start_seq=start_seq,
-            include_preprocess=False,
-            emitted_seq=len(trace.events),
-        )
-        result.trace.turn_count = max(result.trace.turn_count, turn + 1)
-        result.new_events = result.trace.events[start_seq:]
-    except Exception as exc:
-        _record_graph_execution_error(state, trace=trace, turn=turn, error=str(exc))
-        trace.turn_count = max(trace.turn_count, turn + 1)
-        yield trace.events[-1]
-        raise
-    finally:
-        elapsed_ms = int((time.perf_counter() - start) * 1000)
-        final_trace = result.trace if result is not None else trace
-        final_trace.runtime_ms += elapsed_ms
-        _current_turn_metrics(final_trace, turn).runtime_ms += elapsed_ms
-        if persist:
-            storage.save_trace(run_id, final_trace)
+    # Followup VLM scope: any get_step_detail tool call in this turn adds
+    # to the bucket; at the end we ADD to the trace's cumulative counters
+    # (not assign — earlier turns already contributed).
+    with vlm_usage_scope() as vlm_usage:
+        try:
+            digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
+            state = {
+                "run_id": run_id,
+                "user_intent": trace.user_intent,
+                "selected_step": trace.selected_step,
+                "trajectory_digest": [step.model_dump(mode="json") for step in digest.steps],
+                "messages": _messages_from_trace(trace),
+                "tool_call_count": trace.tool_call_count,
+                "eval_case_draft": _latest_eval_case_draft(trace),
+                "errors": [],
+                "trace": trace,
+                "turn": turn,
+                "budget": budget,
+                "per_turn_budgeted_calls": 0,
+                "pending_tool_calls": [],
+                "active_tool_call": None,
+                "llm_client": llm_client,
+                "done": False,
+            }
+            result = yield from _stream_graph_result(
+                state,
+                start_seq=start_seq,
+                include_preprocess=False,
+                emitted_seq=len(trace.events),
+            )
+            result.trace.turn_count = max(result.trace.turn_count, turn + 1)
+            result.new_events = result.trace.events[start_seq:]
+        except Exception as exc:
+            _record_graph_execution_error(state, trace=trace, turn=turn, error=str(exc))
+            trace.turn_count = max(trace.turn_count, turn + 1)
+            yield trace.events[-1]
+            raise
+        finally:
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            final_trace = result.trace if result is not None else trace
+            final_trace.runtime_ms += elapsed_ms
+            _current_turn_metrics(final_trace, turn).runtime_ms += elapsed_ms
+            final_trace.vlm_input_tokens += vlm_usage["input"]
+            final_trace.vlm_output_tokens += vlm_usage["output"]
+            if persist:
+                storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
 
 

@@ -17,13 +17,78 @@ and the ``get_step_detail`` tool must go through ``get_vlm_client``.
 from __future__ import annotations
 
 import base64
+import contextvars
 import hashlib
 import logging
 import os
-from typing import Protocol
+from contextlib import contextmanager
+from typing import Iterator, Protocol
 
 
 logger = logging.getLogger(__name__)
+
+
+# --- VLM usage accounting ---------------------------------------------------
+#
+# preprocess.build_digest and the get_step_detail tool both run inside outer
+# scopes (stream_analyze, stream_followup, load_or_build_digest). Those outer
+# scopes care about TOTAL VLM tokens spent — but adding usage to every VLM
+# call's return value would bleed through 5+ files and pollute the prompts the
+# agent sees. Instead, the outer scope opens a `vlm_usage_scope()` and the
+# VLM client increments the active bucket on every successful call.
+# When the scope closes, the outer code reads totals and stamps them onto
+# TrajectoryDigest / AgentTrace. Nested scopes are supported via a stack-like
+# reset; if no scope is active, record_vlm_usage() is a no-op (so unit tests
+# that call the client directly don't crash).
+_VLM_USAGE_BUCKET: contextvars.ContextVar[dict[str, int] | None] = contextvars.ContextVar(
+    "trajecta_vlm_usage_bucket",
+    default=None,
+)
+
+
+@contextmanager
+def vlm_usage_scope() -> Iterator[dict[str, int]]:
+    """Push a fresh {input, output} accumulator. Yields the dict so the
+    caller can read totals after the block. Restores the previous scope on
+    exit via ``set(previous)`` (NOT ``reset(token)`` — tokens are tied to
+    the context they were created in, and FastAPI's StreamingResponse
+    consumes our sync generators across async iteration boundaries, which
+    breaks ``reset`` with `<Token> was created in a different Context`).
+    Save/restore is robust to that and still nestable."""
+    bucket: dict[str, int] = {"input": 0, "output": 0}
+    previous = _VLM_USAGE_BUCKET.get()
+    _VLM_USAGE_BUCKET.set(bucket)
+    try:
+        yield bucket
+    finally:
+        _VLM_USAGE_BUCKET.set(previous)
+
+
+def record_vlm_usage(input_tokens: int, output_tokens: int) -> None:
+    """Increment the active accumulator. No-op when no scope is active."""
+    bucket = _VLM_USAGE_BUCKET.get()
+    if bucket is None:
+        return
+    bucket["input"] += max(0, input_tokens)
+    bucket["output"] += max(0, output_tokens)
+
+
+def _extract_openai_usage(response: object) -> tuple[int, int]:
+    """Pull (prompt_tokens, completion_tokens) off an OpenAI chat completion
+    response. Returns (0, 0) when the SDK shape changes or the field is
+    missing — the VLM call still succeeds; we just lose accounting for that
+    one call. Logged at DEBUG (not WARNING) so it doesn't drown the trace
+    log for transient SDK quirks."""
+    try:
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return 0, 0
+        prompt = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion = int(getattr(usage, "completion_tokens", 0) or 0)
+        return prompt, completion
+    except Exception as exc:  # pragma: no cover - defensive only
+        logger.debug("VLM usage extraction failed: %s: %s", type(exc).__name__, exc)
+        return 0, 0
 
 
 # Phase 3c will reuse this verbatim for ``get_step_detail`` low-detail mode.
@@ -261,6 +326,11 @@ class RealVLMClient:
             )
             return None
 
+        # Capture usage BEFORE attempting to extract content — the API call
+        # already happened and was billed even if message.content is missing.
+        prompt_tokens, completion_tokens = _extract_openai_usage(response)
+        record_vlm_usage(prompt_tokens, completion_tokens)
+
         try:
             text = response.choices[0].message.content
         except (AttributeError, IndexError):
@@ -318,6 +388,9 @@ class RealVLMClient:
                 self.model_name, type(exc).__name__, exc,
             )
             return None
+
+        prompt_tokens, completion_tokens = _extract_openai_usage(response)
+        record_vlm_usage(prompt_tokens, completion_tokens)
 
         try:
             text = response.choices[0].message.content
