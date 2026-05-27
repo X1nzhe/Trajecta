@@ -40,7 +40,10 @@ export function EvalAgentPanel({
   const [panelError, setPanelError] = useState<string | null>(null);
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
-  const [draftViewed, setDraftViewed] = useState(false);
+  // Replaces the old `draftViewed` toggle. Owned by the panel (not the
+  // VerdictBlock that hosts the trigger) so it survives layout shifts
+  // when the verdict block moves between turns.
+  const [verdictModalOpen, setVerdictModalOpen] = useState(false);
   // Once analyze finishes and a draft lands, fold the tool-call timeline
   // into a one-line summary so the Analysis Result moves up to the top
   // of the scroll region. Streaming keeps the timeline expanded so the
@@ -82,7 +85,7 @@ export function EvalAgentPanel({
     setPanelError(null);
     setPendingUserMessage(null);
     setExpandedEvents(new Set());
-    setDraftViewed(false);
+    setVerdictModalOpen(false);
     // Run switch: collapse iff a draft is already on the table from the
     // server (page reload landed on a previously-analyzed run).
     setTraceCollapsed(Boolean(evalCaseDraft));
@@ -111,7 +114,7 @@ export function EvalAgentPanel({
     setInFlight(true);
     setPanelError(null);
     setPendingUserMessage(null);
-    setDraftViewed(false);
+    setVerdictModalOpen(false);
     setStreamingText(new Map());
     onDraftChange(null);
     onTraceChange(emptyTrace(run.run_id));
@@ -241,22 +244,14 @@ export function EvalAgentPanel({
       run={run}
       trace={trace}
       draft={evalCaseDraft}
-      draftViewed={draftViewed}
       onSelectStep={onSelectStep}
       onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
-      onViewDraft={() => {
-        setDraftViewed(true);
-        requestAnimationFrame(() => {
-          document.getElementById('eval-case-draft')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-      }}
-      onDraftChange={onDraftChange}
-      onValidated={onEvalCaseValidated}
+      onOpenDraft={() => setVerdictModalOpen(true)}
     />
   ) : null;
 
   return (
-    <aside className="flex max-h-[680px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[410px]">
+    <aside className="relative flex max-h-[680px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[410px]">
       <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
         <h2 className="shrink-0 font-bold text-slate-950">Eval Agent</h2>
         <div className="min-w-0 flex-1">
@@ -412,7 +407,68 @@ export function EvalAgentPanel({
         </div>
         <div className="mt-2 text-center text-[10px] text-slate-400">AI can make mistakes. Please verify important information.</div>
       </div>
+      {/* Modal rendered as the last child of the panel so it overlays
+          everything but stays scoped to the right column. Always
+          mounted (visibility-toggled via the `open` prop) so the
+          inner draft form's local state survives close/reopen. */}
+      <VerdictModal
+        open={verdictModalOpen && Boolean(evalCaseDraft)}
+        onClose={() => setVerdictModalOpen(false)}
+      >
+        <EvalCaseDraftPanel
+          draft={evalCaseDraft}
+          onDraftChange={onDraftChange}
+          onSelectStep={onSelectStep}
+          onValidated={onEvalCaseValidated}
+          onClose={() => setVerdictModalOpen(false)}
+        />
+      </VerdictModal>
     </aside>
+  );
+}
+
+function VerdictModal({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  // Esc key closes the modal. The handler is only attached while
+  // open, so we don't intercept Esc when the user is typing
+  // elsewhere with the modal closed.
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [open, onClose]);
+
+  // Always render the children. When closed we just hide the
+  // wrapper via display:none, so the draft form's internal state
+  // (localDraft, dirty, lastFailureFieldsRef) survives across open
+  // and close — closing the modal is non-destructive.
+  return (
+    <div
+      className={open ? 'absolute inset-0 z-40 flex items-center justify-center' : 'hidden'}
+      role={open ? 'dialog' : undefined}
+      aria-modal={open ? 'true' : undefined}
+    >
+      <div
+        className="absolute inset-0 bg-slate-900/30"
+        onClick={onClose}
+      />
+      <div className="relative z-10 flex max-h-[92%] w-[380px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -491,27 +547,22 @@ function VerdictBlock({
   run,
   trace,
   draft,
-  draftViewed,
   onSelectStep,
   onOpenTraceEvent,
-  onViewDraft,
-  onDraftChange,
-  onValidated,
+  onOpenDraft,
 }: {
   run: TrajectoryRun | null;
   trace: AgentTrace | null;
   draft: EvalCase;
-  draftViewed: boolean;
   onSelectStep: (index: number) => void;
   onOpenTraceEvent: (seq: number) => void;
-  onViewDraft: () => void;
-  onDraftChange: (draft: EvalCase | null) => void;
-  onValidated?: () => void;
+  onOpenDraft: () => void;
 }) {
-  // The three verdict pieces always travel together — splitting them
-  // across positions would leave half-cards in two places. The parent
-  // chooses which position to render this block in; once placed, the
-  // internals are unchanged from the legacy layout.
+  // Inline portion of the verdict: the Analysis Result summary plus a
+  // trigger button. The editable draft form (EvalCaseDraftPanel) now
+  // lives in the modal rendered at the EvalAgentPanel level — that way
+  // the panel's own state survives when this block re-anchors between
+  // turns and when the modal is closed/reopened.
   return (
     <>
       <ObservationSummaryPanel
@@ -521,22 +572,12 @@ function VerdictBlock({
         onSelectStep={onSelectStep}
         onOpenTraceEvent={onOpenTraceEvent}
       />
-      {!draftViewed && (
-        <button
-          onClick={onViewDraft}
-          className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-        >
-          View draft verdict →
-        </button>
-      )}
-      {draftViewed && (
-        <EvalCaseDraftPanel
-          draft={draft}
-          onDraftChange={onDraftChange}
-          onSelectStep={onSelectStep}
-          onValidated={onValidated}
-        />
-      )}
+      <button
+        onClick={onOpenDraft}
+        className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+      >
+        View / edit draft verdict →
+      </button>
     </>
   );
 }
@@ -1597,11 +1638,13 @@ function EvalCaseDraftPanel({
   onDraftChange,
   onSelectStep,
   onValidated,
+  onClose,
 }: {
   draft: EvalCase | null;
   onDraftChange: (draft: EvalCase | null) => void;
   onSelectStep: (index: number) => void;
   onValidated?: () => void;
+  onClose?: () => void;
 }) {
   const [localDraft, setLocalDraft] = useState<EvalCase | null>(draft);
   const [dirty, setDirty] = useState(false);
@@ -1670,6 +1713,21 @@ function EvalCaseDraftPanel({
     update({ evidence });
   };
 
+  const deleteEvidence = (index: number) => {
+    const evidence = localDraft.evidence.filter((_, itemIndex) => itemIndex !== index);
+    update({ evidence });
+  };
+
+  const removeContextId = (id: string) => {
+    update({ retrieved_context_ids: localDraft.retrieved_context_ids.filter((entry) => entry !== id) });
+  };
+
+  const addContextId = (id: string) => {
+    const value = id.trim();
+    if (!value || localDraft.retrieved_context_ids.includes(value)) return;
+    update({ retrieved_context_ids: [...localDraft.retrieved_context_ids, value] });
+  };
+
   const saveDraft = async () => {
     if (!localDraft.human_validated) return;
     setExportStatus('Saving…');
@@ -1724,91 +1782,343 @@ function EvalCaseDraftPanel({
   };
 
   return (
-    <section id="eval-case-draft" className="rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-        <h3 className="text-sm font-bold text-slate-900">Draft Verdict</h3>
-        {dirty && <span className="text-[11px] text-amber-600">edited</span>}
-      </div>
-      <div className="space-y-3 p-3 text-xs text-slate-700">
-        <DraftField label="Case ID" value={localDraft.case_id} readOnly />
-        <DraftField label="Source Trajectory" value={localDraft.source_run_id} readOnly />
+    <DraftPanelBody
+      localDraft={localDraft}
+      dirty={dirty}
+      exportStatus={exportStatus}
+      isSuccess={isSuccess}
+      onClose={onClose}
+      onSelectStep={onSelectStep}
+      onUpdate={update}
+      onSetMode={setMode}
+      onUpdateEvidenceClaim={updateEvidenceClaim}
+      onDeleteEvidence={deleteEvidence}
+      onAddContextId={addContextId}
+      onRemoveContextId={removeContextId}
+      onSave={saveDraft}
+    />
+  );
+}
 
-        <div className="flex gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
-          <ModeButton active={!isSuccess} onClick={() => setMode(false)} tone="failure">Failure case</ModeButton>
-          <ModeButton active={isSuccess} onClick={() => setMode(true)} tone="success">Success case</ModeButton>
+function DraftPanelBody({
+  localDraft,
+  dirty,
+  exportStatus,
+  isSuccess,
+  onClose,
+  onSelectStep,
+  onUpdate,
+  onSetMode,
+  onUpdateEvidenceClaim,
+  onDeleteEvidence,
+  onAddContextId,
+  onRemoveContextId,
+  onSave,
+}: {
+  localDraft: EvalCase;
+  dirty: boolean;
+  exportStatus: string | null;
+  isSuccess: boolean;
+  onClose?: () => void;
+  onSelectStep: (index: number) => void;
+  onUpdate: (patch: Partial<EvalCase>) => void;
+  onSetMode: (toSuccess: boolean) => void;
+  onUpdateEvidenceClaim: (index: number, claim: string) => void;
+  onDeleteEvidence: (index: number) => void;
+  onAddContextId: (id: string) => void;
+  onRemoveContextId: (id: string) => void;
+  onSave: () => void;
+}) {
+  // Inline "+ add" form state for retrieved_context_ids. Stays local
+  // to this body component — closed/reopened modal preserves
+  // localDraft via the parent's always-mounted approach; the
+  // ephemeral "I'm typing a new context id" state is fine to drop
+  // when the user dismisses (rare workflow anyway).
+  const [addingContext, setAddingContext] = useState(false);
+  const [newContextValue, setNewContextValue] = useState('');
+
+  const commitNewContext = () => {
+    const value = newContextValue.trim();
+    if (value) onAddContextId(value);
+    setNewContextValue('');
+    setAddingContext(false);
+  };
+
+  return (
+    <>
+      {/* Modal header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-900">Draft Verdict</h3>
+          {dirty && <span className="text-[10px] text-amber-600">· edited</span>}
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            title="Close (Esc)"
+            aria-label="Close"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Scrollable body */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-xs text-slate-700">
+        {/* Compact metadata strip — hashes don't deserve their own slot */}
+        <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[10px] font-mono text-slate-500">
+          <span title={localDraft.case_id} className="break-all">
+            <span className="mr-1 text-[9px] uppercase tracking-wider text-slate-400">case</span>
+            {shortenCaseId(localDraft.case_id)}
+          </span>
+          <span title={localDraft.source_run_id} className="break-all">
+            <span className="mr-1 text-[9px] uppercase tracking-wider text-slate-400">trajectory</span>
+            {shortRunId(localDraft.source_run_id)}
+          </span>
+        </div>
+
+        {/* Mode toggle (failure / success XOR) */}
+        <div className="mb-3 flex gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
+          <ModeButton active={!isSuccess} onClick={() => onSetMode(false)} tone="failure">Failure case</ModeButton>
+          <ModeButton active={isSuccess} onClick={() => onSetMode(true)} tone="success">Success case</ModeButton>
         </div>
 
         {isSuccess ? (
-          <div className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-2 text-[11px] text-emerald-800">
-            Success case — validating this draft marks the run as successful and indexes it for find_similar_successful_run.
+          <div className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-[11px] leading-5 text-emerald-800">
+            <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700">Verdict</div>
+            Success — validating this draft marks the trajectory successful and indexes it for similar-success retrieval.
           </div>
         ) : (
-          <>
-            <DraftNumberField
-              label="Failure Step"
-              value={typeof localDraft.failure_step === 'number' ? localDraft.failure_step : 1}
-              onChange={(value) => update({ failure_step: value })}
-            />
-            <DraftField label="Failure Type" value={localDraft.failure_type ?? ''} onChange={(value) => update({ failure_type: value })} />
-            <DraftTextArea label="Expected Behavior" value={localDraft.expected_behavior ?? ''} onChange={(value) => update({ expected_behavior: value })} />
-            <DraftTextArea label="Actual Behavior" value={localDraft.actual_behavior ?? ''} onChange={(value) => update({ actual_behavior: value })} />
-          </>
+          <FailureFieldsBlock localDraft={localDraft} onUpdate={onUpdate} />
         )}
 
+        {/* Evidence — each item is a light row, not a bordered card */}
+        <div className="mb-4">
+          <div className="mb-2 text-[9px] font-semibold uppercase tracking-wider text-slate-500">Evidence</div>
+          {localDraft.evidence.length === 0 ? (
+            <p className="text-[11px] italic text-slate-400">No evidence — the agent did not attach any items.</p>
+          ) : (
+            <ul className="space-y-2.5 text-[12px] leading-5 text-slate-700">
+              {localDraft.evidence.map((item, index) => (
+                <li
+                  key={`${item.source}-${index}-${item.claim.slice(0, 16)}`}
+                  className="group relative pl-4 before:absolute before:left-0 before:top-2 before:h-1 before:w-1 before:rounded-full before:bg-slate-400"
+                >
+                  {/* Borderless textarea masquerading as plain text;
+                      focus reveals a soft slate-100 background so the
+                      user knows it's editable. */}
+                  <textarea
+                    value={item.claim}
+                    onChange={(event) => onUpdateEvidenceClaim(index, event.target.value)}
+                    rows={1}
+                    className="block w-full resize-none break-words border-0 bg-transparent p-0 text-[12px] leading-5 text-slate-700 outline-none focus:rounded focus:bg-slate-100/60"
+                  />
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+                    <span className="rounded bg-slate-100 px-1.5 font-mono text-slate-600">{item.source}</span>
+                    {typeof item.step_index === 'number' && (
+                      <>
+                        <span className="text-slate-400">·</span>
+                        <button
+                          type="button"
+                          onClick={() => onSelectStep(item.step_index as number)}
+                          className="text-slate-500 hover:text-indigo-700"
+                        >
+                          step {item.step_index}
+                        </button>
+                      </>
+                    )}
+                    {item.context_id && (
+                      <>
+                        <span className="text-slate-400">·</span>
+                        <code className="font-mono text-indigo-700">{shortenCaseId(item.context_id)}</code>
+                      </>
+                    )}
+                    <span className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => onDeleteEvidence(index)}
+                        className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        title="Remove this evidence item"
+                        aria-label="Remove evidence"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 6l12 12M6 18L18 6" />
+                        </svg>
+                      </button>
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Retrieved context chips */}
         <div>
-          <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Evidence</div>
-          <div className="space-y-2">
-            {localDraft.evidence.map((item, index) => (
-              <div key={`${item.source}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                <input
-                  value={item.claim}
-                  onChange={(event) => updateEvidenceClaim(index, event.target.value)}
-                  className="mb-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <SourceBadge source={item.source} />
-                  {typeof item.step_index === 'number' && (
-                    <button onClick={() => onSelectStep(item.step_index as number)} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600 hover:text-indigo-700">
-                      step {item.step_index}
-                    </button>
-                  )}
-                  {typeof item.trace_event_seq === 'number' && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-500">trace #{item.trace_event_seq}</span>}
-                  {item.context_id && <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 font-mono text-[10px] text-indigo-700">{item.context_id}</span>}
-                </div>
-              </div>
+          <div className="mb-2 text-[9px] font-semibold uppercase tracking-wider text-slate-500">Retrieved context</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {localDraft.retrieved_context_ids.map((id) => (
+              <span
+                key={id}
+                title={id}
+                className="inline-flex max-w-full items-center gap-1 break-all rounded-full bg-indigo-50 px-2 py-0.5 font-mono text-[11px] text-indigo-700"
+              >
+                {shortenCaseId(id)}
+                <button
+                  type="button"
+                  onClick={() => onRemoveContextId(id)}
+                  className="text-indigo-400 hover:text-red-600"
+                  title="Remove this context id"
+                  aria-label="Remove context"
+                >
+                  ×
+                </button>
+              </span>
             ))}
+            {addingContext ? (
+              <input
+                autoFocus
+                value={newContextValue}
+                onChange={(event) => setNewContextValue(event.target.value)}
+                onBlur={commitNewContext}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    commitNewContext();
+                  } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setNewContextValue('');
+                    setAddingContext(false);
+                  }
+                }}
+                placeholder="fm_… or ec_…"
+                className="rounded-full border border-indigo-200 bg-white px-2 py-0.5 font-mono text-[11px] text-indigo-700 outline-none placeholder:text-slate-300 focus:border-indigo-400"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddingContext(true)}
+                className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"
+              >
+                + add
+              </button>
+            )}
           </div>
         </div>
 
-        {!isSuccess && (
-          <DraftTextArea label="Regression Rule" value={localDraft.regression_rule ?? ''} onChange={(value) => update({ regression_rule: value })} />
-        )}
-        <DraftField
-          label="Retrieved Context IDs"
-          value={localDraft.retrieved_context_ids.join(', ')}
-          onChange={(value) => update({ retrieved_context_ids: value.split(',').map((item) => item.trim()).filter(Boolean) })}
-        />
+        {exportStatus && <div className="mt-3 text-[11px] text-slate-500">{exportStatus}</div>}
+      </div>
 
-        <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-sm font-semibold text-slate-700">
+      {/* Sticky footer: validate + cancel + save together */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+        <label className="flex items-center gap-1.5 text-[12px] text-slate-700">
           <input
             type="checkbox"
             checked={localDraft.human_validated}
-            onChange={(event) => update({ human_validated: event.target.checked })}
-            className="h-4 w-4 rounded border-slate-300"
+            onChange={(event) => onUpdate({ human_validated: event.target.checked })}
+            className="h-3.5 w-3.5 rounded border-slate-300"
           />
           Mark validated
         </label>
-        <button
-          onClick={saveDraft}
-          disabled={!localDraft.human_validated}
-          className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          title="Persists the validated EvalCase to SQLite (eval_cases table), flips the source trajectory's status, and indexes it into ChromaDB for RAG."
-        >
-          Save validated case
-        </button>
-        {exportStatus && <div className="text-xs text-slate-500">{exportStatus}</div>}
+        <div className="flex items-center gap-2">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={!localDraft.human_validated}
+            className="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Persist the validated EvalCase, flip the source trajectory's status, and index into ChromaDB for RAG."
+          >
+            Save
+          </button>
+        </div>
       </div>
-    </section>
+    </>
+  );
+}
+
+function FailureFieldsBlock({
+  localDraft,
+  onUpdate,
+}: {
+  localDraft: EvalCase;
+  onUpdate: (patch: Partial<EvalCase>) => void;
+}) {
+  return (
+    <>
+      {/* Failure step + type side-by-side */}
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <div className="rounded-md bg-slate-100/70 px-3 py-2">
+          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">Failure step</div>
+          <input
+            type="number"
+            value={typeof localDraft.failure_step === 'number' ? localDraft.failure_step : 1}
+            onChange={(event) => onUpdate({ failure_step: Number(event.target.value) })}
+            className="w-full border-0 bg-transparent p-0 text-[13px] font-semibold text-slate-900 outline-none focus:ring-0"
+          />
+        </div>
+        <div className="rounded-md bg-slate-100/70 px-3 py-2">
+          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">Failure type</div>
+          <input
+            value={localDraft.failure_type ?? ''}
+            onChange={(event) => onUpdate({ failure_type: event.target.value })}
+            placeholder="early_terminated"
+            className="w-full border-0 bg-transparent p-0 font-mono text-[12px] text-red-700 outline-none placeholder:text-slate-300 focus:ring-0"
+          />
+        </div>
+      </div>
+
+      {/* Tinted-block textareas for the long fields */}
+      <TintedTextField
+        label="Expected behavior"
+        value={localDraft.expected_behavior ?? ''}
+        onChange={(value) => onUpdate({ expected_behavior: value })}
+      />
+      <TintedTextField
+        label="Observed behavior"
+        value={localDraft.actual_behavior ?? ''}
+        onChange={(value) => onUpdate({ actual_behavior: value })}
+      />
+      <TintedTextField
+        label="Regression rule"
+        value={localDraft.regression_rule ?? ''}
+        onChange={(value) => onUpdate({ regression_rule: value })}
+      />
+    </>
+  );
+}
+
+function TintedTextField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="mb-2 rounded-md bg-slate-100/70 px-3 py-2">
+      <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={2}
+        className="block w-full resize-y border-0 bg-transparent p-0 text-xs leading-5 text-slate-700 outline-none focus:ring-0"
+      />
+    </div>
   );
 }
 
@@ -1835,58 +2145,6 @@ function ModeButton({
     >
       {children}
     </button>
-  );
-}
-
-function DraftField({
-  label,
-  value,
-  readOnly = false,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  readOnly?: boolean;
-  onChange?: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
-      <input
-        value={value}
-        readOnly={readOnly}
-        onChange={(event) => onChange?.(event.target.value)}
-        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none read-only:bg-slate-50 read-only:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-      />
-    </label>
-  );
-}
-
-function DraftNumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
-      <input
-        type="number"
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-      />
-    </label>
-  );
-}
-
-function DraftTextArea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={3}
-        className="w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-      />
-    </label>
   );
 }
 
@@ -2028,15 +2286,6 @@ function formatTokens(n: number): string {
   if (n < 1000) return String(n);
   if (n < 10_000) return `${(n / 1000).toFixed(1)}k`;
   return `${Math.round(n / 1000)}k`;
-}
-
-function SourceBadge({ source }: { source: EvidenceItem['source'] }) {
-  const muted = source === 'unavailable';
-  return (
-    <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] ${muted ? 'bg-amber-50 text-amber-700' : 'bg-slate-200 text-slate-700'}`}>
-      {source}
-    </span>
-  );
 }
 
 type ChipTemplate = { label: string; text: string; disabled?: boolean };
