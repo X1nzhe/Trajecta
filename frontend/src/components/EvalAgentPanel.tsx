@@ -1910,12 +1910,14 @@ function DraftPanelBody({
                 >
                   {/* Borderless textarea masquerading as plain text;
                       focus reveals a soft slate-100 background so the
-                      user knows it's editable. */}
-                  <textarea
+                      user knows it's editable. AutoGrowTextarea sizes
+                      the element to scrollHeight on every value
+                      change so the full claim is always visible
+                      without an inner scrollbar. */}
+                  <AutoGrowTextarea
                     value={item.claim}
-                    onChange={(event) => onUpdateEvidenceClaim(index, event.target.value)}
-                    rows={1}
-                    className="block w-full resize-none break-words border-0 bg-transparent p-0 text-[12px] leading-5 text-slate-700 outline-none focus:rounded focus:bg-slate-100/60"
+                    onChange={(value) => onUpdateEvidenceClaim(index, value)}
+                    className="block w-full resize-none overflow-hidden break-words border-0 bg-transparent p-0 text-[12px] leading-5 text-slate-700 outline-none focus:rounded focus:bg-slate-100/60"
                   />
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px]">
                     <span className="rounded bg-slate-100 px-1.5 font-mono text-slate-600">{item.source}</span>
@@ -2097,6 +2099,41 @@ function FailureFieldsBlock({
         onChange={(value) => onUpdate({ regression_rule: value })}
       />
     </>
+  );
+}
+
+function AutoGrowTextarea({
+  value,
+  onChange,
+  className,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  // Resize on every value change so multi-line content fits exactly
+  // without an inner scrollbar. height='auto' first lets the
+  // textarea shrink when content is deleted; scrollHeight then
+  // grows it to fit. overflow-hidden is applied at the call site so
+  // any one-tick mismatch doesn't flash a scrollbar.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      rows={1}
+      placeholder={placeholder}
+      className={className}
+    />
   );
 }
 
