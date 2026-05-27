@@ -119,7 +119,7 @@ export interface EvalCase {
 
 export interface AgentTraceEvent {
   seq: number;
-  type: "agent_message" | "user_message" | "tool_call" | "tool_result" | "tool_error";
+  type: "agent_message" | "user_message" | "tool_call" | "tool_result" | "tool_error" | "phase";
   name?: string;
   args?: Record<string, unknown>;
   result?: Record<string, unknown>;
@@ -136,4 +136,21 @@ export interface AgentTrace {
   turn_count: number;
   terminated_by: "propose_eval_case" | "budget_exceeded" | "error";
   events: AgentTraceEvent[];
+  // Per-trace cost/latency counters. Accumulated across all turns;
+  // 0 on offline mock paths where usage_metadata isn't available.
+  runtime_ms: number;
+  input_tokens: number;
+  output_tokens: number;
+  // Per-turn breakdown. UI reads the latest entry for the cost
+  // footer ("this turn") and turn 0 for the collapsed-trace summary
+  // ("initial analyze"), so neither display keeps growing across
+  // followups.
+  turn_metrics: TurnMetrics[];
+}
+
+export interface TurnMetrics {
+  turn: number;
+  runtime_ms: number;
+  input_tokens: number;
+  output_tokens: number;
 }

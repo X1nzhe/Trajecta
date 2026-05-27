@@ -163,6 +163,90 @@ class EvalAgentTests(unittest.TestCase):
         draft = EvalCase.model_validate(result.eval_case_draft)
         self.assertFalse(draft.human_validated)
 
+    def test_trace_accumulates_runtime_and_token_counts(self) -> None:
+        """docs/eval_agent.md "Observability" — per-trace cost/latency
+        counters live on AgentTrace so the UI can render real numbers
+        for the cost ablation claim. Offline mocks have no
+        usage_metadata, so token counts stay 0; runtime_ms is wall-clock
+        and must be positive after any real loop iteration.
+        """
+
+        class UsageMessage(AIMessage):
+            def __init__(self, name: str, args: dict, *, input_tokens: int, output_tokens: int) -> None:
+                super().__init__(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}])
+                self.usage_metadata = {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                }
+
+        script = [
+            UsageMessage("get_run", {"run_id": "run_1"}, input_tokens=120, output_tokens=18),
+            UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=240, output_tokens=64),
+        ]
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertEqual(result.trace.input_tokens, 360)
+        self.assertEqual(result.trace.output_tokens, 82)
+        # Wall-clock runtime is real time — just assert it's been set.
+        self.assertGreaterEqual(result.trace.runtime_ms, 0)
+
+    def test_trace_turn_metrics_split_initial_and_followup(self) -> None:
+        """The UI needs per-turn costs (latest turn for the footer,
+        turn 0 for the collapsed-trace header) so neither display keeps
+        growing across followups. turn_metrics must carry the same
+        runtime/token deltas split by ``turn``.
+        """
+
+        class UsageMessage(AIMessage):
+            def __init__(self, name: str, args: dict, *, input_tokens: int, output_tokens: int) -> None:
+                super().__init__(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}])
+                self.usage_metadata = {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens,
+                }
+
+        analyze_script = [
+            UsageMessage("get_run", {"run_id": "run_1"}, input_tokens=100, output_tokens=10),
+            UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=200, output_tokens=20),
+        ]
+        eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(analyze_script))
+
+        followup_script = [
+            UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=50, output_tokens=5),
+        ]
+        result = eval_agent_graph.followup("run_1", "any clarification", llm_client=ScriptedLLM(followup_script))
+
+        # Cumulative on the AgentTrace stays the way SPEC.md's cost
+        # ablation reads it — sum of every turn.
+        self.assertEqual(result.trace.input_tokens, 350)
+        self.assertEqual(result.trace.output_tokens, 35)
+
+        # Per-turn split. turn 0 = initial analyze; turn 1 = followup.
+        per_turn = {entry.turn: entry for entry in result.trace.turn_metrics}
+        self.assertEqual(set(per_turn.keys()), {0, 1})
+        self.assertEqual(per_turn[0].input_tokens, 300)
+        self.assertEqual(per_turn[0].output_tokens, 30)
+        self.assertEqual(per_turn[1].input_tokens, 50)
+        self.assertEqual(per_turn[1].output_tokens, 5)
+        # Wall-clock recorded against each turn separately too.
+        self.assertGreaterEqual(per_turn[0].runtime_ms, 0)
+        self.assertGreaterEqual(per_turn[1].runtime_ms, 0)
+
+    def test_trace_token_counts_stay_zero_when_usage_metadata_missing(self) -> None:
+        """Offline / mock LLM path has no usage_metadata; the trace should
+        still validate with zeroed counters rather than crashing the loop.
+        """
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+
+        self.assertEqual(result.trace.input_tokens, 0)
+        self.assertEqual(result.trace.output_tokens, 0)
+        self.assertGreaterEqual(result.trace.runtime_ms, 0)
+
     def test_trace_seq_is_strictly_monotonic(self) -> None:
         result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
 
@@ -181,10 +265,12 @@ class EvalAgentTests(unittest.TestCase):
         first = next(stream)
 
         # The happy-path script emits tool-only AIMessages (no text content),
-        # so no agent_message event is produced — first event is the first
-        # tool_call. Either is a valid streamed event.
+        # so no agent_message event is produced. First event is either the
+        # preprocess "phase" event (cache miss, emitted before the graph
+        # runs) or the first tool_call. agent_message would also be valid
+        # if a script ever produces text first.
         self.assertIsInstance(first, eval_agent_graph.AgentTraceEvent)
-        self.assertIn(first.type, {"agent_message", "tool_call"})
+        self.assertIn(first.type, {"agent_message", "tool_call", "phase"})
 
     def test_budget_exceeded_terminates_turn(self) -> None:
         script = [
@@ -242,7 +328,14 @@ class EvalAgentTests(unittest.TestCase):
         self.assertGreater(len(result.errors), 0)
         self.assertTrue(any(event.type == "tool_error" for event in result.trace.events))
 
-    def test_malformed_tool_call_arguments_terminate_with_trace_error(self) -> None:
+    def test_malformed_tool_call_recovers_via_retry(self) -> None:
+        """Malformed tool_calls payloads no longer terminate the trace.
+        The diagnostic lands as a tool_error event and a HumanMessage
+        nudge is appended; the agent gets another LLM call to fix its
+        output. Here the second scripted reply is a valid
+        propose_eval_case, so the trace terminates cleanly.
+        """
+
         # langchain-core 0.3.x rejects the raw OpenAI {"function": {...}} shape
         # in AIMessage.tool_calls, so we route the malformed call through
         # additional_kwargs — that's where real OpenAI raw responses land too
@@ -258,12 +351,17 @@ class EvalAgentTests(unittest.TestCase):
                 ]
             },
         )
+        good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))
+        result = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM([bad_message, good_message])
+        )
 
-        self.assertEqual(result.trace.terminated_by, "error")
-        self.assertIsNone(result.eval_case_draft)
-        self.assertTrue(any("invalid tool call from agent" in error for error in result.errors))
+        # Recovered — terminated cleanly via propose_eval_case.
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
+        # Diagnostic for the bad message is still recorded for
+        # observability.
         self.assertTrue(
             any(
                 event.type == "tool_error" and event.error and "invalid tool call from agent" in event.error
@@ -271,7 +369,7 @@ class EvalAgentTests(unittest.TestCase):
             )
         )
 
-    def test_missing_tool_call_name_terminates_with_trace_error(self) -> None:
+    def test_missing_tool_call_name_recovers_via_retry(self) -> None:
         bad_message = AIMessage(
             content="",
             additional_kwargs={
@@ -283,12 +381,14 @@ class EvalAgentTests(unittest.TestCase):
                 ]
             },
         )
+        good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([bad_message]))
+        result = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM([bad_message, good_message])
+        )
 
-        self.assertEqual(result.trace.terminated_by, "error")
-        self.assertIsNone(result.eval_case_draft)
-        self.assertTrue(any("missing a tool name" in error for error in result.errors))
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
         self.assertTrue(
             any(
                 event.type == "tool_error" and event.error and "missing a tool name" in event.error
@@ -296,12 +396,22 @@ class EvalAgentTests(unittest.TestCase):
             )
         )
 
-    def test_agent_stops_without_tool_call_records_trace_error(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM([AIMessage(content="done")]))
+    def test_agent_stops_without_tool_call_recovers_via_retry(self) -> None:
+        """When the LLM replies with plain text on turn 0, the loop
+        nudges it with a HumanMessage reminding that propose_eval_case
+        is required, then re-invokes. Recovery via a good follow-up
+        scripted reply ends the trace cleanly.
+        """
 
-        self.assertEqual(result.trace.terminated_by, "error")
-        self.assertIsNone(result.eval_case_draft)
-        self.assertIn("agent stopped without calling propose_eval_case", result.errors)
+        plain_text = AIMessage(content="I think this run was successful but I'll stop here.")
+        good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
+
+        result = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM([plain_text, good_message])
+        )
+
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
         self.assertTrue(
             any(
                 event.type == "tool_error"
@@ -320,6 +430,34 @@ class EvalAgentTests(unittest.TestCase):
 
         self.assertEqual(result.trace.terminated_by, "error")
         self.assertIn("fm_nonexistent_999", " ".join(result.errors))
+
+    def test_retrieved_context_ids_rejects_similar_run_run_id_with_specific_error(self) -> None:
+        """A common agent mistake is quoting a run_id from
+        find_similar_successful_run in retrieved_context_ids. The validator
+        should still reject it (run_ids are not case_ids per
+        docs/contracts.md L332), but produce a pedagogical error message
+        so the next retry actually drops the bad ID instead of looping.
+        """
+
+        script = [
+            _tool_message(
+                "find_similar_successful_run",
+                {"task": "find: answer to question", "top_k": 3, "exclude_run_id": "run_1"},
+            ),
+            _tool_message(
+                "propose_eval_case",
+                _proposal_args(retrieved_context_ids=["success_run"]),
+            ),
+        ]
+
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+
+        self.assertEqual(result.trace.terminated_by, "error")
+        joined = " ".join(result.errors)
+        self.assertIn("success_run", joined)
+        # The specific error should call out the run_id confusion so the
+        # agent's retry knows what to drop.
+        self.assertIn("find_similar_successful_run", joined)
 
     def test_nonterminal_tool_error_is_returned_to_model(self) -> None:
         script = [
@@ -595,12 +733,13 @@ class EvalAgentTests(unittest.TestCase):
                     "source": "step_detail_high",
                     "run_id": "run_1",
                     "step_index": 0,
-                    # Predictable seq: tool_call(get_step_detail)=0,
-                    # tool_result(get_step_detail)=1, tool_call(propose...)=2,
-                    # tool_result(propose...)=3. Empty agent_message events
-                    # are not recorded (the scripted AIMessages carry only
-                    # tool_calls), so the high-detail result is at seq 1.
-                    "trace_event_seq": 1,
+                    # Predictable seq: phase(preprocess)=0,
+                    # tool_call(get_step_detail)=1, tool_result(get_step_detail)=2,
+                    # tool_call(propose...)=3, tool_result(propose...)=4. Empty
+                    # agent_message events are not recorded (scripted AIMessages
+                    # carry only tool_calls), so the high-detail result is at
+                    # seq 2 once the preprocess phase event is included.
+                    "trace_event_seq": 2,
                 }
             ],
             "regression_rule": "Verify the constraint before finishing the task.",

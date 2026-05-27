@@ -15,14 +15,14 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
     All: runs.length,
     Failed: runs.filter((run) => run.status === 'failed').length,
     Success: runs.filter((run) => run.status === 'success').length,
-    Unanalyzed: runs.filter((run) => run.status === 'unknown').length,
+    Unverified: runs.filter((run) => run.status === 'unknown').length,
   }), [runs]);
 
   const filteredRuns = runs.filter((run) => {
     if (search && !run.task.toLowerCase().includes(search.toLowerCase())) return false;
     if (filter === 'Failed' && run.status !== 'failed') return false;
     if (filter === 'Success' && run.status !== 'success') return false;
-    if (filter === 'Unanalyzed' && run.status !== 'unknown') return false;
+    if (filter === 'Unverified' && run.status !== 'unknown') return false;
     return true;
   });
 
@@ -30,7 +30,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
     <aside className="flex max-h-[360px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[320px]">
       <div className="border-b border-slate-200 p-3">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-600">Runs / Sessions</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-600">Sessions</h2>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
             {runs.length} total
           </span>
@@ -38,7 +38,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
         <div className="relative mb-3">
           <input
             type="text"
-            placeholder="Search runs..."
+            placeholder="Search trajectories..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -77,7 +77,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
           >
             <div className="mb-2 flex items-start justify-between gap-3">
               <span className="min-w-0 truncate text-sm font-bold text-slate-950" title={run.run_id}>
-                Run {truncateRunId(run.run_id)}
+                Trajectory {truncateRunId(run.run_id)}
               </span>
               <StatusBadge status={run.status} />
             </div>
@@ -98,7 +98,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
         ))}
         {filteredRuns.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-8 text-center text-sm text-slate-500">
-            No runs found
+            No trajectories found
           </div>
         )}
       </div>
@@ -106,9 +106,9 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
   );
 }
 
-type RunFilter = 'All' | 'Failed' | 'Success' | 'Unanalyzed';
+type RunFilter = 'All' | 'Failed' | 'Success' | 'Unverified';
 
-const filters: RunFilter[] = ['All', 'Failed', 'Success', 'Unanalyzed'];
+const filters: RunFilter[] = ['All', 'Failed', 'Success', 'Unverified'];
 
 function StatusBadge({ status }: { status: TrajectoryRun['status'] }) {
   const classes = {
@@ -116,14 +116,14 @@ function StatusBadge({ status }: { status: TrajectoryRun['status'] }) {
     success: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     unknown: 'bg-amber-50 text-amber-700 border-amber-100',
   }[status];
-  const label = status === 'failed' ? 'Failed' : status === 'success' ? 'Success' : 'Unanalyzed';
+  const label = status === 'failed' ? 'Failed' : status === 'success' ? 'Success' : 'Unverified';
   return <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${classes}`}>{label}</span>;
 }
 
 function activeFilterClass(filter: RunFilter) {
   if (filter === 'Failed') return 'bg-red-50 text-red-700';
   if (filter === 'Success') return 'bg-emerald-50 text-emerald-700';
-  if (filter === 'Unanalyzed') return 'bg-amber-50 text-amber-700';
+  if (filter === 'Unverified') return 'bg-amber-50 text-amber-700';
   return 'bg-slate-900 text-white';
 }
 

@@ -190,13 +190,29 @@ class EvalCase(BaseModel):
 
 class AgentTraceEvent(BaseModel):
     seq: int
-    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error"]
+    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error", "phase"]
     name: str | None = None
     args: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
     message: str | None = None
     error: str | None = None
     turn: int = 0
+
+
+class TurnMetrics(BaseModel):
+    """Per-turn breakdown of the cumulative AgentTrace counters.
+
+    turn 0 == initial analyze; turn >= 1 == followups. The UI reads
+    these to show "this turn cost X seconds / Y tokens" instead of the
+    whole-session totals, which kept growing with each followup. The
+    cumulative ``AgentTrace.runtime_ms`` etc. are still maintained for
+    the SPEC.md cost-ablation demo and any downstream analytics.
+    """
+
+    turn: int
+    runtime_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class AgentTrace(BaseModel):
@@ -207,3 +223,22 @@ class AgentTrace(BaseModel):
     turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"
     events: list[AgentTraceEvent] = Field(default_factory=list)
+    # Per-trace observability — spec (docs/eval_agent.md "Observability")
+    # requires the trace itself to be the observability surface, so cost
+    # and latency counters live here, not on a separate APM. runtime_ms
+    # is wall-clock for the agent loop (analyze + followups combined,
+    # accumulated across turns). input_tokens / output_tokens come from
+    # AIMessage.usage_metadata when the underlying client provides it
+    # (real OpenAI path); offline mocks leave the fields at 0. VLM calls
+    # (preprocess + get_step_detail) are NOT counted yet — they live
+    # outside the agent's _invoke_model and need a separate hook.
+    runtime_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    # Per-turn breakdown of the same counters above. Empty on traces
+    # written before this field existed; new analyze/followup runs
+    # append one entry per turn. The UI reads the latest turn for the
+    # footer ("this turn") and turn 0 for the collapsed-trace summary
+    # ("initial analyze") so neither display keeps growing with every
+    # followup.
+    turn_metrics: list[TurnMetrics] = Field(default_factory=list)

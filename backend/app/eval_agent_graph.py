@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import lru_cache
@@ -18,7 +19,7 @@ from typing import Any, Literal, Protocol, TypedDict
 from pydantic import BaseModel
 
 from backend.app import preprocess, storage, tools
-from backend.app.schemas import AgentTrace, AgentTraceEvent
+from backend.app.schemas import AgentTrace, AgentTraceEvent, TurnMetrics
 
 try:  # pragma: no cover - exercised when optional production deps are present
     from langgraph.graph import END, START, StateGraph
@@ -99,7 +100,27 @@ class AgentStreamDone:
     result: AgentExecutionResult
 
 
-AgentStreamItem = AgentTraceEvent | AgentStreamDone
+@dataclass
+class AgentDelta:
+    """Transient streaming chunk — text portion of an in-flight
+    agent message. NOT persisted to trace; only goes over the wire
+    to give the UI a token-by-token typewriter effect. The full
+    agent_message event still lands in the trace at end-of-stream
+    (built up by LangChain's aggregation when streaming=True), so
+    everything downstream of trace persistence keeps working.
+
+    stream_id is the LangChain AIMessageChunk.id — stable across all
+    chunks of a single LLM generation, so the frontend can group
+    deltas back into one bubble (matters if a turn contains
+    text→tool→text and produces two separate streams).
+    """
+
+    turn: int
+    text: str
+    stream_id: str
+
+
+AgentStreamItem = AgentTraceEvent | AgentStreamDone | AgentDelta
 
 
 class NoPriorTraceError(RuntimeError):
@@ -242,16 +263,73 @@ def stream_analyze(
         "done": False,
     }
     result: AgentExecutionResult | None = None
+    start = time.perf_counter()
     try:
-        result = yield from _stream_graph_result(state, start_seq=0, include_preprocess=True)
+        # Always surface the preprocess phase so the UI can render a row
+        # that the user can expand to view the per-step digest. On a cold
+        # start the row spins for ~30s while the per-step low-detail VLM
+        # runs; on a cache hit the row appears already-done with a
+        # different message so the user still sees "the digest existed"
+        # instead of jumping straight to the first tool call.
+        cache_hit = not _needs_preprocess(run_id)
+        run = storage.load_run(run_id)
+        step_count = len(run.steps) if run else 0
+        _append_event(
+            trace,
+            "phase",
+            turn=0,
+            name="preprocess",
+            args={"step_count": step_count, "cached": cache_hit},
+            message=(
+                "Loaded cached trajectory digest"
+                if cache_hit
+                else "Building trajectory digest"
+            ),
+        )
+        yield trace.events[-1]
+        # Pre-streamed events (currently the optional preprocess phase) must
+        # not be re-yielded by _stream_graph_result. start_seq stays 0 so the
+        # phase event is still counted in new_events for the final result.
+        result = yield from _stream_graph_result(
+            state,
+            start_seq=0,
+            include_preprocess=True,
+            emitted_seq=len(trace.events),
+        )
     except Exception as exc:
         _record_graph_execution_error(state, trace=trace, turn=0, error=str(exc))
         yield trace.events[-1]
         raise
     finally:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        final_trace = result.trace if result is not None else trace
+        final_trace.runtime_ms += elapsed_ms
+        _current_turn_metrics(final_trace, 0).runtime_ms += elapsed_ms
         if persist:
-            storage.save_trace(run_id, result.trace if result is not None else trace)
+            storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
+
+
+def _needs_preprocess(run_id: str) -> bool:
+    """Return True if the digest cache is missing or stale for the active VLM.
+
+    Mirrors the freshness check inside ``preprocess.load_or_build_digest``
+    so the streaming layer can warn the user *before* the (potentially
+    30s+) per-step VLM loop runs. False means the digest will be served
+    from cache and no phase event needs to be emitted.
+    """
+
+    from backend.app.llm import get_vlm_client
+    from backend.app.preprocess import PREPROCESS_VERSION
+
+    cached = storage.load_digest(run_id)
+    if cached is None:
+        return True
+    client = get_vlm_client()
+    return not (
+        cached.preprocess_version == PREPROCESS_VERSION
+        and cached.preprocess_model == client.model_name
+    )
 
 
 def followup(
@@ -292,6 +370,7 @@ def stream_followup(
 
     result: AgentExecutionResult | None = None
     state: GraphState | None = None
+    start = time.perf_counter()
     try:
         digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
         state = {
@@ -326,8 +405,12 @@ def stream_followup(
         yield trace.events[-1]
         raise
     finally:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        final_trace = result.trace if result is not None else trace
+        final_trace.runtime_ms += elapsed_ms
+        _current_turn_metrics(final_trace, turn).runtime_ms += elapsed_ms
         if persist:
-            storage.save_trace(run_id, result.trace if result is not None else trace)
+            storage.save_trace(run_id, final_trace)
     yield AgentStreamDone(result)
 
 
@@ -347,14 +430,25 @@ def _stream_graph_result(
     start_seq: int,
     include_preprocess: bool,
     emitted_seq: int | None = None,
-) -> Iterator[AgentTraceEvent]:
+) -> Iterator[AgentStreamItem]:
     emitted_seq = start_seq if emitted_seq is None else emitted_seq
     final_state = state
-    for final_state in _run_graph_stream(state, include_preprocess=include_preprocess):
-        trace = final_state["trace"]
-        while emitted_seq < len(trace.events):
-            yield trace.events[emitted_seq]
-            emitted_seq += 1
+    for kind, payload in _run_graph_stream(state, include_preprocess=include_preprocess):
+        if kind == "snapshot":
+            final_state = payload
+            trace = final_state["trace"]
+            while emitted_seq < len(trace.events):
+                yield trace.events[emitted_seq]
+                emitted_seq += 1
+        elif kind == "delta":
+            # payload is (AIMessageChunk, metadata) from LangGraph's
+            # stream_mode="messages". Surface only the text delta; the
+            # AIMessage with the merged content + tool_calls still
+            # arrives via the next snapshot (LangGraph aggregates it
+            # back into state["messages"]).
+            delta = _build_agent_delta(payload, final_state)
+            if delta is not None:
+                yield delta
 
     trace = final_state["trace"]
     while emitted_seq < len(trace.events):
@@ -363,19 +457,82 @@ def _stream_graph_result(
     return _execution_result(trace, final_state, start_seq)
 
 
-def _run_graph_stream(state: GraphState, *, include_preprocess: bool) -> Iterator[GraphState]:
+def _build_agent_delta(payload: Any, state: GraphState) -> AgentDelta | None:
+    """Extract a wire-friendly AgentDelta from a (chunk, metadata) tuple.
+
+    Returns None when the chunk carries no streamable text (tool-call
+    only chunks, empty content, malformed payloads). The agent_message
+    that eventually lands in the trace is the authoritative copy; we
+    deliberately don't try to also expose tool-call streaming for
+    now — tool args can't be acted on until complete anyway.
+
+    Critically: LangGraph's stream_mode="messages" yields chunks for
+    EVERY message touched by a node — including SystemMessage and
+    HumanMessage that the node loads into state["messages"]. Without
+    a type filter the system prompt and the initial HumanMessage
+    (which carries run_id + trajectory_digest) would leak verbatim to
+    the wire. Restrict to AIMessageChunk so only LLM-generated tokens
+    cross the boundary.
+    """
+
+    if not isinstance(payload, tuple) or len(payload) < 1:
+        return None
+    chunk = payload[0]
+    # Duck-typed check — LangChain core's AIMessageChunk.type is the
+    # literal string "AIMessageChunk". Final aggregated AIMessage has
+    # type "ai" and is filtered out here too (its content arrives via
+    # the agent_message trace event, no need to duplicate as a delta).
+    chunk_type = getattr(chunk, "type", None)
+    if chunk_type != "AIMessageChunk":
+        return None
+    content = getattr(chunk, "content", "")
+    if not isinstance(content, str) or not content:
+        return None
+    stream_id = getattr(chunk, "id", None)
+    if not isinstance(stream_id, str) or not stream_id:
+        # Without a stable id we can't reliably group deltas of one
+        # message on the client — skip rather than emit ambiguous frames.
+        return None
+    return AgentDelta(turn=int(state.get("turn", 0) or 0), text=content, stream_id=stream_id)
+
+
+def _run_graph_stream(
+    state: GraphState, *, include_preprocess: bool
+) -> Iterator[tuple[str, Any]]:
+    """Tagged graph stream.
+
+    Yields ``("snapshot", GraphState)`` for full-state updates (used to
+    extract new trace events) and ``("delta", (AIMessageChunk, metadata))``
+    for LLM token chunks emitted during a node call. Streaming requires
+    LangGraph + an LLM client with streaming=True; the fallback path
+    never emits "delta" tuples.
+
+    The tagged shape replaces the original "yield raw GraphState"
+    interface so callers can dispatch the two kinds of events without
+    inspecting payload types.
+    """
+
     if StateGraph is None:
-        yield from _fallback_graph_stream(state, include_preprocess=include_preprocess)
+        for snapshot in _fallback_graph_stream(state, include_preprocess=include_preprocess):
+            yield ("snapshot", snapshot)
         return
 
     graph = _compiled_graph(include_preprocess)
-    for snapshot in graph.stream(
+    # stream_mode=["values", "messages"] is multi-mode: each yield is
+    # (mode, payload). "values" → full state snapshot (same as before);
+    # "messages" → (AIMessageChunk, metadata) tuple for an LLM token
+    # delta. The latter only fires when the active client has
+    # streaming=True; mocks never produce these.
+    for mode, payload in graph.stream(
         state,
-        stream_mode="values",
+        stream_mode=["values", "messages"],
         config={"recursion_limit": _graph_recursion_limit(state["budget"])},
     ):
-        if isinstance(snapshot, dict) and "trace" in snapshot:
-            yield snapshot
+        if mode == "values":
+            if isinstance(payload, dict) and "trace" in payload:
+                yield ("snapshot", payload)
+        elif mode == "messages":
+            yield ("delta", payload)
 
 
 @lru_cache(maxsize=2)
@@ -398,7 +555,7 @@ def _compiled_graph(include_preprocess: bool) -> Any:
     graph.add_conditional_edges(
         "agent",
         _after_agent_node,
-        {"tool_call": "tool_call", END: END},
+        {"tool_call": "tool_call", "agent": "agent", END: END},
     )
     graph.add_edge("tool_call", "execute_tool")
     graph.add_conditional_edges(
@@ -420,8 +577,13 @@ def _fallback_graph_stream(state: GraphState, *, include_preprocess: bool) -> It
         steps = _advance_graph_step(steps, limit)
         state = _agent_node(state)
         yield state
-        if _after_agent_node(state) == END:
+        next_after_agent = _after_agent_node(state)
+        if next_after_agent == END:
             return
+        if next_after_agent == "agent":
+            # _nudge_agent_retry queued a corrective HumanMessage; loop
+            # straight back to agent_node without running any tools.
+            continue
         while _after_execute_tool_node(state) == "tool_call":
             steps = _advance_graph_step(steps, limit)
             state = _tool_call_node(state)
@@ -450,6 +612,7 @@ def _agent_node(state: GraphState) -> GraphState:
         state["llm_client"] = client
     message = _invoke_model(client, state["messages"])
     state["messages"].append(message)
+    _accumulate_token_usage(state["trace"], message, turn=state["turn"])
     # Only record an agent_message event when the model produced actual text.
     # When the model returns only tool_calls (content == ""), the tool_call
     # events that follow already represent the agent's intent — emitting a
@@ -461,14 +624,20 @@ def _agent_node(state: GraphState) -> GraphState:
     try:
         tool_calls = _extract_tool_calls(message)
     except (TypeError, ValueError) as exc:
-        error = f"invalid tool call from agent: {exc}"
-        state["errors"].append(error)
-        state["trace"].terminated_by = "error"
-        state["eval_case_draft"] = None
-        state["pending_tool_calls"] = []
-        state["active_tool_call"] = None
-        state["done"] = True
-        _append_event(state["trace"], "tool_error", turn=state["turn"], error=error)
+        # Agent-side bug: the tool_calls payload is malformed (missing
+        # name, args not a dict, etc.). Recoverable — feed the
+        # diagnostic back as a HumanMessage hint and let the agent
+        # try again on the next graph iteration.
+        _nudge_agent_retry(
+            state,
+            error=f"invalid tool call from agent: {exc}",
+            hint=(
+                "The previous response's tool_calls payload was malformed. "
+                "Each tool call must include a non-empty `name` and an `args` "
+                "object matching that tool's schema. Try again with a valid "
+                "tool call."
+            ),
+        )
         return state
     state["pending_tool_calls"] = tool_calls
     state["active_tool_call"] = None
@@ -499,12 +668,21 @@ def _agent_node(state: GraphState) -> GraphState:
         state["done"] = True
         return state
 
-    error = "agent stopped without calling propose_eval_case"
-    state["errors"].append(error)
-    state["trace"].terminated_by = "error"
-    state["eval_case_draft"] = None
-    state["done"] = True
-    _append_event(state["trace"], "tool_error", turn=state["turn"], error=error)
+    # Initial analyze stopped without calling propose_eval_case.
+    # Recoverable: the agent might have produced an explanatory text
+    # reply by mistake; nudge it to actually invoke the terminal tool.
+    # LangGraph's recursion limit eventually surfaces a real graph
+    # execution error if the agent never recovers.
+    _nudge_agent_retry(
+        state,
+        error="agent stopped without calling propose_eval_case",
+        hint=(
+            "You must terminate the initial analysis by calling "
+            "`propose_eval_case` (success-shape if no failure was found). "
+            "A plain-text reply with no tool call is not a valid "
+            "termination for turn 0. Please call propose_eval_case now."
+        ),
+    )
     return state
 
 
@@ -594,9 +772,14 @@ def _execute_tool_node(state: GraphState) -> GraphState:
 
 
 def _after_agent_node(state: GraphState) -> str:
-    if state.get("done") or not state.get("pending_tool_calls"):
+    if state.get("done"):
         return END
-    return "tool_call"
+    if state.get("pending_tool_calls"):
+        return "tool_call"
+    # No pending tool calls and not done — _nudge_agent_retry queued a
+    # corrective HumanMessage for the agent. Loop back to agent_node
+    # for another LLM call. Bounded by the graph's recursion_limit.
+    return "agent"
 
 
 def _after_execute_tool_node(state: GraphState) -> str:
@@ -605,6 +788,34 @@ def _after_execute_tool_node(state: GraphState) -> str:
     if state.get("pending_tool_calls"):
         return "tool_call"
     return "agent"
+
+
+def _nudge_agent_retry(state: GraphState, *, error: str, hint: str) -> None:
+    """Recover from an agent-side mistake by feeding back a corrective hint.
+
+    Used when the LLM produced output we can't act on (no tool calls
+    when one was required, malformed tool_calls payload, etc.).
+    Instead of flipping terminated_by="error" and surfacing a "Tool
+    error" in the UI, we:
+      - record the diagnostic as a tool_error trace event so the
+        observability surface still sees it,
+      - append a HumanMessage with the error + a one-line hint
+        explaining what to do differently next,
+      - leave done=False so _after_agent_node routes us back to the
+        agent for another attempt.
+
+    LangGraph's recursion_limit (5x budget by default) bounds the
+    retry loop; if the agent keeps misbehaving we'll surface a
+    legitimate graph-execution error via _record_graph_execution_error.
+    """
+
+    trace = state["trace"]
+    _append_event(trace, "tool_error", turn=state["turn"], error=error)
+    state["errors"].append(error)
+    state["messages"].append(HumanMessage(content=f"{error}\n\n{hint}"))
+    state["pending_tool_calls"] = []
+    state["active_tool_call"] = None
+    state["done"] = False
 
 
 def _record_recoverable_tool_error(
@@ -667,6 +878,53 @@ def _execution_result(trace: AgentTrace, state: EvalState, start_seq: int) -> Ag
     )
 
 
+def _accumulate_token_usage(trace: AgentTrace, message: Any, *, turn: int) -> None:
+    """Pull ``usage_metadata`` off an AIMessage and add it to the trace.
+
+    Real OpenAI calls populate ``AIMessage.usage_metadata`` as
+    ``{input_tokens, output_tokens, total_tokens}``. Offline mocks and
+    the fallback message classes don't have the attribute — the
+    ``getattr`` default keeps the call site loop-safe so we silently
+    record 0 for those turns instead of crashing.
+
+    Writes to BOTH the cumulative ``AgentTrace.input_tokens`` /
+    ``output_tokens`` and the per-turn entry in ``trace.turn_metrics``.
+    The UI reads per-turn; SPEC.md cost ablation reads cumulative.
+    """
+
+    usage = getattr(message, "usage_metadata", None)
+    if not isinstance(usage, dict):
+        return
+    try:
+        input_delta = int(usage.get("input_tokens", 0) or 0)
+        output_delta = int(usage.get("output_tokens", 0) or 0)
+    except (TypeError, ValueError):
+        # A model returning non-numeric token counts shouldn't take down
+        # the whole agent loop — just skip the increment.
+        return
+    trace.input_tokens += input_delta
+    trace.output_tokens += output_delta
+    metrics = _current_turn_metrics(trace, turn)
+    metrics.input_tokens += input_delta
+    metrics.output_tokens += output_delta
+
+
+def _current_turn_metrics(trace: AgentTrace, turn: int) -> TurnMetrics:
+    """Return the ``TurnMetrics`` for ``turn``, creating it if absent.
+
+    Used by both the token accumulator and the wall-clock writer in
+    ``stream_analyze`` / ``stream_followup`` so each turn's counters
+    live in one place that the UI can render verbatim.
+    """
+
+    for entry in trace.turn_metrics:
+        if entry.turn == turn:
+            return entry
+    entry = TurnMetrics(turn=turn)
+    trace.turn_metrics.append(entry)
+    return entry
+
+
 def _invoke_model(client: AgentLLM | Any, messages: list[AnyMessage]) -> AnyMessage:
     if hasattr(client, "invoke"):
         return client.invoke(messages)
@@ -684,7 +942,19 @@ def _default_llm_client(state: EvalState) -> AgentLLM:
         except ImportError:
             pass
         else:
-            model = ChatOpenAI(model=model_name, temperature=0)
+            # streaming=True makes .invoke() internally stream + aggregate
+            # AND emit chunk callbacks. LangGraph's stream_mode="messages"
+            # listens to those callbacks, so the node code keeps using
+            # blocking .invoke() while the streaming layer surfaces deltas.
+            # stream_usage / include_usage on the request preserves
+            # token accumulation at end-of-stream (without it, the final
+            # AIMessage.usage_metadata is None on streamed calls).
+            model = ChatOpenAI(
+                model=model_name,
+                temperature=0,
+                streaming=True,
+                stream_usage=True,
+            )
             if hasattr(model, "bind_tools"):
                 return model.bind_tools(list(_TOOL_REGISTRY.values()))
             return model
@@ -988,6 +1258,22 @@ def _proposal_context_error(args: dict[str, Any], trace: AgentTrace) -> str | No
     requested = set(args.get("retrieved_context_ids") or [])
     missing = sorted(context_id for context_id in requested if context_id not in available)
     if missing:
+        # Common agent mistake: passing run_ids from find_similar_successful_run
+        # into retrieved_context_ids. That tool's results aren't case_ids and
+        # are explicitly excluded by docs/contracts.md L332. Detect this case
+        # and tell the agent specifically what to drop on its retry — a
+        # generic "not found" message often loops the same mistake.
+        run_ids_seen = _retrieved_run_ids(trace)
+        misused_run_ids = sorted(ctx for ctx in missing if ctx in run_ids_seen)
+        if misused_run_ids:
+            return (
+                "retrieved_context_ids must contain only case_ids returned by "
+                "search_failure_memory or search_eval_cases. The following IDs "
+                "are run_ids from find_similar_successful_run and must be "
+                "omitted (similar-run comparisons are tracked via the "
+                "AgentTrace, not retrieved_context_ids): "
+                + ", ".join(misused_run_ids)
+            )
         return "retrieved_context_ids not found in prior retrieval tool_result: " + ", ".join(missing)
 
     # docs/eval_agent.md L235: every EvidenceItem with source in
@@ -1029,6 +1315,28 @@ def _retrieved_case_ids(trace: AgentTrace) -> set[str]:
         if event.type != "tool_result" or event.name not in SEARCH_TOOLS:
             continue
         ids.update(_case_ids_in_payload(event.result or {}))
+    return ids
+
+
+def _retrieved_run_ids(trace: AgentTrace) -> set[str]:
+    """Run_ids surfaced by find_similar_successful_run results.
+
+    Used to give the agent a pedagogical error when it confuses run_ids
+    (returned by find_similar_successful_run) with case_ids (the only
+    legal contents of retrieved_context_ids). NOT used to expand the set
+    of legal IDs — run_ids remain ineligible per docs/contracts.md L332.
+    """
+
+    ids: set[str] = set()
+    for event in trace.events:
+        if event.type != "tool_result" or event.name != "find_similar_successful_run":
+            continue
+        items = (event.result or {}).get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and isinstance(item.get("run_id"), str):
+                ids.add(item["run_id"])
     return ids
 
 

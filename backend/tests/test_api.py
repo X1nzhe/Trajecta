@@ -169,6 +169,31 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["task"], "Find a result")
 
+    def test_get_run_attaches_persisted_trace_when_present(self) -> None:
+        """A previously-analyzed run must return its persisted AgentTrace on
+        GET so the UI can rehydrate the chat after a page reload. Without
+        this, page refresh appeared to "lose" the agent conversation even
+        though storage.save_trace had already written it to SQLite.
+        """
+
+        _write_real_png("run_api")
+        analyze_response = self.client.post("/api/runs/run_api/analyze")
+        drain_ndjson(analyze_response)
+
+        response = self.client.get("/api/runs/run_api")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("last_trace", payload)
+        self.assertEqual(payload["last_trace"]["run_id"], "run_api")
+        self.assertGreater(len(payload["last_trace"]["events"]), 0)
+
+    def test_get_run_omits_last_trace_when_no_analysis_yet(self) -> None:
+        response = self.client.get("/api/runs/run_api")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("last_trace", response.json())
+
     def test_get_step(self) -> None:
         response = self.client.get("/api/runs/run_api/steps/0")
 

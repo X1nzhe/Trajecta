@@ -64,10 +64,26 @@ def list_runs() -> list[dict]:
 
 @app.get("/api/runs/{run_id}")
 def get_run(run_id: str) -> dict:
+    """Run detail for the UI.
+
+    Wraps ``tools.get_run`` (which returns run + cached digest, the
+    payload the agent sees) and additionally attaches ``last_trace`` so
+    a page reload restores the prior conversation with the Eval Agent.
+    The trace is the persisted record from ``storage.save_trace`` — same
+    SQLite row the followup endpoint reads. ``tools.get_run`` itself
+    must not gain a trace field: that tool feeds the agent, and giving
+    the agent its own history back would create a circular reference.
+    """
+
     try:
-        return tools.get_run(run_id)
+        payload = tools.get_run(run_id)
     except FileNotFoundError as exc:
         raise _not_found("run not found") from exc
+
+    trace = storage.load_trace(run_id)
+    if trace is not None:
+        payload["last_trace"] = trace.model_dump(mode="json")
+    return payload
 
 
 @app.get("/api/runs/{run_id}/digest")
@@ -269,6 +285,24 @@ def _stream_agent_result(factory) -> StreamingResponse:
                         ensure_ascii=False,
                     ) + "\n"
                     return
+
+                if isinstance(item, eval_agent_graph.AgentDelta):
+                    # Transient streaming chunk — frontend appends to
+                    # the in-flight bubble. Not a trace event; no seq,
+                    # no persistence. Tagged with stream_id so the
+                    # client can group deltas of one LLM generation.
+                    yield json.dumps(
+                        {
+                            "type": "agent_delta",
+                            "event": {
+                                "turn": item.turn,
+                                "text": item.text,
+                                "stream_id": item.stream_id,
+                            },
+                        },
+                        ensure_ascii=False,
+                    ) + "\n"
+                    continue
 
                 yield json.dumps(
                     {"type": "event", "event": item.model_dump(mode="json")},

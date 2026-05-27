@@ -29,7 +29,7 @@ function App() {
       setRunError(null);
     } catch (e) {
       console.error(e);
-      setRunError('Failed to load runs');
+      setRunError('Failed to load trajectories');
     } finally {
       setLoadingRuns(false);
     }
@@ -51,7 +51,7 @@ function App() {
           setRunError(null);
         } catch (e) {
           console.error(e);
-          setRunError(`Run not found: ${runId}`);
+          setRunError(`Trajectory not found: ${runId}`);
           setSelectedRun(null);
           setAgentTrace(null);
           setEvalCaseDraft(null);
@@ -76,7 +76,7 @@ function App() {
 
   useEffect(() => {
     setStepDetailsExpanded(false);
-  }, [runId, stepIndex]);
+  }, [runId]);
 
   const activeStepIndex = stepIndex !== null ? stepIndex : selectedRun?.steps[0]?.index ?? 0;
   const activeStepPosition = selectedRun ? selectedRun.steps.findIndex((step) => step.index === activeStepIndex) : -1;
@@ -98,7 +98,7 @@ function App() {
         
         <section className="flex min-h-[520px] min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:min-h-0">
           {loadingRunDetails ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">Loading run details...</div>
+            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">Loading trajectory details...</div>
           ) : runError && runId ? (
             <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-red-600">
               <svg className="mb-4 h-14 w-14 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -111,12 +111,12 @@ function App() {
                 <div className="border-b border-slate-200 px-4 py-2.5">
                   <div className="min-w-0">
                     <div className="mb-1 flex items-center gap-2">
-                      <h2 className="truncate text-base font-bold text-slate-950" title={selectedRun.run_id}>Run {truncateRunId(selectedRun.run_id)}</h2>
+                      <h2 className="truncate text-base font-bold text-slate-950" title={selectedRun.run_id}>Trajectory {truncateRunId(selectedRun.run_id)}</h2>
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${runStatusClass(selectedRun.status)}`}>
                         {runStatusLabel(selectedRun.status)}
                       </span>
                     </div>
-                    <div className="truncate text-xs leading-4 text-slate-600">
+                    <div className="break-words text-xs leading-4 text-slate-600">
                       <span className="font-semibold text-slate-700">Task:</span> {selectedRun.task}
                     </div>
                   </div>
@@ -148,7 +148,7 @@ function App() {
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-slate-500">
               <svg className="mb-4 h-14 w-14 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" d="M4 7a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" /></svg>
-              <p>{loadingRuns ? 'Loading runs...' : 'Select a run from the left panel to view its trajectory.'}</p>
+              <p>{loadingRuns ? 'Loading trajectories...' : 'Select a trajectory from the left panel.'}</p>
             </div>
           )}
         </section>
@@ -202,7 +202,7 @@ function runStatusLabel(status: TrajectoryRun['status']) {
   // Title-cased to match RunList's StatusBadge labels.
   if (status === 'failed') return 'Failed';
   if (status === 'success') return 'Success';
-  return 'Unanalyzed';
+  return 'Unverified';
 }
 
 function truncateRunId(id: string) {

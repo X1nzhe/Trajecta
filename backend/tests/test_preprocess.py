@@ -111,7 +111,7 @@ class BuildDigestTests(PreprocessTestBase):
         self.assertEqual(digest.run_id, run.run_id)
         self.assertEqual(digest.task, run.task)
         self.assertEqual(digest.preprocess_model, "mock")
-        self.assertEqual(digest.preprocess_version, "v1")
+        self.assertEqual(digest.preprocess_version, "v2")
 
     def test_validates_schema(self) -> None:
         run = _make_run()
@@ -303,7 +303,7 @@ class LoadOrBuildDigestTests(PreprocessTestBase):
 
         result = preprocess.load_or_build_digest(run.run_id)
 
-        self.assertEqual(result.preprocess_version, "v1")
+        self.assertEqual(result.preprocess_version, "v2")
 
     def test_builds_and_saves_when_cache_absent(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])

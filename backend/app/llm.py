@@ -30,16 +30,23 @@ logger = logging.getLogger(__name__)
 # Keep the wording stable and structural — no requests for text, labels, or
 # small UI elements.
 LOW_DETAIL_PROMPT = (
-    "You are inspecting a single browser screenshot at very low resolution. "
-    "Return a single-line, at-most 200-character structural hint covering: "
-    "page type (one of: search_results, form, detail, dashboard, modal, "
-    "loading, error, unknown), whether a modal or large overlay is present, "
-    "whether a visually obvious error banner is present, and approximate "
-    "focus region (top, center, bottom, left, right, unknown). "
-    "Do NOT quote text, name buttons, or describe small UI elements; the "
-    "resolution does not support it. Output exactly one line, no prose. "
-    "Per docs/preprocessing.md, layout-vs-previous-step is intentionally "
-    "out of scope here — each call is independent."
+    "You are inspecting one browser screenshot at low resolution for an "
+    "Eval Agent. Return ONE line, at most 300 characters, with TWO "
+    "segments separated by ' | ':\n"
+    "  TAGS: page_type=<one of: search_results, form, detail, dashboard, "
+    "modal, loading, error, unknown>; modal=<yes|no>; "
+    "error_banner=<yes|no>; focus=<top|center|bottom|left|right|unknown>\n"
+    "  CUE: up to about 20 words naming the MOST PROMINENT legible "
+    "content — hero headline, large image subject, big button label, "
+    "empty-state copy, item count, or whatever visually distinguishes "
+    "this page from a generic page of its type.\n"
+    "Example: 'page_type=detail; modal=no; error_banner=no; focus=center "
+    "| large product image, Add to Cart button visible, price prominently "
+    "shown'\n"
+    "Do NOT transcribe small UI labels, body paragraphs, table cells, or "
+    "footer links — the resolution does not support reliable transcription. "
+    "Do NOT compare to previous steps; each call is independent. Output "
+    "ONE line, no prose, no markdown."
 )
 
 HIGH_DETAIL_PROMPT = (
@@ -50,7 +57,7 @@ HIGH_DETAIL_PROMPT = (
     "region of the action target. Do not invent unseen evidence."
 )
 
-_MAX_SUMMARY_CHARS = 200
+_MAX_SUMMARY_CHARS = 300
 _MAX_HIGH_DETAIL_CHARS = 500
 
 _PAGE_TYPES = (

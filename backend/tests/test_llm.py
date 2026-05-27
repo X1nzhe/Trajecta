@@ -37,7 +37,7 @@ class LLMFactoryTests(unittest.TestCase):
             _FAKE_BYTES, image_name="screenshot_001.png", action_type="click", step_index=0
         )
         self.assertIsNotNone(summary)
-        self.assertLessEqual(len(summary), 200)
+        self.assertLessEqual(len(summary), 300)
         self.assertNotIn("\n", summary)
 
     def test_factory_returns_mock_when_only_api_key_set(self) -> None:
@@ -110,7 +110,7 @@ class MockVLMTests(unittest.TestCase):
         summary = client.summarize_low_detail(
             _FAKE_BYTES, image_name="x.png", action_type="click", step_index=0
         )
-        self.assertLessEqual(len(summary), 200)
+        self.assertLessEqual(len(summary), 300)
         self.assertNotIn("\n", summary)
         self.assertNotIn("\r", summary)
 

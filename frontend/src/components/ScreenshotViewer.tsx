@@ -34,8 +34,14 @@ export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onP
   }, [imageHeight, imageWidth, naturalSize, stageSize]);
 
   useEffect(() => {
+    if (!isPlaying) return undefined;
     // step.index is 1-based, so the last step's index equals totalSteps.
-    if (!isPlaying || step.index >= totalSteps) return undefined;
+    // Once we've landed on the final step, auto-stop so the play button
+    // resets and a subsequent manual step-jump doesn't silently resume.
+    if (step.index >= totalSteps) {
+      setIsPlaying(false);
+      return undefined;
+    }
     const timer = window.setInterval(onNext, 1000);
     return () => window.clearInterval(timer);
   }, [isPlaying, onNext, step.index, totalSteps]);
