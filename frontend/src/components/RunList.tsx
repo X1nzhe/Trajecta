@@ -158,6 +158,15 @@ function StatusPill({ status }: { status: TrajectoryRun['status'] }) {
 
 type RunFilter = 'All' | 'Failed' | 'Success' | 'Unverified';
 
+// Short label per filter. Counts live in the hover title so the rail
+// stays compact — the "all/24 fail/0" form was loud at small panel widths.
+const FILTER_SHORT_LABEL: Record<RunFilter, string> = {
+  All: 'all',
+  Failed: 'fail',
+  Success: 'ok',
+  Unverified: '?',
+};
+
 function FilterSegments({
   active,
   counts,
@@ -169,7 +178,7 @@ function FilterSegments({
 }) {
   const items: RunFilter[] = ['All', 'Failed', 'Success', 'Unverified'];
   return (
-    <div className="flex items-center gap-0.5 rounded-md border border-[color:var(--color-hairline)] bg-[color:var(--color-canvas)] p-0.5 font-mono text-[10px]">
+    <div className="flex items-center gap-0.5 font-mono text-[10px]">
       {items.map((f) => {
         const isActive = active === f;
         return (
@@ -182,7 +191,7 @@ function FilterSegments({
             ].join(' ')}
             title={`${f} (${counts[f]})`}
           >
-            {f.toLowerCase().slice(0, 3)}/<span className="tabular-nums">{counts[f]}</span>
+            {FILTER_SHORT_LABEL[f]}
           </button>
         );
       })}
