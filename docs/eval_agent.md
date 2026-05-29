@@ -255,6 +255,23 @@ For a 30-step run where the dataset provides no `visible_text`, preprocessing co
 
 The agent prompt is laid out with the stable prefix first — system prompt, then the trajectory digest — followed by the dynamic tool-call turns. v1 does not wire provider-specific cache controls; this layout exists so that a caching-capable provider benefits transparently if used, but the cost story does not depend on it.
 
+## MCP Exposure
+
+The entire `agent_loop` described above is reachable via the `analyze_run`
+tool in `mcp/server.py`. External coding agents (Claude Code, Cursor) invoke
+the full LangGraph cycle as a single MCP call rather than orchestrating
+individual tools across the MCP boundary. Per-turn budget, trace integrity,
+prompt-version stamping, and the HITL gate all apply unchanged across MCP
+invocations; the only observable difference is `AgentTrace.source == "mcp"`.
+
+`mcp/server.py` is a thin transport adapter built on the standalone
+`fastmcp` package — it does not duplicate any logic in this file. Tools
+are registered via `@mcp.tool()` decorators; the `analyze_run` tool
+delegates directly to `eval_agent_graph.analyze_run(..., source="mcp")`.
+See [docs/mcp.md](mcp.md) for the tool surface, the include/exclude
+rationale, and the rationale for exposing the loop as a composite rather
+than as raw tools.
+
 ## Skill
 
 The Skill wrapper is optional packaging around the Eval Agent. It is not a v1 blocker.

@@ -27,6 +27,38 @@ This is not a browser-use agent.
 
 This is an Eval Agent for browser-use agent trajectories.
 
+## Components Used (S18 § 2.1)
+
+Trajecta uses four of the six S18-listed agent components. Three components used
+well — with a clear story for why they are wired together — is the bar; four is
+what falls out naturally from this project's shape.
+
+| Component | How Trajecta uses it | Anchor doc |
+| --- | --- | --- |
+| **RAG** | ChromaDB over three collections (`failure_memory`, `eval_cases`, `successful_runs`). Agent-authored queries; every retrieved case ID surfaces in `retrieved_context_ids` so claims trace back to evidence. | [docs/rag.md](docs/rag.md) |
+| **Tools** | LangGraph tool-calling agent with six typed tools (`get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, `propose_eval_case`). Per-turn budget bounds cost; terminal tool enforces schema. | [docs/eval_agent.md](docs/eval_agent.md) |
+| **Security / Governance** | Nine-mechanism stack: schema validation, tool-call budget, path-traversal protection, coordinate validation, `AgentTrace` audit log, HITL persistence gate, MCP least-privilege tool surface, prompt-version + sha256 traceability, and **Spotlighting prompt input validation** against indirect prompt injection in trajectory text. | [docs/security_governance.md](docs/security_governance.md) |
+| **MCP** | `mcp/server.py` exposes the entire Eval Agent loop as a composite `analyze_run` tool, plus five read-only / cost-bounded tools. Persistence and destructive operations are deliberately not exposed; the HITL gate stays on the Trajecta-UI side. | [docs/mcp.md](docs/mcp.md) |
+
+**Not claimed**: Multi-agent (Trajecta is one Eval Agent plus a human validator;
+HITL is the load-bearing role split but Trajecta does not run a supervisor +
+worker architecture), Memory (validated `EvalCase` records function as
+lightweight human-curated case memory but Trajecta does not use Mem0, Letta, or
+Graphiti and does not claim Memory as a primary component).
+
+## Market Positioning
+
+The browser-agent ecosystem covers two layers today: browser-control MCP
+servers (browser-use, Browserbase, Playwright MCP) drive a browser
+end-to-end, and trajectory datasets (MolmoWeb-HumanSkills, WebArena,
+Agent-Eval-Refine) publish recorded runs.
+
+What is missing is a remote callable agent that takes a recorded
+trajectory, diagnoses its failure mode with retrieval-grounded evidence,
+and produces a regression-eval-case draft. Trajecta fills that gap. The
+MCP composite tool `analyze_run` (see [docs/mcp.md](docs/mcp.md)) is the
+remote interface to this missing layer.
+
 ## Core User Flow
 
 1. User selects an imported browser-agent trajectory run.
@@ -74,6 +106,33 @@ These are the load-bearing decisions for v1. Each is justified by task character
    Default 8 calls per run. Exceeding the budget terminates the loop with `terminated_by="budget_exceeded"` rather than runaway tool use.
 6. **Human-in-the-loop is mandatory before export.**
    The agent proposes; the human validates. No `EvalCase` is exported with `human_validated = false`.
+7. **The MCP server exposes the agent as a composite, not as raw tools.**
+   `mcp/server.py` exposes the entire LangGraph loop as a single `analyze_run`
+   tool plus five read-only / cost-bounded tools. Splitting the loop across the
+   MCP boundary would break the per-turn budget contract and produce disjoint
+   traces that RAGAS and the Phase 8 judge cannot score. See
+   [docs/mcp.md](docs/mcp.md) "Why expose the whole agent rather than individual
+   tools".
+8. **No Reviewer Agent / no supervisor architecture in v1.**
+   We considered adding a proposer-critic Reviewer Agent to upgrade the
+   multi-agent component. Decision: do not add it. Cost: 4–6 hours of work
+   plus an additional LLM call per analyze. Benefit: marginal — we already
+   reach four S18 components without it (RAG + Tools + Security + MCP), and a
+   real Reviewer Agent is a 1–2 week project not a Phase 8 add. Phase 8 instead
+   strengthens the existing single-agent loop via judge-driven prompt iteration.
+9. **No Mem0 / Letta / Graphiti memory framework in v1.**
+   We considered framing the failure-memory mirror as cross-session memory.
+   Decision: do not. `failure_memory/cases.jsonl` is a curated RAG knowledge
+   base, and validated `EvalCase` rows function as lightweight human-curated
+   case memory retrievable via `search_eval_cases`. Calling this "Memory as a
+   component" would overstate what is shipped; honesty matters more than
+   component count when we already have four.
+10. **No Langfuse / Inspect AI in v1.**
+    `AgentTrace` (Mechanism 5 in [docs/security_governance.md](docs/security_governance.md))
+    covers the observability surface that a third-party tracing tool would
+    provide for this project: per-event audit, prompt version stamps, cost
+    accounting, run linkage. Adding Langfuse would not change any number in
+    the eval report.
 
 ## Must Not Have in v1
 
@@ -89,10 +148,42 @@ These are the load-bearing decisions for v1. Each is justified by task character
 
 Recorder middleware is v2.
 
+## Phase 8 — S18 Capstone Alignment
+
+Phase 8 closes the gap to the S18 capstone deliverable: a defendable
+eval harness, an LLM judge with measurable inter-annotator agreement, an
+experiment log, a failure-analysis writeup, an MCP server that exposes
+the agent as a composite tool, and a single-doc treatment of existing
+governance machinery.
+
+Phase 8 ships:
+
+- **8.A — Eval rigor.** `eval/golden.jsonl` (35 cases, S18-mandated
+  schema); per-sample trace persistence for the judge to consume;
+  `eval/judge.py` scoring `acceptable_eval_case` (binary, six-clause
+  rubric); Cohen's κ vs both a second LLM judge and a human-labelled
+  subset; a real (non-stub) RAGAS run; `docs/experiment_log.md` with
+  v1→v5 prompt metric deltas; `docs/failure_analysis.md` with 2–3 case
+  studies and the quality / latency / cost trade-off.
+- **8.B — MCP + Component story.** `mcp/server.py` with six tools
+  including the `analyze_run` composite; [docs/mcp.md](docs/mcp.md);
+  [docs/security_governance.md](docs/security_governance.md) framing the
+  eight existing governance mechanisms as one cohesive component, plus a
+  ninth **Spotlighting prompt input validation** mechanism shipped in B6
+  as defense against indirect prompt injection in trajectory text.
+- **8.C — Tactical cleanup.** Frontend TypeScript build fix; RAGAS path
+  bug fix; repo-hygiene sweep before the 48-hour push.
+
+The operational spec is
+[docs/phase8_s18_alignment.md](docs/phase8_s18_alignment.md). That file is
+the single point of truth for what Phase 8 ships and when an item is
+considered done.
+
 ## Documentation Map
 
 | File | Purpose |
 | --- | --- |
+| [docs/phase8_s18_alignment.md](docs/phase8_s18_alignment.md) | **Phase 8 operating spec.** S18 requirement → deliverable map; acceptance checklist; presentation outline. |
 | [docs/product_scope.md](docs/product_scope.md) | Product positioning, v1 scope, non-goals, and core user flow. |
 | [docs/architecture.md](docs/architecture.md) | Recommended stack, repository structure, and system boundaries. |
 | [docs/contracts.md](docs/contracts.md) | Single source of truth for schemas, tool contracts, API endpoints, RAG collections, and screenshot access. |
@@ -102,10 +193,14 @@ Recorder middleware is v2.
 | [docs/eval_agent.md](docs/eval_agent.md) | LangGraph Eval Agent behavior, loop design, observability, and Skill wrapper. |
 | [docs/prompt_versioning.md](docs/prompt_versioning.md) | Prompt version registry, traceability, rollback, and failure-memory refresh rules. |
 | [docs/rag.md](docs/rag.md) | ChromaDB RAG retrieval strategy. |
+| [docs/mcp.md](docs/mcp.md) | MCP server design: tool surface, `analyze_run` composite semantics, client config, demo script. |
+| [docs/security_governance.md](docs/security_governance.md) | Nine-mechanism component story for Security / Governance, including the Phase 8 B6 Spotlighting defense against indirect prompt injection. |
 | [docs/api.md](docs/api.md) | FastAPI implementation notes for endpoint contracts. |
 | [docs/frontend.md](docs/frontend.md) | React UI layout, components, and product copy. |
-| [docs/testing.md](docs/testing.md) | pytest, RAGAS or fallback evaluation, and acceptance criteria. |
-| [docs/roadmap.md](docs/roadmap.md) | MCP, one-week build plan, README requirements, roadmap, and resume bullets. |
+| [docs/testing.md](docs/testing.md) | pytest, RAGAS evaluation, golden set + judge protocol, and acceptance criteria. |
+| [docs/experiment_log.md](docs/experiment_log.md) | v1→v5 prompt-version experiment log; metric deltas; conclusions. |
+| [docs/failure_analysis.md](docs/failure_analysis.md) | 2–3 case studies of failed analyses; trade-off statement. |
+| [docs/roadmap.md](docs/roadmap.md) | One-week build plan, Phase 8 entry, README requirements, roadmap, and resume bullets. |
 
 ## Authoritative Files
 
