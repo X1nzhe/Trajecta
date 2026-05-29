@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from backend.app import storage
 from backend.app.coordinate_validator import validate_coordinates
-from backend.app.llm import VLMClient, get_vlm_client
+from backend.app.llm import VLMClient, get_vlm_client, vlm_usage_scope
 from backend.app.schemas import (
     StepAction,
     StepDigest,
@@ -31,9 +31,13 @@ def build_digest(run: TrajectoryRun, *, client: VLMClient | None = None) -> Traj
 
     vlm = client if client is not None else get_vlm_client()
 
-    step_digests: list[StepDigest] = [
-        _build_step_digest(validated.run_id, step, vlm) for step in validated.steps
-    ]
+    # Wrap the per-step VLM calls in a usage scope so the real client can
+    # accumulate prompt/completion tokens into a single bucket. Mock client
+    # is a no-op against the recorder, so the bucket stays at 0.
+    with vlm_usage_scope() as vlm_usage:
+        step_digests: list[StepDigest] = [
+            _build_step_digest(validated.run_id, step, vlm) for step in validated.steps
+        ]
 
     return TrajectoryDigest(
         run_id=validated.run_id,
@@ -42,6 +46,8 @@ def build_digest(run: TrajectoryRun, *, client: VLMClient | None = None) -> Traj
         steps=step_digests,
         preprocess_model=vlm.model_name,
         preprocess_version=PREPROCESS_VERSION,
+        vlm_input_tokens=vlm_usage["input"],
+        vlm_output_tokens=vlm_usage["output"],
     )
 
 

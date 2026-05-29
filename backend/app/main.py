@@ -80,6 +80,10 @@ def get_run(run_id: str) -> dict:
     except FileNotFoundError as exc:
         raise _not_found("run not found") from exc
 
+    # tools.get_run already attaches the cached digest under `digest`
+    # (full Pydantic dump including vlm_input_tokens / vlm_output_tokens
+    # once the digest is rebuilt with the updated schema). last_trace is
+    # the extra UI-only field we layer on top here.
     trace = storage.load_trace(run_id)
     if trace is not None:
         payload["last_trace"] = trace.model_dump(mode="json")

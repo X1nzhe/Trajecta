@@ -1,0 +1,37 @@
+/* frontend/src/index.css — Option A token additions.
+ * Adds JetBrains Mono for IDs/metadata + warm-bone surface tokens.
+ * Drop-in replacement. Keeps the existing @theme primaries intact. */
+
+@import "tailwindcss";
+
+/* JetBrains Mono for monospaced IDs, step counters, timestamps.
+ * Inter inherits from system fallback; if you already self-host Inter
+ * elsewhere this @import can be moved into index.html <link>. */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@theme {
+  --color-primary: #3b82f6;
+  --color-success: #22c55e;
+  --color-danger:  #ef4444;
+  --color-warning: #f59e0b;
+
+  /* Option A surface tokens. Warm bone background separates the app
+   * from pure-white panel surfaces and lets hairline borders read. */
+  --color-canvas: #fafaf9;   /* page bg */
+  --color-surface: #ffffff;  /* panel bg */
+  --color-hairline: #e7e5e4; /* warm border */
+  --color-ink: #0f172a;      /* primary text */
+
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+@layer base {
+  body {
+    @apply antialiased;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
+  /* Mono numerals everywhere — tabular figures look better in counters
+   * even when the surrounding font isn't mono. */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+}

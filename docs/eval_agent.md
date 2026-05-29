@@ -120,7 +120,7 @@ For `/followup` invocations the graph starts at `agent_loop` and skips
 Two screenshot detail levels exist, and they have different evidentiary weight:
 
 - **Low-detail** (~85 tokens/image) — from `StepDigest.vlm_low_detail_summary` or from `get_step_detail(..., image_detail="low")`. Allowed for orientation, hypothesis formation, and suspicious-step selection.
-- **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`. Required for any claim about visual text, button labels, target identity, or coordinate correctness.
+- **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`. Required for any claim about visual text, button labels, target identity, selected-result constraint satisfaction, or coordinate correctness. The high-detail VLM prompt is task-aware and returns structured fields such as `constraint_evidence`, `selected_candidate`, `success_signals`, and `failure_signals`.
 
 Hard rule: **any field in the final `EvalCase` that depends on visual text, target identity, or coordinate correctness must trace to a high-detail observation** (high-detail `get_step_detail`, OCR, or structured trajectory text such as `StepObservation.visible_text` / `action_target`). Low-detail output may appear in the agent's reasoning, but `EvidenceItem.source="step_detail_low"` or `"trajectory_digest"` must not be the sole support for those final claims.
 
@@ -230,6 +230,8 @@ Persistence and consumers:
 - Returned in full on `POST /api/runs/{run_id}/analyze` and `POST /api/runs/{run_id}/followup`.
 - Rendered by the frontend `EvalAgentPanel` as a chat-style timeline (`user_message`, `agent_message`, `tool_call` / `tool_result` summaries), grouped by `turn`. See [docs/frontend.md](frontend.md).
 - Read by `ragas_eval.py`. The latest `propose_eval_case` tool-call args provide the RAGAS `answer` ([docs/testing.md](testing.md)). All `tool_result` events whose `name` is `search_failure_memory` or `search_eval_cases` — **across all turns of the trace** — provide the retrieved contexts. RAGAS must not re-run retrieval.
+- New traces stamp `prompt_version` and `prompt_sha256` from the active prompt bundle under `prompts/eval_agent/`. Follow-ups reuse the trace's prompt version so a resumed analysis stays reproducible.
+- High-detail `get_step_detail` tool results stamp `vlm_prompt_version` and `vlm_prompt_sha256` from `prompts/vlm_high_detail/`, so the generated visual evidence is reproducible too.
 
 Invariants enforced in tests:
 
@@ -239,7 +241,7 @@ Invariants enforced in tests:
 - `AgentTraceEvent.seq` is strictly monotonic across the whole trace.
 - `AgentTraceEvent.turn` is non-decreasing across the event list.
 
-Screenshot bytes are never written to the trace. `get_step_detail` results carry a URL plus text fields only.
+Screenshot bytes are never written to the trace. `get_step_detail` results carry a URL plus text fields only; high-detail results include `task_context`, `vlm_prompt_version`, and `vlm_prompt_sha256` so the trace records which task/action/url/title context and prompt produced the VLM summary.
 
 ## Cost Strategy (Coarse-to-Fine VLM)
 
@@ -252,6 +254,23 @@ Screenshot bytes are never written to the trace. `get_step_detail` results carry
 For a 30-step run where the dataset provides no `visible_text`, preprocessing costs `30 * 85 = 2550` visual tokens and a typical analyze adds `3 * 1500 = 4500`, for a total of `7050` — versus `30 * 1500 = 45000` for a naive full-detail pass. If the dataset already provides DOM text for every step, preprocessing's VLM cost drops to zero and analyze cost stays roughly the same. The cost ablation is part of the README demo.
 
 The agent prompt is laid out with the stable prefix first — system prompt, then the trajectory digest — followed by the dynamic tool-call turns. v1 does not wire provider-specific cache controls; this layout exists so that a caching-capable provider benefits transparently if used, but the cost story does not depend on it.
+
+## MCP Exposure
+
+The entire `agent_loop` described above is reachable via the `analyze_run`
+tool in `mcp/server.py`. External coding agents (Claude Code, Cursor) invoke
+the full LangGraph cycle as a single MCP call rather than orchestrating
+individual tools across the MCP boundary. Per-turn budget, trace integrity,
+prompt-version stamping, and the HITL gate all apply unchanged across MCP
+invocations; the only observable difference is `AgentTrace.source == "mcp"`.
+
+`mcp/server.py` is a thin transport adapter built on the standalone
+`fastmcp` package — it does not duplicate any logic in this file. Tools
+are registered via `@mcp.tool()` decorators; the `analyze_run` tool
+delegates directly to `eval_agent_graph.analyze_run(..., source="mcp")`.
+See [docs/mcp.md](mcp.md) for the tool surface, the include/exclude
+rationale, and the rationale for exposing the loop as a composite rather
+than as raw tools.
 
 ## Skill
 

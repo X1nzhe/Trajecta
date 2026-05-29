@@ -16,14 +16,47 @@ in scope here.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Literal
 
 from backend.app import llm, rag, storage
 from backend.app.ids import make_eval_case_id, make_success_case_id
-from backend.app.schemas import EvalCase, EvidenceItem, FollowupSuggestion
+from backend.app.schemas import (
+    EvalCase,
+    EvidenceItem,
+    FollowupSuggestion,
+    V1FailureType,
+    V1_FAILURE_VOCABULARY,
+)
 
 
 logger = logging.getLogger(__name__)
+
+
+# Fields stripped from tool return payloads when TRAJECTA_EVAL_MODE is set.
+# In cold-start eval (eval_cases and successful_runs collections empty;
+# failure_memory seeded from data/failure_memory/cases.jsonl), the only
+# residual leak surface is `source_run_id` on FailureMemoryCase: each seed
+# case points to a run in data/triage_notes.csv. exclude_source_run_id is
+# already injected server-side (eval_agent_graph._execute_tool_node) to
+# block the "case derived from current run" path. This strip is defense in
+# depth: it also blocks the second-order pivot where the agent calls
+# get_run(source_run_id) on the source of a NON-current case to look at
+# how the human exemplar manifested.
+_EVAL_MODE_REDACT_FIELDS = ("source_run_id",)
+
+
+def _is_eval_mode() -> bool:
+    # Strict equality with "1". This avoids the trap where TRAJECTA_EVAL_MODE=0
+    # (intended to disable) would read as truthy under bool(os.getenv(...))
+    # because "0" is a non-empty string.
+    return os.getenv("TRAJECTA_EVAL_MODE") == "1"
+
+
+def _redact_for_eval(payload: dict[str, Any]) -> dict[str, Any]:
+    if not _is_eval_mode():
+        return payload
+    return {k: v for k, v in payload.items() if k not in _EVAL_MODE_REDACT_FIELDS}
 
 
 _MAX_FOLLOWUP_SUGGESTIONS = 4
@@ -98,6 +131,18 @@ def get_run(run_id: str) -> dict[str, Any]:
     digest = storage.load_digest(run_id)
     if digest is not None:
         payload["digest"] = digest.model_dump(mode="json")
+    if _is_eval_mode():
+        # ``main.py`` flips ``run.status`` to "success"/"failed" when a
+        # human validates an EvalCase. Importer-fresh runs are "unknown",
+        # but any run that has been through the validation endpoint
+        # carries the human's verdict in this field — i.e. ground truth.
+        # Force "unknown" in eval mode so the agent must derive its own
+        # verdict from the trajectory rather than copying the persisted
+        # human label. Per-step ``result.status`` and digest
+        # ``result_status`` are NOT masked: they come from MolmoWeb
+        # source data (no task-level assertions) and are not touched by
+        # the validation flip — see docs/dataset_import.md.
+        payload["status"] = "unknown"
     return payload
 
 
@@ -121,6 +166,13 @@ def find_similar_successful_run(
     run comparisons are tracked through the AgentTrace itself.
     """
 
+    # ``find_similar_successful_run`` returns task-similar successful
+    # trajectories as replay-and-diff comparators — it does NOT carry
+    # the current run's verdict, so it is not a direct leak channel.
+    # The agent uses the comparator legitimately to identify what
+    # "should have happened". ``exclude_run_id`` (auto-injected by the
+    # agent loop dispatcher to ``trace.run_id``) blocks the only real
+    # leak: a run being returned as similar to itself.
     return rag.query_similar_successful_runs(
         task,
         top_k=top_k,
@@ -136,7 +188,11 @@ def get_step_detail(
     """Inspect one step in depth, optionally invoking a high-detail VLM call on its screenshot.
 
     Returns the step's action / observation / result / coordinate_validation
-    plus a ``vlm_summary`` string when a screenshot exists.
+    plus a ``vlm_summary`` string when a screenshot exists. High-detail VLM
+    calls receive task/action/url/title context and return a structured text
+    block with fields such as ``constraint_evidence`` and
+    ``selected_candidate``. High-detail results also include
+    ``vlm_prompt_version`` and ``vlm_prompt_sha256`` for prompt traceability.
 
     ``image_detail`` controls VLM token cost: ``"high"`` (default, ~1500
     tokens) is required for any claim about visible text, button labels,
@@ -172,6 +228,8 @@ def get_step_detail(
 
     has_screenshot = screenshot_bytes is not None
     vlm_summary: str | None = None
+    vlm_prompt_version: str | None = None
+    vlm_prompt_sha256: str | None = None
     if has_screenshot:
         try:
             client = llm.get_vlm_client()
@@ -184,11 +242,18 @@ def get_step_detail(
                     step_index=step_index,
                 )
             else:
+                vlm_prompt_version, vlm_prompt_sha256 = llm.active_high_detail_prompt_identity()
                 vlm_summary = client.summarize_high_detail(
                     screenshot_bytes,
                     image_name=image_name,
                     action_type=step.action.type,
                     step_index=step_index,
+                    task=run.task,
+                    action_label=step.action.label,
+                    action_text=step.action.text,
+                    action_raw=step.action.raw,
+                    url=step.observation.url,
+                    title=step.observation.title,
                 )
         except Exception as exc:
             # Outer guard: RealVLMClient already logs OpenAI-side failures.
@@ -211,6 +276,16 @@ def get_step_detail(
         "has_screenshot": has_screenshot,
         "image_detail": image_detail,
         "vlm_summary": vlm_summary,
+        "vlm_prompt_version": vlm_prompt_version,
+        "vlm_prompt_sha256": vlm_prompt_sha256,
+        "task_context": {
+            "task": run.task,
+            "url": step.observation.url,
+            "title": step.observation.title,
+            "action_label": step.action.label,
+            "action_text": step.action.text,
+            "action_raw": step.action.raw,
+        },
         "action": step.action.model_dump(mode="json"),
         "observation": step.observation.model_dump(mode="json"),
         "result": step.result.model_dump(mode="json"),
@@ -219,7 +294,11 @@ def get_step_detail(
     }
 
 
-def search_failure_memory(query: str, top_k: int = 3) -> list[dict[str, Any]]:
+def search_failure_memory(
+    query: str,
+    top_k: int = 3,
+    exclude_source_run_id: str | None = None,
+) -> list[dict[str, Any]]:
     """Retrieve curated failure-pattern memory cases (FailureMemoryCase) similar to the query.
 
     These are reusable failure patterns (e.g., "missed_constraint",
@@ -228,13 +307,27 @@ def search_failure_memory(query: str, top_k: int = 3) -> list[dict[str, Any]]:
     in evidence you have observed. Returns up to ``top_k`` cases. Each
     case has a ``case_id`` you must include in EvalCase.retrieved_context_ids
     if you rely on it for the final eval case.
+
+    ``exclude_source_run_id`` is server-injected by the agent loop with the
+    current ``run_id`` to prevent the agent from "rediscovering" a failure
+    memory case authored from this very run. The LLM does not need to set it;
+    the dispatcher in ``eval_agent_graph._execute_tool_node`` overrides whatever
+    the model emits. Exposed in the signature so direct callers (tests, eval
+    scripts, the REST API) can choose to enforce or omit the guard.
     """
 
-    cases = rag.query_failure_memory(query, top_k=top_k)
-    return [case.model_dump(mode="json") for case in cases]
+    cases = rag.query_failure_memory(
+        query, top_k=top_k, exclude_source_run_id=exclude_source_run_id
+    )
+    return [_redact_for_eval(case.model_dump(mode="json")) for case in cases]
 
 
-def search_eval_cases(query: str, top_k: int = 3, only_validated: bool = True) -> list[dict[str, Any]]:
+def search_eval_cases(
+    query: str,
+    top_k: int = 3,
+    only_validated: bool = True,
+    exclude_source_run_id: str | None = None,
+) -> list[dict[str, Any]]:
     """Retrieve prior human-validated EvalCase records similar to the query.
 
     Use this to find precedent — has the agent seen a similar failure on
@@ -242,9 +335,20 @@ def search_eval_cases(query: str, top_k: int = 3, only_validated: bool = True) -
     ``only_validated=True`` (default), only cases that survived human review
     are returned. The ``case_id`` of any case you rely on must appear in
     EvalCase.retrieved_context_ids.
+
+    ``exclude_source_run_id`` mirrors ``search_failure_memory``: the agent
+    loop dispatcher auto-injects the current ``run_id`` so an EvalCase
+    derived from the run under analysis (whose verdict literally IS the
+    answer) is filtered out at the chroma layer. Direct callers (tests,
+    eval scripts, REST API) can opt in or out.
     """
 
-    cases = rag.query_eval_cases(query, top_k=top_k, only_validated=only_validated)
+    cases = rag.query_eval_cases(
+        query,
+        top_k=top_k,
+        only_validated=only_validated,
+        exclude_source_run_id=exclude_source_run_id,
+    )
     return [case.model_dump(mode="json") for case in cases]
 
 
@@ -253,7 +357,7 @@ def propose_eval_case(
     evidence: list[EvidenceItem | dict[str, Any]],
     retrieved_context_ids: list[str],
     failure_step: int | None = None,
-    failure_type: str | None = None,
+    failure_type: V1FailureType | None = None,
     expected_behavior: str | None = None,
     actual_behavior: str | None = None,
     regression_rule: str | None = None,
@@ -290,6 +394,18 @@ def propose_eval_case(
 
     run = storage.load_run(run_id)
     evidence_items = [EvidenceItem.model_validate(item) for item in evidence]
+
+    # Reject failure_types outside the v1 closed vocabulary. The EvalCase
+    # field is regex-shape-only (snake_case), so without this guard the
+    # agent ships values like "wrong_destination" or "unsupported_answer"
+    # — both observed in past eval runs. Surface as a clear retryable
+    # tool error so the agent picks the closest in-vocab label.
+    if failure_type is not None and failure_type not in V1_FAILURE_VOCABULARY:
+        raise ValueError(
+            f"failure_type {failure_type!r} is not in the v1 vocabulary "
+            f"{sorted(V1_FAILURE_VOCABULARY)}. Pick the closest in-vocab "
+            f"label (or omit all failure_* fields to propose a success case)."
+        )
 
     failure_fields = (failure_step, failure_type, expected_behavior, actual_behavior, regression_rule)
     present = sum(1 for value in failure_fields if value is not None)

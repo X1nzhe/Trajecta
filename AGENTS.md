@@ -23,6 +23,7 @@ Start every non-trivial task by reading the smallest relevant set of docs.
 - `docs/dataset_import.md`: MolmoWeb-HumanSkills import strategy and coordinate validation rules.
 - `docs/preprocessing.md`: Trajectory Preprocessing — digest schema, low-detail VLM contract, caching, and fallbacks.
 - `docs/eval_agent.md`: LangGraph Eval Agent workflow, tools, state, output schema, observability, and Skill wrapper.
+- `docs/prompt_versioning.md`: prompt version registry, traceability, rollback, and failure-memory refresh rules.
 - `docs/rag.md`: ChromaDB collections, embedding text, and retrieval flow.
 - `docs/api.md`: FastAPI endpoint surface.
 - `docs/frontend.md`: React UI layout, components, and UI copy.
@@ -56,6 +57,8 @@ If a future subdirectory contains its own `AGENTS.md`, follow that nearest file 
 The backend has two model-selection environment variables that gate the real-vs-mock split. Both default to deterministic mocks when unset, so tests + cold-start demos run without network. See [README.md](README.md) "Configuration" for the full env-var table.
 - `OPENAI_API_KEY` + `TRAJECTA_AGENT_MODEL` → tool-calling Eval Agent uses `ChatOpenAI(...).bind_tools([...])`. Without both, `OfflineAgentMock` runs a fixed 5-stage script (`get_run` → `get_step_detail` → `find_similar_successful_run` → `search_failure_memory` → `propose_eval_case`).
 - `OPENAI_API_KEY` + `TRAJECTA_VLM_MODEL` → Trajectory Preprocessing + `get_step_detail` use `RealVLMClient` against the OpenAI Chat Completions API with `image_url` content. Without both, `MockVLMClient` returns deterministic hash-derived summaries.
+- `TRAJECTA_PROMPT_VERSION` selects a committed prompt bundle under `prompts/eval_agent/` and defaults to `v1_minimal`. New traces and eval reports record `prompt_version` and `prompt_sha256`.
+- `TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION` selects a committed high-detail VLM prompt under `prompts/vlm_high_detail/` and defaults to `v1_task_context`. High-detail `get_step_detail` results and eval reports record version + hash.
 - The default pytest suite covers the mock paths. The real-LLM agent path has one opt-in smoke test at `backend/tests/test_real_llm_integration.py`; it skips unless `OPENAI_API_KEY` + `TRAJECTA_AGENT_MODEL` are set.
 
 ## Commands

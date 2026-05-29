@@ -7,6 +7,12 @@ v1 uses ChromaDB for text-based retrieval over failure memories, eval cases,
 and successful runs (for replay-and-diff). This is **multimodal-informed RAG**,
 not full image-vector multimodal RAG.
 
+`failure_memory` is rebuilt from `data/failure_memory/cases.jsonl` during
+`rag.hydrate_all()`, so removed or renamed seed cases do not leave stale
+Chroma vectors behind. Changing `TRAJECTA_EMBEDDING_MODEL` still requires
+clearing `data/chroma/` or using a fresh `TRAJECTA_CHROMA_DIR`, because
+embeddings are not migrated between models.
+
 The Eval Agent reaches RAG only through tools: `search_failure_memory`,
 `search_eval_cases`, and `find_similar_successful_run`. There is no implicit
 retrieval on every step; the agent decides when to retrieve and what query to

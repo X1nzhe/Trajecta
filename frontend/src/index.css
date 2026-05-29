@@ -1,14 +1,57 @@
+/* frontend/src/index.css — Option A token additions.
+ * Adds JetBrains Mono for IDs/metadata + warm-bone surface tokens.
+ * Drop-in replacement. Keeps the existing @theme primaries intact. */
+
+/* Inter (sans) + JetBrains Mono (mono) — the redesign's typeface pair.
+ * Inter wasn't loaded before, so headings/body were falling back to the
+ * system stack and didn't match the PNG.
+ * Must precede `@import "tailwindcss"` because Tailwind inlines a large
+ * block of rules; any @import that lands after them violates CSS spec. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #3b82f6; /* blue-500 */
-  --color-success: #22c55e; /* green-500 */
-  --color-danger: #ef4444; /* red-500 */
-  --color-warning: #f59e0b; /* amber-500 */
+  --color-primary: #3b82f6;
+  --color-success: #22c55e;
+  --color-danger:  #ef4444;
+  --color-warning: #f59e0b;
+
+  /* Option A surface tokens. Warm bone background separates the app
+   * from pure-white panel surfaces and lets hairline borders read. */
+  --color-canvas: #fafaf9;   /* page bg */
+  --color-surface: #ffffff;  /* panel bg */
+  --color-hairline: #e7e5e4; /* warm border */
+  --color-ink: #0f172a;      /* primary text */
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 @layer base {
   body {
-    @apply bg-gray-50 text-slate-800 antialiased;
+    @apply antialiased;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
   }
+  /* Mono numerals everywhere — tabular figures look better in counters
+   * even when the surrounding font isn't mono. */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
 }
+
+/* Thin, always-visible horizontal scrollbar for overflowing rails
+ * (e.g. the StepTimeline ribbon). macOS hides overlay scrollbars by
+ * default, which makes it look like content is truncated rather than
+ * scrollable — this forces a slim visible track. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.scrollbar-thin::-webkit-scrollbar { height: 4px; width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

@@ -1,0 +1,23 @@
+{
+  "$schema_note": "Single source of truth for LLM / VLM list pricing. Read by backend/app/agent_eval.py (Python) and frontend/src/components/EvalAgentPanel.tsx (TypeScript). Order matters: matching is first-regex-wins, so put more specific patterns before general ones (e.g. 'gpt-4o-mini' before 'gpt-4o'). 'match' is treated as a case-insensitive regex; backslashes must be JSON-escaped. 'input' / 'output' / 'cached_input' are USD per 1M tokens. 'cached_input' is currently not applied by either consumer (waiting on per-trace cache_read counts) but kept here for future use.",
+  "version": 1,
+  "updated": "2026-05-28",
+  "currency": "USD",
+  "unit": "per_1m_tokens",
+  "entries": [
+    { "match": "haiku-4\\.5",    "label": "Claude Haiku 4.5",  "input": 0.8,  "output": 4.0,  "cached_input": 0.08 },
+    { "match": "haiku",          "label": "Claude Haiku",      "input": 0.8,  "output": 4.0,  "cached_input": 0.08 },
+    { "match": "sonnet-4\\.5",   "label": "Claude Sonnet 4.5", "input": 3.0,  "output": 15.0, "cached_input": 0.3 },
+    { "match": "sonnet",         "label": "Claude Sonnet",     "input": 3.0,  "output": 15.0, "cached_input": 0.3 },
+    { "match": "opus-4",         "label": "Claude Opus 4",     "input": 15.0, "output": 75.0, "cached_input": 1.5 },
+    { "match": "opus",           "label": "Claude Opus",       "input": 15.0, "output": 75.0, "cached_input": 1.5 },
+    { "match": "gpt-5\\.4-mini", "label": "GPT-5.4 mini",      "input": 0.75, "output": 4.5,  "cached_input": 0.075 },
+    { "match": "gpt-5\\.4",      "label": "GPT-5.4",           "input": 2.5,  "output": 15.0, "cached_input": 0.25 },
+    { "match": "gpt-4o-mini",    "label": "GPT-4o mini",       "input": 0.15, "output": 0.6,  "cached_input": 0.075 },
+    { "match": "gpt-4o",         "label": "GPT-4o",            "input": 2.5,  "output": 10.0, "cached_input": 1.25 },
+    { "match": "gpt-4\\.1-nano", "label": "GPT-4.1 nano",      "input": 0.10, "output": 0.40, "cached_input": null },
+    { "match": "gpt-4\\.1-mini", "label": "GPT-4.1 mini",      "input": 0.4,  "output": 1.6,  "cached_input": 0.1 },
+    { "match": "gpt-4\\.1",      "label": "GPT-4.1",           "input": 2.0,  "output": 8.0,  "cached_input": 0.5 },
+    { "match": "o4-mini",        "label": "o4-mini",           "input": 1.10, "output": 4.40, "cached_input": null }
+  ]
+}

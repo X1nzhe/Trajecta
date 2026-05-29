@@ -9,7 +9,7 @@ from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from backend.app import eval_agent_graph, preprocess, rag, storage
+from backend.app import eval_agent_graph, preprocess, prompts, rag, storage
 from backend.app.eval_agent_graph import AIMessage
 from backend.app.main import app
 from backend.app.schemas import (
@@ -122,12 +122,14 @@ class EvalAgentTests(unittest.TestCase):
             "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
             "TRAJECTA_AGENT_MODEL": os.environ.get("TRAJECTA_AGENT_MODEL"),
             "TRAJECTA_VLM_MODEL": os.environ.get("TRAJECTA_VLM_MODEL"),
+            "TRAJECTA_PROMPT_VERSION": os.environ.get("TRAJECTA_PROMPT_VERSION"),
         }
         os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
         os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(self.tmp.name, "chroma")
         os.environ.pop("OPENAI_API_KEY", None)
         os.environ.pop("TRAJECTA_AGENT_MODEL", None)
         os.environ.pop("TRAJECTA_VLM_MODEL", None)
+        os.environ.pop("TRAJECTA_PROMPT_VERSION", None)
         rag._client_cache = None
         rag._embedding_cache = None
 
@@ -162,6 +164,14 @@ class EvalAgentTests(unittest.TestCase):
         self.assertIsNotNone(result.eval_case_draft)
         draft = EvalCase.model_validate(result.eval_case_draft)
         self.assertFalse(draft.human_validated)
+
+    def test_trace_records_prompt_version_and_hash(self) -> None:
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        active = prompts.active_prompt_bundle()
+
+        self.assertEqual(result.trace.prompt_version, active.version)
+        self.assertEqual(result.trace.prompt_sha256, active.sha256)
+        self.assertIn(active.version, prompts.available_prompt_versions())
 
     def test_trace_accumulates_runtime_and_token_counts(self) -> None:
         """docs/eval_agent.md "Observability" — per-trace cost/latency
@@ -458,6 +468,74 @@ class EvalAgentTests(unittest.TestCase):
         # The specific error should call out the run_id confusion so the
         # agent's retry knows what to drop.
         self.assertIn("find_similar_successful_run", joined)
+
+    def test_find_similar_successful_run_injects_exclude_run_id(self) -> None:
+        """Server-side leakage guard for the replay-and-diff retrieval path.
+
+        The LLM may emit ``find_similar_successful_run`` without
+        ``exclude_run_id``. The dispatcher must force-inject the current
+        ``run_id`` regardless, to prevent the agent from "rediscovering" a
+        golden-set sample that is itself in the ``successful_runs`` collection
+        (e.g. a previously human-validated success EvalCase promoted there).
+        Symmetric to the ``search_failure_memory`` / ``exclude_source_run_id``
+        guard verified elsewhere.
+        """
+        captured: dict = {}
+        real = eval_agent_graph._TOOL_REGISTRY["find_similar_successful_run"]
+
+        def spy(**kwargs):
+            captured.update(kwargs)
+            return []
+
+        script = [
+            # LLM intentionally OMITS exclude_run_id from the args.
+            _tool_message("find_similar_successful_run", {"task": "any", "top_k": 3}),
+            _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
+        ]
+        with mock.patch.dict(
+            eval_agent_graph._TOOL_REGISTRY,
+            {"find_similar_successful_run": spy},
+        ):
+            eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+
+        self.assertEqual(captured.get("exclude_run_id"), "run_1")
+        # And the other args the LLM did emit must still pass through.
+        self.assertEqual(captured.get("task"), "any")
+        self.assertEqual(captured.get("top_k"), 3)
+        # restore registry value not strictly needed (mock.patch.dict undoes
+        # the patch on context exit); ``real`` referenced to silence lint.
+        del real
+
+    def test_search_eval_cases_injects_exclude_source_run_id(self) -> None:
+        """Dispatcher auto-injects exclude_source_run_id=current_run_id.
+
+        Mirrors the search_failure_memory guard. A validated EvalCase
+        whose source_run_id is the run currently under analysis carries
+        that run's verdict — that IS direct answer leakage. The eval-mode
+        short-circuit was previously a sledgehammer for this; we now do
+        surgical exclusion at the chroma layer so the agent still gets
+        precedent from OTHER runs.
+        """
+        captured: dict = {}
+
+        def spy(**kwargs):
+            captured.update(kwargs)
+            return []
+
+        script = [
+            # LLM omits exclude_source_run_id.
+            _tool_message("search_eval_cases", {"query": "any", "top_k": 3}),
+            _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
+        ]
+        with mock.patch.dict(
+            eval_agent_graph._TOOL_REGISTRY,
+            {"search_eval_cases": spy},
+        ):
+            eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+
+        self.assertEqual(captured.get("exclude_source_run_id"), "run_1")
+        self.assertEqual(captured.get("query"), "any")
+        self.assertEqual(captured.get("top_k"), 3)
 
     def test_nonterminal_tool_error_is_returned_to_model(self) -> None:
         script = [

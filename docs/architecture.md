@@ -36,6 +36,8 @@ Configuration:
 - `OPENAI_BASE_URL`: optional override for OpenAI-compatible providers
 - `TRAJECTA_LLM_MODEL`: text model for trajectory analysis
 - `TRAJECTA_VLM_MODEL`: vision model for screenshot summaries
+- `TRAJECTA_PROMPT_VERSION`: committed prompt bundle under `prompts/eval_agent/`; defaults to `v1_minimal`
+- `TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION`: committed high-detail VLM prompt under `prompts/vlm_high_detail/`; defaults to `v1_task_context`
 - `TRAJECTA_EMBEDDING_MODEL`: embedding model for ChromaDB indexing
 - `TRAJECTA_CHROMA_DIR`: ChromaDB persistence directory; defaults to `data/chroma/`
 

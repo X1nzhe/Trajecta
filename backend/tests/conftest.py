@@ -82,6 +82,7 @@ def _isolated_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("TRAJECTA_AGENT_MODEL", raising=False)
     monkeypatch.delenv("TRAJECTA_VLM_MODEL", raising=False)
+    monkeypatch.delenv("TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION", raising=False)
     db.reset_engine_cache()
     try:
         yield tmp.name

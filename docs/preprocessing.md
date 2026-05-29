@@ -38,7 +38,8 @@ Out of scope:
 - Failure analysis or labeling — that is the Eval Agent's job.
 - High-detail VLM inspection — that is the `get_step_detail` tool's job.
 - RAG retrieval — the agent retrieves via tools.
-- OCR — v1 does not do OCR; the agent uses `get_step_detail` for any text reading.
+- OCR — v1 does not run a separate OCR pipeline; the agent uses task-aware
+  high-detail `get_step_detail` for any text or constraint-evidence reading.
 - Multi-run aggregation or cross-run comparison.
 
 ## Schemas

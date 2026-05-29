@@ -80,6 +80,10 @@ export interface TrajectoryDigest {
   steps: StepDigest[];
   preprocess_model?: string;
   preprocess_version: string;
+  // Cumulative VLM token usage spent producing this digest's low-detail
+  // summaries (preprocess pass). Mock path is 0. Old digests omit.
+  vlm_input_tokens?: number;
+  vlm_output_tokens?: number;
 }
 
 export interface FailureMemoryCase {
@@ -136,6 +140,21 @@ export interface AgentTrace {
   turn_count: number;
   terminated_by: "propose_eval_case" | "budget_exceeded" | "error";
   events: AgentTraceEvent[];
+  // LLM that produced this trace ("mock" when running the offline
+  // OfflineAgentMock path). Stamped at initial stream_analyze and
+  // preserved across followups. Optional on the wire so old traces
+  // persisted before this field existed still deserialize cleanly.
+  model?: string | null;
+  // Versioned prompt identity for reproducible eval runs. prompt_version
+  // maps to prompts/eval_agent/<version>; prompt_sha256 hashes the
+  // system + followup prompt files used by the trace.
+  prompt_version?: string | null;
+  prompt_sha256?: string | null;
+  // VLM model id used by get_step_detail within this trace + cumulative
+  // VLM token usage (initial analyze + all followups). Mock path is 0.
+  vlm_model?: string | null;
+  vlm_input_tokens?: number;
+  vlm_output_tokens?: number;
   // Per-trace cost/latency counters. Accumulated across all turns;
   // 0 on offline mock paths where usage_metadata isn't available.
   runtime_ms: number;

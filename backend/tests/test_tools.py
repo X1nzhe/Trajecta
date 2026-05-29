@@ -5,7 +5,7 @@ import os
 import unittest
 from unittest import mock
 
-from backend.app import rag, storage, tools
+from backend.app import prompts, rag, storage, tools
 from backend.app.ids import make_eval_case_id
 from backend.app.schemas import (
     EvalCase,
@@ -35,7 +35,11 @@ class ToolsTests(unittest.TestCase):
         # point Chroma inside the same temp dir so RAG state resets between tests.
         data_dir = os.environ["TRAJECTA_DATA_DIR"]
         self.previous_chroma_dir = os.environ.get("TRAJECTA_CHROMA_DIR")
+        self.previous_vlm_high_detail_prompt_version = os.environ.get(
+            "TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION"
+        )
         os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(data_dir, "chroma")
+        os.environ.pop("TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION", None)
         rag._client_cache = None
         rag._embedding_cache = None
 
@@ -46,6 +50,12 @@ class ToolsTests(unittest.TestCase):
             os.environ.pop("TRAJECTA_CHROMA_DIR", None)
         else:
             os.environ["TRAJECTA_CHROMA_DIR"] = self.previous_chroma_dir
+        if self.previous_vlm_high_detail_prompt_version is None:
+            os.environ.pop("TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION", None)
+        else:
+            os.environ["TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION"] = (
+                self.previous_vlm_high_detail_prompt_version
+            )
 
     def test_get_run_returns_run_with_attached_digest(self) -> None:
         storage.save_run(sample_run())
@@ -74,6 +84,45 @@ class ToolsTests(unittest.TestCase):
         validated = TrajectoryDigest.model_validate(result["digest"])
         self.assertEqual(validated.run_id, "run_1")
         self.assertEqual(validated.step_count, 1)
+
+    def test_get_run_masks_status_in_eval_mode(self) -> None:
+        """TRAJECTA_EVAL_MODE=1 forces run.status="unknown" on the returned payload.
+
+        main.py:198 flips run.status to "success" / "failed" when a human
+        validates an EvalCase. Without masking, an agent re-evaluating a
+        previously-validated run would read the human's verdict straight
+        off ``get_run`` and have nothing to derive. Per-step result.status
+        is left alone — MolmoWeb source has no task-level assertions and
+        the validation flip does not touch step rows.
+        """
+        storage.save_run(sample_run(status="failed"))
+
+        with mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
+            result = tools.get_run("run_1")
+
+        self.assertEqual(result["status"], "unknown")
+        # Sanity: non-status fields still come through.
+        self.assertEqual(result["run_id"], "run_1")
+        self.assertEqual(result["task"], "Find a result")
+
+    def test_get_run_keeps_status_outside_eval_mode(self) -> None:
+        """Product path must return the real persisted status — the UI
+        deep-links from a run row to its verdict via this field."""
+        storage.save_run(sample_run(status="failed"))
+
+        env_without_eval = {k: v for k, v in os.environ.items() if k != "TRAJECTA_EVAL_MODE"}
+        with mock.patch.dict(os.environ, env_without_eval, clear=True):
+            result = tools.get_run("run_1")
+
+        self.assertEqual(result["status"], "failed")
+
+    def test_vlm_high_detail_prompt_registry_loads_default(self) -> None:
+        active = prompts.active_vlm_high_detail_prompt()
+
+        self.assertEqual(active.version, "v1_task_context")
+        self.assertIn(active.version, prompts.available_vlm_high_detail_prompt_versions())
+        self.assertIn("constraint_evidence:", active.text)
+        self.assertEqual(len(active.sha256), 64)
 
     def test_propose_eval_case_generates_valid_draft(self) -> None:
         storage.save_run(sample_run())
@@ -114,10 +163,178 @@ class ToolsTests(unittest.TestCase):
         with mock.patch("backend.app.tools.rag.query_failure_memory", return_value=[seeded]) as spy:
             results = tools.search_failure_memory("constraint", top_k=5)
 
-        spy.assert_called_once_with("constraint", top_k=5)
+        spy.assert_called_once_with("constraint", top_k=5, exclude_source_run_id=None)
         self.assertEqual(results[0]["case_id"], "fm_missed_constraint_001")
         # Return shape is JSON-mode dict (not Pydantic instance).
         self.assertIsInstance(results[0], dict)
+
+    def test_search_failure_memory_passes_exclude_source_run_id(self) -> None:
+        """Leakage guard: tools.search_failure_memory forwards exclude_source_run_id
+        verbatim to rag.query_failure_memory. Verifies the wire-through; the
+        ChromaDB-side filtering itself is covered in test_rag.py."""
+        with mock.patch(
+            "backend.app.tools.rag.query_failure_memory", return_value=[]
+        ) as spy:
+            tools.search_failure_memory("anything", top_k=3, exclude_source_run_id="run_42")
+
+        spy.assert_called_once_with(
+            "anything", top_k=3, exclude_source_run_id="run_42"
+        )
+
+    def test_search_failure_memory_redacts_source_run_id_in_eval_mode(self) -> None:
+        """TRAJECTA_EVAL_MODE=1 strips source_run_id from returned cases.
+
+        Cold-start eval state: failure_memory is seeded from cases.jsonl
+        whose source_run_ids point to runs in the golden eval set. The
+        agent must not be able to pivot via get_run(source_run_id) to
+        look up the human exemplar for a given failure pattern.
+        """
+        seeded = FailureMemoryCase(
+            case_id="fm_missed_constraint_001",
+            failure_type="missed_constraint",
+            summary="The agent ignored a user constraint.",
+            tags=["constraint"],
+            source_run_id="some_other_run",
+        )
+        with mock.patch("backend.app.tools.rag.query_failure_memory", return_value=[seeded]), \
+             mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
+            results = tools.search_failure_memory("constraint", top_k=1)
+
+        self.assertEqual(results[0]["case_id"], "fm_missed_constraint_001")
+        self.assertNotIn("source_run_id", results[0])
+        # Non-sensitive fields must survive.
+        self.assertEqual(results[0]["failure_type"], "missed_constraint")
+        self.assertEqual(results[0]["summary"], "The agent ignored a user constraint.")
+
+    def test_find_similar_successful_run_runs_normally_in_eval_mode(self) -> None:
+        """Eval mode does NOT short-circuit this tool.
+
+        The returned run_ids are task-similar success comparators for
+        replay-and-diff, not labeled answers for the run under analysis.
+        The exclude_run_id auto-injection handles the only real leak
+        (a run being returned as similar to itself). Killing the tool
+        would also kill a legitimate reasoning channel; see eval/runs
+        analysis from 2026-05-28.
+        """
+        canned = [{"run_id": "success_run", "task": "t", "status": "success", "step_count": 3}]
+        with mock.patch(
+            "backend.app.tools.rag.query_similar_successful_runs", return_value=canned
+        ) as spy, mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
+            results = tools.find_similar_successful_run("t", top_k=3)
+
+        self.assertEqual(results, canned)
+        spy.assert_called_once()
+
+    def test_search_eval_cases_filters_by_exclude_source_run_id_in_eval_mode(self) -> None:
+        """Eval mode does NOT short-circuit; instead it relies on the
+        dispatcher's auto-injection of exclude_source_run_id=current_run_id.
+
+        An EvalCase whose source_run_id equals the run under analysis
+        carries that run's verdict — that IS direct answer leakage. But
+        cases derived from OTHER runs are legitimate precedent the agent
+        should be able to retrieve.
+        """
+        seeded = EvalCase(
+            case_id="ec_run_other_step_0",
+            source_run_id="run_other",
+            task="t",
+            failure_step=0,
+            failure_type="early_terminated",
+            expected_behavior="e",
+            actual_behavior="a",
+            evidence=[EvidenceItem(claim="c", source="trajectory", run_id="run_other", step_index=0)],
+            regression_rule="r",
+            human_validated=True,
+        )
+        with mock.patch(
+            "backend.app.tools.rag.query_eval_cases", return_value=[seeded]
+        ) as spy, mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
+            results = tools.search_eval_cases("t", top_k=3, exclude_source_run_id="run_1")
+
+        # Tool no longer short-circuits — it forwards to rag and returns
+        # what rag returns. The filter itself is verified in test_rag.py.
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["case_id"], "ec_run_other_step_0")
+        spy.assert_called_once_with(
+            "t", top_k=3, only_validated=True, exclude_source_run_id="run_1"
+        )
+
+    def test_propose_eval_case_schema_enforces_failure_type_enum(self) -> None:
+        """propose_eval_case's OpenAI tool schema must constrain failure_type
+        to the v1 vocabulary via JSON Schema ``enum``.
+
+        Without this, OpenAI strict-mode decoding won't filter tokens and
+        the model emits typos like ``early_termination`` (observed in
+        Run 4: a6daae and 3672b077 both lost verdicts to this exact typo).
+        The runtime ``V1_FAILURE_VOCABULARY`` check is still there as
+        defense in depth, but the schema enforcement should make this path
+        unreachable for strict-mode-compliant models.
+        """
+        from langchain_core.utils.function_calling import convert_to_openai_tool
+
+        schema = convert_to_openai_tool(tools.propose_eval_case)
+        ft = schema["function"]["parameters"]["properties"]["failure_type"]
+        # Schema is anyOf[ enum-string, null ] because the field is Optional.
+        enum_branch = next(
+            (branch for branch in ft.get("anyOf", []) if "enum" in branch),
+            None,
+        )
+        self.assertIsNotNone(enum_branch, f"failure_type schema missing enum branch: {ft}")
+        self.assertEqual(
+            set(enum_branch["enum"]),
+            {
+                "early_terminated",
+                "wrong_target",
+                "wrong_result",
+                "missed_constraint",
+                "inefficient_search",
+            },
+        )
+
+    def test_propose_eval_case_rejects_off_vocabulary_failure_type(self) -> None:
+        """Tool entry must reject failure_types outside V1_FAILURE_VOCABULARY.
+
+        Observed in real eval runs: gpt-5.4-mini emitted
+        ``wrong_destination``, ``wrong_destination_search``, and
+        ``unsupported_answer``. EvalCase.failure_type is regex-shape-only,
+        so the bad labels would otherwise persist. The ValueError lifts
+        to the agent loop as a recoverable tool error so the agent retries
+        with a vocab-compliant value.
+        """
+        storage.save_run(sample_run())
+        with self.assertRaises(ValueError) as ctx:
+            tools.propose_eval_case(
+                run_id="run_1",
+                failure_step=0,
+                failure_type="wrong_destination",  # off-vocab
+                expected_behavior="The agent should finish the task.",
+                actual_behavior="The agent stopped before finishing.",
+                evidence=[{"claim": "c", "source": "trajectory", "run_id": "run_1", "step_index": 0}],
+                regression_rule="r",
+                retrieved_context_ids=[],
+            )
+        self.assertIn("wrong_destination", str(ctx.exception))
+        self.assertIn("v1 vocabulary", str(ctx.exception))
+
+    def test_search_failure_memory_keeps_source_run_id_outside_eval_mode(self) -> None:
+        """Without TRAJECTA_EVAL_MODE, source_run_id stays on the payload.
+
+        Product path (UI, API) needs source_run_id to deep-link from a
+        case to its origin run. Redaction must be eval-only.
+        """
+        seeded = FailureMemoryCase(
+            case_id="fm_wrong_target_001",
+            failure_type="wrong_target",
+            summary="The agent acted on the wrong target.",
+            tags=[],
+            source_run_id="exemplar_run",
+        )
+        with mock.patch("backend.app.tools.rag.query_failure_memory", return_value=[seeded]), \
+             mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("TRAJECTA_EVAL_MODE", None)
+            results = tools.search_failure_memory("x", top_k=1)
+
+        self.assertEqual(results[0]["source_run_id"], "exemplar_run")
 
     def test_find_similar_successful_run_delegates_to_rag(self) -> None:
         canned = [{"run_id": "success_run", "task": "Find a result", "status": "success", "step_count": 3}]
@@ -144,7 +361,9 @@ class ToolsTests(unittest.TestCase):
         with mock.patch("backend.app.tools.rag.query_eval_cases", return_value=[seeded]) as spy:
             results = tools.search_eval_cases("early terminated", top_k=4, only_validated=True)
 
-        spy.assert_called_once_with("early terminated", top_k=4, only_validated=True)
+        spy.assert_called_once_with(
+            "early terminated", top_k=4, only_validated=True, exclude_source_run_id=None
+        )
         self.assertEqual(results[0]["case_id"], "ec_run_1_step_0")
         self.assertIsInstance(results[0], dict)
 
@@ -158,6 +377,9 @@ class ToolsTests(unittest.TestCase):
         self.assertIn("has_screenshot", result)
         self.assertIn("image_detail", result)
         self.assertIn("vlm_summary", result)
+        self.assertIn("vlm_prompt_version", result)
+        self.assertIn("vlm_prompt_sha256", result)
+        self.assertIn("task_context", result)
         self.assertIn("action", result)
         self.assertIn("observation", result)
         self.assertIn("result", result)
@@ -165,6 +387,9 @@ class ToolsTests(unittest.TestCase):
         self.assertEqual(result["image_detail"], "high")
         self.assertFalse(result["has_screenshot"])
         self.assertIsNone(result["vlm_summary"])
+        self.assertIsNone(result["vlm_prompt_version"])
+        self.assertIsNone(result["vlm_prompt_sha256"])
+        self.assertEqual(result["task_context"]["task"], "Find a result")
 
     def test_get_step_detail_low_detail_mode(self) -> None:
         storage.save_run(sample_run())
@@ -176,6 +401,35 @@ class ToolsTests(unittest.TestCase):
         self.assertTrue(result["has_screenshot"])
         self.assertIsNotNone(result["vlm_summary"])
         self.assertLessEqual(len(result["vlm_summary"]), 200)
+        self.assertIsNone(result["vlm_prompt_version"])
+        self.assertIsNone(result["vlm_prompt_sha256"])
+
+    def test_get_step_detail_passes_task_context_to_high_detail_vlm(self) -> None:
+        storage.save_run(sample_run())
+        _attach_screenshot("run_1")
+        captured: dict = {}
+
+        class SpyVLM:
+            model_name = "spy"
+
+            def summarize_low_detail(self, *args, **kwargs):
+                raise AssertionError("low detail should not be called")
+
+            def summarize_high_detail(self, image_bytes, **kwargs):
+                captured.update(kwargs)
+                return "page_state: ok\nconstraint_evidence: supported"
+
+        with mock.patch("backend.app.tools.llm.get_vlm_client", return_value=SpyVLM()):
+            result = tools.get_step_detail("run_1", step_index=0, image_detail="high")
+
+        self.assertEqual(result["vlm_summary"], "page_state: ok\nconstraint_evidence: supported")
+        active = prompts.active_vlm_high_detail_prompt()
+        self.assertEqual(result["vlm_prompt_version"], active.version)
+        self.assertEqual(result["vlm_prompt_sha256"], active.sha256)
+        self.assertEqual(captured["task"], "Find a result")
+        self.assertEqual(captured["image_name"], "screenshot_001.png")
+        self.assertEqual(captured["action_type"], "wait")
+        self.assertEqual(captured["action_raw"], "wait()")
 
     def test_get_step_detail_high_detail_with_screenshot(self) -> None:
         storage.save_run(sample_run())
@@ -185,6 +439,11 @@ class ToolsTests(unittest.TestCase):
 
         self.assertTrue(result["has_screenshot"])
         self.assertIsNotNone(result["vlm_summary"])
+        self.assertIn("constraint_evidence:", result["vlm_summary"])
+        self.assertIn("task_relevant_visible_text:", result["vlm_summary"])
+        active = prompts.active_vlm_high_detail_prompt()
+        self.assertEqual(result["vlm_prompt_version"], active.version)
+        self.assertEqual(result["vlm_prompt_sha256"], active.sha256)
 
     def test_get_step_detail_invalid_step_index_returns_tool_error(self) -> None:
         storage.save_run(sample_run())

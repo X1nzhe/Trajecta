@@ -1,4 +1,15 @@
+// frontend/src/components/StepTimeline.tsx — Option A
+// Step timeline as a color-coded RIBBON, not numbered dots.
+// Each step is a colored segment (color = action type); the selected
+// step is highlighted with a dark outline. Failure result still shows
+// the red dot in the corner. Inspected-by-eval-agent steps get a small
+// indigo notch beneath the segment.
+//
+// Drop-in replacement — same props.
+
+import { useRef } from 'react';
 import type { TrajectoryRun } from '../types/contracts';
+import { ACTION_COLOR } from './actionPalette';
 
 interface StepTimelineProps {
   run: TrajectoryRun;
@@ -8,37 +19,96 @@ interface StepTimelineProps {
 }
 
 export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(), onSelectStep }: StepTimelineProps) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  // Translate vertical wheel to horizontal scroll on the step rail.
+  // Browsers do this automatically only with Shift held; without it
+  // the wheel either does nothing (no vertical overflow here) or
+  // bubbles up to scroll the page, which felt broken on a clearly
+  // horizontal rail.
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (dx === 0) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) return;
+    // Only consume the event if the rail can actually move in that
+    // direction — otherwise let the page scroll normally.
+    const atStart = el.scrollLeft <= 0 && dx < 0;
+    const atEnd = el.scrollLeft >= maxScroll && dx > 0;
+    if (atStart || atEnd) return;
+    e.preventDefault();
+    el.scrollLeft += dx;
+  };
+
   return (
-    <div className="overflow-x-auto border-b border-slate-200 bg-white px-3 py-1.5">
-      <div className="flex min-w-max items-start">
+    <div className="border-b border-[color:var(--color-hairline)] bg-white px-4 py-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+          Trajectory · {run.steps.length} {run.steps.length === 1 ? 'step' : 'steps'}
+        </div>
+        <div className="font-mono text-[11px] text-slate-500">
+          step{' '}
+          <span className="font-semibold text-slate-900 tabular-nums">
+            {pad2(selectedStepIndex)}
+          </span>{' '}
+          / <span className="tabular-nums">{pad2(run.steps.length)}</span>
+        </div>
+      </div>
+
+      <div
+        ref={scrollerRef}
+        onWheel={handleWheel}
+        className="scrollbar-thin flex items-stretch gap-1 overflow-x-auto pb-1.5"
+      >
         {run.steps.map((step, i) => {
-          // step.index is 1-based (aligned with source step keys and
-          // screenshot filenames). The `?? i + 1` fallback preserves
-          // 1-based semantics for legacy data that might be missing index.
-          const stepIndex = step.index ?? i + 1;
-          const isSelected = selectedStepIndex === stepIndex;
-          const inspected = inspectedSteps.has(stepIndex);
-          const statusClasses = stepStatusClasses(step.result.status, isSelected);
-          const action = step.action.type || 'unknown';
+          const idx = step.index ?? i + 1;
+          const isSelected = selectedStepIndex === idx;
+          const isFailure = step.result.status === 'failed';
+          const inspected = inspectedSteps.has(idx);
+          const baseColor = ACTION_COLOR[step.action.type] ?? ACTION_COLOR.unknown;
           return (
-            <div key={stepIndex} className="flex items-start">
-              <button
-                onClick={() => onSelectStep(stepIndex)}
-                className="group flex w-10 flex-col items-center gap-0.5 text-center"
-                title={`Step ${stepIndex}: ${action}${inspected ? ' - inspected by Eval Agent' : ''}`}
+            <button
+              key={idx}
+              onClick={() => onSelectStep(idx)}
+              className="group relative flex flex-1 min-w-[28px] flex-col items-center"
+              title={`Step ${idx}: ${step.action.type}${inspected ? ' · inspected by Eval Agent' : ''}`}
+            >
+              {/* Segment */}
+              <span
+                className={`block h-6 w-full rounded transition-opacity ${isSelected ? '' : 'opacity-45 group-hover:opacity-80'}`}
+                style={{
+                  background: baseColor,
+                  outline: isSelected ? '2px solid var(--color-ink)' : 'none',
+                  outlineOffset: 1,
+                }}
               >
-                <span className={`relative flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold transition-all ${statusClasses}`}>
-                  {stepIndex}
-                  {inspected && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-white bg-indigo-500" />
-                  )}
-                </span>
-                <span className={`max-w-[38px] truncate text-[9px] font-medium leading-3 ${isSelected ? 'text-slate-900' : 'text-slate-500 group-hover:text-slate-700'}`}>
-                  {action}
-                </span>
-              </button>
-              {i < run.steps.length - 1 && <div className="mt-3 h-px w-5 bg-slate-200" />}
-            </div>
+                {isFailure && (
+                  <span
+                    className="absolute right-0 top-0 h-2 w-2 -translate-y-0.5 translate-x-0.5 rounded-full border-[1.5px] border-white"
+                    style={{ background: '#ef4444' }}
+                    aria-hidden="true"
+                  />
+                )}
+              </span>
+
+              {/* Index + action label */}
+              <span className={`mt-1.5 font-mono text-[10px] tabular-nums ${isSelected ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
+                {pad2(idx)}
+              </span>
+              <span className="truncate text-[9.5px] leading-tight text-slate-400">
+                {step.action.type}
+              </span>
+
+              {/* Inspected notch */}
+              {inspected && (
+                <span
+                  className="absolute -bottom-0.5 left-1/2 h-0.5 w-3 -translate-x-1/2 rounded-full bg-indigo-500"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
           );
         })}
       </div>
@@ -46,14 +116,6 @@ export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(
   );
 }
 
-function stepStatusClasses(status: TrajectoryRun['steps'][number]['result']['status'], isSelected: boolean) {
-  if (isSelected) {
-    if (status === 'failed') return 'border-red-500 bg-red-500 text-white shadow-sm ring-4 ring-red-50';
-    if (status === 'success') return 'border-emerald-500 bg-emerald-500 text-white shadow-sm ring-4 ring-emerald-50';
-    return 'border-indigo-500 bg-indigo-600 text-white shadow-sm ring-4 ring-indigo-50';
-  }
-
-  if (status === 'failed') return 'border-red-200 bg-red-50 text-red-700 hover:border-red-300';
-  if (status === 'success') return 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300';
-  return 'border-slate-200 bg-slate-100 text-slate-500 hover:border-slate-300';
+function pad2(n: number) {
+  return n < 10 ? `0${n}` : String(n);
 }

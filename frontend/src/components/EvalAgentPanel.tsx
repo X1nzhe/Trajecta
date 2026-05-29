@@ -3,6 +3,7 @@ import remarkGfm from 'remark-gfm';
 import { Streamdown } from 'streamdown';
 import { createEvalCase, fetchRunDigest } from '../api/client';
 import { streamAgentRequest, type AgentDelta } from '../api/stream';
+import modelPricingConfig from '../../../config/model_pricing.json';
 
 // Local helper type for the streamingText Map. Holds the running
 // concatenation of token deltas plus the originating turn so the
@@ -15,6 +16,7 @@ import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryDig
 
 interface EvalAgentPanelProps {
   run: TrajectoryRun | null;
+  digest?: TrajectoryDigest | null;
   selectedStepIndex: number | null;
   trace: AgentTrace | null;
   evalCaseDraft: EvalCase | null;
@@ -27,6 +29,7 @@ interface EvalAgentPanelProps {
 
 export function EvalAgentPanel({
   run,
+  digest,
   selectedStepIndex,
   trace,
   evalCaseDraft,
@@ -214,10 +217,9 @@ export function EvalAgentPanel({
   );
   const inputDisabled = !run || !hasTrace || inFlight;
   // Initial analyze = stream is in flight AND no draft has been produced
-  // yet. Used to override the auto-collapse: while the initial analyze
-  // is happening, the user needs to see events stream live. Followup
-  // streams run with a draft already on the table and don't override.
-  const initialAnalyzeStreaming = inFlight && !evalCaseDraft;
+  // yet. The "while-streaming, show the timeline live" behavior is now
+  // covered by the !evalCaseDraft branch of the pre-verdict TraceHistory
+  // render — no separate flag needed.
 
   // Locate the latest propose_eval_case tool_call so the verdict trio
   // (ObservationSummaryPanel + View draft button + EvalCaseDraftPanel)
@@ -239,6 +241,23 @@ export function EvalAgentPanel({
   // its own state internally — re-anchoring across followup turns will
   // unmount/remount it, but the user's unsaved edits to the *previous*
   // draft are already stale by the time a new propose_eval_case fires.
+  // When the verdict's "N tools · Ts ›" toggle is expanded, this is the
+  // tool-call timeline that gets injected INSIDE ObservationSummaryPanel,
+  // sitting between the eyebrow row and the headline (so the chevron
+  // visually opens the section directly beneath it).
+  const expandedTraceNode: ReactNode = !traceCollapsed ? (
+    <TraceHistory
+      events={initialTurnEvents}
+      pendingUserMessage={null}
+      inFlight={inFlight && followupEvents.length === 0 && pendingUserMessage === null}
+      panelError={null}
+      expandedEvents={expandedEvents}
+      onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
+      onSelectStep={onSelectStep}
+      runId={run?.run_id ?? null}
+    />
+  ) : null;
+
   const verdictNode: ReactNode = evalCaseDraft ? (
     <VerdictBlock
       run={run}
@@ -247,15 +266,39 @@ export function EvalAgentPanel({
       onSelectStep={onSelectStep}
       onOpenTraceEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
       onOpenDraft={() => setVerdictModalOpen(true)}
+      // Prefill the followup input with the same prompt as the
+      // "Compare with another trajectory" chip. Lets the user review
+      // before sending.
+      onCompareSimilar={() =>
+        setInput('Compare this trajectory with a similar successful trajectory.')
+      }
+      // Collapsed-trace toggle data — rendered inline on the right of the
+      // verdict eyebrow row inside ObservationSummaryPanel.
+      traceCollapsed={traceCollapsed}
+      onToggleTrace={() => setTraceCollapsed((value) => !value)}
+      initialTurnEvents={initialTurnEvents}
+      initialTurnRuntimeMs={
+        trace?.turn_metrics?.find((entry) => entry.turn === 0)?.runtime_ms
+          ?? trace?.runtime_ms
+          ?? 0
+      }
+      traceHistoryNode={expandedTraceNode}
     />
   ) : null;
 
   return (
-    <aside className="relative flex max-h-[680px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[410px]">
-      <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
-        <h2 className="shrink-0 font-bold text-slate-950">Eval Agent</h2>
-        <div className="min-w-0 flex-1">
-          <TerminationBadge trace={trace} latestToolError={latestToolError} inFlight={inFlight} />
+    <aside className="relative flex max-h-[680px] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-[color:var(--color-hairline)] bg-white shadow-sm xl:h-full xl:max-h-none xl:w-[410px]">
+      <div className="flex items-start justify-between gap-2 border-b border-[color:var(--color-hairline)] bg-white px-3 py-2.5">
+        <div className="min-w-0">
+          <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+            Eval Agent
+          </div>
+          <div
+            className="mt-0.5 text-[15px] font-bold text-slate-950"
+            title={trace?.terminated_by === 'error' ? latestToolError ?? undefined : undefined}
+          >
+            {panelStatusLabel(trace, inFlight)}
+          </div>
         </div>
         <AnalyzeButton
           hasTrace={hasTrace}
@@ -277,33 +320,20 @@ export function EvalAgentPanel({
             chat-like: the verdict stays put, new messages append at the
             bottom. Before the split, every followup triggered inFlight,
             hid the Summary/View Draft, and reflowed the layout. */}
-        {/* Auto-collapse the tool-call timeline once an initial analyze
-            has finished with a draft, so the Analysis Result floats to
-            the top. The override condition `initialAnalyzeStreaming`
-            keeps the timeline visible while the initial analyze is in
-            flight (no draft yet); followup streams (which run with the
-            draft already on the table) do NOT re-expand it. */}
-        {evalCaseDraft && (
-          <TraceCollapseToggle
-            collapsed={traceCollapsed}
-            events={initialTurnEvents}
-            // Initial analyze runtime only — turn 0's slice. Falls back
-            // to cumulative for legacy traces persisted before
-            // turn_metrics existed. Followup runtimes never bump this.
-            runtimeMs={
-              trace?.turn_metrics?.find((entry) => entry.turn === 0)?.runtime_ms
-                ?? trace?.runtime_ms
-                ?? 0
-            }
-            onToggle={() => setTraceCollapsed((value) => !value)}
-          />
-        )}
-        {(initialAnalyzeStreaming || !traceCollapsed || !evalCaseDraft) && (
+        {/* The "N tools · Ts ›" collapsed-trace toggle is rendered INSIDE
+            ObservationSummaryPanel's verdict header row (right side). The
+            timeline expands BELOW the verdict (see render below) so the
+            chevron's rotate-down direction matches the visual flow. */}
+
+        {/* Pre-verdict TraceHistory: only when there's no draft yet
+            (streaming the initial analyze, or analysis failed). Once a
+            draft exists the timeline moves below the verdict. */}
+        {!evalCaseDraft && (
           <TraceHistory
             events={initialTurnEvents}
             pendingUserMessage={null}
             inFlight={inFlight && followupEvents.length === 0 && pendingUserMessage === null}
-            panelError={!evalCaseDraft ? panelError : null}
+            panelError={panelError}
             expandedEvents={expandedEvents}
             onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
             onSelectStep={onSelectStep}
@@ -364,20 +394,35 @@ export function EvalAgentPanel({
             "Suggest failure label" buttons while the failure is still
             being computed. */}
         {hasTrace && !inFlight && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {chipTemplates.map((chip) => (
-              <button
-                key={chip.label}
-                onClick={() => setInput(chip.text)}
-                disabled={chip.disabled}
-                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {chip.label}
-              </button>
-            ))}
+          <div className="mb-2.5">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              Suggested
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {chipTemplates.map((chip) => (
+                <button
+                  key={chip.label}
+                  onClick={() => setInput(chip.text)}
+                  disabled={chip.disabled}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {chip.glyph && (
+                    <span className="font-mono text-[10px] text-slate-400" aria-hidden="true">
+                      {chip.glyph}
+                    </span>
+                  )}
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
-        <div className="flex items-end gap-1.5 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+        <div className="flex items-end gap-1.5 rounded-lg border border-[color:var(--color-hairline)] bg-white px-2 py-1.5 shadow-sm focus-within:border-slate-900 focus-within:ring-0">
+          {/* Mono prompt-style prefix — slate-400 so it sits as a quiet
+              affordance, not competing with the placeholder/input. */}
+          <span className="select-none self-start pt-1 font-mono text-[12px] text-slate-400" aria-hidden="true">
+            →
+          </span>
           <textarea
             ref={textareaRef}
             value={input}
@@ -392,12 +437,12 @@ export function EvalAgentPanel({
             rows={1}
             maxLength={2000}
             placeholder={hasTrace ? 'Ask about this trajectory...' : 'Run an analysis first to start a conversation.'}
-            className="block max-h-28 min-h-[1.75rem] w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-1 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
+            className="block max-h-28 min-h-[1.75rem] w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 text-[13px] leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:text-slate-400"
           />
           <button
             onClick={sendFollowup}
             disabled={inputDisabled || !input.trim()}
-            className="flex h-7 w-7 shrink-0 items-center justify-center self-end rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="flex h-7 w-7 shrink-0 items-center justify-center self-end rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
             title="Send follow-up"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -405,7 +450,7 @@ export function EvalAgentPanel({
             </svg>
           </button>
         </div>
-        <div className="mt-2 text-center text-[10px] text-slate-400">AI can make mistakes. Please verify important information.</div>
+        <InputHelper trace={trace} digest={digest ?? null} />
       </div>
       {/* Modal rendered as the last child of the panel so it overlays
           everything but stays scoped to the right column. Always
@@ -550,6 +595,12 @@ function VerdictBlock({
   onSelectStep,
   onOpenTraceEvent,
   onOpenDraft,
+  onCompareSimilar,
+  traceCollapsed,
+  onToggleTrace,
+  initialTurnEvents,
+  initialTurnRuntimeMs,
+  traceHistoryNode,
 }: {
   run: TrajectoryRun | null;
   trace: AgentTrace | null;
@@ -557,6 +608,12 @@ function VerdictBlock({
   onSelectStep: (index: number) => void;
   onOpenTraceEvent: (seq: number) => void;
   onOpenDraft: () => void;
+  onCompareSimilar?: () => void;
+  traceCollapsed: boolean;
+  onToggleTrace: () => void;
+  initialTurnEvents: AgentTraceEvent[];
+  initialTurnRuntimeMs: number;
+  traceHistoryNode?: ReactNode;
 }) {
   // Inline portion of the verdict: the Analysis Result summary plus a
   // trigger button. The editable draft form (EvalCaseDraftPanel) now
@@ -571,14 +628,54 @@ function VerdictBlock({
         draft={draft}
         onSelectStep={onSelectStep}
         onOpenTraceEvent={onOpenTraceEvent}
+        onCompareSimilar={onCompareSimilar}
+        traceCollapsed={traceCollapsed}
+        onToggleTrace={onToggleTrace}
+        initialTurnEvents={initialTurnEvents}
+        initialTurnRuntimeMs={initialTurnRuntimeMs}
+        traceHistoryNode={traceHistoryNode}
       />
-      <button
-        onClick={onOpenDraft}
-        className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-      >
-        View / edit draft verdict →
-      </button>
+      <DraftRowButton draft={draft} onOpen={onOpenDraft} />
     </>
+  );
+}
+
+function DraftRowButton({ draft, onOpen }: { draft: EvalCase; onOpen: () => void }) {
+  // Subtitle telegraphs what's inside the draft + its review state in one
+  // mono line: "early_terminated · 4 evidence items · awaiting your review".
+  // The user sees the meaningful fields at a glance without having to open
+  // the modal first.
+  const labelType = draft.failure_type ?? 'success';
+  const evidenceCount = draft.evidence.length;
+  const review = draft.human_validated ? 'validated' : 'awaiting your review';
+  const subtitle = `${labelType} · ${evidenceCount} evidence item${evidenceCount === 1 ? '' : 's'} · ${review}`;
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 rounded-md border border-[color:var(--color-hairline)] bg-white px-3 py-2 text-left transition-colors hover:border-slate-400"
+    >
+      <span
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-900 text-white"
+        aria-hidden="true"
+      >
+        {/* pencil/edit glyph */}
+        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.8"
+            d="M4 20h4l10.5-10.5a2.121 2.121 0 0 0-3-3L5 17v3Zm10-13 3 3"
+          />
+        </svg>
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-semibold text-slate-900">View / edit draft verdict</div>
+        <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500" title={subtitle}>
+          {subtitle}
+        </div>
+      </div>
+      <span className="shrink-0 font-mono text-[11px] text-slate-400">Open →</span>
+    </button>
   );
 }
 
@@ -588,27 +685,37 @@ function ObservationSummaryPanel({
   draft,
   onSelectStep,
   onOpenTraceEvent,
+  onCompareSimilar,
+  traceCollapsed,
+  onToggleTrace,
+  initialTurnEvents,
+  initialTurnRuntimeMs,
+  traceHistoryNode,
 }: {
   run: TrajectoryRun | null;
   trace: AgentTrace | null;
   draft: EvalCase | null;
   onSelectStep: (index: number) => void;
   onOpenTraceEvent: (seq: number) => void;
+  onCompareSimilar?: () => void;
+  traceCollapsed?: boolean;
+  onToggleTrace?: () => void;
+  initialTurnEvents?: AgentTraceEvent[];
+  initialTurnRuntimeMs?: number;
+  traceHistoryNode?: ReactNode;
 }) {
   if (!draft) {
     return (
       <section>
-        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Analysis Result</h3>
-        <p className="mt-2 text-sm leading-5 text-slate-500">No findings yet. Run an analysis to produce a trace and draft verdict.</p>
+        <Eyebrow>Verdict</Eyebrow>
+        <p className="mt-2 text-sm leading-5 text-slate-500">
+          No findings yet. Run an analysis to produce a trace and draft verdict.
+        </p>
       </section>
     );
   }
 
   const stale = trace?.terminated_by && trace.terminated_by !== 'propose_eval_case';
-  // Dedupe visual evidence by step_index: the agent often emits multiple
-  // EvidenceItem entries for the same step (one per claim it derived from
-  // the screenshot) and we don't want N copies of the same thumbnail.
-  // Keep the first claim as the tooltip; the evidence list still lists every claim.
   const visualEvidence = (() => {
     const seen = new Set<number>();
     const out: EvidenceItem[] = [];
@@ -623,82 +730,126 @@ function ObservationSummaryPanel({
   })();
   const unavailable = draft.evidence.filter((item) => item.source === 'unavailable');
   const isSuccess = draft.failure_type === null;
-  // failure_step on the draft is already a 1-based step index (matches
-  // source step keys + screenshot filenames). The "step N ↗" pill is
-  // only rendered for failure cases that name a step; success cases or
-  // malformed drafts intentionally omit it.
   const displayStep = typeof draft.failure_step === 'number' ? draft.failure_step : null;
+  // PNG-matched eyebrow: "VERDICT · LIKELY FAIL" / "VERDICT · SUCCESS"
+  const verdictLabel = isSuccess ? 'Success' : 'Likely fail';
+  const verdictLabelClass = isSuccess ? 'text-emerald-700' : 'text-red-700';
+  // Red ! for failure, green ! for success per user direction.
+  const iconBgClass = isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700';
 
-  // No card border — section lives directly on the scroll bg. Whitespace
-  // + section labels carry the structure. Reduces "card-on-card" nesting
-  // when this section sits below the collapsed trace toggle.
   return (
-    <section className="space-y-3">
-      {/* Header row: small eyebrow label + optional step-N pill on the right */}
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Analysis Result</h3>
-        <div className="flex items-center gap-1.5">
-          {stale && (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">stale</span>
-          )}
-          {!isSuccess && displayStep !== null && typeof draft.failure_step === 'number' && (
-            <button
-              onClick={() => onSelectStep(draft.failure_step as number)}
-              className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 hover:bg-red-100"
-              title="Jump to the step the agent attributed failure to"
-            >
-              step {displayStep}
-              <span aria-hidden="true">↗</span>
-            </button>
-          )}
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${iconBgClass}`}
+            aria-hidden="true"
+          >
+            <span className="text-[12px] font-bold leading-none">!</span>
+          </span>
+          {/* VERDICT + label share the same tone (red for fail, emerald for
+              success). whitespace-nowrap prevents "LIKELY FAIL" from
+              wrapping when the trace toggle is sitting on the same row. */}
+          <div className={`flex items-baseline gap-1.5 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] ${verdictLabelClass}`}>
+            <span>Verdict</span>
+            <span className="text-slate-400">·</span>
+            <span>{verdictLabel}</span>
+            {stale && (
+              <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amber-700">
+                stale
+              </span>
+            )}
+          </div>
         </div>
+        {onToggleTrace && initialTurnEvents && (
+          <TraceCollapseToggle
+            collapsed={traceCollapsed ?? true}
+            events={initialTurnEvents}
+            runtimeMs={initialTurnRuntimeMs ?? 0}
+            onToggle={onToggleTrace}
+          />
+        )}
       </div>
+
+      {/* Expanded tool-call timeline lives BETWEEN the eyebrow row and
+          the headline so the `›` chevron above opens the section directly
+          beneath it. Parent passes null when collapsed. */}
+      {traceHistoryNode}
 
       {/* Primary headline: actual_behavior promoted to the visual anchor */}
       {draft.actual_behavior && (
-        <p className="break-words text-[15px] font-medium leading-6 text-slate-900">
+        <p className="break-words text-[15px] font-medium leading-[1.5] text-slate-900">
           {draft.actual_behavior}
         </p>
       )}
       {isSuccess && (
-        <p className="break-words text-[15px] font-medium leading-6 text-emerald-700">
+        <p className="break-words text-[15px] font-medium leading-[1.5] text-emerald-700">
           The agent concluded this trajectory completed the task successfully.
         </p>
       )}
 
-      {/* Expected behavior in a quiet tinted block with an eyebrow label.
-          Visually distinct from the headline without competing with it. */}
+      {/* Action buttons: prominent "Open step N →" + neutral "Compare similar".
+          Open-step uses ink (slate-900) instead of red — the red verdict
+          eyebrow already signals failure and the duplicate red was jarring. */}
+      {(!isSuccess && displayStep !== null) || onCompareSimilar ? (
+        <div className="flex flex-wrap gap-2">
+          {!isSuccess && displayStep !== null && typeof draft.failure_step === 'number' && (
+            <button
+              onClick={() => onSelectStep(draft.failure_step as number)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-white shadow-sm hover:bg-slate-800"
+              title="Jump to the step the agent attributed failure to"
+            >
+              Open step <span className="font-mono tabular-nums">{displayStep}</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          )}
+          {onCompareSimilar && (
+            <button
+              onClick={onCompareSimilar}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 hover:border-slate-400 hover:text-slate-950"
+              title="Ask the agent to compare this trajectory with a similar successful run"
+            >
+              Compare similar
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      {/* Expected behavior — quiet divider-led section, no tinted card */}
       {draft.expected_behavior && (
-        <div className="rounded-md bg-slate-100/70 px-3 py-2">
-          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Expected behavior
-          </div>
-          <p className="break-words text-xs leading-5 text-slate-600">{draft.expected_behavior}</p>
+        <div className="border-t border-[color:var(--color-hairline)] pt-3">
+          <Eyebrow>Expected behavior</Eyebrow>
+          <p className="mt-1.5 break-words text-[12.5px] leading-5 text-slate-600">
+            {draft.expected_behavior}
+          </p>
         </div>
       )}
 
-      {/* Supporting evidence: neutral grey bullets via :before pseudo. No
-          red ! icons — the page is already about a failure verdict, every
-          item being "alarming" added noise without information. */}
+      {/* Supporting evidence — numbered mono indices */}
       {draft.evidence.length > 0 && (
-        <div>
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Supporting evidence
+        <div className="border-t border-[color:var(--color-hairline)] pt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <Eyebrow>Supporting evidence</Eyebrow>
+            <span className="font-mono text-[10.5px] tabular-nums text-slate-400">
+              {draft.evidence.length} {draft.evidence.length === 1 ? 'finding' : 'findings'}
+            </span>
           </div>
-          <ul className="ml-1 space-y-2 text-[13px] leading-5 text-slate-700">
+          <ul className="space-y-2.5">
             {draft.evidence.map((item, index) => {
               const muted = item.source === 'unavailable';
               return (
-                <li
-                  key={`${item.claim}-${index}`}
-                  className={`relative pl-4 before:absolute before:left-0 before:top-2 before:h-1 before:w-1 before:rounded-full ${muted ? 'before:bg-amber-400' : 'before:bg-slate-400'}`}
-                >
+                <li key={`${item.claim}-${index}`} className="flex gap-2.5">
+                  <span
+                    className={`mt-[2px] w-5 shrink-0 font-mono text-[10px] tabular-nums ${muted ? 'text-amber-600' : 'text-slate-400'}`}
+                  >
+                    {pad2(index + 1)}
+                  </span>
                   <button
                     onClick={() => {
                       if (typeof item.step_index === 'number') onSelectStep(item.step_index);
                       if (typeof item.trace_event_seq === 'number') onOpenTraceEvent(item.trace_event_seq);
                     }}
-                    className="block w-full min-w-0 break-words text-left hover:text-indigo-700"
+                    className="block w-full min-w-0 break-words text-left text-[12.5px] leading-5 text-slate-700 hover:text-slate-950"
                   >
                     {item.claim}
                   </button>
@@ -710,25 +861,21 @@ function ObservationSummaryPanel({
       )}
 
       {!isSuccess && draft.failure_type && (
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Suggested failure label
-          </div>
-          <span className="rounded bg-red-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-red-700">
+        <div className="border-t border-[color:var(--color-hairline)] pt-3">
+          <Eyebrow>Suggested failure label</Eyebrow>
+          <span className="mt-1.5 inline-block rounded bg-red-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-red-700">
             {draft.failure_type}
           </span>
         </div>
       )}
 
       {visualEvidence.length > 0 && (
-        <div>
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Visual evidence
-          </div>
-          <div className="flex flex-wrap gap-2">
+        <div className="border-t border-[color:var(--color-hairline)] pt-3">
+          <Eyebrow>Visual evidence</Eyebrow>
+          <div className="mt-2 flex flex-wrap gap-2">
             {visualEvidence.map((item, index) => {
               const step = typeof item.step_index === 'number'
-                ? run?.steps.find((candidate) => candidate.index === item.step_index)
+                ? run?.steps.find((c) => c.index === item.step_index)
                 : null;
               const screenshot = step?.observation.screenshot;
               if (!run || !step || !screenshot) return null;
@@ -736,10 +883,14 @@ function ObservationSummaryPanel({
                 <button
                   key={`${item.claim}-${index}`}
                   onClick={() => onSelectStep(step.index)}
-                  className="h-12 w-20 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-sm hover:border-indigo-300"
+                  className="h-12 w-20 overflow-hidden rounded-md border border-[color:var(--color-hairline)] bg-slate-100 hover:border-slate-400"
                   title={item.claim}
                 >
-                  <img src={`/api/runs/${run.run_id}/screenshots/${screenshot}`} alt={`Evidence step ${step.index}`} className="h-full w-full object-cover" />
+                  <img
+                    src={`/api/runs/${run.run_id}/screenshots/${screenshot}`}
+                    alt={`Evidence step ${step.index}`}
+                    className="h-full w-full object-cover"
+                  />
                 </button>
               );
             })}
@@ -748,16 +899,14 @@ function ObservationSummaryPanel({
       )}
 
       {draft.retrieved_context_ids.length > 0 && (
-        <div>
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-            Retrieved context
-          </div>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="border-t border-[color:var(--color-hairline)] pt-3">
+          <Eyebrow>Retrieved context</Eyebrow>
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {draft.retrieved_context_ids.map((id) => (
               <span
                 key={id}
                 title={id}
-                className="max-w-full break-all rounded-full bg-indigo-50 px-2 py-0.5 font-mono text-[11px] text-indigo-700"
+                className="max-w-full break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10.5px] text-slate-700"
               >
                 {shortenCaseId(id)}
               </span>
@@ -773,6 +922,20 @@ function ObservationSummaryPanel({
       )}
     </section>
   );
+}
+
+// Tiny shared atom — small uppercase mono kicker label. Inline so this
+// patch stays a single function replacement.
+function Eyebrow({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+      {children}
+    </span>
+  );
+}
+
+function pad2(n: number) {
+  return n < 10 ? `0${n}` : String(n);
 }
 
 // Group followup events into alternating runs of "messages" (always
@@ -967,19 +1130,30 @@ function FollowupToolRunToggle({
   onToggle: () => void;
 }) {
   const toolCallCount = events.filter((event) => event.type === 'tool_call').length;
-  const label = `${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}`;
+  const label = `${toolCallCount} tool${toolCallCount === 1 ? '' : 's'}`;
+  // Tight inline summary mirroring the verdict-row TraceCollapseToggle:
+  // chevron sits right next to "N tools" (no flex-1 spacer), rotates 90°
+  // down when expanded.
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="flex w-full items-center gap-2 text-left text-[11px] text-slate-500 hover:text-indigo-600"
+      className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-left font-mono text-[11px] text-slate-500 hover:text-slate-900"
       title={collapsed ? 'Expand tool calls' : 'Collapse tool calls'}
     >
       <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 12l5 5L20 7" />
       </svg>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="shrink-0 text-slate-400">{collapsed ? '▾ Show' : '▴ Hide'}</span>
+      <span>{label}</span>
+      <svg
+        className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m9 6 6 6-6 6" />
+      </svg>
     </button>
   );
 }
@@ -1539,19 +1713,27 @@ function MessageBubble({ align, message, muted = false }: { align: 'left' | 'rig
   const empty = !message;
   // overflow-wrap:anywhere lets unbreakable tokens (long hashes like
   // ec_<64-char>, run_ids, URLs) wrap mid-token instead of pushing
-  // past the bubble's max-w. Cascades to every descendant
-  // <strong>/<code>/<li>/<a> inside AgentMarkdown so the markdown
-  // renderer doesn't need per-element fixes.
+  // past the container width.
+  //
+  // Agent (left) messages: no bubble chrome — typography matches the
+  // Analysis Result section so the followup conversation feels like
+  // one continuous report rather than a chat thread.
+  //
+  // User (right) messages: keep a bubble shape but use the ink color
+  // (slate-900) so it visually echoes the "Open step" CTA.
+  if (align === 'left') {
+    return (
+      <div className={`min-w-0 text-[12.5px] leading-5 text-slate-700 [overflow-wrap:anywhere] ${muted ? 'opacity-70' : ''}`}>
+        {empty ? <span className="text-slate-400">(empty message)</span> : <AgentMarkdown source={message} />}
+      </div>
+    );
+  }
   return (
-    <div className={`flex min-w-0 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+    <div className="flex min-w-0 justify-end">
       <div
-        className={`max-w-[85%] min-w-0 rounded-lg px-3 py-2 text-sm leading-5 [overflow-wrap:anywhere] ${
-          align === 'right'
-            ? 'bg-indigo-600 text-white'
-            : 'border border-slate-200 bg-white text-slate-700'
-        } ${muted ? 'opacity-70' : ''}`}
+        className={`max-w-[85%] min-w-0 rounded-lg bg-slate-900 px-3 py-2 text-[13px] leading-[1.5] text-white [overflow-wrap:anywhere] ${muted ? 'opacity-70' : ''}`}
       >
-        {empty ? '(empty message)' : align === 'left' ? <AgentMarkdown source={message} /> : message}
+        {empty ? '(empty message)' : message}
       </div>
     </div>
   );
@@ -1577,10 +1759,23 @@ function AgentMarkdown({ source }: { source: string }) {
       <Streamdown
         remarkPlugins={[remarkGfm]}
         components={{
+          // Body paragraphs inherit font-size / color from the parent
+          // MessageBubble (12.5px / slate-700) so the followup stream
+          // reads as a continuation of the Analysis Result section.
           p: ({ children }) => <p className="leading-5">{children}</p>,
-          ul: ({ children }) => <ul className="list-disc space-y-1 pl-5 leading-5">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal space-y-1 pl-5 leading-5">{children}</ol>,
-          li: ({ children }) => <li className="leading-5">{children}</li>,
+          // Custom minimal-dot bullets — no list-disc, no aggressive
+          // indent. Matches the Supporting evidence list visually.
+          ul: ({ children }) => <ul className="space-y-1 pl-0">{children}</ul>,
+          ol: ({ children }) => (
+            <ol className="list-decimal space-y-1 pl-5 marker:font-mono marker:text-[10px] marker:text-slate-400">
+              {children}
+            </ol>
+          ),
+          li: ({ children }) => (
+            <li className="relative pl-4 leading-5 before:absolute before:left-1 before:top-[8px] before:h-1 before:w-1 before:rounded-full before:bg-slate-300">
+              {children}
+            </li>
+          ),
           strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           a: ({ href, children }) => (
@@ -1597,8 +1792,11 @@ function AgentMarkdown({ source }: { source: string }) {
                 <code className={`block w-full ${className ?? ''}`}>{children}</code>
               );
             }
+            // Inline code: flat mono — no pill bg — so `Overview · Tech Specs`
+            // sits naturally inside the surrounding sentence instead of
+            // breaking the line with a row of grey chips.
             return (
-              <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] text-slate-700">{children}</code>
+              <code className="font-mono text-[11.5px] text-slate-600">{children}</code>
             );
           },
           pre: ({ children }) => (
@@ -1607,28 +1805,56 @@ function AgentMarkdown({ source }: { source: string }) {
             </pre>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-slate-300 pl-3 text-slate-600">{children}</blockquote>
+            <blockquote className="border-l-2 border-[color:var(--color-hairline)] pl-3 text-slate-600">{children}</blockquote>
           ),
-          h1: ({ children }) => <h4 className="text-sm font-bold text-slate-900">{children}</h4>,
-          h2: ({ children }) => <h4 className="text-sm font-bold text-slate-900">{children}</h4>,
-          h3: ({ children }) => <h4 className="text-sm font-semibold text-slate-900">{children}</h4>,
-          h4: ({ children }) => <h4 className="text-sm font-semibold text-slate-900">{children}</h4>,
-          h5: ({ children }) => <h5 className="text-xs font-semibold text-slate-900">{children}</h5>,
-          h6: ({ children }) => <h6 className="text-xs font-semibold text-slate-900">{children}</h6>,
-          hr: () => <hr className="border-slate-200" />,
+          // h1/h2/h3 render as section eyebrows with a hairline divider
+          // extending to the right — same visual language as
+          // "EXPECTED BEHAVIOR" / "SUPPORTING EVIDENCE" in the verdict block.
+          h1: ({ children }) => <MarkdownEyebrow>{children}</MarkdownEyebrow>,
+          h2: ({ children }) => <MarkdownEyebrow>{children}</MarkdownEyebrow>,
+          h3: ({ children }) => <MarkdownEyebrow>{children}</MarkdownEyebrow>,
+          h4: ({ children }) => (
+            <h4 className="mt-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {children}
+            </h4>
+          ),
+          h5: ({ children }) => (
+            <h5 className="mt-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {children}
+            </h5>
+          ),
+          h6: ({ children }) => (
+            <h6 className="mt-3 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              {children}
+            </h6>
+          ),
+          hr: () => <hr className="border-[color:var(--color-hairline)]" />,
           table: ({ children }) => (
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-[12px]">{children}</table>
             </div>
           ),
           th: ({ children }) => (
-            <th className="border-b border-slate-200 px-2 py-1 text-left font-semibold text-slate-700">{children}</th>
+            <th className="border-b border-[color:var(--color-hairline)] px-2 py-1 text-left font-semibold text-slate-700">{children}</th>
           ),
           td: ({ children }) => <td className="border-b border-slate-100 px-2 py-1 align-top">{children}</td>,
         }}
       >
         {source}
       </Streamdown>
+    </div>
+  );
+}
+
+// Section eyebrow used for Markdown h1/h2/h3 — small uppercase label on
+// the left, hairline divider filling the remaining row width.
+function MarkdownEyebrow({ children }: { children: ReactNode }) {
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+        {children}
+      </span>
+      <span className="h-px flex-1 bg-[color:var(--color-hairline)]" aria-hidden="true" />
     </div>
   );
 }
@@ -2214,35 +2440,14 @@ function ModeButton({
   );
 }
 
-function TerminationBadge({ trace, latestToolError, inFlight }: { trace: AgentTrace | null; latestToolError: string | null; inFlight: boolean }) {
-  // In the compact single-row header the AnalyzeButton itself communicates
-  // "no trace yet" (idle state) and "running…" (inFlight). The termination
-  // badge only adds value once a trace has actually terminated, so we
-  // render nothing in those transient cases.
-  if (!trace || inFlight) return null;
-  // Skip the emptyTrace placeholder ("error" baked in before the real
-  // `done` event lands) — only show once a real event has been recorded.
-  if (trace.events.length === 0) return null;
-  const classes = trace.terminated_by === 'propose_eval_case'
-    ? 'bg-emerald-50 text-emerald-700'
-    : trace.terminated_by === 'budget_exceeded'
-      ? 'bg-slate-100 text-slate-600'
-      : 'bg-red-50 text-red-700';
-  // Raw snake_case terminators are internal contract values (mirrored in
-  // docs/eval_agent.md). Translate to human-readable labels for the UI;
-  // hover title still carries the underlying tool error when present.
-  const label = trace.terminated_by === 'propose_eval_case'
-    ? 'Analysis complete'
-    : trace.terminated_by === 'budget_exceeded'
-      ? 'Budget exceeded'
-      : 'Error';
-  return (
-    <div>
-      <span title={trace.terminated_by === 'error' ? latestToolError ?? undefined : undefined} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${classes}`}>
-        {label}
-      </span>
-    </div>
-  );
+function panelStatusLabel(trace: AgentTrace | null, inFlight: boolean): string {
+  // Drives the bold heading under the "Eval Agent" eyebrow. Always returns
+  // a string so the heading row has consistent height across states.
+  if (inFlight) return 'Analyzing…';
+  if (!trace || trace.events.length === 0) return 'Ready to analyze';
+  if (trace.terminated_by === 'propose_eval_case') return 'Analysis complete';
+  if (trace.terminated_by === 'budget_exceeded') return 'Budget exceeded';
+  return 'Error';
 }
 
 function TraceCollapseToggle({
@@ -2257,24 +2462,33 @@ function TraceCollapseToggle({
   onToggle: () => void;
 }) {
   const toolCallCount = events.filter((event) => event.type === 'tool_call').length;
-  const label = `${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}`;
+  const label = `${toolCallCount} tool${toolCallCount === 1 ? '' : 's'}`;
   const runtime = runtimeMs > 0 ? ` · ${formatRuntime(runtimeMs)}` : '';
   // Plain-text affordance, no bordered card. Once the verdict is the
   // visual focus, the timeline summary should fade — user opens it on
-  // demand. The hover state lifts the text color to indigo so it still
-  // reads as interactive.
+  // demand. The chevron rotates to mirror open/closed state.
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="flex w-full items-center gap-2 text-left text-[11px] text-slate-500 hover:text-indigo-600"
+      className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-left font-mono text-[11px] text-slate-500 hover:text-slate-900"
       title={collapsed ? 'Expand tool-call timeline' : 'Collapse tool-call timeline'}
     >
       <svg className="h-3.5 w-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M5 12l5 5L20 7" />
       </svg>
-      <span className="min-w-0 flex-1 truncate">{label}{runtime}</span>
-      <span className="shrink-0 text-slate-400">{collapsed ? '▾ Show timeline' : '▴ Hide timeline'}</span>
+      <span>{label}{runtime}</span>
+      {/* Chevron points right when collapsed, rotates to 90° (down) when
+          expanded — matches the timeline rendering BELOW the verdict. */}
+      <svg
+        className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m9 6 6 6-6 6" />
+      </svg>
     </button>
   );
 }
@@ -2336,6 +2550,140 @@ function TraceFooter({ trace, inFlight }: { trace: AgentTrace | null; inFlight: 
   );
 }
 
+// Per-model list pricing (USD per million tokens). Approximate — used
+// only to render a "~$0.001" running estimate under the followup input,
+// so the user has a rough sense of cost. Backend could surface
+// authoritative prices later via the trace payload.
+//
+// The entries themselves live in ../../../config/model_pricing.json so
+// the Python backend (backend/app/agent_eval.py) and this component
+// share one source of truth. The JSON stores 'match' as a regex string;
+// we compile it once on module load. `cached_input` (camelCased
+// `cachedInUsd` below) is the discounted rate for cache-read tokens —
+// currently NOT applied because the backend trace only exposes flat
+// input_tokens / output_tokens. Once AgentTrace surfaces
+// input_token_details.cache_read, the InputHelper formula can split
+// fresh-input vs cached-input cost.
+interface ModelPricingEntry {
+  match: RegExp;
+  label: string;
+  inUsd: number;
+  outUsd: number;
+  cachedInUsd?: number;
+}
+
+const MODEL_PRICING: ModelPricingEntry[] = modelPricingConfig.entries.map((entry) => ({
+  match: new RegExp(entry.match, 'i'),
+  label: entry.label,
+  inUsd: entry.input,
+  outUsd: entry.output,
+  cachedInUsd: entry.cached_input ?? undefined,
+}));
+
+const MOCK_LABEL = 'offline mock';
+
+// Resolve a real model id to its display label + pricing. Returns null
+// when the trace didn't carry a model — caller must then suppress the
+// label and the $ segment entirely (never invent a fallback model name).
+function resolveModelPricing(
+  model: string | null | undefined,
+): { label: string; inUsd: number; outUsd: number } | null {
+  if (!model) return null;
+  if (model === 'mock') return { label: MOCK_LABEL, inUsd: 0, outUsd: 0 };
+  for (const entry of MODEL_PRICING) {
+    if (entry.match.test(model)) {
+      return { label: entry.label, inUsd: entry.inUsd, outUsd: entry.outUsd };
+    }
+  }
+  // Unknown model id: still display the raw string so the user knows
+  // exactly what answered, even if we can't price it. inUsd/outUsd stay
+  // 0 so the $ segment is suppressed — never a fake number.
+  return { label: model, inUsd: 0, outUsd: 0 };
+}
+
+function estimateUsd(inputTokens: number, outputTokens: number, inUsd: number, outUsd: number): number {
+  return (inputTokens / 1_000_000) * inUsd + (outputTokens / 1_000_000) * outUsd;
+}
+
+function formatUsd(amount: number): string {
+  if (amount <= 0) return '$0.000';
+  if (amount < 0.01) return `$${amount.toFixed(4)}`;
+  if (amount < 1) return `$${amount.toFixed(3)}`;
+  return `$${amount.toFixed(2)}`;
+}
+
+function InputHelper({
+  trace,
+  digest,
+}: {
+  trace: AgentTrace | null;
+  digest: TrajectoryDigest | null;
+}) {
+  // Right-aligned mono line under the textarea. Total cost combines three
+  // independent sources, each priced against ITS OWN model (agent LLM,
+  // step_detail VLM in the trace, preprocess VLM in the digest):
+  //
+  //   total = agentCost   (trace.input_tokens / output_tokens × MODEL_PRICING[trace.model])
+  //         + traceVlmCost (trace.vlm_input_tokens / vlm_output_tokens × MODEL_PRICING[trace.vlm_model])
+  //         + digestVlmCost (digest.vlm_input_tokens / vlm_output_tokens × MODEL_PRICING[digest.preprocess_model])
+  //
+  // Each lookup is independent — mock / unknown / null sources contribute
+  // 0. We never invent a fallback model name; the model label shown is
+  // the agent LLM (trace.model) for headline consistency with the rest of
+  // the panel ("which model answered you"). VLM-only contributions still
+  // accumulate cost but don't change the displayed label.
+  const agentPricing = resolveModelPricing(trace?.model);
+  const traceVlmPricing = resolveModelPricing(trace?.vlm_model);
+  const digestVlmPricing = resolveModelPricing(digest?.preprocess_model);
+
+  const agentCost = agentPricing
+    ? estimateUsd(
+        trace?.input_tokens ?? 0,
+        trace?.output_tokens ?? 0,
+        agentPricing.inUsd,
+        agentPricing.outUsd,
+      )
+    : 0;
+  const traceVlmCost = traceVlmPricing
+    ? estimateUsd(
+        trace?.vlm_input_tokens ?? 0,
+        trace?.vlm_output_tokens ?? 0,
+        traceVlmPricing.inUsd,
+        traceVlmPricing.outUsd,
+      )
+    : 0;
+  const digestVlmCost = digestVlmPricing
+    ? estimateUsd(
+        digest?.vlm_input_tokens ?? 0,
+        digest?.vlm_output_tokens ?? 0,
+        digestVlmPricing.inUsd,
+        digestVlmPricing.outUsd,
+      )
+    : 0;
+
+  const totalCost = agentCost + traceVlmCost + digestVlmCost;
+  const showCost = totalCost > 0;
+
+  // Tooltip surfaces the per-source breakdown so the user can audit what
+  // went into the headline number without us having to render three
+  // lines of mono text.
+  const breakdown = [
+    `Agent (${agentPricing?.label ?? 'unknown'}): ${formatUsd(agentCost)}`,
+    `Step-detail VLM (${traceVlmPricing?.label ?? 'unknown'}): ${formatUsd(traceVlmCost)}`,
+    `Preprocess VLM (${digestVlmPricing?.label ?? 'unknown'}): ${formatUsd(digestVlmCost)}`,
+  ].join('\n');
+
+  return (
+    <div className="mt-1.5 flex justify-end font-mono text-[10px] text-slate-400">
+      <span title={showCost ? breakdown : undefined}>
+        {showCost && <>~{formatUsd(totalCost)} · </>}
+        {agentPricing && <>{agentPricing.label} · </>}
+        AI can make mistakes
+      </span>
+    </div>
+  );
+}
+
 function formatRuntime(ms: number): string {
   // Whole-second granularity only: sub-second jitter and "234 ms"
   // readings aren't useful to the user. Round to nearest second; 0 ms
@@ -2354,7 +2702,7 @@ function formatTokens(n: number): string {
   return `${Math.round(n / 1000)}k`;
 }
 
-type ChipTemplate = { label: string; text: string; disabled?: boolean };
+type ChipTemplate = { label: string; text: string; disabled?: boolean; glyph?: string };
 
 function extractAgentSuggestions(trace: AgentTrace | null): ChipTemplate[] {
   // Walk events backwards to find the latest propose_eval_case tool_call.
@@ -2387,24 +2735,61 @@ function extractAgentSuggestions(trace: AgentTrace | null): ChipTemplate[] {
 
 function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
   return [
-    { label: 'Suggest failure label', text: 'Suggest the failure label for this trajectory.' },
-    { label: 'Generate verdict', text: 'Generate the draft verdict.' },
-    { label: 'Find similar failures', text: 'Find similar failure cases from memory.' },
-    { label: 'Compare with another trajectory', text: 'Compare this trajectory with a similar successful trajectory.' },
+    // Glyphs are mono single-char markers (slate-400). Their role is a
+    // tiny visual anchor — not full icons — so a wide chip rail still
+    // scans cleanly. Same convention applies to agent-suggested chips
+    // which default to ↗.
     {
-      label: 'Inspect this step',
+      glyph: '↗',
+      label: selectedStepIndex === null ? 'Inspect this step' : `Inspect step ${selectedStepIndex}`,
       text: selectedStepIndex === null ? '' : `Inspect step ${selectedStepIndex} in detail.`,
       disabled: selectedStepIndex === null,
     },
-    { label: 'Explain your reasoning', text: 'Explain why you flagged the failure step.' },
+    {
+      glyph: '≈',
+      label: 'Compare with a successful run',
+      text: 'Compare this trajectory with a similar successful trajectory.',
+    },
+    {
+      glyph: '✎',
+      label: 'Refine evidence wording',
+      text: 'Refine the wording of the evidence claims to be more precise and grounded in the trajectory.',
+    },
+    {
+      glyph: '⌖',
+      label: 'Re-classify failure type',
+      text: 'Re-classify the failure type for this trajectory and update the verdict accordingly.',
+    },
+    {
+      glyph: '⌖',
+      label: 'Suggest failure label',
+      text: 'Suggest the failure label for this trajectory.',
+    },
+    {
+      glyph: '↗',
+      label: 'Generate verdict',
+      text: 'Generate the draft verdict.',
+    },
+    {
+      glyph: '≈',
+      label: 'Find similar failures',
+      text: 'Find similar failure cases from memory.',
+    },
+    {
+      glyph: '✎',
+      label: 'Explain your reasoning',
+      text: 'Explain why you flagged the failure step.',
+    },
     // Override paths when the user disagrees with the agent's verdict. The
     // followup system prompt explicitly allows re-calling propose_eval_case
     // when revising the draft, so these chips trigger a fresh proposal.
     {
+      glyph: '⌖',
       label: 'Reclassify as success',
       text: 'This trajectory actually succeeded. Please re-propose the verdict as a success case (clear all failure fields).',
     },
     {
+      glyph: '⌖',
       label: 'Reclassify as failure',
       text: 'This trajectory actually failed. Please re-propose the verdict with the correct failure step, failure type, expected behavior, and actual behavior.',
     },
