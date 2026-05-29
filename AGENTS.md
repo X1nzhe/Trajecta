@@ -3,7 +3,7 @@
 ## Purpose
 This file is the root operating manual for coding agents working in Trajecta.
 
-Use it for agent-specific workflow, navigation, and guardrails. Keep long product or implementation details in `SPEC.md` and `docs/*`, not here.
+Use it for agent-specific workflow, navigation, and guardrails. Keep long product or implementation details in `PROJECT.md` and `docs/*`, not here.
 
 ## Project
 Trajecta is an AI-native Eval Agent for browser-agent trajectory evaluation.
@@ -15,7 +15,7 @@ This is not a browser-use agent. It is an Eval Agent for browser-use agent traje
 ## Navigation
 Start every non-trivial task by reading the smallest relevant set of docs.
 
-- `SPEC.md`: project entry point, MVP priorities, non-goals, and document map.
+- `PROJECT.md`: project entry point, MVP priorities, non-goals, and document map.
 - `docs/product_scope.md`: product positioning, v1 scope, v2 boundaries, and core user flow.
 - `docs/architecture.md`: recommended stack, repository layout, and system boundaries.
 - `docs/contracts.md`: single source of truth for schemas, tool contracts, API endpoints, RAG collections, and screenshot access.
@@ -30,7 +30,7 @@ Start every non-trivial task by reading the smallest relevant set of docs.
 - `docs/testing.md`: pytest coverage, RAGAS or fallback eval, and acceptance criteria.
 - `docs/roadmap.md`: optional MCP, one-week build plan, README requirements, backlog, and resume bullets.
 
-`README.md` is human-facing project documentation. Do not treat it as the implementation source of truth when `SPEC.md` or `docs/*` contains a more specific rule.
+`README.md` is human-facing project documentation. Do not treat it as the implementation source of truth when `PROJECT.md` or `docs/*` contains a more specific rule.
 
 If a future subdirectory contains its own `AGENTS.md`, follow that nearest file for work under that subtree while preserving non-conflicting root rules from this file.
 
@@ -96,7 +96,7 @@ Frontend:
 - Human validation is required before an eval case is considered final.
 
 ## Documentation Rules
-- Keep `AGENTS.md` concise and operational; move durable product details to `SPEC.md` or `docs/*`.
+- Keep `AGENTS.md` concise and operational; move durable product details to `PROJECT.md` or `docs/*`.
 - Do not duplicate large sections from docs into this file.
 - When adding Claude Code support, prefer a `CLAUDE.md` that imports `AGENTS.md` with `@AGENTS.md` rather than copying these rules.
 - Keep all agent-facing instructions imperative, specific, and testable.

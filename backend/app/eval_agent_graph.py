@@ -952,7 +952,7 @@ def _accumulate_token_usage(trace: AgentTrace, message: Any, *, turn: int) -> No
 
     Writes to BOTH the cumulative ``AgentTrace.input_tokens`` /
     ``output_tokens`` and the per-turn entry in ``trace.turn_metrics``.
-    The UI reads per-turn; SPEC.md cost ablation reads cumulative.
+    The UI reads per-turn; PROJECT.md cost ablation reads cumulative.
     """
 
     usage = getattr(message, "usage_metadata", None)

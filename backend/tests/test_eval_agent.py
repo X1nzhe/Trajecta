@@ -230,7 +230,7 @@ class EvalAgentTests(unittest.TestCase):
         ]
         result = eval_agent_graph.followup("run_1", "any clarification", llm_client=ScriptedLLM(followup_script))
 
-        # Cumulative on the AgentTrace stays the way SPEC.md's cost
+        # Cumulative on the AgentTrace stays the way PROJECT.md's cost
         # ablation reads it — sum of every turn.
         self.assertEqual(result.trace.input_tokens, 350)
         self.assertEqual(result.trace.output_tokens, 35)

@@ -242,7 +242,7 @@ class TurnMetrics(BaseModel):
     these to show "this turn cost X seconds / Y tokens" instead of the
     whole-session totals, which kept growing with each followup. The
     cumulative ``AgentTrace.runtime_ms`` etc. are still maintained for
-    the SPEC.md cost-ablation demo and any downstream analytics.
+    the PROJECT.md cost-ablation demo and any downstream analytics.
     """
 
     turn: int

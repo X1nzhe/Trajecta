@@ -1,4 +1,4 @@
-# SPEC.md
+# PROJECT.md
 
 # Project: Trajecta
 
