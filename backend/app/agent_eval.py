@@ -50,6 +50,16 @@ identical across mock and real runs.
   ``failure_type`` appears in the labeled set.
 - ``eval/agent_report.json`` — full per-sample detail + aggregates + baselines.
 - ``eval/agent_report.md`` — human-readable summary.
+- ``eval/runs/<stamp>/agent_report.{json,md}`` — timestamped archive copy.
+- ``eval/runs/<stamp>/traces/<run_id>.json`` — per-sample AgentTrace dumps
+  (Phase 8 A2). Read by ``eval/judge.py`` (A3) and the real RAGAS run (A6);
+  ``agent_report.json`` only carries source counts, not the full evidence
+  chain, so the per-sample dumps are the canonical persistence path for
+  downstream eval tools. The default location is shared with the archive
+  copy so each timestamped eval run is self-contained. Suppress dumping
+  with ``--trace-dir /dev/null`` is **not** supported — pass an explicit
+  empty path only when you know the dir is writable. ``--mock`` mode
+  defaults to no dump; pass ``--trace-dir <path>`` to force one.
 """
 
 from __future__ import annotations
@@ -590,11 +600,44 @@ def _run_agent(run_id: str, *, force_mock: bool) -> AgentTrace:
     return result.trace
 
 
+def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
+    """Persist one AgentTrace as ``{trace_dir}/{run_id}.json``.
+
+    Phase 8 A2 — the judge (A3) and the real RAGAS run (A6) both need the
+    full evidence + tool-result chain, which the aggregate
+    ``agent_report.json`` does not preserve (it only keeps source-counts
+    and verdict-shape fields). Per-sample dumps make that chain
+    available off-disk for downstream tools.
+
+    Returns the written path, or ``None`` when dumping was attempted but
+    failed (disk-full, permission error, etc.). Failures are logged to
+    stderr and **do not** propagate — a flaky filesystem must not lose
+    an otherwise-successful grading run.
+    """
+    try:
+        trace_dir.mkdir(parents=True, exist_ok=True)
+        out_path = trace_dir / f"{run_id}.json"
+        out_path.write_text(
+            trace.model_dump_json(indent=2),
+            encoding="utf-8",
+        )
+        return out_path
+    except OSError as exc:  # pragma: no cover - defensive
+        print(
+            f"  ! failed to dump trace for {run_id[:12]}…: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+
 def collect_graded_samples(
     golden: list[GoldenSample],
     *,
     force_mock: bool,
     limit: int | None = None,
+    trace_dir: Path | None = None,
 ) -> tuple[list[GradedSample], SkippedCounts]:
     """Run the agent against every importable sample and grade each result.
 
@@ -603,6 +646,12 @@ def collect_graded_samples(
     distinguish "still running" from "deadlocked". The format
     ``[i/N] runid_prefix… status (timing/details)`` lets you visually scan
     for slowdowns or pattern shifts (e.g. all booking runs taking 3× longer).
+
+    When ``trace_dir`` is set, each agent run's full ``AgentTrace`` is
+    serialised to ``{trace_dir}/{run_id}.json`` via :func:`_dump_trace`.
+    The dump is the persistence path the judge (A3) and the real RAGAS
+    run (A6) read from. Dump failures are logged but do not abort the
+    grading run.
     """
     graded: list[GradedSample] = []
     skipped = SkippedCounts()
@@ -638,6 +687,8 @@ def collect_graded_samples(
             )
             continue
         latency_s = time.perf_counter() - start
+        if trace_dir is not None:
+            _dump_trace(trace, trace_dir, sample.run_id)
         graded_sample = _grade(
             sample, trace, latency_s=latency_s, step_count=step_count
         )
@@ -1392,6 +1443,20 @@ def main(argv: list[str] | None = None) -> int:
         "--vlm-price-output", type=float, default=None,
         help="Override VLM output price (USD per 1M tokens).",
     )
+    parser.add_argument(
+        "--trace-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Directory to dump per-sample AgentTrace JSONs (one file per"
+            " run_id). When omitted and not --mock, defaults to"
+            " <out>/runs/<archive_stamp>/traces — i.e. alongside the"
+            " timestamped agent_report. When --mock is set and this flag"
+            " is omitted, traces are NOT dumped (mock mode is a wiring"
+            " smoke test, not a quality measurement). Pass an explicit"
+            " path here to force dumping in mock mode."
+        ),
+    )
     args = parser.parse_args(argv)
 
     # Eval mode is the only mode this harness has. Auto-enable so users
@@ -1447,8 +1512,27 @@ def main(argv: list[str] | None = None) -> int:
     # start. Hydrate / argparse should not be billed against wall_clock.
     eval_started_at = datetime.now(timezone.utc)
     eval_start_perf = time.perf_counter()
+    # archive_stamp is also used below to write the timestamped
+    # agent_report archive. Computed here (before grading) so the trace
+    # dump dir can share the same stamp — keeping per-run artefacts
+    # co-located under eval/runs/<stamp>/.
+    archive_stamp = eval_started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
+    if args.trace_dir is not None:
+        # Explicit path always honored, in either mode.
+        resolved_trace_dir: Path | None = args.trace_dir
+    elif args.mock:
+        # Mock mode is a wiring smoke test; default to no dumping so the
+        # eval/runs/<stamp>/ tree stays a "real eval" surface.
+        resolved_trace_dir = None
+    else:
+        resolved_trace_dir = args.out / "runs" / archive_stamp / "traces"
+    if resolved_trace_dir is not None:
+        print(f"Trace dumps → {resolved_trace_dir}", file=sys.stderr)
     graded, skipped = collect_graded_samples(
-        golden, force_mock=args.mock, limit=args.limit
+        golden,
+        force_mock=args.mock,
+        limit=args.limit,
+        trace_dir=resolved_trace_dir,
     )
     eval_finished_at = datetime.now(timezone.utc)
     wall_clock_total_s = round(time.perf_counter() - eval_start_perf, 3)
@@ -1520,9 +1604,8 @@ def main(argv: list[str] | None = None) -> int:
     report.cost_usd = cost_usd
 
     # Write a timestamped archive at <out>/runs/<ts>/agent_report.{json,md}
-    # so each eval run is preserved and comparable. Filesystem-safe stamp:
-    # ISO-8601 with ``:`` replaced by ``-`` (Windows-compatible).
-    archive_stamp = eval_started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
+    # so each eval run is preserved and comparable. ``archive_stamp`` was
+    # computed earlier in main() so the trace-dump dir could share it.
     archive_dir = args.out / "runs" / archive_stamp
     archive_json_path, archive_md_path = write_report(report, archive_dir)
     # Mirror to <out>/agent_report.{json,md} as the "latest" pointer that
@@ -1545,6 +1628,19 @@ def main(argv: list[str] | None = None) -> int:
         f"Mirrored to latest: {latest_json}, {latest_md}",
         file=sys.stderr,
     )
+    if resolved_trace_dir is not None:
+        # Count what actually landed on disk (not what we tried to dump);
+        # _dump_trace swallows OSError so a partial-disk failure must not
+        # be silently overstated here.
+        dumped = (
+            len(list(resolved_trace_dir.glob("*.json")))
+            if resolved_trace_dir.is_dir()
+            else 0
+        )
+        print(
+            f"Dumped {dumped} trace JSONs to {resolved_trace_dir}",
+            file=sys.stderr,
+        )
     if cost_usd.get("total_usd") is not None:
         print(f"Total cost: ${cost_usd['total_usd']:.4f} USD", file=sys.stderr)
     return 0
