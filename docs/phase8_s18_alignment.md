@@ -46,7 +46,9 @@ Reasoning for each non-goal is in `SPEC.md` "Phase 8 Design Decisions".
 
 **File**: `eval/golden.jsonl`, JSONL, 35 rows.
 
-**Schema** (per row):
+**Schema** (per row, facts are structured objects so the judge evaluates
+them mechanically without a regex parser; full Fact-shape table is in
+[`docs/testing.md`](testing.md#golden-set)):
 
 ```json
 {
@@ -55,17 +57,23 @@ Reasoning for each non-goal is in `SPEC.md` "Phase 8 Design Decisions".
     "intent": "analyze_run"
   },
   "expected_facts": [
-    "outcome == 'failed'",
-    "failure_type ∈ {missed_constraint}",
-    "failure_step ∈ [10, 14]"
+    {"field": "outcome",      "op": "eq",       "value": "failed"},
+    {"field": "failure_type", "op": "in",       "value": ["missed_constraint"]},
+    {"field": "failure_step", "op": "in_range", "value": [10, 14]}
   ],
   "forbidden_facts": [
-    "outcome == 'success'",
-    "failure_type ∈ {early_terminated, wrong_target, wrong_result, inefficient_search}"
+    {"field": "outcome",      "op": "eq", "value": "success"},
+    {"field": "failure_type", "op": "in", "value": ["early_terminated", "wrong_target", "wrong_result", "inefficient_search"]}
   ],
   "tags": ["booking", "missed_constraint"]
 }
 ```
+
+The three fact shapes are a Pydantic discriminated union on `field`:
+`OutcomeFact` (`outcome eq <success|failed>`), `FailureTypeFact`
+(`failure_type in <subset of V1_FAILURE_VOCABULARY>`), `FailureStepFact`
+(`failure_step in_range [min, max]`). Each row validates as
+`GoldenCase` at build time.
 
 **Construction**: `data/triage_notes.csv` is the source of truth. A
 deterministic script (`scripts/build_golden_jsonl.py`, **new** in Phase
@@ -73,14 +81,13 @@ deterministic script (`scripts/build_golden_jsonl.py`, **new** in Phase
 
 - `input.run_id` ← `sample_id`; `input.intent` defaults to `"analyze_run"`.
 - For labelled-success rows (`outcome=="success"`):
-  - `expected_facts = ["outcome == 'success'"]`
-  - `forbidden_facts = ["outcome == 'failed'"]`
+  - `expected_facts = [{outcome eq "success"}]`
+  - `forbidden_facts = [{outcome eq "failed"}]`
   - `tags = [category]`
 - For labelled-failure rows (`outcome=="failed"`):
-  - `expected_facts = ["outcome == 'failed'", f"failure_type ∈ {labelled_set}"]`
-    plus `f"failure_step ∈ [{step-2}, {step+2}]"` when `failure_step` is non-empty.
-  - `forbidden_facts = ["outcome == 'success'",
-    f"failure_type ∈ {V1_FAILURE_VOCABULARY \ labelled_set}"]`.
+  - `expected_facts = [{outcome eq "failed"}, {failure_type in labelled_set}]`
+    plus `{failure_step in_range [step-2, step+2]}` when `failure_step` is non-empty.
+  - `forbidden_facts = [{outcome eq "success"}, {failure_type in (V1_FAILURE_VOCABULARY \ labelled_set)}]`.
   - `tags = [category, *labelled_set]`.
 
 `triage_notes.csv` stays the canonical human-label source; `golden.jsonl`

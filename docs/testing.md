@@ -15,7 +15,8 @@ Trajecta's eval surface has four pillars. Each maps to a specific S18
 
 **File**: `eval/golden.jsonl`, JSONL, 35 rows.
 
-**Per-row schema**:
+**Per-row schema** (facts are structured objects, not free-text strings,
+so the judge can evaluate them mechanically without a regex parser):
 
 ```json
 {
@@ -24,17 +25,30 @@ Trajecta's eval surface has four pillars. Each maps to a specific S18
     "intent": "analyze_run"
   },
   "expected_facts": [
-    "outcome == 'failed'",
-    "failure_type ∈ {missed_constraint}",
-    "failure_step ∈ [10, 14]"
+    {"field": "outcome",      "op": "eq",       "value": "failed"},
+    {"field": "failure_type", "op": "in",       "value": ["missed_constraint"]},
+    {"field": "failure_step", "op": "in_range", "value": [10, 14]}
   ],
   "forbidden_facts": [
-    "outcome == 'success'",
-    "failure_type ∈ {early_terminated, wrong_target, wrong_result, inefficient_search}"
+    {"field": "outcome",      "op": "eq", "value": "success"},
+    {"field": "failure_type", "op": "in", "value": ["early_terminated", "wrong_target", "wrong_result", "inefficient_search"]}
   ],
   "tags": ["booking", "missed_constraint"]
 }
 ```
+
+**Fact shape** (Pydantic discriminated union on `field`):
+
+| `field` | `op` | `value` type | Semantics |
+| --- | --- | --- | --- |
+| `outcome` | `eq` | `"success" \| "failed"` | Proposed verdict matches this outcome literal. |
+| `failure_type` | `in` | `list[str]` (subset of `V1_FAILURE_VOCABULARY`) | Proposed `failure_type` is one of the listed types. |
+| `failure_step` | `in_range` | `[int, int]` (inclusive `[min, max]`, `min ≤ max`) | Proposed `failure_step` lies in this closed interval. |
+
+`expected_facts` are conditions the proposed `EvalCase` **must** satisfy.
+`forbidden_facts` are conditions it **must not** satisfy. The judge applies
+clauses 4 and 5 of the rubric (§ LLM Judge) against these structured facts
+directly.
 
 **Source of truth**: `data/triage_notes.csv`. The CSV carries the human
 labels and is hand-edited; `eval/golden.jsonl` is a build artefact
@@ -44,14 +58,13 @@ produced by `scripts/build_golden_jsonl.py` and never edited by hand.
 
 - `input.run_id` ← CSV `sample_id`. `input.intent` defaults to `"analyze_run"`.
 - For `outcome=="success"` rows:
-  - `expected_facts = ["outcome == 'success'"]`
-  - `forbidden_facts = ["outcome == 'failed'"]`
+  - `expected_facts = [{outcome eq "success"}]`
+  - `forbidden_facts = [{outcome eq "failed"}]`
   - `tags = [category]`
 - For `outcome=="failed"` rows:
-  - `expected_facts = ["outcome == 'failed'", f"failure_type ∈ {labelled_set}"]`
-    plus `f"failure_step ∈ [{step − 2}, {step + 2}]"` when `failure_step` is non-empty.
-  - `forbidden_facts = ["outcome == 'success'",
-    f"failure_type ∈ {V1_FAILURE_VOCABULARY \\ labelled_set}"]`.
+  - `expected_facts = [{outcome eq "failed"}, {failure_type in labelled_set}]`
+    plus `{failure_step in_range [step − 2, step + 2]}` when `failure_step` is non-empty.
+  - `forbidden_facts = [{outcome eq "success"}, {failure_type in (V1_FAILURE_VOCABULARY \ labelled_set)}]`.
   - `tags = [category, *labelled_set]`.
 
 **Pydantic model**: `GoldenCase` in `backend/app/schemas.py` (added in
@@ -75,16 +88,33 @@ binary — over the proposed `EvalCase` for each golden case. Acceptance
 is defined by the six-clause rubric below; a case is `acceptable` iff
 **all six clauses hold**.
 
+Clauses 1–3 are derived from the same structured facts in clauses 4–5
+(they single out the most common ones for clearer reporting). Because
+`expected_facts` and `forbidden_facts` are structured objects (§ Golden
+Set "Fact shape"), clauses 1–5 are evaluated **mechanically** by
+`eval/judge.py` against the proposed `EvalCase` fields — no LLM call
+is needed for them. Only clause 6 (evidence traceability) requires the
+LLM judge to make a soft call about whether each evidence item's
+resolved source actually supports the claim.
+
 ### Rubric
 
-| # | Clause | Predicate |
-| --- | --- | --- |
-| 1 | Verdict match | Proposed `is_success` (= all five failure fields absent) matches the reference `outcome == "success"`. |
-| 2 | Failure-type compatibility | For failed references, the proposed `failure_type` appears in the reference's `expected_facts` failure-type set (multi-label OR). |
-| 3 | Failure-step locality | For failed references with a labelled step, the proposed `failure_step` lies in `[step − 2, step + 2]`, or proposed evidence demonstrates that the inspection covered the labelled step. |
-| 4 | No contradiction with expected facts | Proposed `expected_behavior` and `actual_behavior` do not contradict any `expected_facts` entry. |
-| 5 | No forbidden assertions | Proposed `expected_behavior`, `actual_behavior`, or any evidence claim does not assert any `forbidden_facts` entry. |
-| 6 | Evidence traceability | Every `EvidenceItem` carries enough pointers (`step_index` for step-based sources, `context_id` for retrieval-based sources, or `source="unavailable"`) to locate or honestly disclaim the cited source. |
+| # | Clause | Mechanical (M) / LLM (L) | Predicate |
+| --- | --- | --- | --- |
+| 1 | Verdict match | M | Proposed `is_success` (= all five failure fields absent) matches the `OutcomeFact` in `expected_facts`. |
+| 2 | Failure-type compatibility | M | For failed references, proposed `failure_type` is in the `FailureTypeFact.value` list (multi-label OR). |
+| 3 | Failure-step locality | M | For failed references with a `FailureStepFact`, proposed `failure_step` lies in the `in_range` interval. |
+| 4 | No contradiction with expected facts | M | Proposed `EvalCase` fields satisfy every entry in `expected_facts` (each Fact subtype has a deterministic check against the proposed fields). |
+| 5 | No forbidden assertions | M | Proposed `EvalCase` fields satisfy **none** of the entries in `forbidden_facts`. |
+| 6 | Evidence traceability | **L** | Every `EvidenceItem` carries pointers (`step_index`, `context_id`, or `source="unavailable"`) **and** the LLM judges that the resolved source content actually supports the claim. |
+
+The 5-out-of-6 mechanical clauses give `eval/judge.py` a deterministic
+backbone; the LLM is the tiebreaker on the qualitative one. This split
+also means the Cohen's κ run only varies on clause 6 — the same input
+deterministically yields the same answer on clauses 1–5 across both
+LLMs (Claude / GPT / human), so any inter-annotator disagreement is
+attributable to clause 6 alone. The disagreement-analysis section
+(§ Cohen's κ) keys off this.
 
 ### Input shape (per case)
 
