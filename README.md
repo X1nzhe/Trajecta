@@ -61,11 +61,26 @@ TRAJECTA_AGENT_MODEL=gpt-4o-mini
 # VLM. Without this, both VLM paths fall back to MockVLMClient.
 TRAJECTA_VLM_MODEL=gpt-4o-mini
 
+# Optional: versioned Eval Agent prompt bundle under prompts/eval_agent/.
+# Unset defaults to v1_minimal. Each trace/report records version + hash.
+TRAJECTA_PROMPT_VERSION=v1_minimal
+
+# Optional: versioned high-detail VLM prompt under prompts/vlm_high_detail/.
+# Unset defaults to v1_task_context. High-detail get_step_detail results
+# and eval reports record version + hash.
+TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION=v1_task_context
+
 # Optional: ChromaDB embedding model. Falls back to chromadb's default
 # sentence-transformers if unset. Changing this requires clearing
 # data/chroma/ to rebuild the index — collections are not migrated.
 TRAJECTA_EMBEDDING_MODEL=text-embedding-3-small
 ```
+
+Prompt updates are versioned directories under `prompts/eval_agent/` and
+`prompts/vlm_high_detail/`. Create a new directory for each prompt change and
+roll back by setting the corresponding environment variable to a previous
+version. See
+[docs/prompt_versioning.md](docs/prompt_versioning.md).
 
 **Fallback behavior** — with **no** env vars set, the backend boots
 successfully and `/api/runs/{id}/analyze` runs against:

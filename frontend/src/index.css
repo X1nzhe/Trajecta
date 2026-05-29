@@ -2,12 +2,14 @@
  * Adds JetBrains Mono for IDs/metadata + warm-bone surface tokens.
  * Drop-in replacement. Keeps the existing @theme primaries intact. */
 
-@import "tailwindcss";
-
 /* Inter (sans) + JetBrains Mono (mono) — the redesign's typeface pair.
  * Inter wasn't loaded before, so headings/body were falling back to the
- * system stack and didn't match the PNG. */
+ * system stack and didn't match the PNG.
+ * Must precede `@import "tailwindcss"` because Tailwind inlines a large
+ * block of rules; any @import that lands after them violates CSS spec. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
 
 @theme {
   --color-primary: #3b82f6;
@@ -37,3 +39,19 @@
    * even when the surrounding font isn't mono. */
   .tabular-nums { font-variant-numeric: tabular-nums; }
 }
+
+/* Thin, always-visible horizontal scrollbar for overflowing rails
+ * (e.g. the StepTimeline ribbon). macOS hides overlay scrollbars by
+ * default, which makes it look like content is truncated rather than
+ * scrollable — this forces a slim visible track. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.scrollbar-thin::-webkit-scrollbar { height: 4px; width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

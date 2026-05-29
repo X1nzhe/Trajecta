@@ -3,6 +3,7 @@ import remarkGfm from 'remark-gfm';
 import { Streamdown } from 'streamdown';
 import { createEvalCase, fetchRunDigest } from '../api/client';
 import { streamAgentRequest, type AgentDelta } from '../api/stream';
+import modelPricingConfig from '../../../config/model_pricing.json';
 
 // Local helper type for the streamingText Map. Holds the running
 // concatenation of token deltas plus the originating turn so the
@@ -2552,32 +2553,32 @@ function TraceFooter({ trace, inFlight }: { trace: AgentTrace | null; inFlight: 
 // Per-model list pricing (USD per million tokens). Approximate — used
 // only to render a "~$0.001" running estimate under the followup input,
 // so the user has a rough sense of cost. Backend could surface
-// authoritative prices later via the trace payload. Each entry is a
-// best-match prefix on the actual model id stamped on the trace.
-// Per-model list pricing (USD per million tokens). `cachedInUsd` is the
-// discounted rate for cache-read tokens — currently NOT applied because
-// the backend trace only exposes flat input_tokens / output_tokens. Once
-// AgentTrace surfaces input_token_details.cache_read, the InputHelper
-// formula can split fresh-input vs cached-input cost.
-const MODEL_PRICING: {
+// authoritative prices later via the trace payload.
+//
+// The entries themselves live in ../../../config/model_pricing.json so
+// the Python backend (backend/app/agent_eval.py) and this component
+// share one source of truth. The JSON stores 'match' as a regex string;
+// we compile it once on module load. `cached_input` (camelCased
+// `cachedInUsd` below) is the discounted rate for cache-read tokens —
+// currently NOT applied because the backend trace only exposes flat
+// input_tokens / output_tokens. Once AgentTrace surfaces
+// input_token_details.cache_read, the InputHelper formula can split
+// fresh-input vs cached-input cost.
+interface ModelPricingEntry {
   match: RegExp;
   label: string;
   inUsd: number;
   outUsd: number;
   cachedInUsd?: number;
-}[] = [
-  { match: /haiku-4\.5/i,    label: 'Claude Haiku 4.5',  inUsd: 0.8,  outUsd: 4.0,  cachedInUsd: 0.08 },
-  { match: /haiku/i,         label: 'Claude Haiku',      inUsd: 0.8,  outUsd: 4.0,  cachedInUsd: 0.08 },
-  { match: /sonnet-4\.5/i,   label: 'Claude Sonnet 4.5', inUsd: 3.0,  outUsd: 15.0, cachedInUsd: 0.3  },
-  { match: /sonnet/i,        label: 'Claude Sonnet',     inUsd: 3.0,  outUsd: 15.0, cachedInUsd: 0.3  },
-  { match: /opus-4/i,        label: 'Claude Opus 4',     inUsd: 15.0, outUsd: 75.0, cachedInUsd: 1.5  },
-  { match: /opus/i,          label: 'Claude Opus',       inUsd: 15.0, outUsd: 75.0, cachedInUsd: 1.5  },
-  { match: /gpt-5\.4-mini/i, label: 'GPT-5.4 mini',      inUsd: 0.75, outUsd: 4.5,  cachedInUsd: 0.075 },
-  { match: /gpt-4o-mini/i,   label: 'GPT-4o mini',       inUsd: 0.15, outUsd: 0.6,  cachedInUsd: 0.075 },
-  { match: /gpt-4o/i,        label: 'GPT-4o',            inUsd: 2.5,  outUsd: 10.0, cachedInUsd: 1.25 },
-  { match: /gpt-4\.1-mini/i, label: 'GPT-4.1 mini',      inUsd: 0.4,  outUsd: 1.6,  cachedInUsd: 0.1  },
-  { match: /gpt-4\.1/i,      label: 'GPT-4.1',           inUsd: 2.0,  outUsd: 8.0,  cachedInUsd: 0.5  },
-];
+}
+
+const MODEL_PRICING: ModelPricingEntry[] = modelPricingConfig.entries.map((entry) => ({
+  match: new RegExp(entry.match, 'i'),
+  label: entry.label,
+  inUsd: entry.input,
+  outUsd: entry.output,
+  cachedInUsd: entry.cached_input ?? undefined,
+}));
 
 const MOCK_LABEL = 'offline mock';
 

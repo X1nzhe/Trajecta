@@ -145,6 +145,11 @@ export interface AgentTrace {
   // preserved across followups. Optional on the wire so old traces
   // persisted before this field existed still deserialize cleanly.
   model?: string | null;
+  // Versioned prompt identity for reproducible eval runs. prompt_version
+  // maps to prompts/eval_agent/<version>; prompt_sha256 hashes the
+  // system + followup prompt files used by the trace.
+  prompt_version?: string | null;
+  prompt_sha256?: string | null;
   // VLM model id used by get_step_detail within this trace + cumulative
   // VLM token usage (initial analyze + all followups). Mock path is 0.
   vlm_model?: string | null;

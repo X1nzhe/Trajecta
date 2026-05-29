@@ -7,6 +7,7 @@
 //
 // Drop-in replacement — same props.
 
+import { useRef } from 'react';
 import type { TrajectoryRun } from '../types/contracts';
 import { ACTION_COLOR } from './actionPalette';
 
@@ -18,6 +19,29 @@ interface StepTimelineProps {
 }
 
 export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(), onSelectStep }: StepTimelineProps) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  // Translate vertical wheel to horizontal scroll on the step rail.
+  // Browsers do this automatically only with Shift held; without it
+  // the wheel either does nothing (no vertical overflow here) or
+  // bubbles up to scroll the page, which felt broken on a clearly
+  // horizontal rail.
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (dx === 0) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) return;
+    // Only consume the event if the rail can actually move in that
+    // direction — otherwise let the page scroll normally.
+    const atStart = el.scrollLeft <= 0 && dx < 0;
+    const atEnd = el.scrollLeft >= maxScroll && dx > 0;
+    if (atStart || atEnd) return;
+    e.preventDefault();
+    el.scrollLeft += dx;
+  };
+
   return (
     <div className="border-b border-[color:var(--color-hairline)] bg-white px-4 py-3">
       <div className="mb-2 flex items-center justify-between">
@@ -33,7 +57,11 @@ export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(
         </div>
       </div>
 
-      <div className="flex items-stretch gap-1">
+      <div
+        ref={scrollerRef}
+        onWheel={handleWheel}
+        className="scrollbar-thin flex items-stretch gap-1 overflow-x-auto pb-1.5"
+      >
         {run.steps.map((step, i) => {
           const idx = step.index ?? i + 1;
           const isSelected = selectedStepIndex === idx;

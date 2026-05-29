@@ -18,7 +18,7 @@ from typing import Any, Literal, Protocol, TypedDict
 
 from pydantic import BaseModel
 
-from backend.app import preprocess, storage, tools
+from backend.app import preprocess, prompts, storage, tools
 from backend.app.llm import vlm_usage_scope
 from backend.app.schemas import AgentTrace, AgentTraceEvent, TurnMetrics
 
@@ -71,6 +71,7 @@ class EvalState(TypedDict):
     tool_call_count: int
     eval_case_draft: dict[str, Any] | None
     errors: list[str]
+    prompt_version: str | None
 
 
 class AgentLLM(Protocol):
@@ -243,6 +244,7 @@ def stream_analyze(
     # TRAJECTA_AGENT_MODEL are set; otherwise OfflineAgentMock takes over.
     # Stamp "mock" in that case so the frontend can label runs honestly
     # instead of advertising a model that didn't actually answer.
+    prompt_bundle = prompts.active_prompt_bundle()
     _agent_model_env = os.environ.get("TRAJECTA_AGENT_MODEL")
     _agent_api_key = os.environ.get("OPENAI_API_KEY")
     trace_model = _agent_model_env if (_agent_model_env and _agent_api_key) else "mock"
@@ -258,6 +260,8 @@ def stream_analyze(
         turn_count=1,
         terminated_by="error",
         model=trace_model,
+        prompt_version=prompt_bundle.version,
+        prompt_sha256=prompt_bundle.sha256,
         vlm_model=trace_vlm_model,
     )
     state: GraphState = {
@@ -269,6 +273,7 @@ def stream_analyze(
         "tool_call_count": 0,
         "eval_case_draft": None,
         "errors": [],
+        "prompt_version": prompt_bundle.version,
         "trace": trace,
         "turn": 0,
         "budget": budget,
@@ -411,6 +416,7 @@ def stream_followup(
                 "tool_call_count": trace.tool_call_count,
                 "eval_case_draft": _latest_eval_case_draft(trace),
                 "errors": [],
+                "prompt_version": trace.prompt_version,
                 "trace": trace,
                 "turn": turn,
                 "budget": budget,
@@ -773,8 +779,34 @@ def _execute_tool_node(state: GraphState) -> GraphState:
             _record_terminal_tool_error(state, name=name, args=args, error=error)
             return state
 
+    dispatch_args = args
+    if name == "search_failure_memory":
+        # Server-side leakage guard: force the current run_id as
+        # exclude_source_run_id regardless of what the LLM emitted (or didn't).
+        # See docs/testing.md "Failure-memory retrieval leakage". The trace
+        # event recorded upstream still reflects the LLM-emitted args; this
+        # only mutates dispatch.
+        dispatch_args = {**args, "exclude_source_run_id": trace.run_id}
+    elif name == "search_eval_cases":
+        # Same leakage guard for prior EvalCases: an EvalCase derived from
+        # the run currently under analysis carries that run's verdict, so
+        # retrieving it would be direct answer leakage. Force the source-run
+        # filter regardless of LLM-emitted args, mirroring search_failure_memory.
+        dispatch_args = {**args, "exclude_source_run_id": trace.run_id}
+    elif name == "find_similar_successful_run":
+        # Same leakage guard for the replay-and-diff retrieval path. The prompt
+        # instructs the agent to pass exclude_run_id=current_run_id, but the
+        # tool signature defaults it to None and there is no schema-level
+        # requirement that the LLM include it. If the LLM forgets, a run that
+        # is itself in the successful_runs collection (e.g. a golden-set sample
+        # whose human_validated success EvalCase was previously promoted)
+        # would re-surface as "similar to itself" — direct leakage of the
+        # success verdict. Force the injection here so the guarantee holds
+        # structurally rather than by prompt-following compliance.
+        dispatch_args = {**args, "exclude_run_id": trace.run_id}
+
     try:
-        result = _TOOL_REGISTRY[name](**args)
+        result = _TOOL_REGISTRY[name](**dispatch_args)
     except Exception as exc:
         error = str(exc)
         if name == TERMINAL_TOOL:
@@ -1087,7 +1119,12 @@ def _ai_tool_call(name: str, args: dict[str, Any]) -> AnyMessage:
 
 def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
     return [
-        SystemMessage(content=_system_prompt(followup=followup)),
+        SystemMessage(
+            content=_system_prompt(
+                followup=followup,
+                prompt_version=state.get("prompt_version"),
+            )
+        ),
         HumanMessage(
             content=json.dumps(
                 {
@@ -1103,42 +1140,19 @@ def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
     ]
 
 
-def _system_prompt(*, followup: bool) -> str:
-    # Deliberately minimal. Not prompt-tuning — only the contract minimum
-    # (propose_eval_case is the terminal tool; never invent evidence).
-    # Real prompt engineering is deferred.
-    common = (
-        "You are Trajecta's Eval Agent. Use the declared tools only. "
-        "The first HumanMessage carries `run_id` and the full "
-        "`trajectory_digest`. All step indices are 1-based and match the "
-        "source dataset's step keys and screenshot filenames (e.g., "
-        "step_index=7 ↔ screenshot_007.png). Survey the digest to "
-        "identify suspicious steps, deep-inspect them with "
-        "`get_step_detail` at high detail, retrieve relevant failure "
-        "memory and prior eval cases when they would inform your "
-        "verdict, and finish by calling `propose_eval_case` "
-        "(success-shape if no failure found). Never fabricate evidence; "
-        "mark unavailable evidence explicitly via `source=\"unavailable\"`. "
-        "OPTIONAL: pass `suggested_followups` (max 4) on the terminal "
-        "call — short {label, message} pairs the user can click to ask "
-        "a useful next question grounded in THIS trace (e.g., 'Inspect "
-        "step 4 in detail', 'Compare with successful run X'). Skip if "
-        "no specific next step is obvious."
-    )
-    if followup:
-        return (
-            "You are Trajecta's Eval Agent resuming a previous analysis. "
-            "Use targeted tool calls and call `propose_eval_case` only "
-            "when revising the eval case draft. If the user only asks a "
-            "clarification question, answer in plain text without "
-            "invoking any tool."
-        )
-    return common
+def _system_prompt(*, followup: bool, prompt_version: str | None = None) -> str:
+    bundle = prompts.load_prompt_bundle(prompt_version)
+    return bundle.followup if followup else bundle.system
 
 
 def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
     messages: list[AnyMessage] = [
-        SystemMessage(content=_system_prompt(followup=True)),
+        SystemMessage(
+            content=_system_prompt(
+                followup=True,
+                prompt_version=trace.prompt_version,
+            )
+        ),
         HumanMessage(
             content=json.dumps(
                 {

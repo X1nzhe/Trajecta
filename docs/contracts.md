@@ -175,6 +175,15 @@ class AgentTrace(BaseModel):
     turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"
     events: List[AgentTraceEvent] = Field(default_factory=list)
+    model: Optional[str] = None
+    prompt_version: Optional[str] = None
+    prompt_sha256: Optional[str] = None
+    vlm_model: Optional[str] = None
+    vlm_input_tokens: int = 0
+    vlm_output_tokens: int = 0
+    runtime_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
 ```
 
 Schema field notes:
@@ -185,6 +194,7 @@ Schema field notes:
 - `AgentTrace.turn_count` equals the number of distinct turns recorded so far; it starts at `1` after the initial analyze and increments by `1` per follow-up.
 - `AgentTrace.tool_call_count` is **cumulative across all turns**. Per-turn budget enforcement is the agent loop's responsibility (see [docs/eval_agent.md](eval_agent.md)); the trace persists only the running total for observability.
 - `AgentTrace.terminated_by` reflects the **latest turn's** termination reason. Earlier-turn outcomes are recoverable by walking events backward to find each turn's last event.
+- `AgentTrace.prompt_version` is the committed directory under `prompts/eval_agent/`; `prompt_sha256` is the combined hash of that version's `system.md` and `followup.md`. These fields make prompt changes traceable and rollback-friendly.
 - `TrajectoryRun.status` is set only by human-validated `EvalCase` outcomes: validating a failure case flips the source run to `"failed"`; validating a success case flips it to `"success"`. Imports always land at `"unknown"` regardless of any source-row hint (see [docs/dataset_import.md](dataset_import.md) "Cold-Start Behavior"). The Eval Agent must never write status directly.
 - `StepObservation.visual_evidence` is for structured visual evidence imported from the source dataset or explicit high-detail inspection output. It must not be populated from low-detail preprocessing hints.
 - Low-detail preprocessing output belongs in `StepDigest.vlm_low_detail_summary`, not in `StepObservation`.
@@ -194,6 +204,24 @@ Schema field notes:
 - `EvidenceItem.context_id` stores a `FailureMemoryCase.case_id` or `EvalCase.case_id` when `source` is `"failure_memory"` or `"eval_case"`. It must appear in `retrieved_context_ids` if the final eval case relies on it.
 - `source="step_detail_low"` may be used for orientation only. It must not be the sole support for final claims about visual text, target identity, or coordinate correctness.
 - `source="unavailable"` records absence of evidence, such as a missing screenshot, invalid coordinate, or unavailable successful comparison run. The `claim` must state what was unavailable.
+
+## v1 Failure Type Vocabulary
+
+The `failure_type` schema field is a regex (`^[a-z][a-z0-9_]*$`) — it does **not** enumerate values. The v1 Eval Agent and the failure memory seed (`data/failure_memory/cases.jsonl`) use the following controlled vocabulary. The agent's system prompt enumerates these and instructs it to prefer them; novel values are allowed by the schema but should be rare.
+
+| `failure_type` | Meaning |
+|---|---|
+| `early_terminated` | Agent exited before reaching a page state that satisfies the task. |
+| `wrong_target` | Agent operated on the wrong target — wrong entity, wrong location, wrong category, or wrong page type — instead of the user's intended object. Covers geographic mis-targeting (e.g. wrong city) as a strict subset. |
+| `wrong_result` | Agent returned a plausible result that missed qualifiers in the user's request (recency, thresholds, category, etc.). The target was correct; the answer skipped a constraint. |
+| `missed_constraint` | Agent completed the search but did not enforce an explicit hard user constraint before stopping. Distinguished from `wrong_result` by intent: the agent didn't *check* the constraint, vs. checked it and picked something close-but-wrong. |
+| `inefficient_search` | Agent used broad browsing steps instead of applying available search or filter controls. May or may not have reached the target. |
+
+Boundary notes for labeling:
+
+- `wrong_target` vs `wrong_result`: `wrong_target` = wrong *where* the agent was looking; `wrong_result` = right place, wrong *answer*. A single run may carry both.
+- `missed_constraint` vs `wrong_result`: both involve missed user requirements. `missed_constraint` means the constraint was never checked; `wrong_result` means the agent evaluated candidates but picked one that violates the constraint.
+- `early_terminated` is orthogonal to the other four and frequently co-occurs (agent gave up *and* was looking at the wrong target).
 
 ## ID Conventions
 
@@ -343,11 +371,21 @@ def get_step_detail(
     """Return VLM analysis for one step, without screenshot bytes.
 
     `image_detail` selects the VLM resolution:
-    - "high" (default): ~1500 tokens/image; required for any claim about
-      visual text, target identity, or coordinate correctness.
+    - "high" (default): task-aware structured detail; required for any claim
+      about visual text, target identity, selected-result constraint
+      satisfaction, or coordinate correctness.
     - "low": ~85 tokens/image; allowed for orientation and suspicious-step
       selection only. The agent must not cite low-detail output as final
       evidence — see Screenshot Detail Policy in docs/eval_agent.md.
+
+    High-detail `vlm_summary` uses stable text fields:
+    `page_state`, `task_relevant_visible_text`, `selected_candidate`,
+    `constraint_evidence`, `action_target`, `success_signals`,
+    `failure_signals`, and `uncertainty`. The tool also returns
+    `task_context` with the task, URL/title, and action text that were
+    provided to the VLM prompt. When a high-detail screenshot inspection runs,
+    the result includes `vlm_prompt_version` and `vlm_prompt_sha256` for the
+    committed prompt under `prompts/vlm_high_detail/`.
     """
 
 

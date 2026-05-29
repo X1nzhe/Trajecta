@@ -30,7 +30,13 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
   }), [runs]);
 
   const filtered = runs.filter((run) => {
-    if (search && !run.task.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const q = search.toLowerCase().trim();
+      const matches =
+        run.task.toLowerCase().includes(q) ||
+        run.run_id.toLowerCase().includes(q);
+      if (!matches) return false;
+    }
     if (filter === 'Failed' && run.status !== 'failed') return false;
     if (filter === 'Success' && run.status !== 'success') return false;
     if (filter === 'Unverified' && run.status !== 'unknown') return false;

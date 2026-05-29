@@ -100,6 +100,7 @@ Recorder middleware is v2.
 | [docs/dataset_import.md](docs/dataset_import.md) | MolmoWeb-HumanSkills sample import strategy and coordinate validation risk. |
 | [docs/preprocessing.md](docs/preprocessing.md) | Trajectory Preprocessing: digest schema, low-detail VLM contract, caching, fallbacks. |
 | [docs/eval_agent.md](docs/eval_agent.md) | LangGraph Eval Agent behavior, loop design, observability, and Skill wrapper. |
+| [docs/prompt_versioning.md](docs/prompt_versioning.md) | Prompt version registry, traceability, rollback, and failure-memory refresh rules. |
 | [docs/rag.md](docs/rag.md) | ChromaDB RAG retrieval strategy. |
 | [docs/api.md](docs/api.md) | FastAPI implementation notes for endpoint contracts. |
 | [docs/frontend.md](docs/frontend.md) | React UI layout, components, and product copy. |

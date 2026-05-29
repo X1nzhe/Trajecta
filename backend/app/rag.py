@@ -168,6 +168,29 @@ def _get_or_create(name: str) -> chromadb.Collection:
     )
 
 
+def _collection_names() -> set[str]:
+    names: set[str] = set()
+    for collection in get_chroma_client().list_collections():
+        name = getattr(collection, "name", None)
+        if isinstance(name, str):
+            names.add(name)
+        elif isinstance(collection, str):
+            names.add(collection)
+    return names
+
+
+def reset_failure_memory_collection() -> None:
+    """Drop the Chroma failure-memory collection before rebuilding from disk.
+
+    SQLite rows are already resynced from ``cases.jsonl`` by
+    ``storage.load_failure_memory``. Chroma needs the same reset because upsert
+    alone cannot remove cases deleted or renamed in the JSONL source.
+    """
+
+    if FAILURE_MEMORY_COLLECTION in _collection_names():
+        get_chroma_client().delete_collection(FAILURE_MEMORY_COLLECTION)
+
+
 def failure_memory_collection() -> chromadb.Collection:
     return _get_or_create(FAILURE_MEMORY_COLLECTION)
 
@@ -294,30 +317,64 @@ def delete_successful_run(run_id: str) -> None:
     successful_runs_collection().delete(ids=[run_id])
 
 
-def query_failure_memory(query: str, top_k: int = 3) -> list[FailureMemoryCase]:
+def query_failure_memory(
+    query: str,
+    top_k: int = 3,
+    exclude_source_run_id: str | None = None,
+) -> list[FailureMemoryCase]:
+    """Retrieve up to ``top_k`` failure-memory cases similar to ``query``.
+
+    ``exclude_source_run_id`` filters out any case whose ``source_run_id`` matches
+    the given value. This guards against retrieval leakage when the agent analyzes
+    a run that is itself the source of an existing failure-memory case (e.g. seed
+    cases in ``data/failure_memory/cases.jsonl`` whose ``source_run_id`` is one of
+    the runs in the golden eval set). Mirror of ``exclude_run_id`` in
+    ``query_similar_successful_runs``.
+    """
+
     if top_k <= 0:
         return []
-    result = failure_memory_collection().query(
-        query_texts=[query],
-        n_results=top_k,
-    )
+    kwargs: dict = {"query_texts": [query], "n_results": top_k}
+    if exclude_source_run_id:
+        kwargs["where"] = {"source_run_id": {"$ne": exclude_source_run_id}}
+    result = failure_memory_collection().query(**kwargs)
     metas = (result.get("metadatas") or [[]])[0]
     return [_failure_memory_from_metadata(meta) for meta in metas]
 
 
 def query_eval_cases(
-    query: str, top_k: int = 3, only_validated: bool = True
+    query: str,
+    top_k: int = 3,
+    only_validated: bool = True,
+    exclude_source_run_id: str | None = None,
 ) -> list[EvalCase]:
+    """Retrieve up to ``top_k`` eval cases similar to ``query``.
+
+    ``exclude_source_run_id`` filters out any case whose ``source_run_id``
+    matches the given value. Mirrors the leakage guard on
+    ``query_failure_memory``: when the agent re-analyzes run X, an
+    EvalCase derived from X (whose verdict literally IS the answer for X)
+    must not surface here.
+    """
     if top_k <= 0:
         return []
     kwargs: dict = {"query_texts": [query], "n_results": top_k}
+    conditions: list[dict] = []
     if only_validated:
-        kwargs["where"] = {"human_validated": True}
+        conditions.append({"human_validated": True})
+    if exclude_source_run_id:
+        conditions.append({"source_run_id": {"$ne": exclude_source_run_id}})
+    if len(conditions) == 1:
+        kwargs["where"] = conditions[0]
+    elif len(conditions) > 1:
+        kwargs["where"] = {"$and": conditions}
     result = eval_cases_collection().query(**kwargs)
     metas = (result.get("metadatas") or [[]])[0]
     cases = [EvalCase.model_validate_json(meta["payload_json"]) for meta in metas]
     if only_validated:
         cases = [case for case in cases if case.human_validated]
+    if exclude_source_run_id:
+        cases = [case for case in cases if case.source_run_id != exclude_source_run_id]
     return cases
 
 
@@ -352,10 +409,12 @@ def query_similar_successful_runs(
 def hydrate_all() -> None:
     """Idempotently re-upsert all on-disk records into their collections.
 
-    Called on FastAPI startup. Re-invocation overwrites the same IDs, so
-    repeated startups are safe — counts stay stable.
+    Called on FastAPI startup. Failure memory is fully rebuilt so edits to
+    ``data/failure_memory/cases.jsonl`` cannot leave stale vectors behind;
+    eval cases and successful runs are still upserted by stable IDs.
     """
 
+    reset_failure_memory_collection()
     for case in storage.load_failure_memory():
         upsert_failure_memory(case)
     for case in storage.load_eval_cases():

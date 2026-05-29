@@ -120,7 +120,7 @@ For `/followup` invocations the graph starts at `agent_loop` and skips
 Two screenshot detail levels exist, and they have different evidentiary weight:
 
 - **Low-detail** (~85 tokens/image) — from `StepDigest.vlm_low_detail_summary` or from `get_step_detail(..., image_detail="low")`. Allowed for orientation, hypothesis formation, and suspicious-step selection.
-- **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`. Required for any claim about visual text, button labels, target identity, or coordinate correctness.
+- **High-detail** (~1500 tokens/image, default) — from `get_step_detail(..., image_detail="high")`. Required for any claim about visual text, button labels, target identity, selected-result constraint satisfaction, or coordinate correctness. The high-detail VLM prompt is task-aware and returns structured fields such as `constraint_evidence`, `selected_candidate`, `success_signals`, and `failure_signals`.
 
 Hard rule: **any field in the final `EvalCase` that depends on visual text, target identity, or coordinate correctness must trace to a high-detail observation** (high-detail `get_step_detail`, OCR, or structured trajectory text such as `StepObservation.visible_text` / `action_target`). Low-detail output may appear in the agent's reasoning, but `EvidenceItem.source="step_detail_low"` or `"trajectory_digest"` must not be the sole support for those final claims.
 
@@ -230,6 +230,8 @@ Persistence and consumers:
 - Returned in full on `POST /api/runs/{run_id}/analyze` and `POST /api/runs/{run_id}/followup`.
 - Rendered by the frontend `EvalAgentPanel` as a chat-style timeline (`user_message`, `agent_message`, `tool_call` / `tool_result` summaries), grouped by `turn`. See [docs/frontend.md](frontend.md).
 - Read by `ragas_eval.py`. The latest `propose_eval_case` tool-call args provide the RAGAS `answer` ([docs/testing.md](testing.md)). All `tool_result` events whose `name` is `search_failure_memory` or `search_eval_cases` — **across all turns of the trace** — provide the retrieved contexts. RAGAS must not re-run retrieval.
+- New traces stamp `prompt_version` and `prompt_sha256` from the active prompt bundle under `prompts/eval_agent/`. Follow-ups reuse the trace's prompt version so a resumed analysis stays reproducible.
+- High-detail `get_step_detail` tool results stamp `vlm_prompt_version` and `vlm_prompt_sha256` from `prompts/vlm_high_detail/`, so the generated visual evidence is reproducible too.
 
 Invariants enforced in tests:
 
@@ -239,7 +241,7 @@ Invariants enforced in tests:
 - `AgentTraceEvent.seq` is strictly monotonic across the whole trace.
 - `AgentTraceEvent.turn` is non-decreasing across the event list.
 
-Screenshot bytes are never written to the trace. `get_step_detail` results carry a URL plus text fields only.
+Screenshot bytes are never written to the trace. `get_step_detail` results carry a URL plus text fields only; high-detail results include `task_context`, `vlm_prompt_version`, and `vlm_prompt_sha256` so the trace records which task/action/url/title context and prompt produced the VLM summary.
 
 ## Cost Strategy (Coarse-to-Fine VLM)
 

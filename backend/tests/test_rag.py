@@ -116,6 +116,55 @@ class FailureMemoryTests(RagPerTestEnv):
 
         self.assertEqual(sorted(result.tags), ["constraint", "filter", "price"])
 
+    def test_failure_memory_excludes_source_run_id(self) -> None:
+        """Retrieval leakage guard. A case whose source_run_id matches
+        exclude_source_run_id is filtered out at the ChromaDB ``where`` level;
+        unrelated cases still come back, and cases with no source_run_id are
+        not filtered."""
+        leaky = FailureMemoryCase(
+            case_id="fm_test_001",
+            failure_type="test",
+            summary="leaky case authored from run_leak",
+            fix_hint="x",
+            tags=["t"],
+            source_run_id="run_leak",
+        )
+        unrelated = FailureMemoryCase(
+            case_id="fm_test_002",
+            failure_type="test",
+            summary="unrelated case authored from run_other",
+            fix_hint="x",
+            tags=["t"],
+            source_run_id="run_other",
+        )
+        anonymous = FailureMemoryCase(
+            case_id="fm_test_003",
+            failure_type="test",
+            summary="anonymous case with no source run",
+            fix_hint="x",
+            tags=["t"],
+            source_run_id=None,
+        )
+        rag.upsert_failure_memory(leaky)
+        rag.upsert_failure_memory(unrelated)
+        rag.upsert_failure_memory(anonymous)
+
+        # No exclusion → all three returned.
+        all_results = rag.query_failure_memory("case", top_k=10)
+        ids = {r.case_id for r in all_results}
+        self.assertIn("fm_test_001", ids)
+        self.assertIn("fm_test_002", ids)
+        self.assertIn("fm_test_003", ids)
+
+        # With exclusion of run_leak → leaky is filtered; the other two remain.
+        filtered = rag.query_failure_memory(
+            "case", top_k=10, exclude_source_run_id="run_leak"
+        )
+        filtered_ids = {r.case_id for r in filtered}
+        self.assertNotIn("fm_test_001", filtered_ids)
+        self.assertIn("fm_test_002", filtered_ids)
+        self.assertIn("fm_test_003", filtered_ids)
+
 
 class EvalCaseTests(RagPerTestEnv):
     def test_eval_cases_upsert_refuses_drafts(self) -> None:
@@ -164,6 +213,53 @@ class EvalCaseTests(RagPerTestEnv):
 
         self.assertEqual(fake_collection.query_kwargs["where"], {"human_validated": True})
         self.assertEqual([case.case_id for case in results], ["ec_valid"])
+
+    def test_eval_cases_query_combines_validated_and_exclude_source(self) -> None:
+        """When both filters are set, where clause uses $and.
+
+        Mirrors the leakage guard from query_failure_memory: rerunning
+        the agent on run_X must not surface an EvalCase whose
+        source_run_id == "run_X". The chroma-side filter has to compose
+        with only_validated rather than overwrite it.
+        """
+        validated_self = _sample_eval_case(case_id="ec_self", human_validated=True)
+        validated_other = _sample_eval_case(case_id="ec_other", human_validated=True)
+        # Force the second case onto a different source_run_id so the
+        # exclude filter has something to discriminate.
+        validated_other = validated_other.model_copy(update={"source_run_id": "run_other"})
+
+        class FakeCollection:
+            def __init__(self) -> None:
+                self.query_kwargs = {}
+
+            def query(self, **kwargs):
+                self.query_kwargs = kwargs
+                # Chroma would do the filtering server-side; the post-
+                # query python filter is defense in depth and we want
+                # to assert THAT trims the self-reference too.
+                return {
+                    "metadatas": [
+                        [
+                            rag._eval_case_metadata(validated_self),
+                            rag._eval_case_metadata(validated_other),
+                        ]
+                    ]
+                }
+
+        fake_collection = FakeCollection()
+        with mock.patch("backend.app.rag.eval_cases_collection", return_value=fake_collection):
+            results = rag.query_eval_cases(
+                "x", top_k=5, exclude_source_run_id=validated_self.source_run_id
+            )
+
+        self.assertEqual(
+            fake_collection.query_kwargs["where"],
+            {"$and": [
+                {"human_validated": True},
+                {"source_run_id": {"$ne": validated_self.source_run_id}},
+            ]},
+        )
+        self.assertEqual([case.case_id for case in results], ["ec_other"])
 
 
 class SuccessfulRunsTests(RagPerTestEnv):
@@ -250,6 +346,25 @@ class HydrationTests(RagPerTestEnv):
 
         results = rag.query_failure_memory("constraint", top_k=3)
         self.assertIn("fm_missed_constraint_002", [r.case_id for r in results])
+
+    def test_hydrate_all_removes_stale_failure_memory_vectors(self) -> None:
+        cases_dir = storage.data_dir() / "failure_memory"
+        cases_dir.mkdir(parents=True)
+        old_case = _sample_failure_memory(case_id="fm_missed_constraint_001", summary="old case")
+        new_case = _sample_failure_memory(case_id="fm_wrong_target_001", failure_type="wrong_target", summary="new case")
+        cases_path = cases_dir / "cases.jsonl"
+        cases_path.write_text(json.dumps(old_case.model_dump(mode="json")) + "\n", encoding="utf-8")
+        rag.hydrate_all()
+        self.assertEqual(rag.failure_memory_collection().count(), 1)
+
+        cases_path.write_text(json.dumps(new_case.model_dump(mode="json")) + "\n", encoding="utf-8")
+        rag.hydrate_all()
+
+        self.assertEqual(rag.failure_memory_collection().count(), 1)
+        results = rag.query_failure_memory("target", top_k=3)
+        ids = [case.case_id for case in results]
+        self.assertIn("fm_wrong_target_001", ids)
+        self.assertNotIn("fm_missed_constraint_001", ids)
 
 
 class ChromaDirOverrideTests(unittest.TestCase):

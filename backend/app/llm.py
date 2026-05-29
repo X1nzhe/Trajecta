@@ -4,7 +4,7 @@ The factory returns one of two duck-typed clients exposing:
 
 - ``model_name: str``
 - ``summarize_low_detail(image_bytes: bytes, *, image_name: str, action_type: str, step_index: int) -> str | None``
-- ``summarize_high_detail(image_bytes: bytes, *, image_name: str, action_type: str, step_index: int) -> str | None``
+- ``summarize_high_detail(image_bytes: bytes, *, image_name: str, action_type: str, step_index: int, ...) -> str | None``
 
 Screenshots live in SQLite as BLOBs (see ``backend.app.storage.load_screenshot``);
 callers pass the raw bytes plus a stable identifier so the mock client can keep
@@ -23,6 +23,8 @@ import logging
 import os
 from contextlib import contextmanager
 from typing import Iterator, Protocol
+
+from backend.app import prompts as prompt_registry
 
 
 logger = logging.getLogger(__name__)
@@ -114,16 +116,8 @@ LOW_DETAIL_PROMPT = (
     "ONE line, no prose, no markdown."
 )
 
-HIGH_DETAIL_PROMPT = (
-    "You are inspecting one browser screenshot at high detail for an Eval Agent. "
-    "Return one concise block, at most 500 characters, covering: page type and "
-    "layout structure; visible text relevant to the action; target element "
-    "identity; modal, overlay, or error state; and approximate coordinate "
-    "region of the action target. Do not invent unseen evidence."
-)
-
 _MAX_SUMMARY_CHARS = 300
-_MAX_HIGH_DETAIL_CHARS = 500
+_MAX_HIGH_DETAIL_CHARS = 1500
 
 _PAGE_TYPES = (
     "unknown",
@@ -162,6 +156,12 @@ class VLMClient(Protocol):
         image_name: str,
         action_type: str,
         step_index: int,
+        task: str | None = None,
+        action_label: str | None = None,
+        action_text: str | None = None,
+        action_raw: str | None = None,
+        url: str | None = None,
+        title: str | None = None,
     ) -> str | None: ...
 
 
@@ -174,6 +174,68 @@ def _normalize_summary(text: str | None, *, max_chars: int = _MAX_SUMMARY_CHARS)
     if len(collapsed) > max_chars:
         collapsed = collapsed[:max_chars]
     return collapsed
+
+
+def _normalize_structured_text(text: str | None, *, max_chars: int = _MAX_HIGH_DETAIL_CHARS) -> str | None:
+    if text is None:
+        return None
+    lines = [" ".join(line.strip().split()) for line in text.replace("\r", "\n").split("\n")]
+    collapsed = "\n".join(line for line in lines if line)
+    if not collapsed:
+        return None
+    if len(collapsed) > max_chars:
+        collapsed = collapsed[:max_chars]
+    return collapsed
+
+
+def _clip_context(value: str | None, *, max_chars: int = 500) -> str:
+    if value is None:
+        return "unavailable"
+    collapsed = " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
+    if not collapsed:
+        return "unavailable"
+    if len(collapsed) > max_chars:
+        return collapsed[:max_chars]
+    return collapsed
+
+
+def _build_high_detail_prompt(
+    *,
+    image_name: str,
+    action_type: str,
+    step_index: int,
+    task: str | None = None,
+    action_label: str | None = None,
+    action_text: str | None = None,
+    action_raw: str | None = None,
+    url: str | None = None,
+    title: str | None = None,
+) -> str:
+    bundle = prompt_registry.active_vlm_high_detail_prompt()
+    variables = {
+        "task": _clip_context(task, max_chars=800),
+        "step_index": step_index,
+        "image_name": _clip_context(image_name, max_chars=120),
+        "action_type": _clip_context(action_type, max_chars=80),
+        "action_label": _clip_context(action_label, max_chars=240),
+        "action_text": _clip_context(action_text, max_chars=240),
+        "action_raw": _clip_context(action_raw, max_chars=300),
+        "url": _clip_context(url, max_chars=500),
+        "title": _clip_context(title, max_chars=240),
+    }
+    try:
+        return bundle.text.format(**variables)
+    except KeyError as exc:
+        missing = str(exc).strip("'")
+        raise ValueError(
+            f"VLM high-detail prompt version {bundle.version!r} references "
+            f"unknown template variable {missing!r}"
+        ) from exc
+
+
+def active_high_detail_prompt_identity() -> tuple[str, str]:
+    bundle = prompt_registry.active_vlm_high_detail_prompt()
+    return bundle.version, bundle.sha256
 
 
 class MockVLMClient:
@@ -214,8 +276,14 @@ class MockVLMClient:
         image_name: str,
         action_type: str,
         step_index: int,
+        task: str | None = None,
+        action_label: str | None = None,
+        action_text: str | None = None,
+        action_raw: str | None = None,
+        url: str | None = None,
+        title: str | None = None,
     ) -> str | None:
-        del image_bytes
+        del image_bytes, action_text, action_raw
         seed = f"{image_name}|{action_type}|{step_index}".encode("utf-8")
         digest = hashlib.sha256(seed).digest()
         page = _PAGE_TYPES[digest[0] % len(_PAGE_TYPES)]
@@ -225,11 +293,18 @@ class MockVLMClient:
         target_hint = _TARGET_HINTS[digest[4] % len(_TARGET_HINTS)]
         coord_status = _COORD_STATUSES[digest[5] % len(_COORD_STATUSES)]
         summary = (
-            f"page={page} layout={layout} overlay={overlay} text_hint={text_hint} "
-            f"target_hint={target_hint} coord_status={coord_status} "
-            f"action={action_type} step={step_index}"
+            f"page_state: page={page}; layout={layout}; overlay={overlay}; "
+            f"url={_clip_context(url, max_chars=80)}; title={_clip_context(title, max_chars=80)}\n"
+            f"task_relevant_visible_text: mock text_hint={text_hint}\n"
+            "selected_candidate: not_visible_in_mock\n"
+            f"constraint_evidence: task={_clip_context(task, max_chars=120)}; status=not_visible_in_mock\n"
+            f"action_target: action={action_type}; label={_clip_context(action_label, max_chars=80)}; "
+            f"target_hint={target_hint}; coord_status={coord_status}; step={step_index}\n"
+            "success_signals: unavailable_in_mock\n"
+            "failure_signals: unavailable_in_mock\n"
+            "uncertainty: mock VLM output is deterministic and not visual evidence"
         )
-        return _normalize_summary(summary, max_chars=_MAX_HIGH_DETAIL_CHARS)
+        return _normalize_structured_text(summary, max_chars=_MAX_HIGH_DETAIL_CHARS)
 
 
 class RealVLMClient:
@@ -354,8 +429,13 @@ class RealVLMClient:
         image_name: str,
         action_type: str,
         step_index: int,
+        task: str | None = None,
+        action_label: str | None = None,
+        action_text: str | None = None,
+        action_raw: str | None = None,
+        url: str | None = None,
+        title: str | None = None,
     ) -> str | None:
-        del image_name, action_type, step_index
         if not image_bytes:
             return None
         try:
@@ -365,6 +445,17 @@ class RealVLMClient:
 
         client = OpenAI(api_key=self._api_key)
         data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
+        prompt = _build_high_detail_prompt(
+            image_name=image_name,
+            action_type=action_type,
+            step_index=step_index,
+            task=task,
+            action_label=action_label,
+            action_text=action_text,
+            action_raw=action_raw,
+            url=url,
+            title=title,
+        )
         try:
             response = self._create_chat(
                 client,
@@ -372,7 +463,7 @@ class RealVLMClient:
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": HIGH_DETAIL_PROMPT},
+                            {"type": "text", "text": prompt},
                             {
                                 "type": "image_url",
                                 "image_url": {"url": data_url, "detail": "high"},
@@ -380,7 +471,7 @@ class RealVLMClient:
                         ],
                     }
                 ],
-                max_output_tokens=500,
+                max_output_tokens=900,
             )
         except Exception as exc:
             logger.warning(
@@ -406,7 +497,7 @@ class RealVLMClient:
                 self.model_name, type(text).__name__,
             )
             return None
-        return _normalize_summary(text, max_chars=_MAX_HIGH_DETAIL_CHARS)
+        return _normalize_structured_text(text, max_chars=_MAX_HIGH_DETAIL_CHARS)
 
 
 def get_vlm_client() -> VLMClient:

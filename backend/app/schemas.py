@@ -100,6 +100,37 @@ class TrajectoryDigest(BaseModel):
     vlm_output_tokens: int = 0
 
 
+# v1 failure-type vocabulary — the closed set agents must choose from
+# when filling ``EvalCase.failure_type``. Anything outside this set is
+# rejected by ``tools.propose_eval_case`` so the agent can't invent
+# labels like ``wrong_destination`` or ``unsupported_answer`` (seen in
+# eval runs). Mirrored by ``agent_eval.V1_FAILURE_VOCABULARY`` (kept in
+# that module for the baseline math so it stays self-contained).
+#
+# The ``V1FailureType`` Literal alias is the type hint used in
+# ``tools.propose_eval_case``. LangChain ``bind_tools`` walks the
+# function signature, builds a Pydantic model, and emits a JSON Schema
+# whose ``failure_type`` property includes ``enum: [...the 5 values]``.
+# OpenAI strict-mode tool calls then constrain decoding to those tokens,
+# so the agent cannot emit ``early_termination`` (typo) or
+# ``wrong_destination`` (paraphrase) — the misspellings observed in past
+# eval runs. The ``frozenset`` is the runtime defense-in-depth check.
+V1FailureType = Literal[
+    "early_terminated",
+    "wrong_target",
+    "wrong_result",
+    "missed_constraint",
+    "inefficient_search",
+]
+V1_FAILURE_VOCABULARY: frozenset[str] = frozenset({
+    "early_terminated",
+    "wrong_target",
+    "wrong_result",
+    "missed_constraint",
+    "inefficient_search",
+})
+
+
 class FailureMemoryCase(BaseModel):
     case_id: str = Field(pattern=r"^fm_[a-z][a-z0-9_]*_[0-9]{3}$")
     failure_type: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
@@ -233,6 +264,12 @@ class AgentTrace(BaseModel):
     # TrajectoryDigest exposes preprocess_model for the VLM side. Old
     # persisted traces deserialize with model=None (backwards compatible).
     model: str | None = None
+    # Versioned prompt identity for reproducibility. ``prompt_version`` is the
+    # committed directory under prompts/eval_agent/, and ``prompt_sha256`` is a
+    # combined hash of the system + followup prompt files. Old traces default
+    # to None; new traces stamp both at initial analyze.
+    prompt_version: str | None = None
+    prompt_sha256: str | None = None
     # The VLM that backed `get_step_detail` calls within this trace, plus
     # cumulative token usage across all calls (initial + followups).
     # `vlm_model` is stamped at trace creation from TRAJECTA_VLM_MODEL —
