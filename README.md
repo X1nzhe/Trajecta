@@ -70,16 +70,23 @@ TRAJECTA_PROMPT_VERSION=v1_minimal
 # and eval reports record version + hash.
 TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION=v1_task_context
 
+# Optional: Phase 8 dual LLM judge config. The repo does not hard-code
+# judge model defaults; operators choose concrete model IDs.
+TRAJECTA_JUDGE_A_MODEL=<gemini-model-id>
+TRAJECTA_JUDGE_A_PROMPT_VERSION=<judge-a-prompt-version>
+TRAJECTA_JUDGE_B_MODEL=<openai-model-id>
+TRAJECTA_JUDGE_B_PROMPT_VERSION=<judge-b-prompt-version>
+
 # Optional: ChromaDB embedding model. Falls back to chromadb's default
 # sentence-transformers if unset. Changing this requires clearing
 # data/chroma/ to rebuild the index — collections are not migrated.
 TRAJECTA_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
-Prompt updates are versioned directories under `prompts/eval_agent/` and
-`prompts/vlm_high_detail/`. Create a new directory for each prompt change and
-roll back by setting the corresponding environment variable to a previous
-version. See
+Prompt updates are versioned directories under `prompts/eval_agent/`,
+`prompts/vlm_high_detail/`, and `prompts/judge/`. Create a new directory for
+each prompt change and roll back by setting the corresponding environment
+variable to a previous version. See
 [docs/prompt_versioning.md](docs/prompt_versioning.md).
 
 **Fallback behavior** — with **no** env vars set, the backend boots
@@ -172,10 +179,10 @@ README claims stay in sync with whatever the user can produce in a fresh run.
 | 4 | `v4_search_strategy_rubric` | Prompt teaches when to call `find_similar_successful_run` vs `search_failure_memory`. | Failure_type advisory metric ↑; binary accuracy flat. | Targeted retrieval helps the advisory signal, not the headline. |
 | 5 | `v5_constraint_verification` | Constraint-evidence rubric for the high-detail VLM; agent required to surface constraint satisfaction in evidence. | Binary accuracy reaches 74.2 % (vs majority 54.8 %); failure-verdict recall 100 %; success-verdict recall 52.9 % | Constraint-grounded evidence is the highest-leverage prompt change in the v1→v5 sequence. |
 
-The judge column (`acceptable_rate` per A4) is added once the Phase 8 LLM
-judge run completes. See [docs/experiment_log.md](docs/experiment_log.md)
-for the full table and per-round failure-mode breakdowns once that doc is
-populated.
+The judge columns (`acceptable_rate` by judge and κ_LLM,LLM) are added once
+the Phase 8 Gemini/OpenAI judge run completes. See
+[docs/experiment_log.md](docs/experiment_log.md) for the full table and
+per-round failure-mode breakdowns once that doc is populated.
 
 ### RAGAS
 
@@ -195,43 +202,52 @@ is required, `n ≥ 10`.
 ### LLM judge + Cohen's κ
 
 ```bash
-# 1. LLM judge runs, one per model
+# From the repo root.
+# Phase 8 target flow: agent_eval writes the report/traces, then runs
+# the env-configured Gemini/OpenAI judge post-step.
+python -m backend.app.agent_eval \
+    --trace-dir eval/runs/{timestamp}/traces \
+    --judge
+
+# Standalone judge rerun + κ_LLM,LLM rollup
 python -m eval.judge \
     --golden eval/golden.jsonl \
     --report eval/agent_report.json \
     --trace-dir eval/runs/{timestamp}/traces \
-    --judge-model claude-opus-4-1 \
     --out eval/judge_report.json
-
-# 2. Human label collection (CLI side-by-side viewer)
-python -m eval.judge --human-label-mode \
-    --golden eval/golden.jsonl \
-    --report eval/agent_report.json \
-    --trace-dir eval/runs/{timestamp}/traces \
-    --out data/human_judge_labels.jsonl
-
-# 3. κ rollup
-python -m eval.judge --rollup --out eval/judge_report.md
 ```
 
-The judge scores the single binary dimension `acceptable_eval_case` via a
-six-clause rubric. Reports two κ rows: κ_LLM,LLM (Claude vs GPT) and
-κ_LLM,human (best-LLM vs human-labelled subset). When κ < 0.6, the report
-includes a disagreement analysis listing the split cases and the rubric
-clauses each annotator failed — we do **not** silently relax the rubric.
+The judge scores the single binary dimension `acceptable_eval_case`: is
+the generated eval case draft acceptable as a reusable regression case?
+Judge A uses a Gemini-compatible provider/model configured by
+`TRAJECTA_JUDGE_A_MODEL`; Judge B uses an OpenAI-compatible provider/model
+configured by `TRAJECTA_JUDGE_B_MODEL`. Both output `acceptable` or
+`unacceptable` plus acceptability assertions over the same resolved case
+payload and rubric. The report contains one primary κ row: κ_LLM,LLM.
+Preferred N is 31 gradeable cases; when cost-constrained, a deterministic
+pre-registered stratified subset is allowed if the report states
+`sample_size`, `selection_policy`, and skipped counts. When κ < 0.6, the
+report includes disagreement analysis over the split assertions — we do
+**not** silently relax the judge contract.
 
-See [docs/testing.md](docs/testing.md) § "LLM Judge" for the rubric and
-[docs/failure_analysis.md](docs/failure_analysis.md) for case studies.
+A human second judge is deliberately deferred because reviewer UI, workflow,
+and label-management design would expand Phase 8 scope.
 
-## Connect Trajecta to Claude Code via MCP
+See [docs/testing.md](docs/testing.md) § "LLM Judge" for the judge
+contract and [docs/failure_analysis.md](docs/failure_analysis.md) for
+case studies.
 
-Trajecta ships an MCP server that exposes the entire Eval Agent as a
-composite tool. External coding agents (Claude Code, Cursor) diagnose a
+## Planned MCP Connection
+
+MCP is a planned, lower-priority Phase 8 item after the judge agreement
+path. The planned server will expose the entire Eval Agent as a composite tool
+so external coding agents (Claude Code, Cursor) can diagnose a
 browser-agent trajectory via one MCP call.
 
-The server is built on the standalone `fastmcp` package
+The design uses the standalone `fastmcp` package
 (`pip install fastmcp`); tool registration is decorator-based and JSON
-schemas are auto-derived from Python type hints. Add to
+schemas are auto-derived from Python type hints. Once `mcp/server.py`
+exists, add to
 `claude_desktop_config.json`:
 
 ```json
@@ -259,7 +275,7 @@ Claude Code: <calls trajecta.analyze_run(run_id, intent="analyze_run")>
 You: <opens Trajecta UI to validate the draft — MCP cannot mark it validated>
 ```
 
-The MCP surface deliberately excludes `save_validated_eval_case`,
+The planned MCP surface deliberately excludes `save_validated_eval_case`,
 `delete_*`, and `import_dataset`. Validation stays HITL-gated on the
 Trajecta-UI side. Full design in [docs/mcp.md](docs/mcp.md); the exclusion
 list is also the primary least-privilege artefact in
@@ -314,10 +330,12 @@ v1 focuses on local fixtures, deterministic preprocessing, a bounded
 tool-calling Eval Agent, ChromaDB retrieval, eval case export, pytest
 coverage, and a simple React UI.
 
-**Phase 8** (S18 capstone alignment) ships the eval rigor and the MCP
-composite — golden set, LLM judge with κ, real RAGAS, experiment log,
-failure analysis, `mcp/server.py`, and the Security / Governance
-component framing. See
+**Phase 8** (S18 capstone alignment) prioritizes eval rigor: golden set,
+Gemini/OpenAI dual LLM judge with κ_LLM,LLM, real RAGAS, experiment log,
+failure analysis, and Security / Governance component framing. Human judge
+validation is deferred because reviewer UI, workflow, and label-management
+design would expand scope. The MCP composite remains planned but lower
+priority than the judge path. See
 [docs/phase8_s18_alignment.md](docs/phase8_s18_alignment.md) for the
 operating spec and [docs/roadmap.md](docs/roadmap.md) for the full plan.
 

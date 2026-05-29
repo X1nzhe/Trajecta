@@ -2,7 +2,7 @@
 
 This document is the single component story for the
 Security / Governance component declared in
-[`SPEC.md`](../SPEC.md#components-used) § "Components Used" and
+[`PROJECT.md`](../PROJECT.md#components-used) § "Components Used" and
 [`docs/phase8_s18_alignment.md`](phase8_s18_alignment.md) § B4.
 
 **Honesty notice.** The mechanisms below were shipped across Phase 1–7
@@ -72,7 +72,7 @@ would otherwise reason against.
 | --- | --- |
 | `backend/app/schemas.py` — `AgentTrace`, `AgentTraceEvent` | Every tool call, tool result, tool error, user message, agent message, and termination reason is logged with strictly monotonic `seq` and non-decreasing `turn`. |
 | `backend/app/storage.py` — `save_trace` / `load_trace` | Persisted as one JSON row in the `traces` SQLite table, keyed by `run_id`. |
-| `AgentTrace.source` ∈ {`ui`, `eval`, `mcp`} | Stamps the origin of every run. MCP-initiated runs are distinguishable from UI runs and eval-harness runs. |
+| `AgentTrace.source` ∈ {`ui`, `eval`, `mcp`} | Stamps the origin of every run. The `mcp` value is reserved for the planned MCP server so those runs are distinguishable from UI runs and eval-harness runs once B1 ships. |
 | Prompt version + sha256 fields | Every trace records the exact prompt bytes that produced it. Rollback is trivially reproducible. |
 
 The trace is the primary audit artefact. Phase 8's judge reads it; the
@@ -84,29 +84,29 @@ frontend renders it as a chat-style timeline; RAGAS scores against it.
 | --- | --- |
 | `EvalCase.human_validated: bool = False` | Default state for every agent-produced draft. |
 | `POST /api/eval-cases` | Rejects payloads with `human_validated=false` with HTTP 422. Validated cases enter the SQLite `eval_cases` table only through deliberate human action in the UI. |
-| `mcp/server.py` | Does **not** expose any tool that flips `human_validated`. See Mechanism 7. |
+| Planned `mcp/server.py` | Must not expose any tool that flips `human_validated`. See Mechanism 7. |
 
 The gate is enforced at the persistence layer, not at the application
 layer. The Eval Agent **cannot** mark its own case validated — the API
 contract refuses the request.
 
-### 7. MCP least-privilege tool exposure
+### 7. Planned MCP least-privilege tool exposure
 
 | Where | What |
 | --- | --- |
-| `mcp/server.py` — `@mcp.tool()` decorated functions | Exactly six tools (see [`docs/mcp.md`](mcp.md#tool-surface)) are exposed: `list_runs`, `get_run`, `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `analyze_run`. |
-| `mcp/server.py` — **not** decorated | `save_validated_eval_case`, `delete_*`, `import_dataset`, `set_prompt_version`. Excluded by tool surface, not by post-hoc permission checks. |
+| Planned `mcp/server.py` — `@mcp.tool()` decorated functions | Exactly six tools (see [`docs/mcp.md`](mcp.md#planned-tool-surface)) should be exposed: `list_runs`, `get_run`, `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `analyze_run`. |
+| Planned `mcp/server.py` — **not** decorated | `save_validated_eval_case`, `delete_*`, `import_dataset`, `set_prompt_version`. Excluded by tool surface, not by post-hoc permission checks. |
 
-An external agent connecting via MCP cannot persist validated cases,
-mutate historical data, or change the active prompt version. Attempting
-to invoke an excluded tool name yields an MCP `method_not_found`
-response — FastMCP emits this automatically because the tool function
-was never registered with the framework.
+Once B1 ships, an external agent connecting via MCP cannot persist validated
+cases, mutate historical data, or change the active prompt version. Attempting
+to invoke an excluded tool name should yield an MCP `method_not_found`
+response — FastMCP emits this automatically because the tool function is never
+registered with the framework.
 
-The exclusion list is the load-bearing artefact for the
-least-privilege story. It is enforced by **the absence of an
-`@mcp.tool()` decorator on the corresponding function**, not by a
-runtime check that could be bypassed.
+The exclusion list is the load-bearing artefact for the planned
+least-privilege story. It is enforced by **the absence of an `@mcp.tool()`
+decorator on the corresponding function**, not by a runtime check that could
+be bypassed.
 
 ### 8. Prompt versioning + sha256 traceability
 

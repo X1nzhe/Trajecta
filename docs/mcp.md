@@ -1,7 +1,8 @@
 # MCP — Trajecta's Composite Eval-Agent Tool
 
-This document is the design source of truth for `mcp/server.py`. Phase 8
-B1–B3 ships it; SPEC.md and README.md link here for details.
+This document is the design source of truth for the planned `mcp/server.py`.
+Phase 8 B1–B3 are lower priority than the Gemini judge agreement path;
+PROJECT.md and README.md link here for details.
 
 ## Position in the Ecosystem
 
@@ -14,12 +15,13 @@ The browser-agent ecosystem already covers two layers:
 
 What is **missing** is a remote callable agent that takes a recorded
 trajectory and produces a structured failure analysis with retrieval-grounded
-evidence and a regression-eval-case draft. Trajecta MCP is that layer.
+evidence and a regression-eval-case draft. The planned Trajecta MCP composite
+is intended to be that layer.
 
 Trajecta MCP does **not** control browsers. It analyses trajectories
 produced by other agents.
 
-## Tool Surface
+## Planned Tool Surface
 
 | Tool | Backend delegate | Side effects |
 | --- | --- | --- |
@@ -39,14 +41,14 @@ produced by other agents.
 | `import_dataset` | Admin-level surface; outside the analysis scope. |
 | `set_prompt_version` | Prompt selection belongs to operator-controlled env vars, not external agents. |
 
-The exclusion list is enforced by tool surface — `mcp/server.py` does
+The exclusion list will be enforced by tool surface — `mcp/server.py` will
 not register these names — not by post-hoc permission checks. Phase 8
 B4 (`docs/security_governance.md`) cites this surface as the primary
 least-privilege mechanism.
 
 ## `analyze_run` as a Composite Tool
 
-`analyze_run` is the load-bearing tool in this MCP server. It does not
+`analyze_run` is the load-bearing planned tool in this MCP server. It does not
 forward to a single backend function; it exposes the entire LangGraph
 Eval Agent loop as one MCP call.
 
@@ -109,7 +111,8 @@ reasons:
 
 ## Client Configuration
 
-Add to `claude_desktop_config.json` (or the Cursor equivalent):
+Once `mcp/server.py` exists, add to `claude_desktop_config.json` (or the Cursor
+equivalent):
 
 ```json
 {
@@ -131,12 +134,12 @@ Alternative: `fastmcp run mcp/server.py:mcp` if FastMCP CLI is installed
 globally. Both produce identical stdio-transport behaviour.
 
 Restart the client. `list_runs`, `analyze_run`, and the four other tools
-appear under the `trajecta` namespace.
+should appear under the `trajecta` namespace.
 
 ## Demo Script
 
-The seven-step demo lives canonically here; `README.md` § "Connect via
-MCP" mirrors the user-facing version.
+The planned seven-step demo lives canonically here; `README.md` § "Planned MCP
+Connection" mirrors the user-facing version.
 
 1. Operator pre-imports MolmoWeb sample runs into Trajecta storage
    (one-time setup).
