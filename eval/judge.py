@@ -1,43 +1,55 @@
 """LLM-judge for the Trajecta Eval Agent.
 
-This module implements S18 § 2.2 Build 4: an LLM judge that scores one
-quality dimension — ``acceptable_eval_case`` — over the proposed
-``EvalCase`` for each golden-set case, and reports Cohen's κ against a
-second annotator (another LLM or a human-labelled subset).
+This module implements the mechanical foundation for S18 § 2.2 Build 4:
+an LLM judge that scores one quality dimension —
+``acceptable_eval_case`` — over the Eval Agent's generated
+``eval_case_draft`` for each golden-set case, and reports Cohen's κ
+against a second annotator (another LLM/prompt pair or a human-labelled
+subset).
 
-The rubric is the six-clause scheme defined in ``docs/testing.md``
-§ "LLM Judge":
+The Phase 8 production flow is ``backend.app.agent_eval`` first, then a
+judge post-step over the exact ``agent_report.json`` and trace directory
+that eval run produced. ``eval/judge.py`` remains the standalone
+rerun/debug entry point.
 
-    1. Verdict match                             (mechanical)
-    2. Failure-type compatibility                (mechanical)
-    3. Failure-step locality                     (mechanical)
-    4. No contradiction with expected facts      (mechanical)
-    5. No forbidden assertions                   (mechanical)
-    6. Evidence traceability                     (LLM)
+The final judge task is not "evidence traceability". It is: decide
+whether the draft is acceptable as a reusable regression eval case, then
+return ``acceptable`` / ``unacceptable`` plus acceptability assertions.
 
-Five of six clauses are decided **deterministically** from the
-structured ``expected_facts`` / ``forbidden_facts`` in
-``eval/golden.jsonl`` against the proposed ``EvalCase`` fields. Only
-clause 6 requires an LLM call. That split means:
+Mechanical prechecks derived from the structured ``expected_facts`` /
+``forbidden_facts`` in ``eval/golden.jsonl``:
 
-  * Cohen's κ across two LLM judges varies only on clause 6 — the
-    deterministic clauses produce identical answers for any annotator.
-    The disagreement-analysis section therefore points squarely at the
-    qualitative dimension, which is the failure mode worth surfacing.
-  * A3.1 (this commit) ships the mechanical foundation, loaders, and
-    Cohen's κ math — all offline-testable. A3.2 adds source resolution,
-    the LLM clause-6 call, the CLI, and the report writers.
+    1. Verdict match
+    2. Failure-type compatibility
+    3. Failure-step locality
+    4. Expected facts satisfied
+    5. No forbidden assertions
 
-Run as ``python -m eval.judge`` once A3.2 lands.
+A3.2 (this file) adds:
+
+    * Per-EvidenceItem source resolution from the persisted trace +
+      storage so the LLM judge never has to call back to Trajecta.
+    * A per-case judge payload (``run_id``, ``golden_reference``,
+      ``proposed_eval_case``, ``evidence_with_sources``) consumed by the
+      LLM call.
+    * One env-configured ``acceptable_eval_case`` LLM judge invocation
+      (``run_llm_judge``) that A4 reuses for the second provider and
+      κ_LLM,LLM rollup.
+
+A3.3 will layer report writers on top; A3.4/A3.5 add the standalone CLI
+and the ``agent_eval --judge`` post-step.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import sys
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 # Make the repo root importable so ``from backend.app.schemas import ...``
 # works regardless of which directory the script was launched from.
@@ -45,18 +57,32 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from backend.app import storage  # noqa: E402
 from backend.app.schemas import (  # noqa: E402
     AgentTrace,
+    EvidenceItem,
+    EvalCase,
+    FailureMemoryCase,
     FailureStepFact,
     FailureTypeFact,
     GoldenCase,
     OutcomeFact,
+    TrajectoryDigest,
+    TrajectoryRun,
 )
 
 # Default artefact locations match the convention established by A1
 # (eval/golden.jsonl committed) and A2 (eval/runs/<stamp>/traces/
-# generated locally). The CLI in A3.2 will accept overrides.
+# generated locally). The CLI in A3.4 will accept overrides.
 DEFAULT_GOLDEN_PATH = _REPO_ROOT / "eval" / "golden.jsonl"
+DEFAULT_JUDGE_PROMPTS_ROOT = _REPO_ROOT / "prompts" / "judge"
+
+# Tool names that surface retrieval evidence into a trace. Used by
+# ``resolve_evidence_source`` to scan for ``failure_memory`` / ``eval_case``
+# / ``successful_run`` payloads without re-querying ChromaDB.
+_SEARCH_TOOL_NAMES = frozenset(
+    {"search_failure_memory", "search_eval_cases", "find_similar_successful_run"}
+)
 
 # The five failure-shape fields on an EvalCase. Used to derive whether a
 # proposed case is a "success verdict" (all five absent) or a "failure
@@ -77,7 +103,7 @@ _FAILURE_SHAPE_FIELDS = (
 
 @dataclass(frozen=True)
 class ClauseEvaluation:
-    """Result of running the six rubric clauses against one proposed case.
+    """Result of running judge prechecks against one proposed case.
 
     Each clause carries one of three values:
 
@@ -88,8 +114,8 @@ class ClauseEvaluation:
                     does **not** count as a failure when aggregating
                     the verdict.
 
-    Clause 6 is left as ``None`` by A3.1 (it requires the LLM); A3.2
-    populates it.
+    The final LLM acceptability assertion is left as ``None`` by A3.1;
+    A3.2 populates it.
     """
 
     clause_1_verdict_match: bool | None
@@ -97,7 +123,7 @@ class ClauseEvaluation:
     clause_3_failure_step: bool | None
     clause_4_expected_facts: bool | None
     clause_5_no_forbidden: bool | None
-    clause_6_evidence_grounded: bool | None
+    clause_6_acceptability_assertion: bool | None
 
     def as_dict(self) -> dict[int, bool | None]:
         return {
@@ -106,7 +132,7 @@ class ClauseEvaluation:
             3: self.clause_3_failure_step,
             4: self.clause_4_expected_facts,
             5: self.clause_5_no_forbidden,
-            6: self.clause_6_evidence_grounded,
+            6: self.clause_6_acceptability_assertion,
         }
 
 
@@ -284,7 +310,7 @@ def clause_4_expected_facts_satisfied(
 
     Subsumes clauses 1-3 (each is a single ``expected_facts`` entry).
     The convenience projections in 1-3 surface *which* expected entry
-    failed, which 4 by itself cannot — the failed-rubrics list in
+    failed, which 4 by itself cannot — the failed assertion list in
     ``ClauseEvaluation`` therefore distinguishes "verdict wrong" from
     "verdict right but failure_type wrong" from "all expected facts
     fine".
@@ -308,9 +334,10 @@ def clause_5_no_forbidden_assertions(
 def evaluate_mechanical_clauses(
     golden: GoldenCase, proposed: dict[str, Any]
 ) -> ClauseEvaluation:
-    """Run clauses 1-5 against one (golden, proposed) pair.
+    """Run deterministic prechecks against one (golden, proposed) pair.
 
-    Clause 6 (the LLM clause) is left ``None``; A3.2 fills it in.
+    The final LLM acceptability assertion is left ``None``; A3.2 fills
+    it in.
     """
     return ClauseEvaluation(
         clause_1_verdict_match=clause_1_verdict_match(golden, proposed),
@@ -318,7 +345,7 @@ def evaluate_mechanical_clauses(
         clause_3_failure_step=clause_3_failure_step_locality(golden, proposed),
         clause_4_expected_facts=clause_4_expected_facts_satisfied(golden, proposed),
         clause_5_no_forbidden=clause_5_no_forbidden_assertions(golden, proposed),
-        clause_6_evidence_grounded=None,
+        clause_6_acceptability_assertion=None,
     )
 
 
@@ -334,21 +361,21 @@ def aggregate_verdict(
 
     Rules (per ``docs/testing.md`` § LLM Judge):
 
-      * A case is ``acceptable`` iff every clause is ``True`` or ``None``.
+      * A case is ``acceptable`` iff every checked assertion is ``True``.
       * ``None`` (clause does not apply) does **not** count as a failure.
-      * ``failed_rubrics`` is the sorted list of clause numbers whose
+      * The returned failed list is the sorted list of assertion numbers whose
         value is ``False``; empty when the verdict is ``acceptable``.
 
-    Clause 6 left as ``None`` — the A3.1-only path — is treated as
+    The LLM assertion left as ``None`` — the A3.1-only path — is treated as
     "not yet judged"; the verdict is "acceptable" iff the deterministic
-    clauses all pass. A3.2 always populates clause 6, so a real judge
-    run never silently skips it.
+    prechecks all pass. A3.2 always populates this assertion, so a real
+    judge run never silently skips it.
     """
     failed: list[int] = []
     for n, value in clauses.as_dict().items():
         if value is False:
             failed.append(n)
-    verdict = "acceptable" if not failed else "not_acceptable"
+    verdict = "acceptable" if not failed else "unacceptable"
     return verdict, sorted(failed)
 
 
@@ -409,9 +436,578 @@ def disagreement_indices(a: list[bool], b: list[bool]) -> list[int]:
     return [i for i, (x, y) in enumerate(zip(a, b)) if x != y]
 
 
+# ---------------------------------------------------------------------------
+# A3.2 — EvidenceItem source resolution
+#
+# The judge harness pre-resolves each EvidenceItem's source from the
+# persisted trace + storage so the LLM never has to call back to Trajecta.
+# Per ``docs/testing.md`` § Input shape (per case): the resolved source
+# is one of step JSON / failure_memory case / step_detail tool_result /
+# eval_case / successful_run record / None (when marked unavailable).
+
+
+def _items_from_tool_result(event_result: Any) -> list[Any]:
+    """Unwrap the ``{"items": [...]}`` envelope produced for list-returning
+    tools by ``eval_agent_graph._trace_result_payload``.
+
+    For dict-returning tools (``get_step_detail``, ``get_run``) the payload
+    is the dict itself, so we return ``[payload]`` to keep the caller's
+    iteration uniform.
+    """
+    if isinstance(event_result, dict):
+        items = event_result.get("items")
+        if isinstance(items, list):
+            return items
+        return [event_result]
+    if isinstance(event_result, list):
+        return event_result
+    return []
+
+
+def _scan_trace_for_case(
+    trace: AgentTrace, *, context_id: str
+) -> dict[str, Any] | None:
+    """Return the first retrieved case in any search_* tool_result whose
+    ``case_id`` matches ``context_id``."""
+    for ev in trace.events:
+        if ev.type != "tool_result" or ev.name not in _SEARCH_TOOL_NAMES:
+            continue
+        for item in _items_from_tool_result(ev.result):
+            if isinstance(item, dict) and item.get("case_id") == context_id:
+                return item
+    return None
+
+
+def _scan_trace_for_successful_run(
+    trace: AgentTrace, *, run_id: str
+) -> dict[str, Any] | None:
+    """Return the first find_similar_successful_run item whose ``run_id``
+    matches the EvidenceItem's ``context_id``."""
+    for ev in trace.events:
+        if ev.type != "tool_result" or ev.name != "find_similar_successful_run":
+            continue
+        for item in _items_from_tool_result(ev.result):
+            if isinstance(item, dict) and item.get("run_id") == run_id:
+                return item
+    return None
+
+
+def _scan_trace_for_step_detail_by_seq(
+    trace: AgentTrace, *, seq: int
+) -> dict[str, Any] | None:
+    """Return the tool_result payload at ``seq`` if it is a ``get_step_detail``
+    response. ``seq`` here is the EvidenceItem.trace_event_seq the agent
+    cited; it should point either at the tool_call or its tool_result.
+    Either anchor is acceptable — we walk forward from the cited seq until
+    we hit the matching tool_result.
+    """
+    for ev in trace.events:
+        if ev.seq < seq:
+            continue
+        if ev.type == "tool_result" and ev.name == "get_step_detail":
+            return ev.result if isinstance(ev.result, dict) else None
+        # Don't walk past a divergent later get_step_detail call.
+        if ev.seq > seq and ev.type == "tool_call" and ev.name == "get_step_detail":
+            return None
+    return None
+
+
+def resolve_evidence_source(
+    item: EvidenceItem,
+    *,
+    trace: AgentTrace,
+    run: TrajectoryRun | None = None,
+    digest: TrajectoryDigest | None = None,
+    failure_memory_cases: dict[str, FailureMemoryCase] | None = None,
+    eval_cases: dict[str, EvalCase] | None = None,
+) -> dict[str, Any] | None:
+    """Resolve the source content for a single ``EvidenceItem``.
+
+    The judge prompt receives this pre-resolved payload so the LLM never
+    has to issue a tool call back into Trajecta. Returns ``None`` when the
+    item's ``source == "unavailable"`` (the agent's honest gap) or when
+    the source cannot be reconstructed from the supplied trace + storage
+    snapshots — in both cases the caller surfaces the gap to the LLM via
+    a ``"resolved_source": null`` entry.
+
+    Resolution preference order per source:
+
+      * ``trajectory`` / ``trajectory_digest`` — look the step up by
+        ``step_index`` in the supplied ``run`` / ``digest``. The agent may
+        also use ``trace_event_seq`` to point at a ``get_run`` tool_result;
+        we honour either anchor.
+      * ``step_detail_high`` / ``step_detail_low`` — pull the matching
+        ``get_step_detail`` tool_result from the trace by
+        ``trace_event_seq``. Falling back to ``step_index`` would risk
+        confusing two different inspections of the same step.
+      * ``failure_memory`` / ``eval_case`` — prefer the trace's
+        retrieval tool_result (so the judge sees exactly what the agent
+        saw, including any redaction). Fall back to live storage lookups
+        only when the trace no longer carries the case.
+      * ``successful_run`` — scan ``find_similar_successful_run`` results
+        by ``context_id`` (which the agent fills with the comparator's
+        ``run_id``).
+      * ``unavailable`` — by contract, no source.
+    """
+    if item.source == "unavailable":
+        return None
+
+    if item.source == "trajectory":
+        return _resolve_trajectory(item, run=run, trace=trace)
+
+    if item.source == "trajectory_digest":
+        return _resolve_digest(item, digest=digest, trace=trace)
+
+    if item.source in ("step_detail_high", "step_detail_low"):
+        return _resolve_step_detail(item, trace=trace)
+
+    if item.source == "failure_memory":
+        return _resolve_curated_case(
+            item, trace=trace, index=failure_memory_cases, loader="failure_memory"
+        )
+
+    if item.source == "eval_case":
+        return _resolve_curated_case(
+            item, trace=trace, index=eval_cases, loader="eval_case"
+        )
+
+    if item.source == "successful_run":
+        return _resolve_successful_run(item, trace=trace)
+
+    return None
+
+
+def _resolve_trajectory(
+    item: EvidenceItem,
+    *,
+    run: TrajectoryRun | None,
+    trace: AgentTrace,
+) -> dict[str, Any] | None:
+    if run is not None and item.step_index is not None:
+        for step in run.steps:
+            if step.index == item.step_index:
+                return step.model_dump(mode="json")
+    # Fall back to a get_run tool_result if the agent cited one.
+    if item.trace_event_seq is not None:
+        for ev in trace.events:
+            if (
+                ev.type == "tool_result"
+                and ev.name == "get_run"
+                and ev.seq == item.trace_event_seq
+                and isinstance(ev.result, dict)
+            ):
+                return ev.result
+    return None
+
+
+def _resolve_digest(
+    item: EvidenceItem,
+    *,
+    digest: TrajectoryDigest | None,
+    trace: AgentTrace,
+) -> dict[str, Any] | None:
+    if digest is not None and item.step_index is not None:
+        for step in digest.steps:
+            if step.index == item.step_index:
+                return step.model_dump(mode="json")
+    # ``get_run`` returns the digest inline as ``trajectory_digest``;
+    # honour a trace_event_seq pointing at that payload too.
+    if item.trace_event_seq is not None:
+        for ev in trace.events:
+            if (
+                ev.type == "tool_result"
+                and ev.name == "get_run"
+                and ev.seq == item.trace_event_seq
+                and isinstance(ev.result, dict)
+            ):
+                payload = ev.result.get("trajectory_digest")
+                if isinstance(payload, dict):
+                    return payload
+                return ev.result
+    return None
+
+
+def _resolve_step_detail(
+    item: EvidenceItem, *, trace: AgentTrace
+) -> dict[str, Any] | None:
+    if item.trace_event_seq is None:
+        return None
+    return _scan_trace_for_step_detail_by_seq(trace, seq=item.trace_event_seq)
+
+
+def _resolve_curated_case(
+    item: EvidenceItem,
+    *,
+    trace: AgentTrace,
+    index: dict[str, Any] | None,
+    loader: Literal["failure_memory", "eval_case"],
+) -> dict[str, Any] | None:
+    if not item.context_id:
+        return None
+    cached = _scan_trace_for_case(trace, context_id=item.context_id)
+    if cached is not None:
+        return cached
+    if index is not None and item.context_id in index:
+        value = index[item.context_id]
+        if hasattr(value, "model_dump"):
+            return value.model_dump(mode="json")
+        if isinstance(value, dict):
+            return value
+    # Lazy storage fallback. The judge is allowed to use ``storage`` per
+    # ``docs/testing.md`` § Input shape, and these two loaders are cheap.
+    try:
+        if loader == "failure_memory":
+            for case in storage.load_failure_memory():
+                if case.case_id == item.context_id:
+                    return case.model_dump(mode="json")
+        else:
+            case = storage.load_eval_case(item.context_id)
+            if case is not None:
+                return case.model_dump(mode="json")
+    except Exception:
+        # Storage errors are not fatal here — fall through to None so the
+        # judge sees an honest gap rather than a stack trace.
+        return None
+    return None
+
+
+def _resolve_successful_run(
+    item: EvidenceItem, *, trace: AgentTrace
+) -> dict[str, Any] | None:
+    if item.context_id:
+        return _scan_trace_for_successful_run(trace, run_id=item.context_id)
+    return None
+
+
+def build_judge_payload(
+    *,
+    run_id: str,
+    golden: GoldenCase,
+    trace: AgentTrace,
+    run: TrajectoryRun | None = None,
+    digest: TrajectoryDigest | None = None,
+    failure_memory_cases: dict[str, FailureMemoryCase] | None = None,
+    eval_cases: dict[str, EvalCase] | None = None,
+) -> dict[str, Any]:
+    """Assemble the per-case payload the LLM judge receives.
+
+    Matches the structure described in ``docs/testing.md`` § Input shape::
+
+        {
+          "run_id": "...",
+          "golden_reference": {<row from golden.jsonl>},
+          "proposed_eval_case": {<args of latest propose_eval_case>} | None,
+          "evidence_with_sources": [
+            {"evidence": <EvidenceItem>,
+             "resolved_source": <step | case | tool_result | None>},
+            ...
+          ]
+        }
+
+    The proposed eval case is the latest ``propose_eval_case`` tool_call's
+    args (see ``extract_proposed_eval_case``). When the trace terminated
+    via ``budget_exceeded`` / ``error`` and never proposed a case, the
+    field is ``None`` and ``evidence_with_sources`` is empty — the judge
+    can still mark such a trace ``unacceptable``.
+    """
+    proposed = extract_proposed_eval_case(trace)
+    evidence_with_sources: list[dict[str, Any]] = []
+    if proposed is not None:
+        raw_evidence = proposed.get("evidence") or []
+        if isinstance(raw_evidence, list):
+            for raw in raw_evidence:
+                item = _coerce_evidence_item(raw)
+                if item is None:
+                    # Preserve the raw row so the judge can still see
+                    # what the agent claimed even if it failed validation.
+                    evidence_with_sources.append(
+                        {"evidence": raw, "resolved_source": None}
+                    )
+                    continue
+                resolved = resolve_evidence_source(
+                    item,
+                    trace=trace,
+                    run=run,
+                    digest=digest,
+                    failure_memory_cases=failure_memory_cases,
+                    eval_cases=eval_cases,
+                )
+                evidence_with_sources.append(
+                    {
+                        "evidence": item.model_dump(mode="json"),
+                        "resolved_source": resolved,
+                    }
+                )
+
+    return {
+        "run_id": run_id,
+        "golden_reference": golden.model_dump(mode="json"),
+        "proposed_eval_case": proposed,
+        "evidence_with_sources": evidence_with_sources,
+    }
+
+
+def _coerce_evidence_item(raw: Any) -> EvidenceItem | None:
+    if isinstance(raw, EvidenceItem):
+        return raw
+    if isinstance(raw, dict):
+        try:
+            return EvidenceItem.model_validate(raw)
+        except Exception:
+            return None
+    return None
+
+
+# ---------------------------------------------------------------------------
+# A3.2 — one-provider LLM call foundation
+#
+# The judge LLM call is structured so the same runner can drive any
+# provider-configured model. A3.2 ships the env-driven config dataclass,
+# the prompt loader (sha256-stamped), the response parser, and the
+# ``run_llm_judge`` entrypoint. A4 reuses this runner for the second
+# provider and the κ_LLM,LLM rollup; the real provider clients (Gemini,
+# OpenAI) are operator-configured by env at that point.
+
+
+JudgeSlot = Literal["A", "B"]
+
+
+@dataclass(frozen=True)
+class JudgeConfig:
+    """Resolved configuration for one judge slot.
+
+    ``slot`` is "A" (Gemini-compatible by convention) or "B"
+    (OpenAI-compatible). ``model`` and ``prompt_version`` come from
+    ``TRAJECTA_JUDGE_{slot}_MODEL`` / ``TRAJECTA_JUDGE_{slot}_PROMPT_VERSION``.
+    No defaults — the operator picks the concrete model IDs and prompt
+    bundle per run (see ``docs/prompt_versioning.md``).
+    """
+
+    slot: JudgeSlot
+    model: str
+    prompt_version: str
+
+
+def judge_config_from_env(
+    slot: JudgeSlot, env: dict[str, str] | None = None
+) -> JudgeConfig | None:
+    """Read one judge slot's config from the environment.
+
+    Returns ``None`` when either ``TRAJECTA_JUDGE_{slot}_MODEL`` or
+    ``TRAJECTA_JUDGE_{slot}_PROMPT_VERSION`` is unset — the caller decides
+    whether absence is an error (the production post-step) or a no-op (a
+    one-judge debugging rerun).
+    """
+    src = env if env is not None else os.environ
+    model = (src.get(f"TRAJECTA_JUDGE_{slot}_MODEL") or "").strip()
+    prompt_version = (src.get(f"TRAJECTA_JUDGE_{slot}_PROMPT_VERSION") or "").strip()
+    if not model or not prompt_version:
+        return None
+    return JudgeConfig(slot=slot, model=model, prompt_version=prompt_version)
+
+
+def load_judge_prompt(
+    version: str, prompts_root: Path | None = None
+) -> tuple[str, str]:
+    """Return ``(prompt_text, sha256_hex)`` for one committed judge prompt
+    bundle. ``prompts/judge/{version}/prompt.md`` is the only file read;
+    the sha256 stamp lets the judge report tie a verdict back to the
+    exact bytes that produced it (per ``docs/prompt_versioning.md`` §
+    Traceability)."""
+    root = prompts_root or DEFAULT_JUDGE_PROMPTS_ROOT
+    path = root / version / "prompt.md"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"judge prompt bundle not found at {path}; "
+            f"create prompts/judge/{version}/prompt.md or rerun with a different "
+            f"TRAJECTA_JUDGE_*_PROMPT_VERSION"
+        )
+    text = path.read_text(encoding="utf-8")
+    sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return text, sha
+
+
+# Type alias for the mockable LLM call. The runner renders the prompt +
+# JSON-serialised payload and hands them to this callable; the callable
+# returns the raw JSON-string response from the model. Keeping the
+# callable signature this narrow is what lets the test suite drive
+# ``run_llm_judge`` deterministically without spinning up a real
+# provider client.
+LLMJudgeCallable = Callable[[str, dict[str, Any]], str]
+
+
+@dataclass(frozen=True)
+class JudgeAssertion:
+    """One row in the judge's ``assertions`` list."""
+
+    name: str
+    status: Literal["pass", "fail"]
+    rationale: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "status": self.status, "rationale": self.rationale}
+
+
+@dataclass(frozen=True)
+class JudgeLLMResult:
+    """Parsed result of one ``acceptable_eval_case`` LLM judge call.
+
+    ``acceptable`` is the binary stream A4 feeds into Cohen's κ;
+    ``assertions`` carries the per-rubric breakdown the report writer
+    surfaces; ``model`` / ``prompt_version`` / ``prompt_sha256`` are the
+    traceability triple every judge row must carry.
+    """
+
+    slot: JudgeSlot
+    model: str
+    prompt_version: str
+    prompt_sha256: str
+    verdict: Literal["acceptable", "unacceptable"]
+    rationale: str
+    assertions: list[JudgeAssertion] = field(default_factory=list)
+    raw_response: str = ""
+
+    @property
+    def acceptable(self) -> bool:
+        return self.verdict == "acceptable"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "slot": self.slot,
+            "model": self.model,
+            "prompt_version": self.prompt_version,
+            "prompt_sha256": self.prompt_sha256,
+            "verdict": self.verdict,
+            "rationale": self.rationale,
+            "assertions": [a.as_dict() for a in self.assertions],
+        }
+
+
+def run_llm_judge(
+    payload: dict[str, Any],
+    config: JudgeConfig,
+    *,
+    judge_callable: LLMJudgeCallable | None = None,
+    prompts_root: Path | None = None,
+) -> JudgeLLMResult:
+    """Invoke one judge slot against one per-case payload.
+
+    Tests pass ``judge_callable`` to mock the model response; production
+    callers either pass a provider-specific callable they build (A4) or
+    rely on the default factory below. Either way the parser enforces
+    the verdict + assertion shape documented in
+    ``docs/testing.md`` § Output shape so the report writer (A3.3) and
+    κ runner (A4.3) can trust the field types.
+    """
+    prompt_text, prompt_sha = load_judge_prompt(config.prompt_version, prompts_root)
+    callable_ = judge_callable or _default_judge_callable(config)
+    raw_response = callable_(prompt_text, payload)
+    parsed = _parse_judge_response(raw_response)
+    return JudgeLLMResult(
+        slot=config.slot,
+        model=config.model,
+        prompt_version=config.prompt_version,
+        prompt_sha256=prompt_sha,
+        verdict=parsed["verdict"],
+        rationale=parsed["rationale"],
+        assertions=parsed["assertions"],
+        raw_response=raw_response,
+    )
+
+
+def _parse_judge_response(raw: str) -> dict[str, Any]:
+    """Validate the JSON judge response and coerce it into typed pieces.
+
+    Tolerates a ```` ```json ... ``` ```` code fence because some
+    providers wrap structured-output replies that way even when asked
+    not to. Everything else — missing ``verdict``, out-of-vocab status,
+    non-list assertions — raises ``ValueError`` so a bad model run
+    surfaces in the report rather than silently producing an
+    "acceptable" verdict from garbage.
+    """
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        # Strip leading ```json / ``` and trailing ```.
+        text = text.lstrip("`")
+        # The opening fence may carry a language hint we need to drop.
+        if text.lower().startswith("json"):
+            text = text[4:]
+        text = text.strip()
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"judge response is not valid JSON: {exc}; raw={raw!r}"
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"judge response must be a JSON object; got {type(parsed).__name__}")
+    verdict = parsed.get("verdict")
+    if verdict not in ("acceptable", "unacceptable"):
+        raise ValueError(
+            f"judge verdict must be 'acceptable' or 'unacceptable'; got {verdict!r}"
+        )
+    rationale = parsed.get("rationale", "")
+    if not isinstance(rationale, str):
+        raise ValueError(
+            f"judge rationale must be a string; got {type(rationale).__name__}"
+        )
+    raw_assertions = parsed.get("assertions", [])
+    if not isinstance(raw_assertions, list):
+        raise ValueError(
+            f"judge assertions must be a list; got {type(raw_assertions).__name__}"
+        )
+    assertions: list[JudgeAssertion] = []
+    for row in raw_assertions:
+        if not isinstance(row, dict):
+            raise ValueError(f"judge assertion row must be an object; got {row!r}")
+        name = row.get("name")
+        status = row.get("status")
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"judge assertion name must be a non-empty string; got {name!r}")
+        if status not in ("pass", "fail"):
+            raise ValueError(
+                f"judge assertion status must be 'pass' or 'fail'; got {status!r}"
+            )
+        assertion_rationale = row.get("rationale", "")
+        if not isinstance(assertion_rationale, str):
+            raise ValueError(
+                f"judge assertion rationale must be a string; got {type(assertion_rationale).__name__}"
+            )
+        assertions.append(
+            JudgeAssertion(name=name, status=status, rationale=assertion_rationale)
+        )
+    return {"verdict": verdict, "rationale": rationale, "assertions": assertions}
+
+
+def _default_judge_callable(config: JudgeConfig) -> LLMJudgeCallable:
+    """Build a real provider-backed callable when no mock was supplied.
+
+    A3.2 ships the foundation but does not commit to a specific provider
+    SDK at import time. Provider wiring (Gemini-compatible, OpenAI-compatible)
+    lands with A4.1 alongside the second-judge κ rollup. Until then,
+    any caller that does not pass ``judge_callable`` gets a clear
+    error explaining what to wire next — the goal is to keep accidental
+    network calls (and silent test failures) impossible.
+    """
+    raise NotImplementedError(
+        "no default judge callable is wired for "
+        f"slot={config.slot!r} model={config.model!r}; "
+        "pass judge_callable=... (mocked in tests, real provider client in A4.1)"
+    )
+
+
 __all__ = [
     "ClauseEvaluation",
+    "DEFAULT_JUDGE_PROMPTS_ROOT",
+    "JudgeAssertion",
+    "JudgeConfig",
+    "JudgeLLMResult",
+    "JudgeSlot",
+    "LLMJudgeCallable",
     "aggregate_verdict",
+    "build_judge_payload",
     "clause_1_verdict_match",
     "clause_2_failure_type_compatibility",
     "clause_3_failure_step_locality",
@@ -421,6 +1017,10 @@ __all__ = [
     "disagreement_indices",
     "evaluate_mechanical_clauses",
     "extract_proposed_eval_case",
+    "judge_config_from_env",
     "load_golden_cases",
+    "load_judge_prompt",
     "load_trace",
+    "resolve_evidence_source",
+    "run_llm_judge",
 ]

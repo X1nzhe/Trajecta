@@ -703,13 +703,14 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**A3.2** — judge payload/evidence resolution + one-provider LLM call
-foundation: resolve `EvidenceItem` sources from persisted trace + storage and
-wire one `acceptable_eval_case` assertion call in `eval/judge.py`. A4 reuses
-the runner for the second provider and κ rollup.
+**A3.3** — report writers: emit `eval/judge_report.json` and
+`eval/judge_report.md` from the A3.2 payload + LLM judge output, in the
+shape `docs/testing.md` § Outputs describes. The κ_LLM,LLM row is added
+in A4; A3.3 only needs to surface the per-case verdicts, acceptability
+assertions, and aggregate `acceptable_rate` for one judge.
 
-Do **not** start A3.3 (report writers) or A4 (two-model κ_LLM,LLM rollup)
-until A3.2 verify passes.
+Do **not** start A3.4 (standalone CLI), A3.5 (`agent_eval --judge`
+post-step), or A4 (two-model κ_LLM,LLM rollup) until A3.3 verify passes.
 
 ### Agent Handoff Rule
 
@@ -795,12 +796,12 @@ on a stable `analyze_run` path only.
 | Slice | Status | Artefact / outcome | Core files | Verify |
 | --- | --- | --- | --- | --- |
 | A3.1 Mechanical prechecks + κ math | `done` | Clauses 1–5, `cohens_kappa`, loaders | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py` |
-| A3.2 Judge payload/evidence resolution + one-provider LLM call foundation | `todo` | `evidence_with_sources` pre-resolved; clause 6 populated; A4 reuses runner for second provider + κ | `eval/judge.py`, `prompts/judge/*` | extend `tests/test_judge.py` with mocked LLM |
+| A3.2 Judge payload/evidence resolution + one-provider LLM call foundation | `done` | `build_judge_payload` + `resolve_evidence_source` + env-configured `JudgeConfig` + mockable `run_llm_judge` runner that A4 reuses for the second provider | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py` → 63 passed (2026-05-29) |
 | A3.3 Report writers | `todo` | `eval/judge_report.json`, `eval/judge_report.md` | `eval/judge.py` | `python -m eval.judge --out eval/judge_report.json` |
 | A3.4 Standalone env-configured CLI | `todo` | Rerun against report + trace-dir using env-provided judge config | `eval/judge.py` | `python -m eval.judge --golden eval/golden.jsonl --report eval/agent_report.json --trace-dir … --out eval/judge_report.json` |
 | A3.5 `agent_eval --judge` post-step | `todo` | Judge post-step invoked after eval with env-provided configs | `backend/app/agent_eval.py`, `eval/judge.py` | `python -m backend.app.agent_eval --trace-dir … --judge` |
 
-**Epic status**: `partial` — A3.1 only.
+**Epic status**: `partial` — A3.1 + A3.2 shipped; A3.3 next.
 
 #### A4 — κ_LLM,LLM
 

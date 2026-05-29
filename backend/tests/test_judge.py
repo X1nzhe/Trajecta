@@ -1,14 +1,18 @@
-"""Phase 8 A3.1 — tests for the LLM-judge mechanical foundation.
+"""Phase 8 A3.1 + A3.2 — tests for the LLM-judge mechanical foundation
+plus the A3.2 evidence-resolution / payload-assembly / one-provider LLM
+call wiring.
 
-Covers the 5 deterministic rubric clauses, Cohen's κ math, and the
-loaders that bridge ``eval/golden.jsonl`` and the per-sample trace
-dumps produced by ``backend.app.agent_eval --trace-dir``.
-
-Clause 6 (the LLM call) ships in A3.2 and is tested separately there.
+Covers deterministic judge prechecks, Cohen's κ math, the loaders that
+bridge ``eval/golden.jsonl`` and the per-sample trace dumps produced by
+``backend.app.agent_eval --trace-dir``, the A3.2 evidence-source
+resolution helpers, ``build_judge_payload``, and the mockable
+``run_llm_judge`` runner. No real Gemini/OpenAI calls are issued from
+this test module.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -18,14 +22,27 @@ import pytest
 from backend.app.schemas import (
     AgentTrace,
     AgentTraceEvent,
+    EvidenceItem,
+    FailureMemoryCase,
     FailureStepFact,
     FailureTypeFact,
     GoldenCase,
     OutcomeFact,
+    StepAction,
+    StepDigest,
+    StepObservation,
+    StepResult,
+    TrajectoryDigest,
+    TrajectoryRun,
+    TrajectoryStep,
 )
 from eval.judge import (
     ClauseEvaluation,
+    JudgeAssertion,
+    JudgeConfig,
+    JudgeLLMResult,
     aggregate_verdict,
+    build_judge_payload,
     clause_1_verdict_match,
     clause_2_failure_type_compatibility,
     clause_3_failure_step_locality,
@@ -35,9 +52,14 @@ from eval.judge import (
     disagreement_indices,
     evaluate_mechanical_clauses,
     extract_proposed_eval_case,
+    judge_config_from_env,
     load_golden_cases,
+    load_judge_prompt,
     load_trace,
+    resolve_evidence_source,
+    run_llm_judge,
 )
+from eval.judge import _parse_judge_response  # noqa: E402 — direct test access
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GOLDEN_PATH = REPO_ROOT / "eval" / "golden.jsonl"
@@ -160,7 +182,7 @@ def test_clause_2_failure_type_not_in_expected_set_fails() -> None:
 def test_clause_2_returns_none_for_success_reference() -> None:
     """Success references have no FailureTypeFact — clause is N/A,
     not False. The N/A signal is what aggregate_verdict uses to skip
-    the clause when computing failed_rubrics."""
+    the clause when computing failed assertion numbers."""
     golden = _success_golden()
     proposed = _matched_failed_proposal()  # shape mismatch, but clause 2 is N/A
     assert clause_2_failure_type_compatibility(golden, proposed) is None
@@ -265,7 +287,7 @@ def test_aggregate_verdict_lists_failed_clauses_in_order() -> None:
     golden = _failed_golden(failure_types=["missed_constraint"])
     proposed = _matched_failed_proposal(failure_type="wrong_target")
     verdict, failed = aggregate_verdict(evaluate_mechanical_clauses(golden, proposed))
-    assert verdict == "not_acceptable"
+    assert verdict == "unacceptable"
     assert failed == [2, 4, 5]
 
 
@@ -276,7 +298,7 @@ def test_aggregate_verdict_ignores_none_clauses() -> None:
     golden = _success_golden()
     proposed = _matched_success_proposal()
     clauses = evaluate_mechanical_clauses(golden, proposed)
-    # Clauses 2 and 3 are N/A — they must not appear in failed_rubrics.
+    # Clauses 2 and 3 are N/A — they must not appear in failed assertions.
     assert clauses.clause_2_failure_type is None
     assert clauses.clause_3_failure_step is None
     verdict, failed = aggregate_verdict(clauses)
@@ -284,8 +306,8 @@ def test_aggregate_verdict_ignores_none_clauses() -> None:
     assert failed == []
 
 
-def test_aggregate_verdict_treats_clause_6_none_as_not_failure() -> None:
-    """A3.1 leaves clause 6 as None (LLM call lives in A3.2). The
+def test_aggregate_verdict_treats_llm_assertion_none_as_not_failure() -> None:
+    """A3.1 leaves the LLM assertion as None (call lives in A3.2). The
     aggregate must still produce a defensible verdict on the
     mechanical clauses alone — otherwise the A3.1 commit cannot be
     independently smoke-tested."""
@@ -295,7 +317,7 @@ def test_aggregate_verdict_treats_clause_6_none_as_not_failure() -> None:
         clause_3_failure_step=True,
         clause_4_expected_facts=True,
         clause_5_no_forbidden=True,
-        clause_6_evidence_grounded=None,
+        clause_6_acceptability_assertion=None,
     )
     verdict, failed = aggregate_verdict(clauses)
     assert verdict == "acceptable"
@@ -535,3 +557,613 @@ def test_extract_proposed_eval_case_returns_none_when_trace_did_not_terminate() 
         vlm_model="mock",
     )
     assert extract_proposed_eval_case(trace) is None
+
+
+# ---------------------------------------------------------------------------
+# A3.2 — evidence source resolution
+
+
+def _step(idx: int, *, label: str = "click") -> TrajectoryStep:
+    return TrajectoryStep(
+        index=idx,
+        timestamp=None,
+        observation=StepObservation(
+            screenshot=f"screenshot_{idx:03d}.png",
+            url="https://example.test",
+            title=f"step {idx}",
+            visible_text=f"label {label}",
+        ),
+        action=StepAction(type="click", label=label, raw=f"click {label}"),
+        result=StepResult(status="unknown"),
+    )
+
+
+def _run(run_id: str = "run_x", n_steps: int = 5) -> TrajectoryRun:
+    return TrajectoryRun(
+        run_id=run_id,
+        task="example task",
+        steps=[_step(i + 1) for i in range(n_steps)],
+    )
+
+
+def _digest(run_id: str = "run_x", n_steps: int = 5) -> TrajectoryDigest:
+    return TrajectoryDigest(
+        run_id=run_id,
+        task="example task",
+        step_count=n_steps,
+        steps=[
+            StepDigest(
+                index=i + 1,
+                action_type="click",
+                action_text=f"step {i + 1}",
+                action_target=f"target_{i + 1}",
+                url="https://example.test",
+                title=f"step {i + 1}",
+                result_status="unknown",
+                coord_validation_status="validated",
+                vlm_low_detail_summary=f"summary {i + 1}",
+                has_screenshot=True,
+            )
+            for i in range(n_steps)
+        ],
+    )
+
+
+def _empty_trace(run_id: str = "run_x") -> AgentTrace:
+    return AgentTrace(
+        run_id=run_id,
+        user_intent="analyze_run",
+        selected_step=None,
+        tool_call_count=0,
+        turn_count=1,
+        terminated_by="propose_eval_case",
+        events=[],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+
+
+def test_resolve_unavailable_returns_none() -> None:
+    item = EvidenceItem(claim="missing screenshot", source="unavailable")
+    assert resolve_evidence_source(item, trace=_empty_trace()) is None
+
+
+def test_resolve_trajectory_uses_run_step_index() -> None:
+    run = _run()
+    item = EvidenceItem(
+        claim="click happened on step 3",
+        source="trajectory",
+        run_id="run_x",
+        step_index=3,
+    )
+    resolved = resolve_evidence_source(item, trace=_empty_trace(), run=run)
+    assert resolved is not None
+    assert resolved["index"] == 3
+    assert resolved["observation"]["url"] == "https://example.test"
+
+
+def test_resolve_trajectory_falls_back_to_get_run_tool_result() -> None:
+    """The agent can also cite ``get_run`` via ``trace_event_seq`` — the
+    resolver honours that anchor when no run snapshot is supplied."""
+    payload = {"run_id": "run_x", "task": "example task", "steps": []}
+    trace = AgentTrace(
+        run_id="run_x",
+        user_intent="analyze_run",
+        terminated_by="propose_eval_case",
+        events=[
+            AgentTraceEvent(seq=0, turn=0, type="tool_call", name="get_run", args={"run_id": "run_x"}),
+            AgentTraceEvent(seq=1, turn=0, type="tool_result", name="get_run", result=payload),
+        ],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    item = EvidenceItem(claim="run summary", source="trajectory", trace_event_seq=1)
+    assert resolve_evidence_source(item, trace=trace) == payload
+
+
+def test_resolve_digest_uses_digest_step_index() -> None:
+    digest = _digest()
+    item = EvidenceItem(
+        claim="digest summary step 2",
+        source="trajectory_digest",
+        step_index=2,
+    )
+    resolved = resolve_evidence_source(item, trace=_empty_trace(), digest=digest)
+    assert resolved is not None
+    assert resolved["index"] == 2
+    assert resolved["vlm_low_detail_summary"] == "summary 2"
+
+
+def test_resolve_step_detail_pulls_matching_tool_result() -> None:
+    detail_payload = {
+        "run_id": "run_x",
+        "step_index": 4,
+        "has_screenshot": True,
+        "vlm_summary": "constraint satisfied",
+        "image_detail": "high",
+    }
+    trace = AgentTrace(
+        run_id="run_x",
+        user_intent="analyze_run",
+        terminated_by="propose_eval_case",
+        events=[
+            AgentTraceEvent(
+                seq=0,
+                turn=0,
+                type="tool_call",
+                name="get_step_detail",
+                args={"run_id": "run_x", "step_index": 4, "image_detail": "high"},
+            ),
+            AgentTraceEvent(
+                seq=1, turn=0, type="tool_result", name="get_step_detail", result=detail_payload
+            ),
+        ],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    # Agent can cite either the tool_call or tool_result seq — both must resolve.
+    for cited_seq in (0, 1):
+        item = EvidenceItem(
+            claim="step 4 looks fine",
+            source="step_detail_high",
+            trace_event_seq=cited_seq,
+        )
+        assert resolve_evidence_source(item, trace=trace) == detail_payload
+
+
+def test_resolve_failure_memory_prefers_trace_tool_result() -> None:
+    """The trace payload reflects what the agent actually saw (including
+    any eval-mode redaction). The resolver must prefer it over a fresh
+    storage lookup so the judge grades the same view."""
+    case_payload = {
+        "case_id": "fm_missed_constraint_001",
+        "failure_type": "missed_constraint",
+        "summary": "agent ignored the labelled constraint",
+        "fix_hint": "always re-read the form before submit",
+        "tags": [],
+        "source_run_id": "earlier_run",
+    }
+    trace = AgentTrace(
+        run_id="run_x",
+        user_intent="analyze_run",
+        terminated_by="propose_eval_case",
+        events=[
+            AgentTraceEvent(
+                seq=0,
+                turn=0,
+                type="tool_result",
+                name="search_failure_memory",
+                result={"items": [case_payload]},
+            ),
+        ],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    item = EvidenceItem(
+        claim="similar to fm_missed_constraint_001",
+        source="failure_memory",
+        context_id="fm_missed_constraint_001",
+    )
+    assert resolve_evidence_source(item, trace=trace) == case_payload
+
+
+def test_resolve_failure_memory_falls_back_to_index() -> None:
+    """When the trace no longer carries the case (e.g. truncated rerun),
+    fall back to the provided failure_memory index."""
+    case = FailureMemoryCase(
+        case_id="fm_missed_constraint_002",
+        failure_type="missed_constraint",
+        summary="another example",
+    )
+    item = EvidenceItem(
+        claim="prior case",
+        source="failure_memory",
+        context_id="fm_missed_constraint_002",
+    )
+    resolved = resolve_evidence_source(
+        item,
+        trace=_empty_trace(),
+        failure_memory_cases={case.case_id: case},
+    )
+    assert resolved is not None
+    assert resolved["case_id"] == "fm_missed_constraint_002"
+
+
+def test_resolve_successful_run_matches_context_id_against_search_items() -> None:
+    item = EvidenceItem(
+        claim="similar successful run",
+        source="successful_run",
+        context_id="success_run_42",
+    )
+    trace = AgentTrace(
+        run_id="run_x",
+        user_intent="analyze_run",
+        terminated_by="propose_eval_case",
+        events=[
+            AgentTraceEvent(
+                seq=0,
+                turn=0,
+                type="tool_result",
+                name="find_similar_successful_run",
+                result={
+                    "items": [
+                        {"run_id": "irrelevant_run", "task": "other"},
+                        {"run_id": "success_run_42", "task": "example task"},
+                    ]
+                },
+            ),
+        ],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    resolved = resolve_evidence_source(item, trace=trace)
+    assert resolved == {"run_id": "success_run_42", "task": "example task"}
+
+
+def test_resolve_returns_none_when_evidence_underspecified() -> None:
+    """An EvidenceItem that lacks both the storage anchor (run/digest) and
+    the trace anchor (trace_event_seq / context_id) cannot be resolved —
+    the judge should see an explicit ``None`` rather than a guessed value."""
+    item = EvidenceItem(claim="vague", source="trajectory")
+    assert resolve_evidence_source(item, trace=_empty_trace()) is None
+
+
+# ---------------------------------------------------------------------------
+# A3.2 — build_judge_payload
+
+
+def _propose_event(
+    *, seq: int, evidence: list[dict[str, object]], failure_step: int = 3
+) -> AgentTraceEvent:
+    return AgentTraceEvent(
+        seq=seq,
+        turn=0,
+        type="tool_call",
+        name="propose_eval_case",
+        args={
+            "run_id": "run_x",
+            "failure_step": failure_step,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "should satisfy constraint",
+            "actual_behavior": "did not satisfy constraint",
+            "evidence": evidence,
+            "regression_rule": "verify constraint",
+            "retrieved_context_ids": [],
+        },
+    )
+
+
+def test_build_judge_payload_assembles_documented_shape() -> None:
+    """Matches the input shape documented in docs/testing.md § Input shape."""
+    golden = _failed_golden(run_id="run_x")
+    detail_payload = {
+        "run_id": "run_x",
+        "step_index": 3,
+        "vlm_summary": "field empty",
+        "image_detail": "high",
+    }
+    propose_evidence = [
+        {
+            "claim": "field was blank",
+            "source": "step_detail_high",
+            "run_id": "run_x",
+            "step_index": 3,
+            "trace_event_seq": 1,
+        },
+        {"claim": "no screenshot for step 7", "source": "unavailable"},
+    ]
+    trace = AgentTrace(
+        run_id="run_x",
+        user_intent="analyze_run",
+        terminated_by="propose_eval_case",
+        events=[
+            AgentTraceEvent(
+                seq=0,
+                turn=0,
+                type="tool_call",
+                name="get_step_detail",
+                args={"run_id": "run_x", "step_index": 3, "image_detail": "high"},
+            ),
+            AgentTraceEvent(
+                seq=1, turn=0, type="tool_result", name="get_step_detail", result=detail_payload
+            ),
+            _propose_event(seq=2, evidence=propose_evidence, failure_step=3),
+        ],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    payload = build_judge_payload(run_id="run_x", golden=golden, trace=trace)
+    assert payload["run_id"] == "run_x"
+    assert payload["golden_reference"]["input"]["run_id"] == "run_x"
+    assert payload["proposed_eval_case"]["failure_type"] == "missed_constraint"
+    assert len(payload["evidence_with_sources"]) == 2
+    first = payload["evidence_with_sources"][0]
+    assert first["evidence"]["source"] == "step_detail_high"
+    assert first["resolved_source"] == detail_payload
+    second = payload["evidence_with_sources"][1]
+    assert second["evidence"]["source"] == "unavailable"
+    assert second["resolved_source"] is None
+
+
+def test_build_judge_payload_handles_no_propose_call() -> None:
+    """A budget-exceeded trace has no draft — payload still contains the
+    golden reference so the judge can mark it unacceptable."""
+    golden = _failed_golden(run_id="run_x")
+    trace = AgentTrace(
+        run_id="run_x",
+        user_intent="analyze_run",
+        tool_call_count=8,
+        terminated_by="budget_exceeded",
+        events=[
+            AgentTraceEvent(seq=0, turn=0, type="agent_message", message="thinking"),
+        ],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    payload = build_judge_payload(run_id="run_x", golden=golden, trace=trace)
+    assert payload["proposed_eval_case"] is None
+    assert payload["evidence_with_sources"] == []
+
+
+def test_build_judge_payload_preserves_malformed_evidence_rows() -> None:
+    """If the agent emits an evidence row that fails EvidenceItem
+    validation, the judge still needs to see the raw row — we keep it
+    with ``resolved_source = None`` instead of silently dropping it so
+    the LLM can flag the violation."""
+    golden = _failed_golden(run_id="run_x")
+    malformed = {"claim": "missing source field"}
+    trace = AgentTrace(
+        run_id="run_x",
+        user_intent="analyze_run",
+        terminated_by="propose_eval_case",
+        events=[_propose_event(seq=0, evidence=[malformed])],
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    payload = build_judge_payload(run_id="run_x", golden=golden, trace=trace)
+    assert payload["evidence_with_sources"] == [
+        {"evidence": malformed, "resolved_source": None}
+    ]
+
+
+# ---------------------------------------------------------------------------
+# A3.2 — env-driven judge config + prompt loader
+
+
+def test_judge_config_from_env_returns_none_when_either_var_missing() -> None:
+    assert judge_config_from_env("A", env={}) is None
+    assert (
+        judge_config_from_env("A", env={"TRAJECTA_JUDGE_A_MODEL": "x"})
+        is None
+    )
+    assert (
+        judge_config_from_env(
+            "A", env={"TRAJECTA_JUDGE_A_PROMPT_VERSION": "v1"}
+        )
+        is None
+    )
+
+
+def test_judge_config_from_env_reads_both_slots() -> None:
+    env = {
+        "TRAJECTA_JUDGE_A_MODEL": "gemini-flash-test",
+        "TRAJECTA_JUDGE_A_PROMPT_VERSION": "v1_acceptability",
+        "TRAJECTA_JUDGE_B_MODEL": "openai-test",
+        "TRAJECTA_JUDGE_B_PROMPT_VERSION": "v1_acceptability",
+    }
+    a = judge_config_from_env("A", env=env)
+    b = judge_config_from_env("B", env=env)
+    assert a == JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v1_acceptability")
+    assert b == JudgeConfig(slot="B", model="openai-test", prompt_version="v1_acceptability")
+
+
+def test_load_judge_prompt_returns_text_and_sha256(tmp_path: Path) -> None:
+    """The sha256 lets the report tie a verdict back to the exact prompt
+    bytes used (docs/prompt_versioning.md § Traceability)."""
+    bundle = tmp_path / "v_test" / "prompt.md"
+    bundle.parent.mkdir()
+    bundle.write_text("hello judge\n", encoding="utf-8")
+    text, sha = load_judge_prompt("v_test", prompts_root=tmp_path)
+    assert text == "hello judge\n"
+    assert sha == hashlib.sha256("hello judge\n".encode("utf-8")).hexdigest()
+
+
+def test_load_judge_prompt_missing_bundle_raises(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="judge prompt bundle"):
+        load_judge_prompt("v_missing", prompts_root=tmp_path)
+
+
+def test_load_judge_prompt_reads_committed_v1_acceptability() -> None:
+    """Smoke-test the committed prompt bundle so a missing prompt.md in
+    the repo trips a test rather than a production no-op."""
+    text, sha = load_judge_prompt("v1_acceptability")
+    assert "acceptable_eval_case" in text
+    assert len(sha) == 64
+
+
+# ---------------------------------------------------------------------------
+# A3.2 — _parse_judge_response
+
+
+def _good_judge_json(verdict: str = "acceptable") -> str:
+    return json.dumps(
+        {
+            "verdict": verdict,
+            "rationale": "verdict matches",
+            "assertions": [
+                {"name": "verdict_alignment", "status": "pass", "rationale": "shape matches"},
+                {"name": "evidence_support", "status": "pass", "rationale": "evidence cites step 3"},
+            ],
+        }
+    )
+
+
+def test_parse_judge_response_happy_path() -> None:
+    parsed = _parse_judge_response(_good_judge_json())
+    assert parsed["verdict"] == "acceptable"
+    assert parsed["rationale"] == "verdict matches"
+    assert [a.name for a in parsed["assertions"]] == ["verdict_alignment", "evidence_support"]
+    assert all(isinstance(a, JudgeAssertion) for a in parsed["assertions"])
+
+
+def test_parse_judge_response_strips_code_fence() -> None:
+    fenced = "```json\n" + _good_judge_json("unacceptable") + "\n```"
+    parsed = _parse_judge_response(fenced)
+    assert parsed["verdict"] == "unacceptable"
+
+
+def test_parse_judge_response_rejects_unknown_verdict() -> None:
+    bad = json.dumps({"verdict": "maybe", "rationale": "", "assertions": []})
+    with pytest.raises(ValueError, match="verdict"):
+        _parse_judge_response(bad)
+
+
+def test_parse_judge_response_rejects_non_object_payload() -> None:
+    with pytest.raises(ValueError, match="JSON object"):
+        _parse_judge_response("[\"acceptable\"]")
+
+
+def test_parse_judge_response_rejects_invalid_assertion_status() -> None:
+    bad = json.dumps(
+        {
+            "verdict": "acceptable",
+            "rationale": "",
+            "assertions": [{"name": "x", "status": "maybe", "rationale": ""}],
+        }
+    )
+    with pytest.raises(ValueError, match="assertion status"):
+        _parse_judge_response(bad)
+
+
+def test_parse_judge_response_rejects_malformed_json() -> None:
+    with pytest.raises(ValueError, match="not valid JSON"):
+        _parse_judge_response("not really json {")
+
+
+# ---------------------------------------------------------------------------
+# A3.2 — run_llm_judge with mocked callable
+
+
+def _judge_prompt_dir(tmp_path: Path, *, body: str = "rubric text") -> Path:
+    bundle = tmp_path / "v_acc" / "prompt.md"
+    bundle.parent.mkdir()
+    bundle.write_text(body, encoding="utf-8")
+    return tmp_path
+
+
+def test_run_llm_judge_returns_typed_result(tmp_path: Path) -> None:
+    """A mocked callable replaces the real provider; the runner still
+    enforces the documented response shape and stamps slot / model /
+    prompt traceability."""
+    captured: dict[str, object] = {}
+
+    def fake_judge(prompt: str, payload: dict[str, object]) -> str:
+        captured["prompt"] = prompt
+        captured["payload_run_id"] = payload["run_id"]
+        return _good_judge_json("acceptable")
+
+    config = JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v_acc")
+    payload = {"run_id": "run_x", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    result = run_llm_judge(
+        payload,
+        config,
+        judge_callable=fake_judge,
+        prompts_root=_judge_prompt_dir(tmp_path),
+    )
+
+    assert isinstance(result, JudgeLLMResult)
+    assert result.acceptable is True
+    assert result.verdict == "acceptable"
+    assert result.slot == "A"
+    assert result.model == "gemini-flash-test"
+    assert result.prompt_version == "v_acc"
+    assert result.prompt_sha256 == hashlib.sha256("rubric text".encode("utf-8")).hexdigest()
+    assert [a.name for a in result.assertions] == ["verdict_alignment", "evidence_support"]
+    # The callable received the prompt text and the payload.
+    assert captured["prompt"] == "rubric text"
+    assert captured["payload_run_id"] == "run_x"
+
+
+def test_run_llm_judge_unacceptable_verdict_flips_property(tmp_path: Path) -> None:
+    config = JudgeConfig(slot="B", model="openai-test", prompt_version="v_acc")
+    payload = {"run_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    result = run_llm_judge(
+        payload,
+        config,
+        judge_callable=lambda *_args: _good_judge_json("unacceptable"),
+        prompts_root=_judge_prompt_dir(tmp_path),
+    )
+    assert result.acceptable is False
+    assert result.verdict == "unacceptable"
+
+
+def test_run_llm_judge_propagates_parser_failure(tmp_path: Path) -> None:
+    """A bad model response must surface as ValueError so the report
+    writer (A3.3) can mark the row as judge_error rather than silently
+    flipping the verdict."""
+    config = JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v_acc")
+    payload = {"run_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    with pytest.raises(ValueError, match="verdict"):
+        run_llm_judge(
+            payload,
+            config,
+            judge_callable=lambda *_args: json.dumps(
+                {"verdict": "maybe", "rationale": "", "assertions": []}
+            ),
+            prompts_root=_judge_prompt_dir(tmp_path),
+        )
+
+
+def test_run_llm_judge_default_callable_raises_without_provider(tmp_path: Path) -> None:
+    """No real provider is wired in A3.2 — a caller that forgets to pass
+    a callable gets a clear NotImplementedError instead of an accidental
+    network call."""
+    config = JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v_acc")
+    payload = {"run_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    with pytest.raises(NotImplementedError, match="judge_callable"):
+        run_llm_judge(payload, config, prompts_root=_judge_prompt_dir(tmp_path))
+
+
+def test_run_llm_judge_pipes_payload_into_callable(tmp_path: Path) -> None:
+    """The callable signature is the LLM judge contract: prompt + payload
+    in, raw JSON string out. The runner must not mutate the payload
+    between assembly and the call so A4's second-judge invocation can
+    rely on byte-identical inputs across providers."""
+    seen: list[dict[str, object]] = []
+
+    def fake(prompt: str, payload: dict[str, object]) -> str:
+        seen.append(payload)
+        return _good_judge_json("acceptable")
+
+    payload_in = {
+        "run_id": "run_x",
+        "golden_reference": {"input": {"run_id": "run_x"}},
+        "proposed_eval_case": {"failure_type": "missed_constraint"},
+        "evidence_with_sources": [
+            {"evidence": {"claim": "c", "source": "unavailable"}, "resolved_source": None}
+        ],
+    }
+    config = JudgeConfig(slot="A", model="m", prompt_version="v_acc")
+    run_llm_judge(
+        payload_in,
+        config,
+        judge_callable=fake,
+        prompts_root=_judge_prompt_dir(tmp_path),
+    )
+    assert seen == [payload_in]

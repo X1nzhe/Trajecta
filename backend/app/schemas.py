@@ -305,9 +305,10 @@ class AgentTrace(BaseModel):
 # The golden set is the S18 § 2.2 Build 1 deliverable. Rows live in
 # eval/golden.jsonl and are produced from data/triage_notes.csv by
 # scripts/build_golden_jsonl.py. The structured Fact union lets eval/judge.py
-# evaluate 5 of 6 rubric clauses mechanically against the proposed EvalCase,
-# leaving only clause 6 (evidence traceability) for the LLM judge. See
-# docs/testing.md § Golden Set for the build rules and field semantics.
+# run deterministic prechecks against the proposed EvalCase before the LLM
+# judge makes the final acceptable/unacceptable decision and assertion
+# rationales. See docs/testing.md § Golden Set for the build rules and field
+# semantics.
 
 #: The five v1 failure types. Mirrors V1_FAILURE_VOCABULARY in
 #: backend/app/agent_eval.py — kept in sync by hand. If the vocabulary ever
