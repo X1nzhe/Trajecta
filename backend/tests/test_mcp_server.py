@@ -93,6 +93,11 @@ def test_list_runs_tool_returns_metadata() -> None:
     runs = server.list_runs()
     ids = {r["run_id"] for r in runs}
     assert {"run_1", "success_run"} <= ids
+    # Metadata only — the heavy/untrusted steps array must NOT leak.
+    first = runs[0]
+    assert "steps" not in first
+    assert isinstance(first["step_count"], int)
+    assert {"run_id", "task", "status", "step_count"} <= first.keys()
 
 
 # --- B2: analyze_run composite invariants --------------------------------

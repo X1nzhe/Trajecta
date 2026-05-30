@@ -43,8 +43,22 @@ mcp = FastMCP("Trajecta")
 
 @mcp.tool
 def list_runs() -> list[dict[str, Any]]:
-    """List imported trajectory runs (metadata only)."""
-    return [run.model_dump(mode="json") for run in storage.list_runs()]
+    """List imported trajectory runs (metadata only).
+
+    Returns a lightweight picker shape per run — no `steps` array. Use
+    `get_run(run_id)` to fetch the full run + digest for a chosen run.
+    """
+    return [
+        {
+            "run_id": run.run_id,
+            "task": run.task,
+            "source": run.source,
+            "status": run.status,
+            "step_count": len(run.steps),
+            "metadata": run.metadata,
+        }
+        for run in storage.list_runs()
+    ]
 
 
 @mcp.tool

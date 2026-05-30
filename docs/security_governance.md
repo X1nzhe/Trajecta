@@ -174,9 +174,9 @@ benchmark (crafted-payload corpus + on/off resistance metric) would be a
 separate security-evaluation phase if the project later needs a scored
 defense claim — it is intentionally out of Phase 8 scope.
 
-## Planned Composite Coverage
+## Composite Coverage
 
-Once B1 ships, a single `analyze_run` call via MCP should exercise:
+A single `analyze_run` call via MCP exercises:
 
 - Mechanism 1 (schema validation on the returned `EvalCase`),
 - Mechanism 2 (budget bound on the agent loop),
@@ -189,11 +189,12 @@ Once B1 ships, a single `analyze_run` call via MCP should exercise:
 - Mechanism 9 (the trajectory text fed to the agent inside the
   composite call is Spotlighting-wrapped before substitution).
 
-That remains the planned demo for the Security / Governance component:
-one MCP call, seven mechanisms verifiably present in the returned trace.
-B6 Spotlighting (Mechanism 9) is shipped; the remaining gap is
-`trajecta_mcp/server.py` and its smoke test before the planned composite proof
-is complete.
+This is the Security / Governance composite demo: one MCP call, seven
+mechanisms present in the returned trace. B1 shipped
+(`trajecta_mcp/server.py`); `backend/tests/test_mcp_server.py` already verifies
+`source="mcp"`, the `human_validated=false` HITL draft, and the budget bound.
+The remaining gap is the **live-client smoke** (B1.5) — connecting a real
+Claude Code / Cursor client and running the demo end-to-end.
 
 ## Out of Scope for v1
 

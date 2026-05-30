@@ -5,8 +5,8 @@ versioned prompts, a 31-sample agent-quality report, and a polished React UI.
 Phase 8 closes the gap to the S18 capstone deliverable: a defendable eval
 harness, Gemini and OpenAI LLM judges with measurable κ_LLM,LLM agreement,
 an experiment log, a failure-analysis writeup, and a single-doc treatment of
-the existing governance machinery. The MCP composite remains a planned Phase
-8 item, but it is lower priority than the judge agreement path.
+the existing governance machinery. The MCP composite shipped in B1 (lower priority than the judge agreement
+path); only the live-client demo (B1.5) is operator-gated.
 
 This file is the **operating spec** for Phase 8. Every other Phase 8 doc
 (`PROJECT.md`, `docs/mcp.md`, `docs/security_governance.md`, `docs/testing.md`,
@@ -16,7 +16,7 @@ This file is the **operating spec** for Phase 8. Every other Phase 8 doc
 ## Scope Boundary
 
 Phase 8 prioritizes **eval rigor, experiment log, judge agreement, and
-component framing**. MCP remains planned after the judge path. Phase 8 does
+component framing**. MCP shipped in B1 after the judge path. Phase 8 does
 **not**:
 
 - restructure the agent into a supervisor + worker multi-agent system,
@@ -420,11 +420,11 @@ headline prompt (v3) shows mean 9.96 s / about $0.033 per run.
 **Acceptance**: 2-3 cases, each with named root cause and an explicit
 fix-or-defer decision.
 
-## 8.B — Planned MCP + Component Framing
+## 8.B — MCP + Component Framing
 
-MCP is lower priority than the Phase 8 judge work. Treat this section as the
-planned design and acceptance target for the MCP slice; do not describe it as
-completed until B1 exits `todo` / `blocked`.
+MCP was lower priority than the Phase 8 judge work and shipped after it.
+This section is the design + acceptance target for the MCP slice; B1/B2 are
+now `done` (see the tracker) and only the B1.5 live-client demo is `blocked`.
 
 ### B1. `trajecta_mcp/server.py` (shipped)
 
@@ -516,7 +516,7 @@ UI shows.
 
 ### B3. `docs/mcp.md`
 
-**Design doc**. Single source of truth for the planned MCP design:
+**Design doc**. Single source of truth for the MCP design:
 
 1. Tool inventory with the include/exclude table from B1.
 2. `analyze_run` composition diagram and invariants from B2.
@@ -555,14 +555,14 @@ planned with B1, and the Spotlighting defense is planned with B6:
 - `PROJECT.md` cites this doc as the Security / Governance component.
 - Each mechanism row links to the source file(s) implementing it.
 - The doc explicitly states which mechanisms are already shipped and which
-remain planned Phase 8 work.
+remain operator-gated (only the B1.5 live-client demo).
 
-### B5. README planned MCP demo
+### B5. README MCP demo
 
-`README.md` § "Planned MCP Connection":
+`README.md` § "MCP Connection":
 
 ```text
-1. Once `trajecta_mcp/server.py` exists, add to claude_desktop_config.json:
+1. Add `trajecta_mcp/server.py` to claude_desktop_config.json:
    {
      "mcpServers": {
        "trajecta": {
@@ -677,7 +677,7 @@ Absorbed into A6.
 | `docs/testing.md`                               | Add `eval/golden.jsonl` schema and the build script reference; add the `agent_eval` → `eval/judge.py` protocol and acceptability-assertion judge contract; document Cohen's κ computation and the disagreement-analysis fallback; update the RAGAS section so it no longer claims `mode=stub` is acceptable. |
 | `docs/prompt_versioning.md` + `prompts/judge/`* | Add judge prompt versioning for the Gemini/OpenAI judge path; keep any stricter prompt bundle archived / experimental.                                                                                                                                                                                       |
 | `docs/eval_agent.md`                            | Add a short "MCP exposure" subsection that links to `docs/mcp.md` and clarifies that the entire `agent_loop` is reachable via the `analyze_run` MCP tool. Do not restructure the rest of the doc.                                                                                                            |
-| `README.md`                                     | Add an "Eval & Experiments" section with the A7 experiment log table; add a planned MCP connection section (B5); add a link to `docs/failure_analysis.md`; surface the best agent_eval prompt and v5 trade-off with a footnote pointing at `docs/experiment_log.md`.                                         |
+| `README.md`                                     | Add an "Eval & Experiments" section with the A7 experiment log table; add an MCP connection section (B5); add a link to `docs/failure_analysis.md`; surface the best agent_eval prompt and v5 trade-off with a footnote pointing at `docs/experiment_log.md`.                                         |
 | `docs/phase8_s18_alignment.md`                  | This file.                                                                                                                                                                                                                                                                                                   |
 | `docs/mcp.md`                                   | New, see B3.                                                                                                                                                                                                                                                                                                 |
 | `docs/security_governance.md`                   | New, see B4.                                                                                                                                                                                                                                                                                                 |
@@ -902,7 +902,7 @@ on a stable `analyze_run` path only.
 
 ---
 
-### 8.B — Planned MCP + Component Framing
+### 8.B — MCP + Component Framing
 
 #### B1 — MCP Server
 
@@ -948,7 +948,7 @@ on a stable `analyze_run` path only.
 | B4.1 Nine-mechanism table | `done` | Mechanisms 1–6 and 8 framed as complete; MCP and B6 framed as planned lower-priority work | `docs/security_governance.md` | Doc no longer describes B1/B6 as shipped |
 
 
-**Epic status**: `done` — B4 is a truthful component story; B1 and B6 remain separate planned implementation slices.
+**Epic status**: `done` — B4 is a truthful component story; B1 and B6 shipped as their own slices.
 
 #### B5 — README MCP Demo
 
@@ -999,7 +999,7 @@ on a stable `analyze_run` path only.
 | D2 `docs/roadmap.md` Phase 8 entry          | `done` | `docs/roadmap.md`           | 8.A / 8.B / 8.C listed                                                                                                                               |
 | D3 `docs/testing.md` judge protocol         | `done` | `docs/testing.md`           | Golden + dual LLM judge + κ sections                                                                                                                 |
 | D4 `docs/prompt_versioning.md` judge config | `done` | `docs/prompt_versioning.md` | Env-driven model + prompt-version rules documented; provider-specific A/B prompt bundles shipped; stricter prompt archived / experimental if present |
-| D5 `docs/eval_agent.md` MCP subsection      | `done` | `docs/eval_agent.md`        | Planned MCP subsection links to `docs/mcp.md`                                                                                                        |
+| D5 `docs/eval_agent.md` MCP subsection      | `done` | `docs/eval_agent.md`        | MCP subsection links to `docs/mcp.md`                                                                                                        |
 | D6 README Eval & Experiments                | `done` | `README.md`                 | Agent_eval table, v5 judge κ, and real RAGAS result documented                                                                                       |
 | D7 `docs/experiment_log.md`                 | `done` | `docs/experiment_log.md`    | See A7.1                                                                                                                                             |
 | D8 `docs/failure_analysis.md`               | `done` | `docs/failure_analysis.md`  | See A8                                                                                                                                               |

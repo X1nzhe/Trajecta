@@ -95,10 +95,10 @@ Operating spec: [docs/phase8_s18_alignment.md](phase8_s18_alignment.md).
 - `docs/experiment_log.md` + README table — v1→v5 metric deltas
 - `docs/failure_analysis.md` — 2–3 cases + one-line trade-off
 
-**8.B — Planned MCP + Component Story** (lower priority than 8.A judge work)
+**8.B — MCP + Component Story** (lower priority than 8.A judge work)
 - `trajecta_mcp/server.py` — shipped six-tool server, `analyze_run` composite, deliberate exclusions
 - `docs/mcp.md` — design source of truth
-- `docs/security_governance.md` — completed security/governance mechanisms framed separately from planned MCP work
+- `docs/security_governance.md` — completed security/governance mechanisms framed separately from the (now shipped) MCP work
 - B6 Spotlighting hardening (shipped) — `spotlight_wrap()` delimiting utility, anti-injection preamble in the system prompt, and wrapping of untrusted trajectory text in the digest + `get_step_detail`. Unit-tested but deliberately **unmeasured**; a formal injection benchmark (`injection_resistance_rate` ablation) is a possible future security-evaluation phase, not Phase 8 work.
 
 **8.C — Tactical Cleanup**

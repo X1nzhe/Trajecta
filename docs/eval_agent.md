@@ -255,7 +255,7 @@ For a 30-step run where the dataset provides no `visible_text`, preprocessing co
 
 The agent prompt is laid out with the stable prefix first — system prompt, then the trajectory digest — followed by the dynamic tool-call turns. v1 does not wire provider-specific cache controls; this layout exists so that a caching-capable provider benefits transparently if used, but the cost story does not depend on it.
 
-## Planned MCP Exposure
+## MCP Exposure
 
 MCP exposure is planned for Phase 8 after the Gemini judge agreement path. The
 entire `agent_loop` described above should be reachable via the `analyze_run`
