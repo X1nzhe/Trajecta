@@ -158,13 +158,23 @@ class EvalCase(BaseModel):
 
 class AgentTraceEvent(BaseModel):
     seq: int
-    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error"]
+    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error", "phase"]
     name: Optional[str] = None
     args: Optional[Dict[str, Any]] = None
     result: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
     error: Optional[str] = None
     turn: int = 0
+
+
+class TurnMetrics(BaseModel):
+    # Per-turn breakdown of the cumulative AgentTrace counters. turn 0 ==
+    # initial analyze; turn >= 1 == followups. The UI reads these to show
+    # per-turn cost/latency instead of whole-session totals.
+    turn: int
+    runtime_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class AgentTrace(BaseModel):
@@ -178,12 +188,18 @@ class AgentTrace(BaseModel):
     model: Optional[str] = None
     prompt_version: Optional[str] = None
     prompt_sha256: Optional[str] = None
+    # Phase 8 B6 Spotlighting state at trace start (anti-injection preamble +
+    # untrusted-text wrapping). Recorded for audit; old traces deserialize False.
+    spotlighting_enabled: bool = False
     vlm_model: Optional[str] = None
     vlm_input_tokens: int = 0
     vlm_output_tokens: int = 0
     runtime_ms: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    # Per-turn breakdown of the counters above; one entry per analyze/followup
+    # turn. Empty on traces written before this field existed.
+    turn_metrics: List[TurnMetrics] = Field(default_factory=list)
 ```
 
 Schema field notes:

@@ -404,6 +404,24 @@ class ToolsTests(unittest.TestCase):
         self.assertIsNone(result["vlm_prompt_version"])
         self.assertIsNone(result["vlm_prompt_sha256"])
 
+    def test_get_step_detail_raw_when_spotlighting_on_without_token(self) -> None:
+        """Phase 8 P0 regression: get_step_detail returns RAW data and must
+        not require a spotlight token. With TRAJECTA_SPOTLIGHTING on (the
+        production default) and no active token — the state on the HTTP/API
+        path — it returns unwrapped fields without raising. The agent path
+        wraps separately at the tool-result seam in eval_agent_graph.
+        """
+        storage.save_run(sample_run())
+        _attach_screenshot("run_1")
+        prompts.set_spotlight_token(None)
+
+        with mock.patch.dict(os.environ, {"TRAJECTA_SPOTLIGHTING": "on"}):
+            result = tools.get_step_detail("run_1", step_index=0, image_detail="high")
+
+        self.assertIsNotNone(result["vlm_summary"])
+        self.assertNotIn("<TRAJECTA_DATA_", str(result))
+        self.assertEqual(result["action"]["raw"], "wait()")
+
     def test_get_step_detail_passes_task_context_to_high_detail_vlm(self) -> None:
         storage.save_run(sample_run())
         _attach_screenshot("run_1")
