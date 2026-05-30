@@ -54,7 +54,7 @@ The project must clearly demonstrate:
 - Per-run agent trace persisted as the `traces` row keyed by `run_id` in `data/trajecta.db`
 - Human-reviewable eval case draft and export flow with structured evidence references
 - Basic pytest test suite
-- Minimal RAGAS evaluation script (faithfulness + context_precision); fallback allowed if RAGAS setup is too slow
+- Minimal no-ground-truth RAGAS faithfulness script over recorded RAG tool queries; stub fallback is for offline development only
 - README with architecture and demo instructions
 - FastAPI backend
 - Pydantic schemas

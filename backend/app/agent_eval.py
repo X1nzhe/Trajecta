@@ -50,6 +50,16 @@ identical across mock and real runs.
   ``failure_type`` appears in the labeled set.
 - ``eval/agent_report.json`` — full per-sample detail + aggregates + baselines.
 - ``eval/agent_report.md`` — human-readable summary.
+- ``eval/runs/<stamp>/agent_report.{json,md}`` — timestamped archive copy.
+- ``eval/runs/<stamp>/traces/<run_id>.json`` — per-sample AgentTrace dumps
+  (Phase 8 A2). Read by ``eval/judge.py`` (A3) and the real RAGAS run (A6);
+  ``agent_report.json`` only carries source counts, not the full evidence
+  chain, so the per-sample dumps are the canonical persistence path for
+  downstream eval tools. The default location is shared with the archive
+  copy so each timestamped eval run is self-contained. Suppress dumping
+  with ``--trace-dir /dev/null`` is **not** supported — pass an explicit
+  empty path only when you know the dir is writable. ``--mock`` mode
+  defaults to no dump; pass ``--trace-dir <path>`` to force one.
 """
 
 from __future__ import annotations
@@ -63,6 +73,7 @@ import shutil
 import statistics
 import sys
 import time
+from collections.abc import Callable
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -91,6 +102,23 @@ except ImportError:  # pragma: no cover - python-dotenv is a hard dep
 
 from backend.app import eval_agent_graph, prompts, rag, storage
 from backend.app.schemas import AgentTrace
+
+# Phase 8 A3.5 — the post-step judge runner delegates to the A3.4
+# standalone CLI seam so this module never re-implements payload
+# assembly, LLM dispatch, or report writing. Importing at module top is
+# safe: ``eval.judge`` only depends on ``backend.app.{storage,schemas}``,
+# so no circular import is formed.
+from eval.judge import (  # noqa: E402
+    DEFAULT_GOLDEN_PATH as _JUDGE_DEFAULT_GOLDEN_PATH,
+    JudgeConfig,
+    JudgeProviderError,
+    LLMJudgeCallable,
+    build_judge_agreement_report,
+    judge_config_from_env,
+    run_standalone_judge,
+    write_judge_agreement_report,
+)
+from eval.judge import _default_judge_callable as _judge_default_callable  # noqa: E402
 
 TERMINAL_TOOL = "propose_eval_case"
 
@@ -590,11 +618,125 @@ def _run_agent(run_id: str, *, force_mock: bool) -> AgentTrace:
     return result.trace
 
 
+_RETRYABLE_ERROR_CLASS_HINTS = (
+    "RateLimit",
+    "APITimeout",
+    "APIConnection",
+    "Timeout",
+    "Connection",
+)
+_RETRYABLE_ERROR_MESSAGE_HINTS = (
+    "429",
+    "rate limit",
+    "temporarily unavailable",
+    "timeout",
+    "timed out",
+    "connection error",
+)
+
+
+def _is_retryable_error(exc: BaseException) -> bool:
+    """Return True for transient provider / network failures worth retrying."""
+
+    class_name = type(exc).__name__
+    if any(hint in class_name for hint in _RETRYABLE_ERROR_CLASS_HINTS):
+        return True
+    message = str(exc).lower()
+    return any(hint in message for hint in _RETRYABLE_ERROR_MESSAGE_HINTS)
+
+
+def _retry_delay_s(attempt_index: int, *, base_s: float, max_s: float) -> float:
+    """Exponential backoff delay for a 0-based retry attempt."""
+
+    base = max(0.0, base_s)
+    cap = max(0.0, max_s)
+    return min(cap, base * (2 ** attempt_index))
+
+
+def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
+    """Persist one AgentTrace as ``{trace_dir}/{run_id}.json``.
+
+    Phase 8 A2 — the judge (A3) and the real RAGAS run (A6) both need the
+    full evidence + tool-result chain, which the aggregate
+    ``agent_report.json`` does not preserve (it only keeps source-counts
+    and verdict-shape fields). Per-sample dumps make that chain
+    available off-disk for downstream tools.
+
+    Returns the written path, or ``None`` when dumping was attempted but
+    failed (disk-full, permission error, etc.). Failures are logged to
+    stderr and **do not** propagate — a flaky filesystem must not lose
+    an otherwise-successful grading run.
+    """
+    try:
+        trace_dir.mkdir(parents=True, exist_ok=True)
+        out_path = trace_dir / f"{run_id}.json"
+        out_path.write_text(
+            trace.model_dump_json(indent=2),
+            encoding="utf-8",
+        )
+        return out_path
+    except OSError as exc:  # pragma: no cover - defensive
+        print(
+            f"  ! failed to dump trace for {run_id[:12]}…: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+
+def _load_resume_trace(
+    trace_dir: Path,
+    run_id: str,
+    *,
+    expected_prompt_version: str,
+) -> AgentTrace | None:
+    """Load a completed per-sample trace if this run can be resumed."""
+
+    path = trace_dir / f"{run_id}.json"
+    if not path.exists():
+        return None
+    trace = AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
+    if trace.run_id != run_id:
+        raise ValueError(
+            f"resume trace {path} has run_id={trace.run_id!r}, expected {run_id!r}"
+        )
+    if trace.prompt_version != expected_prompt_version:
+        raise ValueError(
+            f"resume trace {path} has prompt_version={trace.prompt_version!r}, "
+            f"expected {expected_prompt_version!r}"
+        )
+    return trace
+
+
+def _trace_latency_s(trace: AgentTrace) -> float:
+    return (trace.runtime_ms or 0) / 1000.0
+
+
+def _resolve_archive_dir(
+    *,
+    out_dir: Path,
+    archive_stamp: str,
+    trace_dir: Path | None,
+    trace_dir_explicit: bool,
+) -> Path:
+    """Choose where the timestamped report for this eval run belongs."""
+
+    if trace_dir_explicit and trace_dir is not None and trace_dir.name == "traces":
+        return trace_dir.parent
+    return out_dir / "runs" / archive_stamp
+
+
 def collect_graded_samples(
     golden: list[GoldenSample],
     *,
     force_mock: bool,
     limit: int | None = None,
+    trace_dir: Path | None = None,
+    max_retries: int = 3,
+    retry_base_s: float = 10.0,
+    retry_max_s: float = 120.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
 ) -> tuple[list[GradedSample], SkippedCounts]:
     """Run the agent against every importable sample and grade each result.
 
@@ -603,12 +745,19 @@ def collect_graded_samples(
     distinguish "still running" from "deadlocked". The format
     ``[i/N] runid_prefix… status (timing/details)`` lets you visually scan
     for slowdowns or pattern shifts (e.g. all booking runs taking 3× longer).
+
+    When ``trace_dir`` is set, each agent run's full ``AgentTrace`` is
+    serialised to ``{trace_dir}/{run_id}.json`` via :func:`_dump_trace`.
+    The dump is the persistence path the judge (A3) and the real RAGAS
+    run (A6) read from. Dump failures are logged but do not abort the
+    grading run.
     """
     graded: list[GradedSample] = []
     skipped = SkippedCounts()
     subset = golden if limit is None else golden[:limit]
     total = len(subset)
     overall_start = time.perf_counter()
+    expected_prompt_version = prompts.active_prompt_version()
     for i, sample in enumerate(subset, start=1):
         prefix = f"[{i:2d}/{total}] {sample.run_id[:12]}…"
         try:
@@ -625,19 +774,71 @@ def collect_graded_samples(
             flush=True,
         )
         start = time.perf_counter()
-        try:
-            trace = _run_agent(sample.run_id, force_mock=force_mock)
-        except Exception as exc:  # pragma: no cover - defensive
-            elapsed = time.perf_counter() - start
-            skipped.agent_error += 1
-            print(
-                f"{prefix} ERROR after {elapsed:.1f}s: "
-                f"{type(exc).__name__}: {exc}",
-                file=sys.stderr,
-                flush=True,
-            )
-            continue
-        latency_s = time.perf_counter() - start
+        resumed = False
+        if trace_dir is not None:
+            try:
+                trace = _load_resume_trace(
+                    trace_dir,
+                    sample.run_id,
+                    expected_prompt_version=expected_prompt_version,
+                )
+            except Exception as exc:
+                elapsed = time.perf_counter() - start
+                print(
+                    f"{prefix} ERROR after {elapsed:.1f}s: "
+                    f"cannot resume trace: {type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                raise
+            if trace is not None:
+                resumed = True
+                latency_s = _trace_latency_s(trace)
+                print(
+                    f"{prefix} resumed from trace "
+                    f"({trace_dir / f'{sample.run_id}.json'})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        if not resumed:
+            attempts = max(0, max_retries) + 1
+            trace = None
+            for attempt in range(attempts):
+                try:
+                    trace = _run_agent(sample.run_id, force_mock=force_mock)
+                    break
+                except Exception as exc:  # pragma: no cover - defensive
+                    elapsed = time.perf_counter() - start
+                    can_retry = _is_retryable_error(exc) and attempt < attempts - 1
+                    if can_retry:
+                        delay = _retry_delay_s(
+                            attempt,
+                            base_s=retry_base_s,
+                            max_s=retry_max_s,
+                        )
+                        print(
+                            f"{prefix} retryable error after {elapsed:.1f}s "
+                            f"(attempt {attempt + 1}/{attempts}): "
+                            f"{type(exc).__name__}: {exc}; "
+                            f"sleeping {delay:.1f}s before retry",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        sleep_fn(delay)
+                        continue
+                    skipped.agent_error += 1
+                    print(
+                        f"{prefix} ERROR after {elapsed:.1f}s: "
+                        f"{type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    break
+            if trace is None:
+                continue
+            latency_s = time.perf_counter() - start
+            if trace_dir is not None:
+                _dump_trace(trace, trace_dir, sample.run_id)
         graded_sample = _grade(
             sample, trace, latency_s=latency_s, step_count=step_count
         )
@@ -1334,6 +1535,197 @@ def write_mock_smoke_test(
 
 
 # ---------------------------------------------------------------------------
+# Phase 8 A3.5 — post-eval LLM judge step
+#
+# After the production eval finishes writing its archive + per-sample
+# trace dumps, ``--judge`` fans the env-configured Gemini-compatible /
+# OpenAI-compatible judge slots across those artefacts via the A3.4
+# ``run_standalone_judge`` seam. The default callable (A4.1) builds an
+# OpenAI-compatible chat-completions client per slot from
+# ``TRAJECTA_JUDGE_<slot>_API_KEY`` / ``TRAJECTA_JUDGE_<slot>_BASE_URL``;
+# a slot whose env config is incomplete (missing key, missing SDK, or
+# a runtime transport error) surfaces as a per-slot ``failed`` entry
+# rather than aborting the whole run, so a single bad slot does not
+# block the other from producing its judge report.
+
+# Judge artefacts land beside the timestamped agent_report archive so
+# each eval run is a self-contained directory (report + traces + judge
+# stanzas) that survives independently of ``eval/agent_report.{json,md}``
+# being overwritten by the next eval invocation.
+_JUDGE_OUTPUT_SUBDIR = "judge"
+
+
+def _run_judge_post_step(
+    *,
+    report_path: Path,
+    trace_dir: Path | None,
+    archive_dir: Path,
+    golden_path: Path | None = None,
+    judge_callable: LLMJudgeCallable | None = None,
+    env: dict[str, str] | None = None,
+    prompts_root: Path | None = None,
+) -> int:
+    """Run env-configured judge slot(s) over the just-written eval run.
+
+    Returns:
+
+      * ``0`` — at least one slot was configured and produced a report.
+      * ``2`` — operator wiring error: no trace_dir to grade against, or
+        ``--judge`` was set but neither TRAJECTA_JUDGE_<slot>_MODEL +
+        TRAJECTA_JUDGE_<slot>_PROMPT_VERSION pair is complete.
+      * ``1`` — every configured slot raised an error (missing API key,
+        provider transport failure, etc.). The eval itself succeeded —
+        only the judge slots are unhealthy.
+
+    ``judge_callable`` / ``env`` / ``prompts_root`` are test-injection
+    seams so the post-step can be exercised end-to-end without a real
+    provider or the committed ``prompts/judge/`` tree. Production
+    callers leave them ``None``.
+    """
+    if trace_dir is None:
+        print(
+            "error: --judge requires per-sample trace dumps, but no"
+            " trace_dir was resolved for this run; pass --trace-dir or"
+            " run without --mock so the default eval/runs/<stamp>/traces"
+            " path is used.",
+            file=sys.stderr,
+        )
+        return 2
+
+    src = env if env is not None else os.environ
+    configured: list[JudgeConfig] = []
+    missing_slots: list[str] = []
+    for slot in ("A", "B"):
+        cfg = judge_config_from_env(slot, env=src)  # type: ignore[arg-type]
+        if cfg is None:
+            missing_slots.append(slot)
+        else:
+            configured.append(cfg)
+
+    if not configured:
+        print(
+            "error: --judge requested but no TRAJECTA_JUDGE_<slot>_MODEL"
+            " + TRAJECTA_JUDGE_<slot>_PROMPT_VERSION pair is set."
+            f" Missing slots: {missing_slots}.",
+            file=sys.stderr,
+        )
+        return 2
+
+    resolved_golden = golden_path or _JUDGE_DEFAULT_GOLDEN_PATH
+    judge_root = archive_dir / _JUDGE_OUTPUT_SUBDIR
+
+    ran: list[str] = []
+    failed: list[str] = []
+    reports_by_slot = {}
+    for cfg in configured:
+        out_path = judge_root / cfg.slot / "judge_report.json"
+        # Build a slot-specific callable from the same ``env`` the
+        # config resolver saw. Falling back to ``_default_judge_callable``
+        # inside ``run_llm_judge`` would re-read ``os.environ``, which
+        # silently bypasses the post-step's injected env in tests.
+        slot_callable = judge_callable
+        if slot_callable is None:
+            try:
+                slot_callable = _judge_default_callable(cfg, env=src)  # type: ignore[arg-type]
+            except JudgeProviderError as exc:
+                print(
+                    f"Judge {cfg.slot}: failed (provider unavailable) — {exc}.",
+                    file=sys.stderr,
+                )
+                failed.append(cfg.slot)
+                continue
+        try:
+            result = run_standalone_judge(
+                golden_path=resolved_golden,
+                report_path=report_path,
+                trace_dir=trace_dir,
+                out_path=out_path,
+                config=cfg,
+                judge_callable=slot_callable,
+                prompts_root=prompts_root,
+            )
+        except JudgeProviderError as exc:
+            # Slot config is structurally complete (model + prompt
+            # version were resolved) but the provider call cannot be
+            # made — missing API key, missing SDK, or runtime error.
+            # Log the slot-tagged message and move on so a single bad
+            # slot does not block the other.
+            print(
+                f"Judge {cfg.slot}: failed (provider unavailable) — {exc}.",
+                file=sys.stderr,
+            )
+            failed.append(cfg.slot)
+            continue
+        except Exception as exc:  # noqa: BLE001 — log per-slot, continue
+            print(
+                f"Judge {cfg.slot}: failed ({type(exc).__name__}: {exc}).",
+                file=sys.stderr,
+            )
+            failed.append(cfg.slot)
+            continue
+        print(
+            f"Judge {cfg.slot} ({cfg.model}, prompt={cfg.prompt_version}):"
+            f" graded {len(result.graded_run_ids)} cases →"
+            f" {result.json_path}",
+            file=sys.stderr,
+        )
+        for reason, ids in result.skipped.items():
+            print(
+                f"  Judge {cfg.slot} skipped[{reason}]={len(ids)}",
+                file=sys.stderr,
+            )
+        ran.append(cfg.slot)
+        reports_by_slot[cfg.slot] = result.report
+
+    agreement_failed = False
+    if "A" in reports_by_slot and "B" in reports_by_slot:
+        agreement_path = judge_root / "judge_agreement_report.json"
+        try:
+            agreement = build_judge_agreement_report(
+                reports_by_slot["A"],
+                reports_by_slot["B"],
+            )
+            json_path, md_path = write_judge_agreement_report(
+                agreement,
+                agreement_path,
+            )
+        except Exception as exc:  # noqa: BLE001 — bad pairing is a judge failure
+            print(
+                "Judge agreement: failed "
+                f"({type(exc).__name__}: {exc}).",
+                file=sys.stderr,
+            )
+            failed.append("agreement")
+            agreement_failed = True
+        else:
+            print(
+                "Judge agreement (κ_LLM,LLM):"
+                f" wrote {json_path} and {md_path}",
+                file=sys.stderr,
+            )
+    elif ran:
+        missing_for_agreement = [
+            slot for slot in ("A", "B") if slot not in reports_by_slot
+        ]
+        print(
+            "Judge agreement: skipped because both slots did not succeed."
+            f" Missing successful slots: {missing_for_agreement}.",
+            file=sys.stderr,
+        )
+
+    print(
+        f"Judge post-step summary: configured={[c.slot for c in configured]}"
+        f" ran={ran} failed={failed}",
+        file=sys.stderr,
+    )
+    if agreement_failed:
+        return 1
+    if ran:
+        return 0
+    return 1
+
+
+# ---------------------------------------------------------------------------
 # CLI
 
 
@@ -1392,7 +1784,62 @@ def main(argv: list[str] | None = None) -> int:
         "--vlm-price-output", type=float, default=None,
         help="Override VLM output price (USD per 1M tokens).",
     )
+    parser.add_argument(
+        "--trace-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Directory to dump per-sample AgentTrace JSONs (one file per"
+            " run_id). When omitted and not --mock, defaults to"
+            " <out>/runs/<archive_stamp>/traces — i.e. alongside the"
+            " timestamped agent_report. When --mock is set and this flag"
+            " is omitted, traces are NOT dumped (mock mode is a wiring"
+            " smoke test, not a quality measurement). Pass an explicit"
+            " path here to force dumping in mock mode."
+        ),
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Retry each sample this many times for 429 / transient API errors.",
+    )
+    parser.add_argument(
+        "--retry-base-s",
+        type=float,
+        default=10.0,
+        help="Initial per-sample retry backoff in seconds.",
+    )
+    parser.add_argument(
+        "--retry-max-s",
+        type=float,
+        default=120.0,
+        help="Maximum per-sample retry backoff in seconds.",
+    )
+    parser.add_argument(
+        "--judge",
+        action="store_true",
+        help=(
+            "Run the env-configured LLM judge(s) over the just-written"
+            " agent_report.json + trace dumps after the eval finishes."
+            " Requires TRAJECTA_JUDGE_<slot>_MODEL and"
+            " TRAJECTA_JUDGE_<slot>_PROMPT_VERSION for at least one slot"
+            " (A or B). Each configured slot emits"
+            " <out>/runs/<stamp>/judge/<slot>/judge_report.{json,md}."
+            " Not compatible with --mock — mock mode does not produce a"
+            " real report worth grading."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.judge and args.mock:
+        print(
+            "error: --judge is incompatible with --mock; mock mode does "
+            "not produce a real agent_report to grade. Run the eval "
+            "without --mock first, then pass --judge.",
+            file=sys.stderr,
+        )
+        return 2
 
     # Eval mode is the only mode this harness has. Auto-enable so users
     # don't have to remember `TRAJECTA_EVAL_MODE=1` on every invocation.
@@ -1447,8 +1894,30 @@ def main(argv: list[str] | None = None) -> int:
     # start. Hydrate / argparse should not be billed against wall_clock.
     eval_started_at = datetime.now(timezone.utc)
     eval_start_perf = time.perf_counter()
+    # archive_stamp is also used below to write the timestamped
+    # agent_report archive. Computed here (before grading) so the trace
+    # dump dir can share the same stamp — keeping per-run artefacts
+    # co-located under eval/runs/<stamp>/.
+    archive_stamp = eval_started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
+    if args.trace_dir is not None:
+        # Explicit path always honored, in either mode.
+        resolved_trace_dir: Path | None = args.trace_dir
+    elif args.mock:
+        # Mock mode is a wiring smoke test; default to no dumping so the
+        # eval/runs/<stamp>/ tree stays a "real eval" surface.
+        resolved_trace_dir = None
+    else:
+        resolved_trace_dir = args.out / "runs" / archive_stamp / "traces"
+    if resolved_trace_dir is not None:
+        print(f"Trace dumps → {resolved_trace_dir}", file=sys.stderr)
     graded, skipped = collect_graded_samples(
-        golden, force_mock=args.mock, limit=args.limit
+        golden,
+        force_mock=args.mock,
+        limit=args.limit,
+        trace_dir=resolved_trace_dir,
+        max_retries=args.max_retries,
+        retry_base_s=args.retry_base_s,
+        retry_max_s=args.retry_max_s,
     )
     eval_finished_at = datetime.now(timezone.utc)
     wall_clock_total_s = round(time.perf_counter() - eval_start_perf, 3)
@@ -1519,11 +1988,15 @@ def main(argv: list[str] | None = None) -> int:
     report.vlm_high_detail_prompt_sha256 = vlm_prompt_bundle.sha256
     report.cost_usd = cost_usd
 
-    # Write a timestamped archive at <out>/runs/<ts>/agent_report.{json,md}
-    # so each eval run is preserved and comparable. Filesystem-safe stamp:
-    # ISO-8601 with ``:`` replaced by ``-`` (Windows-compatible).
-    archive_stamp = eval_started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
-    archive_dir = args.out / "runs" / archive_stamp
+    # Write the report beside the trace directory when resuming an existing
+    # eval/runs/<stamp>/traces directory; otherwise use a fresh timestamped
+    # archive under <out>/runs/<ts>/.
+    archive_dir = _resolve_archive_dir(
+        out_dir=args.out,
+        archive_stamp=archive_stamp,
+        trace_dir=resolved_trace_dir,
+        trace_dir_explicit=args.trace_dir is not None,
+    )
     archive_json_path, archive_md_path = write_report(report, archive_dir)
     # Mirror to <out>/agent_report.{json,md} as the "latest" pointer that
     # tooling and humans bookmark. Plain copy (not symlink) for portability.
@@ -1545,8 +2018,34 @@ def main(argv: list[str] | None = None) -> int:
         f"Mirrored to latest: {latest_json}, {latest_md}",
         file=sys.stderr,
     )
+    if resolved_trace_dir is not None:
+        # Count what actually landed on disk (not what we tried to dump);
+        # _dump_trace swallows OSError so a partial-disk failure must not
+        # be silently overstated here.
+        dumped = (
+            len(list(resolved_trace_dir.glob("*.json")))
+            if resolved_trace_dir.is_dir()
+            else 0
+        )
+        print(
+            f"Dumped {dumped} trace JSONs to {resolved_trace_dir}",
+            file=sys.stderr,
+        )
     if cost_usd.get("total_usd") is not None:
         print(f"Total cost: ${cost_usd['total_usd']:.4f} USD", file=sys.stderr)
+
+    if args.judge:
+        # The eval artefacts are now on disk; hand them to the A3.4
+        # standalone judge runner. The post-step's return code overrides
+        # the eval's "0" only when the operator explicitly asked for a
+        # judge — otherwise an unwired judge slot would silently fail
+        # green.
+        return _run_judge_post_step(
+            report_path=archive_json_path,
+            trace_dir=resolved_trace_dir,
+            archive_dir=archive_dir,
+        )
+
     return 0
 
 

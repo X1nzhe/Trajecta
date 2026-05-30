@@ -8,14 +8,15 @@ Trajecta's eval surface has four pillars. Each maps to a specific S18
 | --- | --- | --- |
 | Golden set | `eval/golden.jsonl`, 35 cases | 2.2 Build 1 |
 | Deterministic unit suite | `backend/tests/`, OfflineAgentMock | 2.2 Build 2 |
-| Semantic metric | `eval/ragas_report.{json,md}`, faithfulness + context_precision | 2.2 Build 3 |
-| LLM judge + κ | `eval/judge.py`, `eval/judge_report.{json,md}`, `data/human_judge_labels.jsonl` | 2.2 Build 4 |
+| Semantic metric | `eval/ragas_report.{json,md}`, no-ground-truth RAGAS faithfulness | 2.2 Build 3 |
+| LLM judge + κ | `eval/judge.py`, `eval/runs/{ts}/judge/judge_agreement_report.{json,md}` | 2.2 Build 4 |
 
 ## Golden Set
 
 **File**: `eval/golden.jsonl`, JSONL, 35 rows.
 
-**Per-row schema**:
+**Per-row schema** (facts are structured objects, not free-text strings,
+so the judge can run mechanical prechecks without a regex parser):
 
 ```json
 {
@@ -24,34 +25,46 @@ Trajecta's eval surface has four pillars. Each maps to a specific S18
     "intent": "analyze_run"
   },
   "expected_facts": [
-    "outcome == 'failed'",
-    "failure_type ∈ {missed_constraint}",
-    "failure_step ∈ [10, 14]"
+    {"field": "outcome",      "op": "eq",       "value": "failed"},
+    {"field": "failure_type", "op": "in",       "value": ["missed_constraint"]},
+    {"field": "failure_step", "op": "in_range", "value": [10, 14]}
   ],
   "forbidden_facts": [
-    "outcome == 'success'",
-    "failure_type ∈ {early_terminated, wrong_target, wrong_result, inefficient_search}"
+    {"field": "outcome",      "op": "eq", "value": "success"},
+    {"field": "failure_type", "op": "in", "value": ["early_terminated", "wrong_target", "wrong_result", "inefficient_search"]}
   ],
   "tags": ["booking", "missed_constraint"]
 }
 ```
 
-**Source of truth**: `data/triage_notes.csv`. The CSV carries the human
-labels and is hand-edited; `eval/golden.jsonl` is a build artefact
+**Fact shape** (Pydantic discriminated union on `field`):
+
+| `field` | `op` | `value` type | Semantics |
+| --- | --- | --- | --- |
+| `outcome` | `eq` | `"success" \| "failed"` | Proposed verdict matches this outcome literal. |
+| `failure_type` | `in` | `list[str]` (subset of `V1_FAILURE_VOCABULARY`) | Proposed `failure_type` is one of the listed types. |
+| `failure_step` | `in_range` | `[int, int]` (inclusive `[min, max]`, `min ≤ max`) | Proposed `failure_step` lies in this closed interval. |
+
+`expected_facts` are conditions the proposed `EvalCase` **must** satisfy.
+`forbidden_facts` are conditions it **must not** satisfy. The judge uses
+these structured facts as deterministic prechecks and as compact context
+for the LLM acceptability decision (§ LLM Judge).
+
+**Source of truth**: `data/triage_notes.csv`. The CSV carries curated
+annotations and is hand-edited; `eval/golden.jsonl` is a build artefact
 produced by `scripts/build_golden_jsonl.py` and never edited by hand.
 
 **Build rules**:
 
 - `input.run_id` ← CSV `sample_id`. `input.intent` defaults to `"analyze_run"`.
 - For `outcome=="success"` rows:
-  - `expected_facts = ["outcome == 'success'"]`
-  - `forbidden_facts = ["outcome == 'failed'"]`
+  - `expected_facts = [{outcome eq "success"}]`
+  - `forbidden_facts = [{outcome eq "failed"}]`
   - `tags = [category]`
 - For `outcome=="failed"` rows:
-  - `expected_facts = ["outcome == 'failed'", f"failure_type ∈ {labelled_set}"]`
-    plus `f"failure_step ∈ [{step − 2}, {step + 2}]"` when `failure_step` is non-empty.
-  - `forbidden_facts = ["outcome == 'success'",
-    f"failure_type ∈ {V1_FAILURE_VOCABULARY \\ labelled_set}"]`.
+  - `expected_facts = [{outcome eq "failed"}, {failure_type in labelled_set}]`
+    plus `{failure_step in_range [step − 2, step + 2]}` when `failure_step` is non-empty.
+  - `forbidden_facts = [{outcome eq "success"}, {failure_type in (V1_FAILURE_VOCABULARY \ labelled_set)}]`.
   - `tags = [category, *labelled_set]`.
 
 **Pydantic model**: `GoldenCase` in `backend/app/schemas.py` (added in
@@ -68,23 +81,64 @@ Phase 8). Each row validates on load.
 
 ## LLM Judge
 
-**File**: `eval/judge.py`, runnable as `python -m eval.judge`.
+**File**: `eval/judge.py`, invoked by `backend.app.agent_eval` after the
+agent-quality eval finishes. It is also runnable as `python -m eval.judge`
+to rerun the judge against an existing `agent_report.json` + trace
+directory.
 
 The judge scores one quality dimension — **`acceptable_eval_case`**,
-binary — over the proposed `EvalCase` for each golden case. Acceptance
-is defined by the six-clause rubric below; a case is `acceptable` iff
-**all six clauses hold**.
+binary — over the generated `eval_case_draft` for each golden case. The
+judged object is the latest `propose_eval_case` tool-call args in the
+persisted `AgentTrace`.
 
-### Rubric
+The judge is **not** scoring "evidence traceability" as its rubric.
+Evidence support is one assertion inside the broader question: is this
+draft acceptable as a reusable regression eval case for the run?
 
-| # | Clause | Predicate |
-| --- | --- | --- |
-| 1 | Verdict match | Proposed `is_success` (= all five failure fields absent) matches the reference `outcome == "success"`. |
-| 2 | Failure-type compatibility | For failed references, the proposed `failure_type` appears in the reference's `expected_facts` failure-type set (multi-label OR). |
-| 3 | Failure-step locality | For failed references with a labelled step, the proposed `failure_step` lies in `[step − 2, step + 2]`, or proposed evidence demonstrates that the inspection covered the labelled step. |
-| 4 | No contradiction with expected facts | Proposed `expected_behavior` and `actual_behavior` do not contradict any `expected_facts` entry. |
-| 5 | No forbidden assertions | Proposed `expected_behavior`, `actual_behavior`, or any evidence claim does not assert any `forbidden_facts` entry. |
-| 6 | Evidence traceability | Every `EvidenceItem` carries enough pointers (`step_index` for step-based sources, `context_id` for retrieval-based sources, or `source="unavailable"`) to locate or honestly disclaim the cited source. |
+### Acceptability Assertions
+
+The Phase 8 protocol runs two LLM judges over the same case payload:
+
+- Judge A: Gemini-compatible provider/model configured by
+  `TRAJECTA_JUDGE_A_MODEL`.
+- Judge B: OpenAI-compatible provider/model configured by
+  `TRAJECTA_JUDGE_B_MODEL`.
+- Judge prompt versions are configured by
+  `TRAJECTA_JUDGE_A_PROMPT_VERSION` and
+  `TRAJECTA_JUDGE_B_PROMPT_VERSION`.
+
+Both judges return `acceptable` or `unacceptable` plus assertion results.
+A draft is acceptable iff all assertions pass. No Gemini or OpenAI model ID is
+hard-coded as a repo default. The two prompt versions must keep the same rubric
+semantics; provider-specific formatting and instruction wording are allowed,
+but the acceptability criteria must remain equivalent.
+
+Phase 8 A4.2 ships two provider-specific prompt bundles for the
+production judge pair:
+
+- `prompts/judge/v1_acceptability_gemini/` — Judge A default.
+- `prompts/judge/v1_acceptability_openai/` — Judge B default.
+
+Both bundles list the six required assertion names below verbatim and
+demand JSON-only output. `backend/tests/test_judge.py` locks in
+existence, assertion-name coverage, and distinct sha256 stamps for the
+two bundles so a future edit that breaks rubric alignment fails CI
+before the κ_LLM,LLM rollup is computed.
+
+| Assertion | Predicate |
+| --- | --- |
+| Verdict alignment | The draft's success/failure shape matches the golden `OutcomeFact`. |
+| Failure-mode compatibility | For failed references, `failure_type` is compatible with the labelled failure-type set. |
+| Failure-step localization | For failed references with a labelled step, `failure_step` is inside the expected range, or the cited evidence demonstrates that the inspected step still covers the labelled failure. |
+| Regression-case usefulness | `expected_behavior`, `actual_behavior`, and `regression_rule` would let a future regression eval catch the same failure. |
+| No forbidden claim | The draft does not assert any `forbidden_facts` entry. |
+| Evidence support | The cited evidence supports the draft's claim; missing screenshots, invalid coordinates, or unavailable sources are represented as honest gaps rather than invented evidence. |
+
+`eval/judge.py` may precompute deterministic checks from
+`expected_facts` / `forbidden_facts` to keep the prompt compact and make
+failure reporting reproducible. Those checks are preconditions and
+context for the LLM judge, not a replacement for the final
+`acceptable_eval_case` verdict.
 
 ### Input shape (per case)
 
@@ -111,36 +165,66 @@ to call back to Trajecta:
 {
   "verdict": "acceptable",
   "rationale": "<≤2 sentences>",
-  "failed_rubrics": [1, 3, 5]
+  "assertions": [
+    {
+      "name": "verdict_alignment",
+      "status": "pass",
+      "rationale": "<one short sentence>"
+    }
+  ]
 }
 ```
 
-`failed_rubrics` is empty when the verdict is `acceptable`.
+`verdict` is `"acceptable"` or `"unacceptable"`. Every assertion has
+`status: "pass" | "fail"` and a short rationale.
 
-### CLI
+### Required CLI shape
 
 ```text
+python -m backend.app.agent_eval \
+    --trace-dir eval/runs/{timestamp}/traces \
+    --judge
+
+# Rerun/debug path for a single configured slot:
 python -m eval.judge \
     --golden eval/golden.jsonl \
     --report eval/agent_report.json \
     --trace-dir eval/runs/{timestamp}/traces \
-    --judge-model claude-opus-4-1 \
-    [--human-labels data/human_judge_labels.jsonl] \
-    [--sample-size 31] \
     --out eval/judge_report.json
 ```
 
+Judge model and prompt-version selection is controlled by environment
+variables. Model values below are placeholders / examples only, not repo
+defaults:
+
+```text
+TRAJECTA_JUDGE_A_MODEL=<gemini-model-id>
+TRAJECTA_JUDGE_A_PROMPT_VERSION=<judge-a-prompt-version>
+TRAJECTA_JUDGE_B_MODEL=<openai-model-id>
+TRAJECTA_JUDGE_B_PROMPT_VERSION=<judge-b-prompt-version>
+```
+
+Standalone reruns read one configured slot at a time. The production
+`agent_eval --judge` path runs the configured A/B slots and writes the
+agreement artefact under the timestamped eval archive.
+
 ### Outputs
 
-- `eval/judge_report.json` — per-case verdicts + aggregate
-  `acceptable_rate` + the Cohen's κ tables.
-- `eval/judge_report.md` — human-readable summary modelled on
-  `eval/agent_report.md`.
+- Production post-step:
+  `eval/runs/{timestamp}/judge/judge_agreement_report.{json,md}` —
+  κ_LLM,LLM across the successful Judge A/B slot reports.
+- Per-slot reports:
+  `eval/runs/{timestamp}/judge/{A,B}/judge_report.{json,md}` —
+  per-case verdicts, acceptability assertions, and aggregate
+  `acceptable_rate` for one judge.
+- Standalone rerun/debug:
+  `eval/judge_report.{json,md}` when `python -m eval.judge --out
+  eval/judge_report.json` is used for one configured slot.
 
 ## Cohen's κ
 
-Compute Cohen's κ over the binary verdicts for the same set of cases
-judged by two annotators.
+Compute Cohen's κ over the binary verdicts for the same set of cases judged
+by the Gemini LLM judge and the OpenAI LLM judge.
 
 ```python
 # Pseudocode
@@ -152,77 +236,58 @@ p_expected = (p_a_positive * p_b_positive
 kappa = (p_observed - p_expected) / (1 - p_expected)
 ```
 
-### Two κ rows
+### One κ row
 
-**κ_LLM,LLM**. Run the judge twice with two different LLMs (e.g.
-`claude-opus-4-1` and `gpt-4o-2024-08-06`). The κ value is computed
-over their per-case verdicts, N = 31. This is the primary κ row in the
-report.
+**κ_LLM,LLM**. κ is computed between the Gemini and OpenAI binary
+`acceptable_eval_case` verdicts, N = 31 on the current gradeable golden
+set. This is the Phase 8 primary agreement deliverable.
 
-**κ_LLM,human**. The user labels every gradeable golden case (binary
-`acceptable_eval_case` + one-sentence rationale) and saves the result
-to `data/human_judge_labels.jsonl`. κ is then computed between the
-best-performing LLM judge and the human, N = 31.
+The golden set is reference context for both judges. It is not a third
+annotator and must not be converted into verdicts.
+
+### Sample policy
+
+Preferred judge N = 31 gradeable cases from the 35-row golden set. When cost
+is constrained, a judge run may use a deterministic pre-registered stratified
+subset. The judge report must disclose `sample_size`, `selection_policy`, and
+skipped counts. `eval/golden.jsonl` remains 35 rows; do not shrink the golden
+set to control judge cost.
 
 ### Target and fallback
 
 The S18 target is **κ ≥ 0.6**.
 
-If a κ row falls below 0.6, the report does **not** silently relax the
-rubric to lift the number. Instead, the report adds a "Disagreement
-Analysis" section listing every case the two annotators split on, the
-rubric clauses each annotator failed, and a one-line hypothesis about
-the source of disagreement (rubric ambiguity vs annotator error vs
-genuinely hard sample). Per S18 § 2.3 closing note: "a negative result
-is still a result".
+If κ falls below 0.6, the report does **not** silently relax the judge
+contract to lift the number. Instead, the report adds a "Disagreement
+Analysis" section listing every case the Gemini and OpenAI judges split on,
+the acceptability assertions each judge failed, and a one-line hypothesis
+about the source of disagreement (prompt ambiguity vs model behavior vs
+genuinely hard sample). Per S18 § 2.3 closing note: "a negative result is
+still a result".
 
-### Human label collection
-
-**File**: `data/human_judge_labels.jsonl`.
-
-**Per-row schema**:
-
-```json
-{
-  "run_id": "...",
-  "human_verdict": "acceptable" | "not_acceptable",
-  "rationale": "<1 sentence>"
-}
-```
-
-The labelling UI is a CLI mode of `eval/judge.py`:
-
-```text
-python -m eval.judge --human-label-mode \
-    --golden eval/golden.jsonl \
-    --report eval/agent_report.json \
-    --trace-dir eval/runs/{timestamp}/traces \
-    --out data/human_judge_labels.jsonl
-```
-
-It prints, per case, the golden reference and the proposed `EvalCase`
-side by side, prompts for verdict + rationale, and appends to the
-output file. No React work.
+Reviewer validation can be added later as a separate confidence check, but it
+is deferred and not part of the Phase 8 acceptance path because reviewer
+workflow, UI, and label-management design would add implementation scope beyond
+Phase 8.
 
 ## RAGAS Evaluation
 
-Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads persisted `AgentTrace` records via `storage.load_trace(run_id)` (the `traces` SQLite table — no live agent re-runs, no live retrieval) and writes the report files below.
+Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads persisted `AgentTrace` records from an explicit `--trace-dir` first, then falls back to `storage.load_trace(run_id)` from the `traces` SQLite table. It does not re-run the agent or retrieval.
 
-Run one minimal RAGAS eval over failure memory RAG.
+Run one minimal no-ground-truth RAGAS eval over failure memory RAG.
 
-Preferred metrics:
+Primary metric:
 
 - `faithfulness`
-- `context_precision`
 
 Input shape:
 
 ```python
 {
-  "question": "What failure pattern does this trajectory most closely match?",
+  "question": search_tool_call.args["query"],
   "answer": ragas_answer_from_trace(trace),
-  "contexts": retrieved_context_texts_from_search_tool_results,
-  "ground_truth": "missed_constraint"
+  "contexts": matching_search_tool_result_items_as_text,
+  "ground_truth_source": "none"
 }
 ```
 
@@ -256,10 +321,12 @@ def ragas_answer_from_trace(trace: AgentTrace) -> str:
 
 Rules:
 
-- Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` are included in the RAGAS sample; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
+- Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` can contribute RAGAS samples; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
 - The answer text intentionally excludes `expected_behavior`, `regression_rule`, and `agent_message` events. `expected_behavior` describes the correct outcome (not the agent's claim about *this* run), and free-form `agent_message` text often contains discarded hypotheses that would inflate hallucination signal unfairly.
 - `actual_behavior` and `evidence[*].claim` are read from the **trace** (the tool-call `args`), not from a persisted `EvalCase` file, because drafts are not persisted and the trace is the only source available to `ragas_eval.py` (see [docs/eval_agent.md](eval_agent.md) Observability section).
-- `contexts` are accumulated from **all** `search_failure_memory` / `search_eval_cases` `tool_result` events in the trace, regardless of turn. A follow-up turn that retrieves additional evidence contributes to the same RAGAS sample as the initial turn's retrievals.
+- Each RAGAS sample corresponds to one recorded `search_failure_memory` or `search_eval_cases` tool call. `question` is that tool call's `args["query"]`; `contexts` are the matching following `tool_result.items`, not a cross-trace or whole-trace context pool.
+- No human or self-generated `ground_truth` is used. The A6 claim is limited to retrieval-grounded faithfulness: whether the final `actual_behavior` and evidence claims are supported by the contexts retrieved for the recorded query. It does not measure answer correctness, context recall, or human agreement.
+- RAG tool calls with no usable contexts are skipped and counted under `no_context`.
 
 Output files:
 
@@ -275,13 +342,19 @@ real RAGAS the deliverable:
 
 - Fix the path-resolution bug in `backend/app/ragas_eval.py`. The Phase
   7 version reads pre-storage-refactor paths and falls back to stub mode
-  even when `OPENAI_API_KEY` is set. Phase 8 reads from the SQLite
-  `traces` table when present and from the eval-harness trace dump dir
-  (`eval/runs/{ts}/traces/`, see Phase 8 A2) otherwise.
-- Run against ≥ 10 traces from the most recent golden-set evaluation.
+  even when `OPENAI_API_KEY` is set. Phase 8 reads from the explicit
+  eval-harness trace dump dir (`eval/runs/{ts}/traces/`, see Phase 8 A2)
+  first, then falls back to the SQLite `traces` table.
+- Run against ≥ 10 real RAG tool-call samples from the most recent golden-set evaluation.
 - `eval/ragas_report.md` `mode` field must read `"real"`, not `"stub"`.
 - The S18 § 2.2 Build 3 requirement is satisfied by `faithfulness`
-  alone; `context_precision` is reported as a secondary signal.
+  alone; no `ground_truth` or `context_precision` claim is made for A6.
+
+Latest Phase 8 A6 artefact: `eval/ragas_report.{json,md}` was generated
+from `eval/runs/2026-05-30T04-43-34Z/traces` with `--limit 10`; it reports
+`ragas_mode="real"`, `ground_truth_source="none"`, sample count 10,
+`faithfulness=0.4068`, and skipped counts
+`budget_exceeded=0`, `error=7`, `no_trace=4`, `no_context=17`.
 
 The stub-mode fallback remains in the code for offline development but
 is no longer an acceptable production artefact.
@@ -381,35 +454,50 @@ tests/test_golden_set.py            (new)
 - --check exits non-zero when triage_notes.csv is newer than golden.jsonl
 
 tests/test_judge.py                 (new)
-- judge invokes one of the six rubric clauses for every gold + draft pair
-- failed_rubrics is empty iff verdict is "acceptable"
-- judge_report.json carries the κ tables when two annotators are supplied
-- Cohen's κ matches a hand-computed value on a fixture pair of annotators
+- judge extracts the latest eval_case_draft from each agent_eval trace
+- mechanical prechecks produce reproducible assertion context
+- judge_report.json stores per-slot verdicts plus acceptability assertions
+- judge_agreement_report.json carries the κ_LLM,LLM row for Gemini vs OpenAI
+- Cohen's κ matches a hand-computed value on a fixture Gemini/OpenAI verdict pair
 - disagreement-analysis section renders when κ < 0.6
+- judge does not synthesize verdicts from golden references
 
 tests/test_agent_eval.py            (extend)
 - --trace-dir flag dumps one per-sample trace JSON under the given dir
 - dumped trace contains the propose_eval_case args and the full evidence list
 - the dump path defaults to eval/runs/{ts}/traces/ when the flag is omitted
+- retryable 429 / timeout / connection failures are retried per sample
+- non-retryable agent errors are not retried and still count as agent_error
+- existing trace_dir/{run_id}.json files resume directly into grading without calling _run_agent
+- resume rejects prompt_version mismatches to prevent cross-prompt contamination
+- explicit eval/runs/{ts}/traces resume writes the final report back to eval/runs/{ts}/
+- judge post-step receives the same report path and trace dir produced by the eval run
+- judge post-step runs env-configured Gemini-compatible and OpenAI-compatible judge configs with different committed judge prompt versions
 
 tests/test_ragas_eval.py            (extend)
-- path resolver reads from the SQLite traces table when a row exists
-- path resolver falls back to the eval-trace dump dir when no SQLite row exists
+- path resolver prefers the explicit eval-trace dump dir over SQLite when both exist
+- path resolver falls back to the SQLite traces table when no trace-dir file exists
+- samples use real RAG tool-call queries and matching tool-result contexts
+- `ground_truth_source` is `none`; disk fixtures do not turn A6 into answer correctness
+- retrieval calls without usable contexts increment `no_context`
+- `--limit` restricts valid sample count and is threaded through the CLI
 - mode field on the produced report is "real" when OPENAI_API_KEY is set and at least one trace is loadable
 - mode field falls back to "stub" only when OPENAI_API_KEY is unset
 
-tests/test_spotlight.py             (new, Phase 8 B6)
+tests/test_prompts.py               (Phase 8 B6 Spotlighting hardening)
 - spotlight_wrap() returns the same delimiter token within one agent run and different tokens across runs
-- spotlight_wrap() of an empty string still emits a valid delimited pair
-- trajectory_digest assembly wraps every StepObservation.visible_text, action_target, URL, and VLM text output
-- internal RAG retrieval results and agent message history are NOT wrapped
-- active system prompt contains the anti-injection preamble; sha256 stamp on the trace reflects it
+- spotlight_wrap() of an empty string still emits a valid delimited pair; off-mode is identity; missing token raises
+- spotlighting_enabled() parses TRAJECTA_SPOTLIGHTING (default on) and rejects unknown values
+- load_prompt_bundle prepends the anti-injection preamble when on; system + combined sha256 differ between on/off
 
-tests/test_injection_eval.py        (new, Phase 8 B6)
-- eval/injection_golden.jsonl validates against the GoldenCase schema and has ≥ 8 entries
-- injection_resistance_rate computation matches a hand-counted reference on a fixture
-- baseline-disabled run records injection_followed=True at least once on the crafted set (sanity: the eval is doing something)
-- Spotlighting-enabled run records strictly higher injection_resistance_rate than baseline on the same fixture set
+tests/test_eval_agent.py::SpotlightingWrapTests   (Phase 8 B6 Spotlighting hardening)
+- the initial digest HumanMessage wraps action_text, action_target, URL, title, and VLM low-detail summary in `<TRAJECTA_DATA_*>` markers
+- get_step_detail wraps vlm_summary, task_context, and observation text; the trusted run.task stays unwrapped
+- internal RAG retrieval results and agent message history are NOT wrapped
+- on/off runs stamp different prompt_sha256 and AgentTrace.spotlighting_enabled; followup re-mints a fresh token
+
+Spotlighting is unit-tested production hardening only — there is no injection golden set or `injection_resistance_rate` eval in Phase 8.
+
 ```
 
 ## Frontend Tests
@@ -448,13 +536,11 @@ Checklist":
 
 - `eval/golden.jsonl` — 35 rows, schema-valid, all 8 categories present.
 - `eval/runs/{ts}/traces/` — per-sample trace JSONs from the last eval run (local-only).
-- `eval/judge_report.md` — κ_LLM,LLM row present with N=31; if κ < 0.6, disagreement analysis section present.
-- `eval/judge_report.md` — κ_LLM,human row present with N=31.
-- `data/human_judge_labels.jsonl` — 31 rows; every row carries a rationale.
+- `eval/runs/{ts}/judge/judge_agreement_report.md` — κ_LLM,LLM row present with N=31 preferred, or a reported deterministic stratified subset; if κ < 0.6, disagreement analysis section present.
 - `eval/ragas_report.md` — `mode == "real"`, `n ≥ 10`.
 - `README.md` — "Eval & Experiments" table ≥ 5 rows with concrete metric deltas (no "improved slightly" phrasing).
 - `docs/failure_analysis.md` — 2–3 case studies + one-line trade-off.
-- `mcp/server.py` — six tools exposed, zero excluded tools registered, `analyze_run` composite present.
+- Planned lower-priority `mcp/server.py` — six tools exposed, zero excluded tools registered, `analyze_run` composite present once the MCP slice ships.
 - `cd frontend && npm run build` — exits 0.
 - `git status` — clean.
-- `SPEC.md`, `README.md`, `docs/roadmap.md`, `docs/testing.md`, `docs/eval_agent.md` — all reflect Phase 8.
+- `PROJECT.md`, `README.md`, `docs/roadmap.md`, `docs/testing.md`, `docs/eval_agent.md` — all reflect Phase 8.

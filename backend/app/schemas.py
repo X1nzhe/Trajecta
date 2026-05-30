@@ -5,7 +5,7 @@ Keep this file aligned with ``docs/contracts.md``.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -242,7 +242,7 @@ class TurnMetrics(BaseModel):
     these to show "this turn cost X seconds / Y tokens" instead of the
     whole-session totals, which kept growing with each followup. The
     cumulative ``AgentTrace.runtime_ms`` etc. are still maintained for
-    the SPEC.md cost-ablation demo and any downstream analytics.
+    the PROJECT.md cost-ablation demo and any downstream analytics.
     """
 
     turn: int
@@ -270,6 +270,12 @@ class AgentTrace(BaseModel):
     # to None; new traces stamp both at initial analyze.
     prompt_version: str | None = None
     prompt_sha256: str | None = None
+    # Phase 8 B6 Spotlighting state at trace start. When True, the system
+    # prompt was prepended with the anti-injection preamble and untrusted
+    # trajectory text passed through `spotlight_wrap()` before reaching the
+    # LLM. Recorded for audit so historical reports can distinguish on/off
+    # ablation runs. Old traces deserialize with False.
+    spotlighting_enabled: bool = False
     # The VLM that backed `get_step_detail` calls within this trace, plus
     # cumulative token usage across all calls (initial + followups).
     # `vlm_model` is stamped at trace creation from TRAJECTA_VLM_MODEL —
@@ -297,3 +303,173 @@ class AgentTrace(BaseModel):
     # ("initial analyze") so neither display keeps growing with every
     # followup.
     turn_metrics: list[TurnMetrics] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 A1 — Golden set
+#
+# The golden set is the S18 § 2.2 Build 1 deliverable. Rows live in
+# eval/golden.jsonl and are produced from data/triage_notes.csv by
+# scripts/build_golden_jsonl.py. The structured Fact union lets eval/judge.py
+# run deterministic prechecks against the proposed EvalCase before the LLM
+# judge makes the final acceptable/unacceptable decision and assertion
+# rationales. See docs/testing.md § Golden Set for the build rules and field
+# semantics.
+
+#: The five v1 failure types. Mirrors V1_FAILURE_VOCABULARY in
+#: backend/app/agent_eval.py — kept in sync by hand. If the vocabulary ever
+#: grows, both constants and FailureTypeFact's _validate_value need updating.
+V1_FAILURE_VOCABULARY: tuple[str, ...] = (
+    "early_terminated",
+    "wrong_target",
+    "wrong_result",
+    "missed_constraint",
+    "inefficient_search",
+)
+
+
+class OutcomeFact(BaseModel):
+    """Predicate over EvalCase.is_success.
+
+    Acceptable when ``proposed_is_success == (value == "success")``.
+    Used in both expected_facts (must hold) and forbidden_facts (must not
+    hold) rows.
+    """
+
+    field: Literal["outcome"]
+    op: Literal["eq"]
+    value: Literal["success", "failed"]
+
+
+class FailureTypeFact(BaseModel):
+    """Predicate over EvalCase.failure_type membership in a set.
+
+    ``value`` is a non-empty subset of V1_FAILURE_VOCABULARY. For failed
+    samples the expected_facts entry carries the labelled multi-label set
+    (multi-label OR is acceptable per S18 grading); the forbidden_facts
+    entry carries V1_FAILURE_VOCABULARY \\ labelled_set so a stray
+    misclassification fails clause 5.
+    """
+
+    field: Literal["failure_type"]
+    op: Literal["in"]
+    value: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_value(self) -> "FailureTypeFact":
+        invalid = [v for v in self.value if v not in V1_FAILURE_VOCABULARY]
+        if invalid:
+            raise ValueError(
+                f"FailureTypeFact.value contains unknown failure types: {invalid!r}; "
+                f"allowed: {V1_FAILURE_VOCABULARY!r}"
+            )
+        return self
+
+
+class FailureStepFact(BaseModel):
+    """Predicate over EvalCase.failure_step locality.
+
+    Inclusive interval. Build rule (docs/testing.md § Golden Set) widens the
+    labelled step by ±2; the judge accepts a proposed step inside the
+    interval as clause 3 satisfied.
+    """
+
+    field: Literal["failure_step"]
+    op: Literal["in_range"]
+    value: tuple[int, int]
+
+    @model_validator(mode="after")
+    def _validate_value(self) -> "FailureStepFact":
+        lo, hi = self.value
+        if lo > hi:
+            raise ValueError(
+                f"FailureStepFact.value must satisfy min <= max; got ({lo}, {hi})"
+            )
+        if lo < 0:
+            raise ValueError(
+                f"FailureStepFact.value bounds must be non-negative; got ({lo}, {hi})"
+            )
+        return self
+
+
+Fact = Annotated[
+    Union[OutcomeFact, FailureTypeFact, FailureStepFact],
+    Field(discriminator="field"),
+]
+
+
+class GoldenInput(BaseModel):
+    run_id: str = Field(min_length=1)
+    intent: Literal["analyze_run", "analyze_step"] = "analyze_run"
+
+
+class GoldenCase(BaseModel):
+    """One row of eval/golden.jsonl.
+
+    Built from data/triage_notes.csv by scripts/build_golden_jsonl.py.
+    Validation rules (model_validator) catch shapes the CSV-to-JSONL
+    builder must never emit:
+
+      - expected_facts and forbidden_facts must be disjoint (an entry that
+        contradicts itself collapses the judge's mechanical decision)
+      - failure-shape rows carry both an OutcomeFact("failed") and a
+        FailureTypeFact in expected_facts (otherwise clause 2 has nothing
+        to match against)
+      - success-shape rows carry only an OutcomeFact("success") in
+        expected_facts (no FailureTypeFact / FailureStepFact)
+      - tags is non-empty
+    """
+
+    input: GoldenInput
+    expected_facts: list[Fact] = Field(min_length=1)
+    forbidden_facts: list[Fact] = Field(min_length=1)
+    tags: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_shape(self) -> "GoldenCase":
+        # Disjointness: a fact that appears in both lists is a builder bug.
+        expected_repr = {self._fact_key(f) for f in self.expected_facts}
+        forbidden_repr = {self._fact_key(f) for f in self.forbidden_facts}
+        overlap = expected_repr & forbidden_repr
+        if overlap:
+            raise ValueError(
+                f"expected_facts and forbidden_facts must be disjoint; "
+                f"overlap: {sorted(overlap)}"
+            )
+
+        # Success vs failure shape consistency.
+        outcome_facts = [f for f in self.expected_facts if isinstance(f, OutcomeFact)]
+        if not outcome_facts:
+            raise ValueError("expected_facts must include exactly one OutcomeFact")
+        if len(outcome_facts) > 1:
+            raise ValueError("expected_facts must include at most one OutcomeFact")
+        outcome = outcome_facts[0].value
+
+        has_ftype = any(isinstance(f, FailureTypeFact) for f in self.expected_facts)
+        has_fstep = any(isinstance(f, FailureStepFact) for f in self.expected_facts)
+
+        if outcome == "success":
+            if has_ftype or has_fstep:
+                raise ValueError(
+                    "success-shape GoldenCase must not include FailureTypeFact "
+                    "or FailureStepFact in expected_facts"
+                )
+        else:  # outcome == "failed"
+            if not has_ftype:
+                raise ValueError(
+                    "failed-shape GoldenCase must include a FailureTypeFact in "
+                    "expected_facts (clause 2 would have nothing to match)"
+                )
+
+        return self
+
+    @staticmethod
+    def _fact_key(f: Fact) -> str:
+        """Canonical string form for set-based disjointness checks."""
+        if isinstance(f, OutcomeFact):
+            return f"outcome:eq:{f.value}"
+        if isinstance(f, FailureTypeFact):
+            return f"failure_type:in:{','.join(sorted(f.value))}"
+        if isinstance(f, FailureStepFact):
+            return f"failure_step:in_range:{f.value[0]},{f.value[1]}"
+        raise TypeError(f"unknown fact subtype: {type(f).__name__}")

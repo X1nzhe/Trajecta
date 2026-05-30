@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type ReactElement, type ReactNode, type SetStateAction } from 'react';
 import remarkGfm from 'remark-gfm';
 import { Streamdown } from 'streamdown';
 import { createEvalCase, fetchRunDigest } from '../api/client';
@@ -1534,7 +1534,7 @@ function DetailRow({
 function ToolGlyph({ name }: { name: string }) {
   // Minimal, monochrome SVG glyphs. Could be replaced with an icon
   // library later; deliberately not pulling lucide-react for one panel.
-  const map: Record<string, JSX.Element> = {
+  const map: Record<string, ReactElement> = {
     get_run: <path d="M4 6h16M4 12h16M4 18h10" strokeWidth="1.8" strokeLinecap="round" />,
     get_step_detail: <path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm9 16-4.35-4.35" strokeWidth="1.8" strokeLinecap="round" />,
     find_similar_successful_run: <path d="M4 12h6m4 0h6m-10-6 4 6-4 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />,

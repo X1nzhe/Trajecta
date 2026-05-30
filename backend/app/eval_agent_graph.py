@@ -245,6 +245,9 @@ def stream_analyze(
     # Stamp "mock" in that case so the frontend can label runs honestly
     # instead of advertising a model that didn't actually answer.
     prompt_bundle = prompts.active_prompt_bundle()
+    spotlighting_on = prompts.spotlighting_enabled()
+    spotlight_token = prompts.new_spotlight_token()
+    prompts.set_spotlight_token(spotlight_token)
     _agent_model_env = os.environ.get("TRAJECTA_AGENT_MODEL")
     _agent_api_key = os.environ.get("OPENAI_API_KEY")
     trace_model = _agent_model_env if (_agent_model_env and _agent_api_key) else "mock"
@@ -262,6 +265,7 @@ def stream_analyze(
         model=trace_model,
         prompt_version=prompt_bundle.version,
         prompt_sha256=prompt_bundle.sha256,
+        spotlighting_enabled=spotlighting_on,
         vlm_model=trace_vlm_model,
     )
     state: GraphState = {
@@ -401,6 +405,11 @@ def stream_followup(
     result: AgentExecutionResult | None = None
     state: GraphState | None = None
     start = time.perf_counter()
+    # Re-mint a Spotlighting token for this followup turn. Wraps inside
+    # the new turn use the new token; messages replayed from the saved
+    # trace keep their original token bytes. Both delimiter shapes match
+    # the `<TRAJECTA_DATA_*>` preamble pattern so the defense still applies.
+    prompts.set_spotlight_token(prompts.new_spotlight_token())
     # Followup VLM scope: any get_step_detail tool call in this turn adds
     # to the bucket; at the end we ADD to the trace's cumulative counters
     # (not assign — earlier turns already contributed).
@@ -952,7 +961,7 @@ def _accumulate_token_usage(trace: AgentTrace, message: Any, *, turn: int) -> No
 
     Writes to BOTH the cumulative ``AgentTrace.input_tokens`` /
     ``output_tokens`` and the per-turn entry in ``trace.turn_metrics``.
-    The UI reads per-turn; SPEC.md cost ablation reads cumulative.
+    The UI reads per-turn; PROJECT.md cost ablation reads cumulative.
     """
 
     usage = getattr(message, "usage_metadata", None)
@@ -1117,6 +1126,41 @@ def _ai_tool_call(name: str, args: dict[str, Any]) -> AnyMessage:
     return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": f"call_{name}"}])
 
 
+# Untrusted text fields in each StepDigest row (see backend/app/schemas.py
+# StepDigest). Structural enums and indices are intentionally not wrapped —
+# they are not attacker-influenced text and wrapping them adds JSON bloat
+# with no defense value.
+_DIGEST_UNTRUSTED_TEXT_FIELDS: tuple[str, ...] = (
+    "action_text",
+    "action_target",
+    "url",
+    "title",
+    "vlm_low_detail_summary",
+)
+
+
+def _wrap_digest_for_prompt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a copy of ``rows`` with untrusted text fields Spotlight-wrapped.
+
+    Walks every digest row (already serialised to plain dicts by
+    ``preprocess_node``) and replaces each field listed in
+    ``_DIGEST_UNTRUSTED_TEXT_FIELDS`` with its wrapped form. Non-text
+    fields (``index``, ``action_type``, ``result_status``,
+    ``coord_validation_status``, ``has_screenshot``) pass through. None /
+    empty values pass through too (see ``spotlight_wrap_optional``).
+    Off-mode degrades to identity automatically.
+    """
+
+    wrapped: list[dict[str, Any]] = []
+    for row in rows:
+        new_row = dict(row)
+        for field in _DIGEST_UNTRUSTED_TEXT_FIELDS:
+            if field in new_row:
+                new_row[field] = prompts.spotlight_wrap_optional(new_row[field])
+        wrapped.append(new_row)
+    return wrapped
+
+
 def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
     return [
         SystemMessage(
@@ -1131,7 +1175,9 @@ def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
                     "run_id": state["run_id"],
                     "user_intent": state["user_intent"],
                     "selected_step": state["selected_step"],
-                    "trajectory_digest": state["trajectory_digest"],
+                    "trajectory_digest": _wrap_digest_for_prompt(
+                        state["trajectory_digest"]
+                    ),
                 },
                 ensure_ascii=False,
                 sort_keys=True,

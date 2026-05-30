@@ -64,7 +64,7 @@ Trajecta does not control a live browser in v1. It does not include CDP, Playwri
 ```text
 trajecta/
   README.md
-  SPEC.md
+  PROJECT.md
   AGENTS.md
   backend/
     app/

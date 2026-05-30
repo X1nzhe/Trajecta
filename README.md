@@ -70,16 +70,23 @@ TRAJECTA_PROMPT_VERSION=v1_minimal
 # and eval reports record version + hash.
 TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION=v1_task_context
 
+# Optional: Phase 8 dual LLM judge config. The repo does not hard-code
+# judge model defaults; operators choose concrete model IDs.
+TRAJECTA_JUDGE_A_MODEL=<gemini-model-id>
+TRAJECTA_JUDGE_A_PROMPT_VERSION=<judge-a-prompt-version>
+TRAJECTA_JUDGE_B_MODEL=<openai-model-id>
+TRAJECTA_JUDGE_B_PROMPT_VERSION=<judge-b-prompt-version>
+
 # Optional: ChromaDB embedding model. Falls back to chromadb's default
 # sentence-transformers if unset. Changing this requires clearing
 # data/chroma/ to rebuild the index — collections are not migrated.
 TRAJECTA_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
-Prompt updates are versioned directories under `prompts/eval_agent/` and
-`prompts/vlm_high_detail/`. Create a new directory for each prompt change and
-roll back by setting the corresponding environment variable to a previous
-version. See
+Prompt updates are versioned directories under `prompts/eval_agent/`,
+`prompts/vlm_high_detail/`, and `prompts/judge/`. Create a new directory for
+each prompt change and roll back by setting the corresponding environment
+variable to a previous version. See
 [docs/prompt_versioning.md](docs/prompt_versioning.md).
 
 **Fallback behavior** — with **no** env vars set, the backend boots
@@ -145,93 +152,138 @@ Produces `eval/agent_report.{json,md}` plus per-sample trace JSONs under
 the `--trace-dir`. Both `eval/agent_report.*` and `eval/runs/` are
 `.gitignore`d; they are reproducible local artefacts.
 
-The v5 baseline (prompt `v5_constraint_verification`, 31 samples,
-`gpt-5.4-mini-2026-03-17`) lands at:
+`agent_eval` retries transient provider failures per sample: 429, rate
+limit, timeout, and connection errors retry up to 3 times by default.
+Tune with `--max-retries`, `--retry-base-s`, and `--retry-max-s`.
+
+If a formal eval is interrupted, resume with the original trace dump dir:
+
+```bash
+TRAJECTA_PROMPT_VERSION=v3_balanced_rubric \
+python -m backend.app.agent_eval \
+  --trace-dir eval/runs/2026-05-30T03-54-45Z/traces
+```
+
+Existing `{run_id}.json` traces are reused and not billed again. The prompt
+version must match the trace metadata; mismatches fail fast to avoid mixing
+v3/v4/v5 outputs. When `--trace-dir` points at `eval/runs/<stamp>/traces`,
+the completed `agent_report.{json,md}` is written back to
+`eval/runs/<stamp>/` and mirrored to `eval/agent_report.*`.
+
+The formal Phase 8 v1→v5 prompt comparison uses 31 filtered golden-set
+samples with `gpt-5.4-mini-2026-03-17` for both the Eval Agent and VLM.
+The best headline prompt is `v3_balanced_rubric`:
 
 | Metric | Value |
 | --- | --- |
-| Binary verdict accuracy | 74.2 % |
-| Failure-verdict recall | 100.0 % |
-| Success-verdict recall | 52.9 % |
-| Mean tool calls / run | 1.87 |
-| Mean wall-clock latency / run | 27.92 s |
-| Total cost (31 runs) | $0.9987 |
-| Coarse-to-fine VLM savings | 92.0 % |
+| Binary verdict accuracy | 80.6 % |
+| Failure-verdict recall | 85.7 % |
+| Success-verdict recall | 76.5 % |
+| Mean tool calls / run | 1.68 |
+| Mean wall-clock latency / run | 9.96 s |
+| Total cost (31 runs) | $1.022 |
+| Coarse-to-fine VLM savings | 91.5 % |
 
-Numbers cited above come from the local `eval/agent_report.md` — regenerate
-with the command above. The repo intentionally does not commit the report so
-README claims stay in sync with whatever the user can produce in a fresh run.
+The v5 prompt is a deliberate failure-sensitive trade-off: failure recall
+reaches 100.0 % and step localization reaches 78.6 %, but success recall
+drops to 41.2 %. Full per-round metrics and deltas are in
+[docs/experiment_log.md](docs/experiment_log.md).
 
 ### Experiment log
 
 | Round | Prompt | Change | Metric delta | Conclusion |
 | --- | --- | --- | --- | --- |
-| 1 | `v1_minimal` | Baseline — minimal failure-shape instructions, no rubric. | — | Baseline binary accuracy + recall split established. |
-| 2 | `v2_success_rubric` | Add an explicit success-shape rubric so the agent stops hallucinating failure when the run succeeded. | Success-verdict recall ↑. Failure-verdict recall ≈ flat. | Honest success calls became measurable. |
-| 3 | `v3_balanced_rubric` | Symmetric success / failure rubric; clearer guidance on when to stop calling `get_step_detail`. | Mean tool calls ↓. Binary accuracy flat. | Cost down without quality loss. |
-| 4 | `v4_search_strategy_rubric` | Prompt teaches when to call `find_similar_successful_run` vs `search_failure_memory`. | Failure_type advisory metric ↑; binary accuracy flat. | Targeted retrieval helps the advisory signal, not the headline. |
-| 5 | `v5_constraint_verification` | Constraint-evidence rubric for the high-detail VLM; agent required to surface constraint satisfaction in evidence. | Binary accuracy reaches 74.2 % (vs majority 54.8 %); failure-verdict recall 100 %; success-verdict recall 52.9 % | Constraint-grounded evidence is the highest-leverage prompt change in the v1→v5 sequence. |
+| 1 | `v1_minimal` | Baseline — minimal failure-shape instructions, no rubric. | Baseline binary accuracy 74.2 %; success recall 58.8 %; failure recall 92.9 %. | Strong failure sensitivity, but too many successful runs are marked failed. |
+| 2 | `v2_success_rubric` | Add an explicit success-shape rubric. | Binary accuracy +3.2 pp; success recall +29.4 pp; failure recall -28.6 pp. | Success hallucinations drop, but the prompt becomes too conservative on failures. |
+| 3 | `v3_balanced_rubric` | Balance success/failure criteria and tighten stop conditions. | Binary accuracy +3.2 pp vs v2; mean tool calls -0.68; latency -1.50 s. | Best headline accuracy at 80.6 % with lower tool use. |
+| 4 | `v4_search_strategy_rubric` | Clarify successful-run retrieval vs failure-memory retrieval. | Binary accuracy -6.5 pp; failure-type accuracy rises to 57.1 %. | Retrieval guidance helps the advisory failure-type signal, not the headline metric. |
+| 5 | `v5_constraint_verification` | Emphasize constraint evidence and failure verification. | Binary accuracy -6.5 pp; failure recall +14.3 pp to 100.0 %; success recall -23.5 pp. | Best for catching failures, but not the best general prompt. |
 
-The judge column (`acceptable_rate` per A4) is added once the Phase 8 LLM
-judge run completes. See [docs/experiment_log.md](docs/experiment_log.md)
-for the full table and per-round failure-mode breakdowns once that doc is
-populated.
+The v5 judge columns (`acceptable_rate` by judge and κ_LLM,LLM) are
+populated from the Phase 8 Gemini/OpenAI judge run. See
+[docs/experiment_log.md](docs/experiment_log.md) for the full table,
+source artefacts, and caveats.
+
+For the v5 judge run, Judge A (`gemini-3.1-flash-lite`) accepted 13 / 31
+drafts and Judge B (`gpt-5.4-mini-2026-03-17`) accepted 15 / 31. The
+dual-judge agreement target is met: κ_LLM,LLM = 0.741 on the full
+31-case set.
 
 ### RAGAS
 
 ```bash
-cd backend
-python -m app.ragas_eval
+python -m backend.app.ragas_eval --trace-dir eval/runs/{timestamp}/traces --limit 10
 ```
 
-Reads from the SQLite `traces` table when present and from the most recent
-`eval/runs/{ts}/traces/` dir otherwise. Produces `eval/ragas_report.{json,md}`
-with `faithfulness` (primary) and `context_precision` (secondary).
+Reads recorded RAG tool queries and their matching retrieved contexts from the
+selected trace dump, then falls back to the SQLite `traces` table only when a
+dump is missing. Produces `eval/ragas_report.{json,md}` with no-ground-truth
+retrieval-grounded `faithfulness`; it is not an answer-correctness or human
+ground-truth evaluation.
 
 The stub-mode fallback remains for offline development but is **not** an
 acceptable production artefact under S18 § 2.2 Build 3 — `mode == "real"`
-is required, `n ≥ 10`.
+is required, sample count `≥ 10`.
+
+Latest Phase 8 A6 run: `eval/ragas_report.{json,md}` was generated from the
+v5 traces with `--limit 10`, `mode=real`, `ground_truth_source=none`, and
+`faithfulness=0.4068`.
 
 ### LLM judge + Cohen's κ
 
 ```bash
-# 1. LLM judge runs, one per model
+# From the repo root.
+# Phase 8 target flow: agent_eval writes the report/traces, then runs
+# the env-configured Gemini/OpenAI judge post-step.
+python -m backend.app.agent_eval \
+    --trace-dir eval/runs/{timestamp}/traces \
+    --judge
+
+# Standalone judge rerun/debug path for a single configured slot.
+# The production κ artefact is under eval/runs/{timestamp}/judge/.
 python -m eval.judge \
     --golden eval/golden.jsonl \
     --report eval/agent_report.json \
     --trace-dir eval/runs/{timestamp}/traces \
-    --judge-model claude-opus-4-1 \
     --out eval/judge_report.json
-
-# 2. Human label collection (CLI side-by-side viewer)
-python -m eval.judge --human-label-mode \
-    --golden eval/golden.jsonl \
-    --report eval/agent_report.json \
-    --trace-dir eval/runs/{timestamp}/traces \
-    --out data/human_judge_labels.jsonl
-
-# 3. κ rollup
-python -m eval.judge --rollup --out eval/judge_report.md
 ```
 
-The judge scores the single binary dimension `acceptable_eval_case` via a
-six-clause rubric. Reports two κ rows: κ_LLM,LLM (Claude vs GPT) and
-κ_LLM,human (best-LLM vs human-labelled subset). When κ < 0.6, the report
-includes a disagreement analysis listing the split cases and the rubric
-clauses each annotator failed — we do **not** silently relax the rubric.
+The judge scores the single binary dimension `acceptable_eval_case`: is
+the generated eval case draft acceptable as a reusable regression case?
+Judge A uses a Gemini-compatible provider/model configured by
+`TRAJECTA_JUDGE_A_MODEL`; Judge B uses an OpenAI-compatible provider/model
+configured by `TRAJECTA_JUDGE_B_MODEL`. Both output `acceptable` or
+`unacceptable` plus acceptability assertions over the same resolved case
+payload and rubric. The report contains one primary κ row: κ_LLM,LLM.
+Preferred N is 31 gradeable cases; when cost-constrained, a deterministic
+pre-registered stratified subset is allowed if the report states
+`sample_size`, `selection_policy`, and skipped counts. When κ < 0.6, the
+report includes disagreement analysis over the split assertions — we do
+**not** silently relax the judge contract.
 
-See [docs/testing.md](docs/testing.md) § "LLM Judge" for the rubric and
-[docs/failure_analysis.md](docs/failure_analysis.md) for case studies.
+In the production post-step, the agreement report is written to
+`eval/runs/{timestamp}/judge/judge_agreement_report.{json,md}`. The
+root-level `eval/judge_report.{json,md}` path is reserved for standalone
+rerun/debug output from `python -m eval.judge`.
 
-## Connect Trajecta to Claude Code via MCP
+A human second judge is deliberately deferred because reviewer UI, workflow,
+and label-management design would expand Phase 8 scope.
 
-Trajecta ships an MCP server that exposes the entire Eval Agent as a
-composite tool. External coding agents (Claude Code, Cursor) diagnose a
+See [docs/testing.md](docs/testing.md) § "LLM Judge" for the judge
+contract and [docs/failure_analysis.md](docs/failure_analysis.md) for
+case studies.
+
+## Planned MCP Connection
+
+MCP is a planned, lower-priority Phase 8 item after the judge agreement
+path. The planned server will expose the entire Eval Agent as a composite tool
+so external coding agents (Claude Code, Cursor) can diagnose a
 browser-agent trajectory via one MCP call.
 
-The server is built on the standalone `fastmcp` package
+The design uses the standalone `fastmcp` package
 (`pip install fastmcp`); tool registration is decorator-based and JSON
-schemas are auto-derived from Python type hints. Add to
+schemas are auto-derived from Python type hints. Once `mcp/server.py`
+exists, add to
 `claude_desktop_config.json`:
 
 ```json
@@ -259,7 +311,7 @@ Claude Code: <calls trajecta.analyze_run(run_id, intent="analyze_run")>
 You: <opens Trajecta UI to validate the draft — MCP cannot mark it validated>
 ```
 
-The MCP surface deliberately excludes `save_validated_eval_case`,
+The planned MCP surface deliberately excludes `save_validated_eval_case`,
 `delete_*`, and `import_dataset`. Validation stays HITL-gated on the
 Trajecta-UI side. Full design in [docs/mcp.md](docs/mcp.md); the exclusion
 list is also the primary least-privilege artefact in
@@ -314,10 +366,12 @@ v1 focuses on local fixtures, deterministic preprocessing, a bounded
 tool-calling Eval Agent, ChromaDB retrieval, eval case export, pytest
 coverage, and a simple React UI.
 
-**Phase 8** (S18 capstone alignment) ships the eval rigor and the MCP
-composite — golden set, LLM judge with κ, real RAGAS, experiment log,
-failure analysis, `mcp/server.py`, and the Security / Governance
-component framing. See
+**Phase 8** (S18 capstone alignment) prioritizes eval rigor: golden set,
+Gemini/OpenAI dual LLM judge with κ_LLM,LLM, real RAGAS, experiment log,
+failure analysis, and Security / Governance component framing. Human judge
+validation is deferred because reviewer UI, workflow, and label-management
+design would expand scope. The MCP composite remains planned but lower
+priority than the judge path. See
 [docs/phase8_s18_alignment.md](docs/phase8_s18_alignment.md) for the
 operating spec and [docs/roadmap.md](docs/roadmap.md) for the full plan.
 

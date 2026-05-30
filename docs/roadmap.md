@@ -2,14 +2,16 @@
 
 ## MCP
 
-MCP ships in **Phase 8** as a core component of the S18 capstone deliverable,
-not as an optional add-on.
+MCP remains a planned **Phase 8** item, but it is lower priority than the
+LLM-judge agreement path. Do not describe it as shipped until `mcp/server.py`
+exists and the live client smoke test passes.
 
-`mcp/server.py` exposes six tools (`list_runs`, `get_run`, `get_step_detail`,
-`search_failure_memory`, `search_eval_cases`, `analyze_run`); persistence and
-destructive operations are deliberately excluded. The load-bearing tool is
-`analyze_run`, a **composite** that wraps the entire LangGraph Eval Agent loop
-as a single MCP call — not a transport wrapper around individual tools.
+The planned `mcp/server.py` will expose six tools (`list_runs`, `get_run`,
+`get_step_detail`, `search_failure_memory`, `search_eval_cases`,
+`analyze_run`); persistence and destructive operations are deliberately
+excluded. The load-bearing tool is `analyze_run`, a **composite** that wraps the
+entire LangGraph Eval Agent loop as a single MCP call — not a transport wrapper
+around individual tools.
 
 Full design is in [docs/mcp.md](mcp.md). The exclusion list is also the primary
 least-privilege artefact in [docs/security_governance.md](security_governance.md)
@@ -85,25 +87,27 @@ Operating spec: [docs/phase8_s18_alignment.md](phase8_s18_alignment.md).
 **8.A — Eval Deliverables**
 - `eval/golden.jsonl` (35 cases, S18-mandated schema, built from `data/triage_notes.csv`)
 - `agent_eval.py --trace-dir` flag for per-sample trace persistence (`eval/runs/{ts}/traces/`)
-- `eval/judge.py` LLM judge with 6-clause `acceptable_eval_case` rubric
-- κ_LLM,LLM (Claude vs GPT) and κ_LLM,human (subset) tables in `eval/judge_report.md`; disagreement analysis when κ < 0.6
-- `data/human_judge_labels.jsonl` collected via `eval/judge.py --human-label-mode`
+- `agent_eval.py --judge` post-step that runs `eval/judge.py` over the generated `eval_case_draft`
+- `eval/judge.py` Gemini-compatible and OpenAI-compatible LLM judges, with concrete models supplied by `TRAJECTA_JUDGE_A_MODEL` and `TRAJECTA_JUDGE_B_MODEL`, binary `acceptable_eval_case` verdicts, and acceptability assertions
+- Provider-specific prompt bundles shipped for the production pair: `prompts/judge/v1_acceptability_gemini/` and `prompts/judge/v1_acceptability_openai/`
+- κ_LLM,LLM table in `eval/runs/{ts}/judge/judge_agreement_report.md`, computed between Gemini and OpenAI verdicts; preferred N=31 gradeable cases, with deterministic pre-registered stratified subsets allowed for cost-constrained judge runs when `sample_size` and `selection_policy` are reported; disagreement analysis when κ < 0.6
+- A human second judge is deferred because reviewer workflow, UI, and label-management design would add implementation scope beyond Phase 8; no frontend/API judge-review mode is required
 - Real RAGAS (path bug fix + run against persisted traces, `mode == "real"`, `n ≥ 10`)
 - `docs/experiment_log.md` + README table — v1→v5 metric deltas
 - `docs/failure_analysis.md` — 2–3 cases + one-line trade-off
 
-**8.B — MCP + Component Story**
-- `mcp/server.py` — six tools, `analyze_run` composite, deliberate exclusions
+**8.B — Planned MCP + Component Story** (lower priority than 8.A judge work)
+- `mcp/server.py` — planned six-tool server, `analyze_run` composite, deliberate exclusions
 - `docs/mcp.md` — design source of truth
-- `docs/security_governance.md` — nine-mechanism framing (eight existing + Spotlighting B6)
-- B6 — Spotlighting Delimiting defense against indirect prompt injection: `spotlight_wrap()` utility, anti-injection preamble in system prompt, `eval/injection_golden.jsonl` (≥ 8 crafted cases), baseline-vs-on ablation in `docs/experiment_log.md`
+- `docs/security_governance.md` — completed security/governance mechanisms framed separately from planned MCP work
+- B6 Spotlighting hardening (shipped) — `spotlight_wrap()` delimiting utility, anti-injection preamble in the system prompt, and wrapping of untrusted trajectory text in the digest + `get_step_detail`. Unit-tested but deliberately **unmeasured**; a formal injection benchmark (`injection_resistance_rate` ablation) is a possible future security-evaluation phase, not Phase 8 work.
 
 **8.C — Tactical Cleanup**
 - Frontend TypeScript build fix (`cd frontend && npm run build` exits 0)
 - Working-tree-clean pass before the 48-hour push
 - (RAGAS path fix absorbed into 8.A.6)
 
-**Not in Phase 8** (rationales in [SPEC.md](../SPEC.md#design-decisions) Decisions 7–10):
+**Not in Phase 8** (rationales in [PROJECT.md](../PROJECT.md#design-decisions) Decisions 7–10):
 - No Reviewer Agent / supervisor architecture
 - No Mem0 / Letta / Graphiti memory framework
 - No Langfuse / Inspect AI tracing
@@ -146,16 +150,17 @@ Trajecta turns raw browser-agent trajectories into human-validated regression ev
 
 ## Resume Bullets
 
-Use after completion:
+Draft after completion; do not use a bullet until the matching tracker slices
+are actually done:
 
 - Built **Trajecta**, an AI-native Eval Agent for browser-agent trajectory evaluation that converts raw trajectories into human-reviewable regression eval cases. Filled the missing layer between browser-control MCP servers (browser-use, Browserbase) and trajectory datasets (MolmoWeb-HumanSkills, WebArena) — a remote callable agent that diagnoses failures with retrieval-grounded evidence.
 - Designed and implemented a **LangGraph tool-calling agent** with multi-turn follow-up: the agent autonomously decides which trajectory steps to deep-dive, when to retrieve failure memory, and when to terminate via a typed `propose_eval_case` tool — users can ask follow-up questions that resume the same trace under a smaller per-turn budget, with the agent free to revise the draft.
-- Shipped an **MCP server** exposing the entire LangGraph Eval Agent as a single composite tool (`analyze_run`). External coding agents (Claude Code, Cursor) diagnose a browser-agent trajectory via one MCP call that internally orchestrates RAG retrieval, coarse-to-fine VLM inspection, and structured `EvalCase` proposal — while persistence and validation remain HITL-gated outside the MCP boundary.
+- Designed a lower-priority **MCP composite** plan to expose the entire LangGraph Eval Agent as a single `analyze_run` tool once implemented. The design keeps external coding agents on one remote call that internally orchestrates RAG retrieval, coarse-to-fine VLM inspection, and structured `EvalCase` proposal — while persistence and validation remain HITL-gated outside the MCP boundary.
 - Reduced visual-token cost ~80 % via a **coarse-to-fine VLM strategy**: Trajectory Preprocessing calls a low-detail VLM (~85 tokens/image) on every step to build a digest, while high-detail VLM is invoked on demand by the agent only for steps it flags as suspicious. Measured the savings end-to-end against the naive all-steps-high-detail baseline.
 - Built **ChromaDB-backed RAG** over failure memory and prior eval cases, with agent-authored queries and traceable `retrieved_context_ids` linking each generated case back to its supporting evidence.
-- Designed and implemented an **LLM-judge eval harness** (`eval/judge.py`) scoring `acceptable_eval_case` over a 35-case golden set; reported Cohen's κ against a second LLM judge and a human-labelled subset, with disagreement analysis when κ < 0.6 rather than relaxing the rubric.
-- Shipped a **Spotlighting prompt input validation** defense (Hines et al. MSR 2024) against indirect prompt injection in browser-trajectory text — per-run random delimiter tokens, anti-injection preamble in the system prompt, and a small `injection_golden.jsonl` eval reporting `injection_resistance_rate` against a baseline ablation. Documented as a probabilistic defense, not a hard guarantee.
-- Ran a **prompt-iteration experiment** (v1 → v5) on a real-LLM 31-sample evaluation, logging metric deltas per round and surfacing negative-result rounds; cost-tracked to $0.032/run with mean wall-clock 27.92 s.
-- Evaluated retrieval-grounded analysis with **RAGAS faithfulness and context-precision** metrics over persisted agent traces.
+- Designed and implemented an **LLM-judge eval harness** wired as an `agent_eval` post-step, scoring generated eval case drafts as `acceptable_eval_case` over a 35-case golden set with env-configured Gemini-compatible and OpenAI-compatible judges; reported Cohen's κ between the two LLM judges, with disagreement analysis when κ < 0.6 rather than relaxing the judge contract.
+- Shipped a **Spotlighting prompt input validation** defense (Hines et al. MSR 2024) against indirect prompt injection in browser-trajectory text — per-run random delimiter tokens wrap untrusted digest fields and `get_step_detail` output, paired with an anti-injection preamble in the system prompt and an env toggle (`TRAJECTA_SPOTLIGHTING`). Framed honestly as unit-tested but unmeasured hardening; a formal `injection_resistance_rate` benchmark is left to a future security-evaluation phase.
+- Ran a **prompt-iteration experiment** (v1 → v5) on a real-LLM 31-sample evaluation, logging metric deltas per round and surfacing negative-result rounds; best headline prompt reached 80.6 % binary accuracy, while the v5 failure-sensitive prompt reached 100 % failure recall at about $0.030/run.
+- Evaluated retrieval-grounded analysis with real **RAGAS faithfulness** over persisted agent traces.
 - Built a **React replay UI** for screenshot-based trajectory inspection, coordinate validation, agent reasoning visualisation, and eval case export.
 - Added pytest coverage for schemas, MolmoWeb import, coordinate validation, preprocessing, tools, ChromaDB retrieval, the agent loop, the golden set builder, and the LLM judge.
