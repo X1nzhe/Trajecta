@@ -1,13 +1,30 @@
-"""Manual RAGAS evaluation over cached agent traces.
+"""Manual RAGAS evaluation over persisted agent traces.
 
 Run as: ``python -m backend.app.ragas_eval``.
 
-Reads every ``data/runs/*/last_trace.json``, keeps traces that terminated
+Reads every persisted ``AgentTrace``, keeps the ones that terminated
 via ``propose_eval_case``, and builds RAGAS samples without re-running
-retrieval (the trace is the only evidence pool — see
-``docs/testing.md`` and ``docs/eval_agent.md`` Observability).
+retrieval (the trace is the only evidence pool — see ``docs/testing.md``
+and ``docs/eval_agent.md`` Observability).
 
-Two execution modes:
+## Trace sources (Phase 8 A6.1)
+
+Trajecta has two on-disk locations that may carry persisted traces.
+``collect_samples`` reads both in this precedence order **per run_id**:
+
+1. The SQLite ``traces`` table — populated by the UI/API
+  ``analyze_run`` flow and accessed via ``storage.load_trace``.
+2. ``--trace-dir <path>/<run_id>.json`` — the per-sample dumps produced
+  by ``python -m backend.app.agent_eval --trace-dir …`` (Phase 8 A2).
+  Only consulted when ``--trace-dir`` is supplied.
+
+The run-id set graded is the **union** of run_ids visible in
+``storage.list_runs()`` and any ``*.json`` files under the supplied
+trace dir. The pre-storage-refactor ``data/runs/<id>/last_trace.json``
+path is no longer read — that layout was retired by the storage
+migration in Phase 6.
+
+## Execution modes
 
 - ``real``: uses the ``ragas`` package's ``faithfulness`` and
   ``context_precision`` metrics. Requires ``OPENAI_API_KEY`` and
@@ -39,6 +56,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from backend.app import storage
 from backend.app.schemas import AgentTrace, AgentTraceEvent
 
 
@@ -151,33 +169,100 @@ def _ground_truth_from_disk(run_id: str, data_root: Path) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def load_trace_for_run_id(
+    run_id: str,
+    *,
+    trace_dir: Path | None = None,
+) -> AgentTrace | None:
+    """Resolve one ``AgentTrace`` from the Phase 8 sources.
+
+    Precedence (per ``docs/phase8_s18_alignment.md`` A6.1):
+
+      1. ``storage.load_trace(run_id)`` — the SQLite ``traces`` row
+         that ``analyze_run`` writes.
+      2. ``trace_dir/<run_id>.json`` — the per-sample dump produced
+         by ``agent_eval --trace-dir``.
+
+    Returns ``None`` when neither source carries a trace. Raises
+    ``ValidationError`` only when the trace-dir file exists but does not
+    parse — the caller is expected to count those as ``error`` skips.
+    """
+    trace = storage.load_trace(run_id)
+    if trace is not None:
+        return trace
+    if trace_dir is None:
+        return None
+    path = trace_dir / f"{run_id}.json"
+    if not path.exists():
+        return None
+    return AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def _discover_run_ids(*, trace_dir: Path | None) -> list[str]:
+    """Enumerate every run_id with a persisted trace worth grading.
+
+    The discovery set is the **union** of SQLite-resident runs and any
+    ``*.json`` files under the supplied trace dir. Returning a sorted
+    list keeps the eval deterministic across invocations and across
+    operating systems with different `iterdir` ordering.
+    """
+    run_ids: set[str] = set()
+    try:
+        run_ids.update(run.run_id for run in storage.list_runs())
+    except Exception:
+        # storage.list_runs hits the SQLite DB. A missing data dir or
+        # a fresh checkout is a valid no-op — the eval still runs over
+        # the trace-dir fallback if one was supplied.
+        pass
+    if trace_dir is not None and trace_dir.is_dir():
+        for path in trace_dir.glob("*.json"):
+            if path.is_file():
+                run_ids.add(path.stem)
+    return sorted(run_ids)
+
+
 def collect_samples(
-    data_root: Path,
+    data_root: Path | None = None,
+    *,
+    trace_dir: Path | None = None,
 ) -> tuple[list[RagasSample], SkippedCounts]:
+    """Collect RAGAS samples from persisted traces.
+
+    See the module docstring (§ Trace sources) for the per-run_id
+    precedence rule. ``data_root`` is consulted only for the optional
+    ``<data_root>/runs/<run_id>/ground_truth.json`` fixtures that label
+    the comparator; pass ``None`` to fall back to the agent's own
+    ``proposed_failure_type`` (the ``"self"`` ground-truth source).
+
+    Counts skipped traces in three buckets:
+
+      * ``budget_exceeded`` — trace terminated via the budget guardrail.
+      * ``error`` — trace did not terminate via ``propose_eval_case``
+        (or via the budget guardrail), failed validation, or had no
+        terminal-tool args.
+      * ``no_trace`` — neither SQLite nor the trace dir held a trace
+        for that run_id.
+    """
     samples: list[RagasSample] = []
     skipped = SkippedCounts()
 
-    runs_root = data_root / "runs"
-    if not runs_root.exists():
-        return samples, skipped
-
-    for run_dir in sorted(p for p in runs_root.iterdir() if p.is_dir()):
-        trace_path = run_dir / "last_trace.json"
-        if not trace_path.exists():
-            skipped.no_trace += 1
-            continue
+    for run_id in _discover_run_ids(trace_dir=trace_dir):
         try:
-            trace = AgentTrace.model_validate_json(trace_path.read_text(encoding="utf-8"))
+            trace = load_trace_for_run_id(run_id, trace_dir=trace_dir)
         except ValidationError:
             skipped.error += 1
+            continue
+
+        if trace is None:
+            skipped.no_trace += 1
             continue
         if trace.terminated_by == "budget_exceeded":
             skipped.budget_exceeded += 1
             continue
-        if trace.terminated_by == "error":
-            skipped.error += 1
-            continue
-        if trace.terminated_by != "propose_eval_case":
+        if trace.terminated_by != TERMINAL_TOOL:
+            # "error" terminations and any other non-terminal-tool exit
+            # fold into the error bucket — RAGAS samples require the
+            # propose_eval_case args to extract answer + retrieved IDs.
             skipped.error += 1
             continue
 
@@ -195,7 +280,11 @@ def collect_samples(
             skipped.error += 1
             continue
 
-        gt = _ground_truth_from_disk(trace.run_id, data_root)
+        gt = (
+            _ground_truth_from_disk(trace.run_id, data_root)
+            if data_root is not None
+            else None
+        )
         if gt is None:
             ground_truth = proposed_failure_type
             ground_truth_source = "self"
@@ -450,12 +539,20 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     lines.append(
         f"`ground_truth_source={report.ground_truth_source}` — "
         + (
-            "labels read from `data/runs/<id>/ground_truth.json` fixtures."
+            "labels read from `<data_root>/runs/<run_id>/ground_truth.json` fixtures."
             if report.ground_truth_source == "fixture"
             else "labels mirror the agent's own proposed failure_type (self-grading)."
             if report.ground_truth_source == "self"
             else "labels are a mix of disk fixtures and agent self-grading."
         )
+    )
+    lines.append("")
+    lines.append(
+        "Trace source precedence (Phase 8 A6.1): SQLite `traces` table first "
+        "(`storage.load_trace`); on miss, fall back to the `--trace-dir` "
+        "Phase 8 A2 dump at `<trace_dir>/<run_id>.json`. The run-id discovery "
+        "set is the union of SQLite-resident runs and `<trace_dir>/*.json` "
+        "files."
     )
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -463,11 +560,24 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Manual RAGAS eval over cached traces.")
+    parser = argparse.ArgumentParser(description="Manual RAGAS eval over persisted traces.")
     parser.add_argument(
         "--data-dir",
         default=os.environ.get("TRAJECTA_DATA_DIR"),
         help="Override TRAJECTA_DATA_DIR (default: env var or <repo>/data).",
+    )
+    parser.add_argument(
+        "--trace-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional Phase 8 A2 trace-dump directory "
+            "(eval/runs/<stamp>/traces/). Consulted only when SQLite "
+            "carries no trace for a given run_id; the agent-eval flow "
+            "writes these dumps and never persists into the SQLite "
+            "`traces` row, so providing this flag is how a fresh eval "
+            "run reaches the RAGAS loader."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -486,8 +596,9 @@ def main(argv: list[str] | None = None) -> int:
 
     data_root = Path(args.data_dir).resolve() if args.data_dir else (REPO_ROOT / "data").resolve()
     output_dir = Path(args.output_dir).resolve() if args.output_dir else (REPO_ROOT / "eval").resolve()
+    trace_dir = args.trace_dir.resolve() if args.trace_dir is not None else None
 
-    samples, skipped = collect_samples(data_root)
+    samples, skipped = collect_samples(data_root, trace_dir=trace_dir)
     report = build_report(samples, skipped, force_stub=args.force_stub)
     json_path, md_path = write_report(report, output_dir)
 
@@ -496,6 +607,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"  samples={len(report.samples)} mode={report.ragas_mode} "
         f"means={report.metric_means} skipped={report.skipped.to_dict()}"
+        + (f" trace_dir={trace_dir}" if trace_dir is not None else "")
     )
     return 0
 
