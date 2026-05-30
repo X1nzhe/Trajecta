@@ -170,6 +170,7 @@ def analyze_run(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_analyze_run(
@@ -177,6 +178,7 @@ def analyze_run(
             llm_client=llm_client,
             budget=budget,
             persist=persist,
+            source=source,
         )
     )
 
@@ -187,6 +189,7 @@ def stream_analyze_run(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> Iterator[AgentStreamItem]:
     """Analyze the full trajectory.
 
@@ -197,6 +200,9 @@ def stream_analyze_run(
     ``user_intent="analyze_run"`` and ``selected_step=None``; the
     ``selected_step`` field is retained in the schema only for back-compat
     reading of older traces from disk.
+
+    ``source`` records run origin on the trace ("ui" default, "eval" from
+    the agent_eval harness, "mcp" from the MCP composite tool).
     """
 
     yield from stream_analyze(
@@ -206,6 +212,7 @@ def stream_analyze_run(
         llm_client=llm_client,
         budget=budget,
         persist=persist,
+        source=source,
     )
 
 
@@ -217,6 +224,7 @@ def analyze(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_analyze(
@@ -226,6 +234,7 @@ def analyze(
             llm_client=llm_client,
             budget=budget,
             persist=persist,
+            source=source,
         )
     )
 
@@ -238,6 +247,7 @@ def stream_analyze(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> Iterator[AgentStreamItem]:
     # Mirror the env-var split used by _default_llm_client: a real
     # OpenAI-backed agent only runs when both OPENAI_API_KEY and
@@ -260,6 +270,7 @@ def stream_analyze(
         run_id=run_id,
         user_intent=user_intent,
         selected_step=selected_step,
+        source=source,
         turn_count=1,
         terminated_by="error",
         model=trace_model,

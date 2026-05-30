@@ -173,6 +173,16 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.prompt_sha256, active.sha256)
         self.assertIn(active.version, prompts.available_prompt_versions())
 
+    def test_trace_source_defaults_to_ui(self) -> None:
+        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        self.assertEqual(result.trace.source, "ui")
+
+    def test_trace_source_threads_explicit_value(self) -> None:
+        result = eval_agent_graph.analyze_run(
+            "run_1", llm_client=ScriptedLLM(_happy_script()), source="mcp"
+        )
+        self.assertEqual(result.trace.source, "mcp")
+
     def test_trace_accumulates_runtime_and_token_counts(self) -> None:
         """docs/eval_agent.md "Observability" — per-trace cost/latency
         counters live on AgentTrace so the UI can render real numbers

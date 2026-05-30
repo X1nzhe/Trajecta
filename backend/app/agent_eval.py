@@ -612,9 +612,9 @@ def _forced_mock_env():
 def _run_agent(run_id: str, *, force_mock: bool) -> AgentTrace:
     if force_mock:
         with _forced_mock_env():
-            result = eval_agent_graph.analyze_run(run_id, persist=False)
+            result = eval_agent_graph.analyze_run(run_id, persist=False, source="eval")
     else:
-        result = eval_agent_graph.analyze_run(run_id, persist=False)
+        result = eval_agent_graph.analyze_run(run_id, persist=False, source="eval")
     return result.trace
 
 

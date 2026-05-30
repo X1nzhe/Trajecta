@@ -181,6 +181,9 @@ class AgentTrace(BaseModel):
     run_id: str
     user_intent: Literal["analyze_run", "analyze_step"]
     selected_step: Optional[int] = None
+    # Run origin: "ui" (HTTP analyze), "eval" (agent_eval harness), or "mcp"
+    # (MCP analyze_run composite). Old traces deserialize "ui".
+    source: Literal["ui", "eval", "mcp"] = "ui"
     tool_call_count: int = 0
     turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"

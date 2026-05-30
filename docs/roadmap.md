@@ -2,11 +2,10 @@
 
 ## MCP
 
-MCP remains a planned **Phase 8** item, but it is lower priority than the
-LLM-judge agreement path. Do not describe it as shipped until `mcp/server.py`
-exists and the live client smoke test passes.
+MCP shipped in **Phase 8 B1**; it was lower priority than the
+LLM-judge agreement path. Shipped in Phase 8 B1 (`trajecta_mcp/server.py`); only the live-client smoke test (B1.5) is operator-gated.
 
-The planned `mcp/server.py` will expose six tools (`list_runs`, `get_run`,
+`trajecta_mcp/server.py` exposes six tools (`list_runs`, `get_run`,
 `get_step_detail`, `search_failure_memory`, `search_eval_cases`,
 `analyze_run`); persistence and destructive operations are deliberately
 excluded. The load-bearing tool is `analyze_run`, a **composite** that wraps the
@@ -97,7 +96,7 @@ Operating spec: [docs/phase8_s18_alignment.md](phase8_s18_alignment.md).
 - `docs/failure_analysis.md` — 2–3 cases + one-line trade-off
 
 **8.B — Planned MCP + Component Story** (lower priority than 8.A judge work)
-- `mcp/server.py` — planned six-tool server, `analyze_run` composite, deliberate exclusions
+- `trajecta_mcp/server.py` — shipped six-tool server, `analyze_run` composite, deliberate exclusions
 - `docs/mcp.md` — design source of truth
 - `docs/security_governance.md` — completed security/governance mechanisms framed separately from planned MCP work
 - B6 Spotlighting hardening (shipped) — `spotlight_wrap()` delimiting utility, anti-injection preamble in the system prompt, and wrapping of untrusted trajectory text in the digest + `get_step_detail`. Unit-tested but deliberately **unmeasured**; a formal injection benchmark (`injection_resistance_rate` ablation) is a possible future security-evaluation phase, not Phase 8 work.

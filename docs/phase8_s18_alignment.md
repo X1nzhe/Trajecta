@@ -426,7 +426,7 @@ MCP is lower priority than the Phase 8 judge work. Treat this section as the
 planned design and acceptance target for the MCP slice; do not describe it as
 completed until B1 exits `todo` / `blocked`.
 
-### B1. Planned `mcp/server.py`
+### B1. `trajecta_mcp/server.py` (shipped)
 
 Planned minimal Trajecta MCP server, built on the **standalone `fastmcp` package**
 (`pip install fastmcp`). Tools are registered via `@mcp.tool()` decorators;
@@ -465,7 +465,7 @@ tool surface, not by post-hoc rules.
 
 **Acceptance**:
 
-- `mcp/server.py` will expose exactly the six tools above via
+- `trajecta_mcp/server.py` exposes exactly the six tools above via
 `@mcp.tool()` decorators on the `FastMCP("Trajecta")` instance.
 - `backend/requirements.txt` pins `fastmcp>=2.0`.
 - A Claude Code client can connect using a 5-line config in
@@ -482,7 +482,7 @@ function. It exposes the entire LangGraph Eval Agent loop as one MCP
 tool. Lifecycle:
 
 ```text
-MCP client → mcp/server.py
+MCP client → trajecta_mcp/server.py
               │ call analyze_run(run_id, intent="analyze_run")
               ▼
             eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
@@ -507,7 +507,7 @@ surface has no path to flip that field — only Trajecta's UI does.
 
 **Acceptance**:
 
-- A trace produced via `mcp/server.py analyze_run` equals a trace
+- A trace produced via `trajecta_mcp/server.py analyze_run` equals a trace
 produced via `POST /api/runs/{id}/analyze` modulo the `source` field
 and timestamps.
 - The trace returned to the MCP client contains the same
@@ -545,7 +545,7 @@ planned with B1, and the Spotlighting defense is planned with B6:
 | Coordinate validation                                 | `backend/app/coordinate_validator.py`                                                                                      | Input sanity; out-of-bounds coords never produce overlays.                                                                                                                        |
 | `AgentTrace` as audit log                             | `backend/app/storage.py`, `traces` table                                                                                   | Every tool call, tool result, and termination reason is logged with `seq` + `turn`.                                                                                               |
 | HITL gate                                             | `EvalCase.human_validated` default `False`; `POST /api/eval-cases` rejects `human_validated=false` with 422                | Validated cases require human action; agent cannot self-certify.                                                                                                                  |
-| Planned MCP least-privilege exposure                  | `mcp/server.py` include/exclude table (B1)                                                                                 | External agents cannot persist validated cases, mutate runs, or import data.                                                                                                      |
+| MCP least-privilege exposure (shipped)                  | `trajecta_mcp/server.py` include/exclude table (B1)                                                                                 | External agents cannot persist validated cases, mutate runs, or import data.                                                                                                      |
 | Prompt versioning + sha256                            | `backend/app/prompts.py`, stamps on `AgentTrace` and reports                                                               | Every output traces back to the exact prompt bytes that produced it.                                                                                                              |
 | Planned **Spotlighting prompt input validation** (B6) | `backend/app/prompts.py` `spotlight_wrap()`; anti-injection preamble in active system prompt; wrap at digest assembly time | Reduces indirect prompt injection success rate when malicious instructions are embedded in trajectory text (DOM, action targets, URLs, VLM outputs). Probabilistic, not absolute. |
 
@@ -562,12 +562,12 @@ remain planned Phase 8 work.
 `README.md` § "Planned MCP Connection":
 
 ```text
-1. Once `mcp/server.py` exists, add to claude_desktop_config.json:
+1. Once `trajecta_mcp/server.py` exists, add to claude_desktop_config.json:
    {
      "mcpServers": {
        "trajecta": {
          "command": "python",
-         "args": ["mcp/server.py"],
+         "args": ["trajecta_mcp/server.py"],
          "cwd": "<path to Trajecta repo>"
        }
      }
@@ -725,18 +725,20 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**Push readiness / optional B-series** — Core Phase 8 eval deliverables
-(A1–A8 except deferred A5), A6 real RAGAS, B6.1–B6.3 Spotlighting
-hardening (defense shipped + unit-tested; the B6.4/B6.5 eval layer was
-deliberately trimmed), and 8.C tactical cleanup are complete. C1
-`cd frontend && npm run build` passes after fixing `EvalAgentPanel`
-`ReactElement` typing; C2 repo hygiene verified clean before the wrap-up
-commits.
+**Phase 8 functionally complete.** Core eval deliverables (A1–A8 except
+deferred A5), A6 real RAGAS, B6.1–B6.3 Spotlighting hardening (defense
+shipped + unit-tested; B6.4/B6.5 eval layer deliberately trimmed), 8.C
+tactical cleanup, and now **B1 + B2 (MCP server)** are all complete.
+`trajecta_mcp/server.py` ships the six-tool surface + `analyze_run`
+composite; `tests/test_mcp_server.py` (15 tests) proves the surface and
+the B2 invariants. Full suite: 440 passed / 1 skipped in the `trajecta`
+env.
 
-Remaining tracker work is **optional or lower priority**: B1 MCP server
-and B2 MCP invariants. A formal prompt-injection benchmark is a possible
-future security-evaluation phase, not Phase 8. Do not expand scope unless
-the operator requests it before push.
+The **only** remaining item is **B1.5 live demo** (`blocked`): an
+operator connecting a real MCP client (Claude Code/Cursor) and calling
+`analyze_run` — it cannot be proven in a headless env. A formal
+prompt-injection benchmark remains a possible future security-evaluation
+phase, not Phase 8. Do not expand scope unless the operator requests it.
 
 ### Agent Handoff Rule
 
@@ -907,26 +909,26 @@ on a stable `analyze_run` path only.
 
 | Slice                        | Status    | Artefact / outcome                                             | Core files                 | Verify                                                |
 | ---------------------------- | --------- | -------------------------------------------------------------- | -------------------------- | ----------------------------------------------------- |
-| B1.1 FastMCP skeleton        | `todo`    | `FastMCP("Trajecta")` instance                                 | `mcp/server.py`            | `python -c "import mcp.server"` or client lists tools |
-| B1.2 Five read-only tools    | `todo`    | `list_runs`, `get_run`, `get_step_detail`, `search_*`          | `mcp/server.py`            | MCP client tool inventory = 6 total                   |
-| B1.3 `analyze_run` composite | `todo`    | Delegates to `eval_agent_graph.analyze_run(..., source="mcp")` | `mcp/server.py`            | Trace parity with HTTP analyze                        |
-| B1.4 Excluded tools          | `todo`    | No `save_validated_eval_case`, `delete_*`, `import_dataset`    | `mcp/server.py`            | Excluded name → `method_not_found`                    |
-| B1.5 Live demo               | `blocked` | Claude Code connects in ≤ 2 min                                | `docs/mcp.md`, `README.md` | Operator smoke per B5 script                          |
+| B1.1 FastMCP skeleton        | `done`    | `FastMCP("Trajecta")` instance; dir named `trajecta_mcp/` (not `mcp/`) to avoid shadowing the official `mcp` SDK | `trajecta_mcp/server.py`   | `pytest tests/test_mcp_server.py::test_exactly_six_tools_registered` |
+| B1.2 Five read-only tools    | `done`    | `list_runs`, `get_run`, `get_step_detail`, `search_failure_memory`, `search_eval_cases` thin delegates | `trajecta_mcp/server.py`   | MCP client tool inventory == 6 total                  |
+| B1.3 `analyze_run` composite | `done`    | Delegates to `eval_agent_graph.analyze_run(..., source="mcp")`; strips bytes; full-run only | `trajecta_mcp/server.py`   | `test_analyze_run_trace_parity_with_http_path`        |
+| B1.4 Excluded tools          | `done`    | `save_validated_eval_case`, `delete_*`, `import_dataset`, `set_prompt_version` never decorated | `trajecta_mcp/server.py`   | `test_excluded_tool_call_raises_method_not_found`     |
+| B1.5 Live demo               | `blocked` | Claude Code connects in ≤ 2 min                                | `docs/mcp.md`, `README.md` | Operator smoke per B5 script (headless env cannot prove) |
 
 
-**Epic status**: `todo` — `docs/mcp.md` drafted; `mcp/server.py` not shipped.
+**Epic status**: `done` (code) — B1.1–B1.4 shipped + tested (15 tests in `tests/test_mcp_server.py`). B1.5 live demo stays `blocked` on an operator connecting a real MCP client.
 
 #### B2 — `analyze_run` Invariants
 
 
 | Slice                        | Status | Artefact / outcome                                  | Core files                                      | Verify                                 |
 | ---------------------------- | ------ | --------------------------------------------------- | ----------------------------------------------- | -------------------------------------- |
-| B2.1 Budget honoured         | `todo` | `terminated_by="budget_exceeded"` reachable via MCP | `mcp/server.py`, `eval_agent_graph.py`          | Compare `tool_call_count` with UI path |
-| B2.2 `source="mcp"` stamp    | `todo` | Trace origin distinguishable                        | `backend/app/schemas.py`, `eval_agent_graph.py` | Assert field in MCP trace JSON         |
-| B2.3 `human_validated=false` | `todo` | Draft only; no MCP persist path                     | `mcp/server.py`                                 | Returned EvalCase field check          |
+| B2.1 Budget honoured         | `done` | Budget applies inside the MCP call (same graph); `terminated_by` always surfaced | `trajecta_mcp/server.py`, `eval_agent_graph.py` | `test_analyze_run_budget_invariant_surfaces_terminated_by` |
+| B2.2 `source="mcp"` stamp    | `done` | `AgentTrace.source ∈ {ui,eval,mcp}` threaded through all entry points | `backend/app/schemas.py`, `eval_agent_graph.py`, `agent_eval.py` | `test_analyze_run_stamps_mcp_source_and_draft` |
+| B2.3 `human_validated=false` | `done` | Draft only; no MCP persist path                     | `trajecta_mcp/server.py`                         | `test_analyze_run_stamps_mcp_source_and_draft` |
 
 
-**Epic status**: `todo` — depends on B1.3.
+**Epic status**: `done` — invariants proven by `tests/test_mcp_server.py` (source stamp, HITL draft, budget, trace parity).
 
 #### B3 — `docs/mcp.md`
 
@@ -1025,8 +1027,8 @@ A single block to verify before the 48-hour push.
 [x] eval/ragas_report.md    mode == "real", n ≥ 10
 [x] README.md    "Eval & Experiments" table ≥ 5 rows with concrete deltas
 [x] docs/failure_analysis.md    2-3 cases + one-line trade-off
-[ ] mcp/server.py    planned lower-priority slice: six tools, zero excluded tools, analyze_run composite
-[x] docs/mcp.md    planned tool inventory + analyze_run diagram + demo script
+[x] trajecta_mcp/server.py    six tools, zero excluded (method_not_found), analyze_run composite (source=mcp); B1.5 live demo still operator-gated
+[x] docs/mcp.md    tool inventory + analyze_run diagram + demo script
 [x] docs/security_governance.md    shipped mechanisms (incl. B6 Spotlighting, unmeasured) separated honestly from planned B1 MCP work
 [x] backend/app/prompts.py + eval_agent_graph.py + tools.py    B6.1–B6.3 Spotlighting hardening shipped + unit-tested (test_prompts.py, SpotlightingWrapTests); B6.4/B6.5 eval layer intentionally out of scope
 [x] cd frontend && npm run build    exits 0

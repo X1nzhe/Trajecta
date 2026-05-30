@@ -273,7 +273,7 @@ See [docs/testing.md](docs/testing.md) § "LLM Judge" for the judge
 contract and [docs/failure_analysis.md](docs/failure_analysis.md) for
 case studies.
 
-## Planned MCP Connection
+## MCP Connection
 
 MCP is a planned, lower-priority Phase 8 item after the judge agreement
 path. The planned server will expose the entire Eval Agent as a composite tool
@@ -282,7 +282,7 @@ browser-agent trajectory via one MCP call.
 
 The design uses the standalone `fastmcp` package
 (`pip install fastmcp`); tool registration is decorator-based and JSON
-schemas are auto-derived from Python type hints. Once `mcp/server.py`
+schemas are auto-derived from Python type hints. Once `trajecta_mcp/server.py`
 exists, add to
 `claude_desktop_config.json`:
 
@@ -291,7 +291,7 @@ exists, add to
   "mcpServers": {
     "trajecta": {
       "command": "python",
-      "args": ["mcp/server.py"],
+      "args": ["trajecta_mcp/server.py"],
       "cwd": "<path to Trajecta repo>"
     }
   }
