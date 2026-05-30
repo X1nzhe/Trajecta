@@ -391,8 +391,8 @@ reference, the judge's verdict + assertions (from A3), and the root
 cause.
 - For each case: one sentence on "did Phase 8 fix this? if not, why not?"
 - One closing line on the trade-off (quality vs latency vs cost). The
-current report shows mean 27.92 s / $0.032 per run; that ratio is the
-trade-off baseline.
+formal v5 report shows mean 10.57 s / about $0.030 per run; the best
+headline prompt (v3) shows mean 9.96 s / about $0.033 per run.
 
 **Acceptance**: 2-3 cases, each with named root cause and an explicit
 fix-or-defer decision.
@@ -669,7 +669,7 @@ Absorbed into A6.
 | `docs/testing.md`                               | Add `eval/golden.jsonl` schema and the build script reference; add the `agent_eval` → `eval/judge.py` protocol and acceptability-assertion judge contract; document Cohen's κ computation and the disagreement-analysis fallback; update the RAGAS section so it no longer claims `mode=stub` is acceptable. |
 | `docs/prompt_versioning.md` + `prompts/judge/*` | Add judge prompt versioning for the Gemini/OpenAI judge path; keep any stricter prompt bundle archived / experimental.                                                                                                                                                                                       |
 | `docs/eval_agent.md`                            | Add a short "MCP exposure" subsection that links to `docs/mcp.md` and clarifies that the entire `agent_loop` is reachable via the `analyze_run` MCP tool. Do not restructure the rest of the doc.                                                                                                            |
-| `README.md`                                     | Add an "Eval & Experiments" section with the A7 experiment log table; add a planned MCP connection section (B5); add a link to `docs/failure_analysis.md`; surface the v5 baseline numbers (binary 74.2 %, $0.032/run) with a footnote pointing at the local `eval/agent_report.md`.                         |
+| `README.md`                                     | Add an "Eval & Experiments" section with the A7 experiment log table; add a planned MCP connection section (B5); add a link to `docs/failure_analysis.md`; surface the best agent_eval prompt and v5 trade-off with a footnote pointing at `docs/experiment_log.md`.                         |
 | `docs/phase8_s18_alignment.md`                  | This file.                                                                                                                                                                                                                                                                                                   |
 | `docs/mcp.md`                                   | New, see B3.                                                                                                                                                                                                                                                                                                 |
 | `docs/security_governance.md`                   | New, see B4.                                                                                                                                                                                                                                                                                                 |
@@ -689,7 +689,7 @@ walkthrough; treat it as a default, not a contract.
 | Code              | 3 min | `backend/app/eval_agent_graph.py`, `eval/judge.py`                                     | LangGraph loop + Gemini/OpenAI judge handoff.                                                |
 | Use case          | 2 min | `PROJECT.md` § "Market Positioning"                                                    | The missing eval layer for browser-agent trajectories; MCP as planned remote packaging.      |
 | Eval & Experiment | 5 min | `eval/golden.jsonl`, `eval/judge.py`, `eval/judge_report.md`, `docs/experiment_log.md` | Golden set construction, judge post-step, acceptability assertions, κ_LLM,LLM, v1→v5 deltas. |
-| Result            | 3 min | `eval/agent_report.md` (local), `docs/failure_analysis.md`                             | v5 baseline numbers, 2-3 failure cases, one-line trade-off.                                  |
+| Result            | 3 min | `eval/agent_report.md` (local), `docs/failure_analysis.md`                             | v3 best headline result, v5 failure-sensitive trade-off, 2-3 failure cases.                  |
 
 
 End each segment with one line on "what I got burned by here." Per S18
@@ -717,22 +717,18 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**A7.1** — blocked on missing local `eval/runs/<ts>/agent_report.json`
-artefacts. `docs/experiment_log.md` has a placeholder that lists the
-required v1→v5 fields, but the concrete metric deltas
-(binary_verdict_accuracy, failure/success recall split, mean
-tool_call_count, mean wall-clock latency) must be drawn from local
-`eval/runs/<ts>/agent_report.json` reports. Do not fabricate experiment
-numbers. Reserve the v5 quality columns for A3.4 / A4.3 acceptable rates
-+ κ_LLM,LLM once an operator runs the live judge pair and keeps the
-`judge_agreement_report.{json,md}` artefacts.
+**A3/A4 live judge artefacts** — the dual-judge and κ_LLM,LLM code path is
+shipped, but this workspace still has no local
+`eval/runs/<ts>/judge/judge_agreement_report.{json,md}` artefact. The next
+Phase 8 acceptance gap is to run the Gemini/OpenAI judge pair against a
+completed 31-sample agent_eval run and record the resulting
+`acceptable_rate` and κ.
 
-A6.2 (real RAGAS run) and A6.3 (populated skipped-trace counts) stay
-`blocked` on operator action — both need `OPENAI_API_KEY` and a real
-agent_eval pass. The A6.1 loader fix is the codeable prerequisite;
-real-mode execution is out of scope here. Do **not** run real-mode
-RAGAS, touch A6.2 / A6.3 deliverables, or open A7.3 / A8 / MCP / B6
-until A7.1 verify passes.
+A7.1 is complete for the agent_eval v1→v5 prompt comparison:
+`docs/experiment_log.md` and README now use five formal local
+`eval/runs/<ts>/agent_report.json` artefacts. A6.2 (real RAGAS run) and
+A6.3 (populated skipped-trace counts) remain `blocked` on operator action
+with a real LLM configuration.
 
 ### Agent Handoff Rule
 
@@ -761,8 +757,8 @@ Prompt template for each session:
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Gemini provider key + model env | Judge A live verdicts                                                                                             | Set the Gemini-compatible provider key and `TRAJECTA_JUDGE_A_MODEL`, then run `python -m backend.app.agent_eval --trace-dir … --judge` against a real eval run |
 | OpenAI API key + model env      | Judge B live verdicts and real RAGAS                                                                              | Set `OPENAI_API_KEY` and `TRAJECTA_JUDGE_B_MODEL`, then run `python -m backend.app.agent_eval --trace-dir … --judge` and RAGAS against persisted traces        |
-| Real trace artefacts            | Production `eval/judge_report.{json,md}`, κ_LLM,LLM row, RAGAS, experiment log, and failure-analysis case studies | Run the 31-sample `agent_eval` path and keep local `eval/runs/{ts}/traces/`                                                                                    |
-| v1→v5 agent reports             | A7.1 concrete experiment deltas                                                                                   | Provide local `eval/runs/<ts>/agent_report.json` artefacts for prompt versions v1 through v5, or rerun those prompt versions and keep the timestamped reports |
+| Real trace artefacts            | Production `eval/judge_report.{json,md}`, κ_LLM,LLM row, RAGAS, and failure-analysis case studies                 | Run the 31-sample `agent_eval` path and keep local `eval/runs/{ts}/traces/`                                                                                    |
+| v1→v5 agent reports             | A7.1 concrete experiment deltas                                                                                   | Resolved 2026-05-29: five formal local `eval/runs/<ts>/agent_report.json` artefacts populate `docs/experiment_log.md`; keep the timestamped reports local     |
 
 
 Local-only artefacts (`eval/runs/`, judge reports from real runs) stay
@@ -875,12 +871,12 @@ on a stable `analyze_run` path only.
 
 | Slice                          | Status    | Artefact / outcome               | Core files               | Verify                                             |
 | ------------------------------ | --------- | -------------------------------- | ------------------------ | -------------------------------------------------- |
-| A7.1 `docs/experiment_log.md`  | `blocked` | Placeholder created; concrete v1→v5 deltas require missing local `eval/runs/<ts>/agent_report.json` artefacts | `docs/experiment_log.md` | Blocked verification: `eval/runs/*/agent_report.json` not present; do not fabricate metrics |
-| A7.2 README table mirror       | `partial` | README § Eval & Experiments      | `README.md`              | Judge column filled after A3/A4                    |
+| A7.1 `docs/experiment_log.md`  | `done`    | Formal v1→v5 deltas populated from five local `eval/runs/<ts>/agent_report.json` artefacts | `docs/experiment_log.md` | Manual audit (2026-05-29): all five reports share the same 31-run set, each has 31 trace JSONs, and `skipped.agent_error=0`; judge columns remain pending A3/A4 live run |
+| A7.2 README table mirror       | `partial` | README § Eval & Experiments mirrors the agent_eval table | `README.md`              | Agent_eval rows updated; judge columns filled after A3/A4 live run |
 | A7.3 Spotlighting ablation row | `todo`    | Separate from v1→v5 sequence     | `docs/experiment_log.md` | After B6 injection report                          |
 
 
-**Epic status**: `partial` — A7.1 is blocked on missing local agent-report artefacts; A7.2 remains partial and A7.3 remains todo.
+**Epic status**: `partial` — A7.1 is done for agent_eval prompt iteration; A7.2 remains partial until judge columns are filled; A7.3 remains todo.
 
 #### A8 — Failure Analysis
 
@@ -993,8 +989,8 @@ on a stable `analyze_run` path only.
 | D3 `docs/testing.md` judge protocol         | `done`    | `docs/testing.md`           | Golden + dual LLM judge + κ sections                                                                                                                      |
 | D4 `docs/prompt_versioning.md` judge config | `done`    | `docs/prompt_versioning.md` | Env-driven model + prompt-version rules documented; provider-specific prompt bundles remain A4.2 todo; stricter prompt archived / experimental if present |
 | D5 `docs/eval_agent.md` MCP subsection      | `todo`    | `docs/eval_agent.md`        | Link to `docs/mcp.md`                                                                                                                                     |
-| D6 README Eval & Experiments                | `partial` | `README.md`                 | Judge column pending A3/A4                                                                                                                                |
-| D7 `docs/experiment_log.md`                 | `todo`    | `docs/experiment_log.md`    | See A7                                                                                                                                                    |
+| D6 README Eval & Experiments                | `partial` | `README.md`                 | Agent_eval table updated; judge column pending A3/A4                                                                                                      |
+| D7 `docs/experiment_log.md`                 | `done`    | `docs/experiment_log.md`    | See A7.1                                                                                                                                                  |
 | D8 `docs/failure_analysis.md`               | `todo`    | `docs/failure_analysis.md`  | See A8                                                                                                                                                    |
 
 

@@ -152,37 +152,39 @@ Produces `eval/agent_report.{json,md}` plus per-sample trace JSONs under
 the `--trace-dir`. Both `eval/agent_report.*` and `eval/runs/` are
 `.gitignore`d; they are reproducible local artefacts.
 
-The v5 baseline (prompt `v5_constraint_verification`, 31 samples,
-`gpt-5.4-mini-2026-03-17`) lands at:
+The formal Phase 8 v1→v5 prompt comparison uses 31 filtered golden-set
+samples with `gpt-5.4-mini-2026-03-17` for both the Eval Agent and VLM.
+The best headline prompt is `v3_balanced_rubric`:
 
 | Metric | Value |
 | --- | --- |
-| Binary verdict accuracy | 74.2 % |
-| Failure-verdict recall | 100.0 % |
-| Success-verdict recall | 52.9 % |
-| Mean tool calls / run | 1.87 |
-| Mean wall-clock latency / run | 27.92 s |
-| Total cost (31 runs) | $0.9987 |
-| Coarse-to-fine VLM savings | 92.0 % |
+| Binary verdict accuracy | 80.6 % |
+| Failure-verdict recall | 85.7 % |
+| Success-verdict recall | 76.5 % |
+| Mean tool calls / run | 1.68 |
+| Mean wall-clock latency / run | 9.96 s |
+| Total cost (31 runs) | $1.022 |
+| Coarse-to-fine VLM savings | 91.5 % |
 
-Numbers cited above come from the local `eval/agent_report.md` — regenerate
-with the command above. The repo intentionally does not commit the report so
-README claims stay in sync with whatever the user can produce in a fresh run.
+The v5 prompt is a deliberate failure-sensitive trade-off: failure recall
+reaches 100.0 % and step localization reaches 78.6 %, but success recall
+drops to 41.2 %. Full per-round metrics and deltas are in
+[docs/experiment_log.md](docs/experiment_log.md).
 
 ### Experiment log
 
 | Round | Prompt | Change | Metric delta | Conclusion |
 | --- | --- | --- | --- | --- |
-| 1 | `v1_minimal` | Baseline — minimal failure-shape instructions, no rubric. | — | Baseline binary accuracy + recall split established. |
-| 2 | `v2_success_rubric` | Add an explicit success-shape rubric so the agent stops hallucinating failure when the run succeeded. | Success-verdict recall ↑. Failure-verdict recall ≈ flat. | Honest success calls became measurable. |
-| 3 | `v3_balanced_rubric` | Symmetric success / failure rubric; clearer guidance on when to stop calling `get_step_detail`. | Mean tool calls ↓. Binary accuracy flat. | Cost down without quality loss. |
-| 4 | `v4_search_strategy_rubric` | Prompt teaches when to call `find_similar_successful_run` vs `search_failure_memory`. | Failure_type advisory metric ↑; binary accuracy flat. | Targeted retrieval helps the advisory signal, not the headline. |
-| 5 | `v5_constraint_verification` | Constraint-evidence rubric for the high-detail VLM; agent required to surface constraint satisfaction in evidence. | Binary accuracy reaches 74.2 % (vs majority 54.8 %); failure-verdict recall 100 %; success-verdict recall 52.9 % | Constraint-grounded evidence is the highest-leverage prompt change in the v1→v5 sequence. |
+| 1 | `v1_minimal` | Baseline — minimal failure-shape instructions, no rubric. | Baseline binary accuracy 74.2 %; success recall 58.8 %; failure recall 92.9 %. | Strong failure sensitivity, but too many successful runs are marked failed. |
+| 2 | `v2_success_rubric` | Add an explicit success-shape rubric. | Binary accuracy +3.2 pp; success recall +29.4 pp; failure recall -28.6 pp. | Success hallucinations drop, but the prompt becomes too conservative on failures. |
+| 3 | `v3_balanced_rubric` | Balance success/failure criteria and tighten stop conditions. | Binary accuracy +3.2 pp vs v2; mean tool calls -0.68; latency -1.50 s. | Best headline accuracy at 80.6 % with lower tool use. |
+| 4 | `v4_search_strategy_rubric` | Clarify successful-run retrieval vs failure-memory retrieval. | Binary accuracy -6.5 pp; failure-type accuracy rises to 57.1 %. | Retrieval guidance helps the advisory failure-type signal, not the headline metric. |
+| 5 | `v5_constraint_verification` | Emphasize constraint evidence and failure verification. | Binary accuracy -6.5 pp; failure recall +14.3 pp to 100.0 %; success recall -23.5 pp. | Best for catching failures, but not the best general prompt. |
 
 The judge columns (`acceptable_rate` by judge and κ_LLM,LLM) are added once
 the Phase 8 Gemini/OpenAI judge run completes. See
 [docs/experiment_log.md](docs/experiment_log.md) for the full table and
-per-round failure-mode breakdowns once that doc is populated.
+per-round source artefacts and caveats.
 
 ### RAGAS
 
