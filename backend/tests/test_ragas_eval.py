@@ -32,6 +32,32 @@ def _proposal_event(seq: int = 0) -> AgentTraceEvent:
     )
 
 
+def _rag_call_event(seq: int = 0, *, query: str = "why did it stop early?") -> AgentTraceEvent:
+    return AgentTraceEvent(
+        seq=seq,
+        type="tool_call",
+        name="search_failure_memory",
+        args={"query": query},
+    )
+
+
+def _rag_result_event(seq: int = 1, *, case_id: str = "fm_early_terminated_001") -> AgentTraceEvent:
+    return AgentTraceEvent(
+        seq=seq,
+        type="tool_result",
+        name="search_failure_memory",
+        result={
+            "items": [
+                {
+                    "case_id": case_id,
+                    "summary": "Step 0 ended before the task was complete.",
+                    "tags": ["termination"],
+                }
+            ]
+        },
+    )
+
+
 def _trace(
     *,
     run_id: str = "run_1",
@@ -40,7 +66,7 @@ def _trace(
 ) -> AgentTrace:
     """Minimal AgentTrace with a propose_eval_case event."""
     if events is None:
-        events = [_proposal_event()]
+        events = [_rag_call_event(0), _rag_result_event(1), _proposal_event(2)]
     return AgentTrace(
         run_id=run_id,
         user_intent="analyze_run",
@@ -59,6 +85,20 @@ def _fake_run(run_id: str) -> TrajectoryRun:
     return TrajectoryRun(run_id=run_id, task="t", steps=[])
 
 
+def _sample() -> ragas_eval.RagasSample:
+    return ragas_eval.RagasSample(
+        run_id="run_1",
+        question="why did it stop early?",
+        answer="The agent stopped early.\n\nStep 0 ended before the task was complete.",
+        contexts=["fm_early_terminated_001: early stop [termination]"],
+        ground_truth_source=ragas_eval.GROUND_TRUTH_SOURCE_NONE,
+        proposed_failure_type="early_terminated",
+        retrieved_context_ids=["fm_early_terminated_001"],
+        tool_name="search_failure_memory",
+        tool_query="why did it stop early?",
+    )
+
+
 class RagasEvalTests(unittest.TestCase):
     def test_ragas_answer_from_trace_rejects_non_terminal_trace(self) -> None:
         trace = AgentTrace(
@@ -72,16 +112,7 @@ class RagasEvalTests(unittest.TestCase):
             ragas_eval.ragas_answer_from_trace(trace)
 
     def test_build_report_records_real_ragas_fallback_reason(self) -> None:
-        sample = ragas_eval.RagasSample(
-            run_id="run_1",
-            question=ragas_eval.RAGAS_QUESTION,
-            answer="The agent stopped early.\n\nStep 0 ended before the task was complete.",
-            contexts=["fm_early_terminated_001: early stop [termination]"],
-            ground_truth="early_terminated",
-            ground_truth_source="self",
-            proposed_failure_type="early_terminated",
-            retrieved_context_ids=["fm_early_terminated_001"],
-        )
+        sample = _sample()
 
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with mock.patch("backend.app.ragas_eval._ragas_import_failure", return_value=None):
@@ -100,7 +131,7 @@ class RagasEvalTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # A6.1 — trace-loading precedence + discovery
 #
-# These tests pin the SQLite-first / trace-dir-fallback rule documented
+# These tests pin the trace-dir-first / SQLite-fallback rule documented
 # in ``backend/app/ragas_eval.py`` module docstring § Trace sources. All
 # storage / DB access is mocked; no real ``data/trajecta.db`` is read.
 
@@ -109,9 +140,7 @@ class TraceLoadingPrecedenceTests(unittest.TestCase):
     """One run_id → which source wins?"""
 
     def test_load_trace_for_run_id_returns_sqlite_trace_when_present(self) -> None:
-        """SQLite-resident traces are the canonical source — the
-        ``analyze_run`` flow writes there and the UI reads from there,
-        so the loader must prefer it over the trace-dir fallback."""
+        """Without ``--trace-dir``, SQLite remains the source."""
         sqlite_trace = _trace(run_id="run_x")
         with mock.patch(
             "backend.app.ragas_eval.storage.load_trace",
@@ -124,9 +153,8 @@ class TraceLoadingPrecedenceTests(unittest.TestCase):
     def test_load_trace_for_run_id_falls_back_to_trace_dir_when_sqlite_missing(
         self,
     ) -> None:
-        """``--trace-dir`` is the Phase 8 A2 dump source — the fallback
-        path that the agent_eval-driven flow lands traces on. When
-        SQLite has no row, the trace dir's file must be honoured."""
+        """``--trace-dir`` is the Phase 8 A2 dump source. When it has a
+        file for the run_id, that file must be honoured."""
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
             dumped = _trace(run_id="run_x")
@@ -144,14 +172,11 @@ class TraceLoadingPrecedenceTests(unittest.TestCase):
         self.assertEqual(result.run_id, "run_x")
         self.assertEqual(result.terminated_by, "propose_eval_case")
 
-    def test_load_trace_for_run_id_prefers_sqlite_over_trace_dir(self) -> None:
+    def test_load_trace_for_run_id_prefers_trace_dir_over_sqlite(self) -> None:
         """Sanity: when both sources carry a trace for the same run_id,
-        SQLite wins. A fresh UI-driven analyze should not be overruled
-        by an older bulk dump that happens to share the run_id."""
+        the explicit trace-dir dump wins. Formal A6 should stay bound to
+        the selected agent_eval artefact set."""
         sqlite_trace = _trace(run_id="run_x")
-        # Marker in the dump that we'll grep against if the precedence
-        # silently flips. We pick a different terminated_by so the test
-        # can't confuse the two.
         dumped = _trace(run_id="run_x", terminated_by="budget_exceeded", events=[])
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
@@ -165,9 +190,8 @@ class TraceLoadingPrecedenceTests(unittest.TestCase):
                 result = ragas_eval.load_trace_for_run_id(
                     "run_x", trace_dir=trace_dir
                 )
-        self.assertIs(result, sqlite_trace)
-        # And the dump was never opened.
-        self.assertEqual(result.terminated_by, "propose_eval_case")
+        self.assertIsNot(result, sqlite_trace)
+        self.assertEqual(result.terminated_by, "budget_exceeded")
 
     def test_load_trace_for_run_id_returns_none_when_neither_source_has_one(
         self,
@@ -242,6 +266,14 @@ class CollectSamplesA61Tests(unittest.TestCase):
                 samples, skipped = ragas_eval.collect_samples()
         self.assertEqual(len(samples), 1)
         self.assertEqual(samples[0].run_id, "run_sqlite")
+        self.assertEqual(samples[0].question, "why did it stop early?")
+        self.assertEqual(samples[0].tool_query, "why did it stop early?")
+        self.assertEqual(samples[0].tool_name, "search_failure_memory")
+        self.assertEqual(
+            samples[0].contexts,
+            ["fm_early_terminated_001: Step 0 ended before the task was complete. [termination]"],
+        )
+        self.assertEqual(samples[0].ground_truth_source, ragas_eval.GROUND_TRUTH_SOURCE_NONE)
         self.assertEqual(samples[0].proposed_failure_type, "early_terminated")
         self.assertEqual(skipped.no_trace, 0)
         self.assertEqual(skipped.budget_exceeded, 0)
@@ -270,6 +302,45 @@ class CollectSamplesA61Tests(unittest.TestCase):
         self.assertEqual(len(samples), 1)
         self.assertEqual(samples[0].run_id, "run_dumped")
         self.assertEqual(skipped.no_trace, 0)
+
+    def test_collect_samples_uses_matching_rag_tool_result_contexts(self) -> None:
+        trace = _trace(
+            run_id="run_rag",
+            events=[
+                _rag_call_event(0, query="first query"),
+                _rag_result_event(1, case_id="fm_first"),
+                _rag_call_event(2, query="second query"),
+                AgentTraceEvent(
+                    seq=3,
+                    type="tool_result",
+                    name="search_failure_memory",
+                    result={
+                        "items": [
+                            {
+                                "case_id": "fm_second",
+                                "summary": "Second context only.",
+                                "tags": ["second"],
+                            }
+                        ]
+                    },
+                ),
+                _proposal_event(4),
+            ],
+        )
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_runs",
+            return_value=[_fake_run("run_rag")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace",
+                return_value=trace,
+            ):
+                samples, skipped = ragas_eval.collect_samples()
+
+        self.assertEqual([s.question for s in samples], ["first query", "second query"])
+        self.assertEqual(samples[0].contexts, ["fm_first: Step 0 ended before the task was complete. [termination]"])
+        self.assertEqual(samples[1].contexts, ["fm_second: Second context only. [second]"])
+        self.assertEqual(skipped.no_context, 0)
 
     def test_collect_samples_skips_no_trace_when_neither_source_has_one(
         self,
@@ -307,6 +378,76 @@ class CollectSamplesA61Tests(unittest.TestCase):
         self.assertEqual(skipped.budget_exceeded, 1)
         self.assertEqual(skipped.error, 0)
         self.assertEqual(skipped.no_trace, 0)
+        self.assertEqual(skipped.no_context, 0)
+
+    def test_collect_samples_counts_no_context_tool_call(self) -> None:
+        trace = _trace(
+            run_id="run_empty_context",
+            events=[
+                _rag_call_event(0),
+                AgentTraceEvent(
+                    seq=1,
+                    type="tool_result",
+                    name="search_failure_memory",
+                    result={"items": []},
+                ),
+                _proposal_event(2),
+            ],
+        )
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_runs",
+            return_value=[_fake_run("run_empty_context")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace",
+                return_value=trace,
+            ):
+                samples, skipped = ragas_eval.collect_samples()
+        self.assertEqual(samples, [])
+        self.assertEqual(skipped.no_context, 1)
+
+    def test_collect_samples_limit_caps_valid_samples(self) -> None:
+        trace_a = _trace(run_id="run_a")
+        trace_b = _trace(run_id="run_b")
+
+        def fake_load_trace(run_id: str):
+            return {"run_a": trace_a, "run_b": trace_b}[run_id]
+
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_runs",
+            return_value=[_fake_run("run_a"), _fake_run("run_b")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace",
+                side_effect=fake_load_trace,
+            ):
+                samples, skipped = ragas_eval.collect_samples(limit=1)
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0].run_id, "run_a")
+        self.assertEqual(skipped.no_context, 0)
+
+    def test_collect_samples_limit_does_not_truncate_skipped_counts(self) -> None:
+        trace_a = _trace(run_id="run_a")
+        trace_b = _trace(
+            run_id="run_b",
+            events=[_rag_call_event(0), _proposal_event(1)],
+        )
+
+        def fake_load_trace(run_id: str):
+            return {"run_a": trace_a, "run_b": trace_b}[run_id]
+
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_runs",
+            return_value=[_fake_run("run_a"), _fake_run("run_b")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace",
+                side_effect=fake_load_trace,
+            ):
+                samples, skipped = ragas_eval.collect_samples(limit=1)
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0].run_id, "run_a")
+        self.assertEqual(skipped.no_context, 1)
 
     def test_collect_samples_counts_malformed_trace_dir_file_as_error(self) -> None:
         """A trace-dir file that fails AgentTrace validation is an
@@ -403,10 +544,9 @@ class CollectSamplesA61Tests(unittest.TestCase):
         self.assertEqual(skipped.no_trace, 0)
         self.assertEqual(skipped.error, 0)
 
-    def test_collect_samples_uses_ground_truth_fixture_when_present(self) -> None:
-        """``<data_root>/runs/<run_id>/ground_truth.json`` still wins
-        over the agent's self-grading when present — A6.1 keeps the
-        fixture lookup intact."""
+    def test_collect_samples_ignores_ground_truth_fixture_for_a6(self) -> None:
+        """A6 is no-ground-truth faithfulness, so disk fixtures must not
+        turn the report back into answer-correctness or self-grading."""
         sqlite_trace = _trace(run_id="run_gt")
         with tempfile.TemporaryDirectory() as tmp:
             data_root = Path(tmp)
@@ -425,8 +565,10 @@ class CollectSamplesA61Tests(unittest.TestCase):
                 ):
                     samples, _ = ragas_eval.collect_samples(data_root)
         self.assertEqual(len(samples), 1)
-        self.assertEqual(samples[0].ground_truth_source, "fixture")
-        self.assertEqual(samples[0].ground_truth, "missed_constraint")
+        self.assertEqual(
+            samples[0].ground_truth_source,
+            ragas_eval.GROUND_TRUTH_SOURCE_NONE,
+        )
 
 
 class MainTraceDirFlagTests(unittest.TestCase):
@@ -453,6 +595,8 @@ class MainTraceDirFlagTests(unittest.TestCase):
                             str(Path(tmp) / "data"),
                             "--trace-dir",
                             str(trace_dir),
+                            "--limit",
+                            "10",
                             "--output-dir",
                             str(out_dir),
                             "--force-stub",
@@ -462,6 +606,7 @@ class MainTraceDirFlagTests(unittest.TestCase):
         mock_collect.assert_called_once()
         _, kwargs = mock_collect.call_args
         self.assertEqual(kwargs["trace_dir"], trace_dir.resolve())
+        self.assertEqual(kwargs["limit"], 10)
 
     def test_main_passes_none_when_trace_dir_flag_absent(self) -> None:
         """Default behaviour — no --trace-dir — still reaches SQLite
@@ -488,6 +633,7 @@ class MainTraceDirFlagTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         _, kwargs = mock_collect.call_args
         self.assertIsNone(kwargs["trace_dir"])
+        self.assertIsNone(kwargs["limit"])
 
 
 class BuildReportStubFallbackTests(unittest.TestCase):
@@ -495,16 +641,7 @@ class BuildReportStubFallbackTests(unittest.TestCase):
     is absent — A6.1 must not silently flip the report to real mode."""
 
     def test_build_report_force_stub_without_openai_key(self) -> None:
-        sample = ragas_eval.RagasSample(
-            run_id="run_stub",
-            question=ragas_eval.RAGAS_QUESTION,
-            answer="x\n\nStep ended.",
-            contexts=["fm_early_terminated_001: ok [t]"],
-            ground_truth="early_terminated",
-            ground_truth_source="self",
-            proposed_failure_type="early_terminated",
-            retrieved_context_ids=["fm_early_terminated_001"],
-        )
+        sample = _sample()
         with mock.patch.dict(os.environ, {}, clear=True):
             report = ragas_eval.build_report([sample], ragas_eval.SkippedCounts())
         self.assertEqual(report.ragas_mode, "stub")

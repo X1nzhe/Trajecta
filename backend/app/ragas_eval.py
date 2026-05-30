@@ -3,20 +3,22 @@
 Run as: ``python -m backend.app.ragas_eval``.
 
 Reads every persisted ``AgentTrace``, keeps the ones that terminated
-via ``propose_eval_case``, and builds RAGAS samples without re-running
-retrieval (the trace is the only evidence pool — see ``docs/testing.md``
-and ``docs/eval_agent.md`` Observability).
+via ``propose_eval_case``, and builds RAGAS faithfulness samples from
+the actual RAG tool calls recorded in the trace. Retrieval is **not**
+re-run: the trace's ``search_failure_memory`` / ``search_eval_cases``
+tool-call queries and tool-result items are the evidence pool (see
+``docs/testing.md`` and ``docs/eval_agent.md`` Observability).
 
 ## Trace sources (Phase 8 A6.1)
 
 Trajecta has two on-disk locations that may carry persisted traces.
 ``collect_samples`` reads both in this precedence order **per run_id**:
 
-1. The SQLite ``traces`` table — populated by the UI/API
-  ``analyze_run`` flow and accessed via ``storage.load_trace``.
-2. ``--trace-dir <path>/<run_id>.json`` — the per-sample dumps produced
-  by ``python -m backend.app.agent_eval --trace-dir …`` (Phase 8 A2).
-  Only consulted when ``--trace-dir`` is supplied.
+1. ``--trace-dir <path>/<run_id>.json`` — the per-sample dumps produced
+   by ``python -m backend.app.agent_eval --trace-dir …`` (Phase 8 A2).
+   Explicit trace dirs bind A6 to the same formal eval artefact set.
+2. The SQLite ``traces`` table — populated by the UI/API
+   ``analyze_run`` flow and accessed via ``storage.load_trace``.
 
 The run-id set graded is the **union** of run_ids visible in
 ``storage.list_runs()`` and any ``*.json`` files under the supplied
@@ -26,9 +28,9 @@ migration in Phase 6.
 
 ## Execution modes
 
-- ``real``: uses the ``ragas`` package's ``faithfulness`` and
-  ``context_precision`` metrics. Requires ``OPENAI_API_KEY`` and
-  ``ragas`` to be importable.
+- ``real``: uses the ``ragas`` package's ``faithfulness`` metric over
+  no-ground-truth samples. Requires ``OPENAI_API_KEY`` and ``ragas`` to
+  be importable.
 - ``stub``: pure-Python stand-ins for both metrics that require neither
   a key nor a network. Selected automatically when ``ragas`` is missing
   or no key is present. Always writes the same two report files so the
@@ -38,9 +40,6 @@ Stub heuristics — intentionally crude, see ``docs/testing.md``:
 
 - ``faithfulness_stub``: fraction of evidence ``claim``s whose lower-cased
   tokens overlap ≥ 50% with any retrieved context string.
-- ``context_precision_stub``: fraction of retrieved contexts whose
-  ``case_id`` appears in the latest ``propose_eval_case`` call's
-  ``retrieved_context_ids``.
 """
 
 from __future__ import annotations
@@ -62,7 +61,7 @@ from backend.app.schemas import AgentTrace, AgentTraceEvent
 
 SEARCH_TOOL_NAMES = {"search_failure_memory", "search_eval_cases"}
 TERMINAL_TOOL = "propose_eval_case"
-RAGAS_QUESTION = "What failure pattern does this trajectory most closely match?"
+GROUND_TRUTH_SOURCE_NONE = "none"
 
 
 @dataclass
@@ -71,10 +70,11 @@ class RagasSample:
     question: str
     answer: str
     contexts: list[str]
-    ground_truth: str
-    ground_truth_source: str  # "fixture" | "self"
+    ground_truth_source: str  # "none"
     proposed_failure_type: str
     retrieved_context_ids: list[str]
+    tool_name: str
+    tool_query: str
 
 
 @dataclass
@@ -82,12 +82,14 @@ class SkippedCounts:
     budget_exceeded: int = 0
     error: int = 0
     no_trace: int = 0
+    no_context: int = 0
 
     def to_dict(self) -> dict[str, int]:
         return {
             "budget_exceeded": self.budget_exceeded,
             "error": self.error,
             "no_trace": self.no_trace,
+            "no_context": self.no_context,
         }
 
 
@@ -96,7 +98,7 @@ class RagasReport:
     samples: list[dict[str, Any]] = field(default_factory=list)
     metric_means: dict[str, float] = field(default_factory=dict)
     skipped: SkippedCounts = field(default_factory=SkippedCounts)
-    ground_truth_source: str = "self"  # "fixture" | "self" | "mixed"
+    ground_truth_source: str = GROUND_TRUTH_SOURCE_NONE
     ragas_mode: str = "stub"  # "real" | "stub"
     fallback_reason: str | None = None
 
@@ -137,36 +139,35 @@ def _context_text_from_item(item: dict[str, Any]) -> str:
     return f"{case_id}: {summary} [{tag_str}]".strip()
 
 
-def _retrieved_contexts(trace: AgentTrace) -> list[str]:
-    """Flatten every search_* tool_result event's items, across all turns."""
+def _contexts_from_tool_result(event: AgentTraceEvent) -> list[str]:
+    payload = event.result or {}
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return []
+    return [_context_text_from_item(item) for item in items if isinstance(item, dict)]
 
-    out: list[str] = []
-    for event in trace.events:
-        if event.type != "tool_result" or event.name not in SEARCH_TOOL_NAMES:
+
+def _iter_rag_tool_samples(trace: AgentTrace) -> list[tuple[str, str, list[str]]]:
+    """Return ``(tool_name, query, contexts)`` rows from actual RAG calls."""
+
+    samples: list[tuple[str, str, list[str]]] = []
+    events = trace.events
+    for index, event in enumerate(events):
+        if event.type != "tool_call" or event.name not in SEARCH_TOOL_NAMES:
             continue
-        payload = event.result or {}
-        items = payload.get("items") if isinstance(payload, dict) else None
-        if not isinstance(items, list):
+        args = event.args or {}
+        query = args.get("query")
+        if not isinstance(query, str) or not query.strip():
             continue
-        for item in items:
-            if isinstance(item, dict):
-                out.append(_context_text_from_item(item))
-    return out
-
-
-
-
-
-def _ground_truth_from_disk(run_id: str, data_root: Path) -> str | None:
-    path = data_root / "runs" / run_id / "ground_truth.json"
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return None
-    value = payload.get("failure_type")
-    return value if isinstance(value, str) and value else None
+        contexts: list[str] = []
+        for candidate in events[index + 1:]:
+            if candidate.type == "tool_result" and candidate.name == event.name:
+                contexts = _contexts_from_tool_result(candidate)
+                break
+            if candidate.type == "tool_call":
+                break
+        samples.append((event.name or "", query.strip(), contexts))
+    return samples
 
 
 def load_trace_for_run_id(
@@ -178,24 +179,20 @@ def load_trace_for_run_id(
 
     Precedence (per ``docs/phase8_s18_alignment.md`` A6.1):
 
-      1. ``storage.load_trace(run_id)`` — the SQLite ``traces`` row
+      1. ``trace_dir/<run_id>.json`` — the per-sample dump produced
+         by ``agent_eval --trace-dir`` when a trace dir is supplied.
+      2. ``storage.load_trace(run_id)`` — the SQLite ``traces`` row
          that ``analyze_run`` writes.
-      2. ``trace_dir/<run_id>.json`` — the per-sample dump produced
-         by ``agent_eval --trace-dir``.
 
     Returns ``None`` when neither source carries a trace. Raises
     ``ValidationError`` only when the trace-dir file exists but does not
     parse — the caller is expected to count those as ``error`` skips.
     """
-    trace = storage.load_trace(run_id)
-    if trace is not None:
-        return trace
-    if trace_dir is None:
-        return None
-    path = trace_dir / f"{run_id}.json"
-    if not path.exists():
-        return None
-    return AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
+    if trace_dir is not None:
+        path = trace_dir / f"{run_id}.json"
+        if path.exists():
+            return AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
+    return storage.load_trace(run_id)
 
 
 def _discover_run_ids(*, trace_dir: Path | None) -> list[str]:
@@ -225,14 +222,14 @@ def collect_samples(
     data_root: Path | None = None,
     *,
     trace_dir: Path | None = None,
+    limit: int | None = None,
 ) -> tuple[list[RagasSample], SkippedCounts]:
     """Collect RAGAS samples from persisted traces.
 
     See the module docstring (§ Trace sources) for the per-run_id
-    precedence rule. ``data_root`` is consulted only for the optional
-    ``<data_root>/runs/<run_id>/ground_truth.json`` fixtures that label
-    the comparator; pass ``None`` to fall back to the agent's own
-    ``proposed_failure_type`` (the ``"self"`` ground-truth source).
+    precedence rule. ``data_root`` is retained for CLI compatibility but
+    no longer contributes a ground-truth label: the formal A6 metric is
+    no-ground-truth faithfulness over retrieved contexts.
 
     Counts skipped traces in three buckets:
 
@@ -242,6 +239,8 @@ def collect_samples(
         terminal-tool args.
       * ``no_trace`` — neither SQLite nor the trace dir held a trace
         for that run_id.
+      * ``no_context`` — a terminal trace had no usable RAG tool result
+        contexts for faithfulness scoring.
     """
     samples: list[RagasSample] = []
     skipped = SkippedCounts()
@@ -280,31 +279,32 @@ def collect_samples(
             skipped.error += 1
             continue
 
-        gt = (
-            _ground_truth_from_disk(trace.run_id, data_root)
-            if data_root is not None
-            else None
-        )
-        if gt is None:
-            ground_truth = proposed_failure_type
-            ground_truth_source = "self"
-        else:
-            ground_truth = gt
-            ground_truth_source = "fixture"
-
-        samples.append(
-            RagasSample(
-                run_id=trace.run_id,
-                question=RAGAS_QUESTION,
-                answer=answer,
-                contexts=_retrieved_contexts(trace),
-                ground_truth=ground_truth,
-                ground_truth_source=ground_truth_source,
-                proposed_failure_type=proposed_failure_type,
-                retrieved_context_ids=retrieved_context_ids,
+        produced_for_trace = 0
+        saw_rag_call = False
+        for tool_name, query, contexts in _iter_rag_tool_samples(trace):
+            saw_rag_call = True
+            if not contexts:
+                skipped.no_context += 1
+                continue
+            samples.append(
+                RagasSample(
+                    run_id=trace.run_id,
+                    question=query,
+                    answer=answer,
+                    contexts=contexts,
+                    ground_truth_source=GROUND_TRUTH_SOURCE_NONE,
+                    proposed_failure_type=proposed_failure_type,
+                    retrieved_context_ids=retrieved_context_ids,
+                    tool_name=tool_name,
+                    tool_query=query,
+                )
             )
-        )
+            produced_for_trace += 1
+        if produced_for_trace == 0 and not saw_rag_call:
+            skipped.no_context += 1
 
+    if limit is not None:
+        samples = samples[:limit]
     return samples, skipped
 
 
@@ -318,7 +318,7 @@ def _exception_reason(prefix: str, exc: Exception) -> str:
 def _ragas_import_failure() -> str | None:
     try:
         import ragas  # noqa: F401
-        from ragas.metrics import context_precision, faithfulness  # noqa: F401
+        from ragas.metrics import faithfulness  # noqa: F401
     except (ImportError, ModuleNotFoundError) as exc:
         return _exception_reason("ragas import failed", exc)
     except Exception as exc:
@@ -329,19 +329,18 @@ def _ragas_import_failure() -> str | None:
 def _run_real_ragas(samples: list[RagasSample]) -> dict[str, float]:
     from datasets import Dataset
     from ragas import evaluate
-    from ragas.metrics import context_precision, faithfulness
+    from ragas.metrics import faithfulness
 
     payload = {
-        "question": [s.question for s in samples],
-        "answer": [s.answer for s in samples],
-        "contexts": [s.contexts for s in samples],
-        "ground_truth": [s.ground_truth for s in samples],
+        "user_input": [s.question for s in samples],
+        "response": [s.answer for s in samples],
+        "retrieved_contexts": [s.contexts for s in samples],
     }
     ds = Dataset.from_dict(payload)
-    result = evaluate(ds, metrics=[faithfulness, context_precision])
+    result = evaluate(ds, metrics=[faithfulness])
     df = result.to_pandas()
     means: dict[str, float] = {}
-    for metric in ("faithfulness", "context_precision"):
+    for metric in ("faithfulness",):
         if metric in df.columns:
             means[metric] = float(df[metric].mean())
     return means
@@ -395,33 +394,10 @@ def faithfulness_stub(samples: list[RagasSample]) -> float:
     return sum(per_sample_scores) / len(per_sample_scores)
 
 
-def context_precision_stub(samples: list[RagasSample]) -> float:
-    """Fraction of retrieved contexts whose case_id appears in
-    EvalCase.retrieved_context_ids of the latest propose_eval_case call.
-    """
-
-    if not samples:
-        return 0.0
-    per_sample_scores: list[float] = []
-    for sample in samples:
-        if not sample.contexts:
-            per_sample_scores.append(0.0)
-            continue
-        cited = set(sample.retrieved_context_ids)
-        hits = 0
-        for ctx in sample.contexts:
-            # _context_text_from_item formats as "<case_id>: <summary> [<tags>]".
-            case_id = ctx.split(":", 1)[0].strip()
-            if case_id in cited:
-                hits += 1
-        per_sample_scores.append(hits / len(sample.contexts))
-    return sum(per_sample_scores) / len(per_sample_scores)
-
-
 def _resolve_ground_truth_source(samples: list[RagasSample]) -> str:
     sources = {s.ground_truth_source for s in samples}
     if not sources:
-        return "self"
+        return GROUND_TRUTH_SOURCE_NONE
     if len(sources) == 1:
         return next(iter(sources))
     return "mixed"
@@ -436,7 +412,7 @@ def build_report(
     report = RagasReport(skipped=skipped)
     if not samples:
         report.ragas_mode = "stub"
-        report.metric_means = {"faithfulness": 0.0, "context_precision": 0.0}
+        report.metric_means = {"faithfulness": 0.0}
         return report
 
     report.ground_truth_source = _resolve_ground_truth_source(samples)
@@ -446,10 +422,11 @@ def build_report(
             "question": s.question,
             "answer": s.answer,
             "contexts": s.contexts,
-            "ground_truth": s.ground_truth,
             "ground_truth_source": s.ground_truth_source,
             "proposed_failure_type": s.proposed_failure_type,
             "retrieved_context_ids": s.retrieved_context_ids,
+            "tool_name": s.tool_name,
+            "tool_query": s.tool_query,
         }
         for s in samples
     ]
@@ -477,7 +454,6 @@ def build_report(
     report.ragas_mode = "stub"
     report.metric_means = {
         "faithfulness": faithfulness_stub(samples),
-        "context_precision": context_precision_stub(samples),
     }
     return report
 
@@ -517,13 +493,12 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
         if report.ragas_mode == "stub":
             lines.append("")
             lines.append("`faithfulness_stub` is the fraction of evidence claims with at least 50% token overlap against any retrieved context.")
-            lines.append("`context_precision_stub` is the fraction of retrieved contexts whose case IDs were cited by the latest `propose_eval_case` call.")
     else:
         lines.append(f"- (no metrics returned; sample count: {len(report.samples)})")
     lines.append("")
     lines.append("## Skipped traces")
     skipped = report.skipped.to_dict()
-    for key in ("budget_exceeded", "error", "no_trace"):
+    for key in ("budget_exceeded", "error", "no_trace", "no_context"):
         lines.append(f"- {key}: {skipped[key]}")
     lines.append("")
     lines.append("## How this was generated")
@@ -531,7 +506,7 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     lines.append(
         f"`ragas_mode={report.ragas_mode}` — "
         + (
-            "real `ragas` evaluation with `faithfulness` and `context_precision`."
+            "real `ragas` faithfulness evaluation over retrieved contexts."
             if report.ragas_mode == "real"
             else "pure-python stand-ins; no API key required."
         )
@@ -539,20 +514,27 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     lines.append(
         f"`ground_truth_source={report.ground_truth_source}` — "
         + (
-            "labels read from `<data_root>/runs/<run_id>/ground_truth.json` fixtures."
-            if report.ground_truth_source == "fixture"
-            else "labels mirror the agent's own proposed failure_type (self-grading)."
-            if report.ground_truth_source == "self"
-            else "labels are a mix of disk fixtures and agent self-grading."
+            "no artificial or self-generated ground truth is used; "
+            "the report measures whether the final claims are supported "
+            "by retrieved contexts."
+            if report.ground_truth_source == GROUND_TRUTH_SOURCE_NONE
+            else "labels are mixed; this is not expected for the Phase 8 A6 run."
         )
     )
     lines.append("")
     lines.append(
-        "Trace source precedence (Phase 8 A6.1): SQLite `traces` table first "
-        "(`storage.load_trace`); on miss, fall back to the `--trace-dir` "
-        "Phase 8 A2 dump at `<trace_dir>/<run_id>.json`. The run-id discovery "
+        "Trace source precedence (Phase 8 A6.1): explicit `--trace-dir` "
+        "Phase 8 A2 dumps first at `<trace_dir>/<run_id>.json`; on miss, "
+        "fall back to the SQLite `traces` table (`storage.load_trace`). "
+        "The run-id discovery "
         "set is the union of SQLite-resident runs and `<trace_dir>/*.json` "
         "files."
+    )
+    lines.append(
+        "Each RAGAS sample corresponds to one recorded `search_failure_memory` "
+        "or `search_eval_cases` tool call: `question` is the tool query, "
+        "`contexts` are that tool result's items, and `answer` is the final "
+        "`propose_eval_case` actual_behavior plus evidence claims."
     )
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -572,12 +554,16 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Optional Phase 8 A2 trace-dump directory "
-            "(eval/runs/<stamp>/traces/). Consulted only when SQLite "
-            "carries no trace for a given run_id; the agent-eval flow "
-            "writes these dumps and never persists into the SQLite "
-            "`traces` row, so providing this flag is how a fresh eval "
-            "run reaches the RAGAS loader."
+            "(eval/runs/<stamp>/traces/). When supplied, this source is "
+            "preferred over SQLite per run_id so A6 binds to the selected "
+            "agent_eval artefacts."
         ),
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit the number of valid RAGAS samples after collection.",
     )
     parser.add_argument(
         "--output-dir",
@@ -590,6 +576,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip the real ragas path even if available.",
     )
     args = parser.parse_args(argv)
+    if args.limit is not None and args.limit <= 0:
+        parser.error("--limit must be a positive integer")
 
     # Resolve data dir.
     from backend.app.storage import REPO_ROOT
@@ -598,8 +586,21 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = Path(args.output_dir).resolve() if args.output_dir else (REPO_ROOT / "eval").resolve()
     trace_dir = args.trace_dir.resolve() if args.trace_dir is not None else None
 
-    samples, skipped = collect_samples(data_root, trace_dir=trace_dir)
+    print(f"RAGAS trace_dir={trace_dir if trace_dir is not None else '<sqlite-only>'}")
+    print(f"RAGAS output_dir={output_dir}")
+    if args.limit is not None:
+        print(f"RAGAS limit={args.limit}")
+    samples, skipped = collect_samples(data_root, trace_dir=trace_dir, limit=args.limit)
+    print(f"RAGAS collected samples={len(samples)} skipped={skipped.to_dict()}")
+    if args.force_stub:
+        print("RAGAS mode request=stub (--force-stub)")
+    elif os.environ.get("OPENAI_API_KEY"):
+        print("RAGAS mode request=real (OPENAI_API_KEY is set)")
+    else:
+        print("RAGAS mode request=stub (OPENAI_API_KEY is not set)")
+    print("RAGAS evaluate start")
     report = build_report(samples, skipped, force_stub=args.force_stub)
+    print(f"RAGAS evaluate done mode={report.ragas_mode}")
     json_path, md_path = write_report(report, output_dir)
 
     print(f"wrote {json_path}")

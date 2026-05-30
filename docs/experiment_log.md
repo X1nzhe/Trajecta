@@ -22,19 +22,27 @@ Audit summary:
   `terminated_by="error"` that still produced a graded proposal; this is
   reported as a caveat rather than hidden.
 
-The v5 quality columns for judge `acceptable_rate` and `κ_LLM,LLM` remain
-blocked until an operator runs the live Gemini/OpenAI judge pair. They are
-not inferred from the agent-eval report.
+The v5 quality columns are populated from the live Gemini/OpenAI judge
+agreement run at:
+
+```text
+eval/runs/2026-05-30T04-43-34Z/judge/judge_agreement_report.json
+```
+
+Judge A (`gemini-3.1-flash-lite`, `v1_acceptability_gemini`) marked
+13 / 31 drafts acceptable. Judge B (`gpt-5.4-mini-2026-03-17`,
+`v1_acceptability_openai`) marked 15 / 31 drafts acceptable. Their
+κ_LLM,LLM is 0.741 on the full 31-case set.
 
 ## Metrics Snapshot
 
-| Prompt version | Binary acc. | Success recall | Failure recall | Failure type acc. | Step ±2 | Mean tools | Mean latency | Cost |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `v1_minimal` | 0.742 | 0.588 | 0.929 | 0.500 | 0.714 | 4.03 | 14.01 s | $0.948 |
-| `v2_success_rubric` | 0.774 | 0.882 | 0.643 | 0.429 | 0.429 | 2.35 | 11.46 s | $1.201 |
-| `v3_balanced_rubric` | 0.806 | 0.765 | 0.857 | 0.500 | 0.714 | 1.68 | 9.96 s | $1.022 |
-| `v4_search_strategy_rubric` | 0.742 | 0.647 | 0.857 | 0.571 | 0.643 | 1.97 | 9.34 s | $0.930 |
-| `v5_constraint_verification` | 0.677 | 0.412 | 1.000 | 0.571 | 0.786 | 1.61 | 10.57 s | $0.929 |
+| Prompt version | Binary acc. | Success recall | Failure recall | Failure type acc. | Step ±2 | Mean tools | Mean latency | Cost | Judge quality |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `v1_minimal` | 0.742 | 0.588 | 0.929 | 0.500 | 0.714 | 4.03 | 14.01 s | $0.948 | Not judged |
+| `v2_success_rubric` | 0.774 | 0.882 | 0.643 | 0.429 | 0.429 | 2.35 | 11.46 s | $1.201 | Not judged |
+| `v3_balanced_rubric` | 0.806 | 0.765 | 0.857 | 0.500 | 0.714 | 1.68 | 9.96 s | $1.022 | Not judged |
+| `v4_search_strategy_rubric` | 0.742 | 0.647 | 0.857 | 0.571 | 0.643 | 1.97 | 9.34 s | $0.930 | Not judged |
+| `v5_constraint_verification` | 0.677 | 0.412 | 1.000 | 0.571 | 0.786 | 1.61 | 10.57 s | $0.929 | A acceptable 0.419; B acceptable 0.484; κ 0.741 |
 
 ## Experiment Table
 
@@ -50,5 +58,6 @@ not inferred from the agent-eval report.
 
 Use `v3_balanced_rubric` as the best agent-eval prompt by primary metric.
 Use `v5_constraint_verification` only when the objective is to catch every
-failure and tolerate more false positives on successful runs. The judge
-agreement columns remain pending live A/B judge execution.
+failure and tolerate more false positives on successful runs. The live
+judge agreement target is met: κ_LLM,LLM = 0.741, above the 0.6 threshold,
+with 27 / 31 agreement and 4 disagreements.

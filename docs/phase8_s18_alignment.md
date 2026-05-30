@@ -344,23 +344,29 @@ reviewer verdict.
 
 ### A6. Real RAGAS run
 
-**Bug to fix first**: `backend/app/ragas_eval.py` currently reads
-pre-storage-refactor paths and falls back to stub mode even when
-`OPENAI_API_KEY` is set. Phase 8 A6 fixes the path-resolution code so
-it reads from the SQLite `traces` table when a `traces` row exists, and
-from the A2 trace-dump dir otherwise.
+**Bug to fix first**: `backend/app/ragas_eval.py` previously read
+pre-storage-refactor paths and could fall back to stub mode even when
+`OPENAI_API_KEY` was set. Phase 8 A6 fixes the path-resolution code so
+an explicit A2 trace dump (`eval/runs/{ts}/traces/`) wins over older
+SQLite `traces` rows for the same `run_id`, with SQLite retained only as
+a fallback source.
 
 **Run**: after the fix, execute against the A2 trace dumps for the same
-31-sample golden set. Compute `faithfulness` (primary) and
-`context_precision` (secondary). Sample size ≥ 10 to satisfy the S18
-"≥1 RAGAS metric" requirement; running the full 31 is preferred when
-budget allows.
+31-sample golden set. Build samples from recorded
+`search_failure_memory` / `search_eval_cases` tool calls:
+`question = args["query"]`, `contexts = matching tool_result.items`, and
+`answer = propose_eval_case.actual_behavior + evidence claims`. Compute
+no-ground-truth `faithfulness` as the primary and only formal A6 metric.
+Sample size ≥ 10 satisfies the S18 "≥1 RAGAS metric" requirement.
 
 **Acceptance**:
 
 - `eval/ragas_report.md` `mode` field is `"real"`, not `"stub"`.
 - `n` ≥ 10.
-- Skipped-trace counts (budget_exceeded, error, no_trace) reported.
+- `ground_truth_source == "none"`; no answer-correctness, context-recall,
+  or human ground-truth claim is made.
+- Skipped counts (`budget_exceeded`, `error`, `no_trace`, `no_context`)
+  reported.
 
 ### A7. Experiment log
 
@@ -726,18 +732,18 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**A3/A4 live judge artefacts** — the dual-judge and κ_LLM,LLM code path is
-shipped, but this workspace still has no local
-`eval/runs/<ts>/judge/judge_agreement_report.{json,md}` artefact. The next
-Phase 8 acceptance gap is to run the Gemini/OpenAI judge pair against a
-completed 31-sample agent_eval run and record the resulting
-`acceptable_rate` and κ.
+**C1 frontend build / C2 repo hygiene** — A3/A4 live judge agreement is complete:
+`eval/runs/2026-05-30T04-43-34Z/judge/judge_agreement_report.{json,md}`
+reports κ_LLM,LLM = 0.741 on N = 31, above the 0.6 target. A7.1 is also
+complete for the agent_eval v1→v5 prompt comparison and now includes the
+v5 judge columns. A6 real RAGAS is complete with
+`eval/ragas_report.{json,md}` reporting `mode == "real"`, `n = 10`,
+`ground_truth_source == "none"`, and `faithfulness = 0.4068`. A8 failure
+analysis is complete in `docs/failure_analysis.md`.
 
-A7.1 is complete for the agent_eval v1→v5 prompt comparison:
-`docs/experiment_log.md` and README now use five formal local
-`eval/runs/<ts>/agent_report.json` artefacts. A6.2 (real RAGAS run) and
-A6.3 (populated skipped-trace counts) remain `blocked` on operator action
-with a real LLM configuration.
+The next Phase 8 acceptance gap is C1/C2: run the frontend build if the
+frontend dependencies are available, then finish repo hygiene before the
+final push.
 
 ### Agent Handoff Rule
 
@@ -764,9 +770,9 @@ Prompt template for each session:
 
 | Item                            | Blocks                                                                                                            | Operator action                                                                                                                                                |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Gemini provider key + model env | Judge A live verdicts                                                                                             | Set the Gemini-compatible provider key and `TRAJECTA_JUDGE_A_MODEL`, then run `python -m backend.app.agent_eval --trace-dir … --judge` against a real eval run |
-| OpenAI API key + model env      | Judge B live verdicts and real RAGAS                                                                              | Set `OPENAI_API_KEY` and `TRAJECTA_JUDGE_B_MODEL`, then run `python -m backend.app.agent_eval --trace-dir … --judge` and RAGAS against persisted traces        |
-| Real trace artefacts            | Production `eval/judge_report.{json,md}`, κ_LLM,LLM row, RAGAS, and failure-analysis case studies                 | Run the 31-sample `agent_eval` path and keep local `eval/runs/{ts}/traces/`                                                                                    |
+| Gemini provider key + model env | Judge A live verdicts                                                                                             | Resolved 2026-05-29: Judge A report exists under `eval/runs/2026-05-30T04-43-34Z/judge/A/`                                                                    |
+| OpenAI API key + model env      | Judge B live verdicts and real RAGAS                                                                              | Resolved 2026-05-29: Judge B agreement exists; real RAGAS completed with `eval/ragas_report.{json,md}` in `mode == "real"`                                     |
+| Real trace artefacts            | RAGAS and failure-analysis case studies                                                                            | 31-sample v5 traces exist under `eval/runs/2026-05-30T04-43-34Z/traces/`                                                                                       |
 | v1→v5 agent reports             | A7.1 concrete experiment deltas                                                                                   | Resolved 2026-05-29: five formal local `eval/runs/<ts>/agent_report.json` artefacts populate `docs/experiment_log.md`; keep the timestamped reports local     |
 
 
@@ -869,35 +875,35 @@ on a stable `analyze_run` path only.
 
 | Slice                     | Status    | Artefact / outcome                   | Core files                    | Verify                                                   |
 | ------------------------- | --------- | ------------------------------------ | ----------------------------- | -------------------------------------------------------- |
-| A6.1 Fix trace loading    | `done`    | `collect_samples` reads SQLite `traces` first via `storage.load_trace`, falls back to `--trace-dir/<run_id>.json` (Phase 8 A2 dump); discovery set is union of `storage.list_runs()` and `*.json` files; legacy `data/runs/<id>/last_trace.json` path retired; `--trace-dir` CLI flag added; skipped buckets (`budget_exceeded`, `error`, `no_trace`) preserved | `backend/app/ragas_eval.py`, `backend/tests/test_ragas_eval.py` | `cd backend && pytest tests/test_ragas_eval.py` → 21 passed (2026-05-29); full sweep `pytest` → 370 passed, 1 skipped |
-| A6.2 Real mode run        | `blocked` | `mode == "real"`, `n ≥ 10`           | `eval/ragas_report.{json,md}` | `python -m backend.app.ragas_eval` with `OPENAI_API_KEY` |
-| A6.3 Skipped-trace counts | `partial` | Report section exists (stub)         | `eval/ragas_report.md`        | Confirm keys present; populate on real run               |
+| A6.1 Fix trace loading + sample shape | `done`    | `collect_samples` prefers explicit `--trace-dir/<run_id>.json` (Phase 8 A2 dump), falls back to SQLite `traces` via `storage.load_trace`; discovery set is union of `storage.list_runs()` and `*.json` files; legacy `data/runs/<id>/last_trace.json` path retired; samples use real RAG tool-call queries and matching result contexts; `--limit` CLI flag added; skipped buckets (`budget_exceeded`, `error`, `no_trace`, `no_context`) preserved | `backend/app/ragas_eval.py`, `backend/tests/test_ragas_eval.py` | `pytest backend/tests/test_ragas_eval.py` → 25 passed (2026-05-29) |
+| A6.2 Real mode run        | `done` | `mode == "real"`, `n = 10`, `ground_truth_source == "none"`, `faithfulness = 0.4068` | `eval/ragas_report.{json,md}` | `python - <<'PY' ... ragas_eval.main(['--trace-dir', 'eval/runs/2026-05-30T04-43-34Z/traces', '--limit', '10', '--output-dir', 'eval']) ... PY` → real mode completed in 648s |
+| A6.3 Skipped-trace counts | `done` | `budget_exceeded=0`, `error=7`, `no_trace=4`, `no_context=17` | `eval/ragas_report.md`        | Report generated 2026-05-29 from v5 traces               |
 
 
-**Epic status**: `partial` — A6.1 loader shipped; A6.2 real run + A6.3 populated skipped counts both blocked on operator `OPENAI_API_KEY` + real `agent_eval` pass.
+**Epic status**: `done` — A6.1 loader and no-ground-truth sample shape shipped; A6.2 / A6.3 real artefacts generated from the v5 trace dump with `mode == "real"` and sample count 10.
 
 #### A7 — Experiment Log
 
 
 | Slice                          | Status    | Artefact / outcome               | Core files               | Verify                                             |
 | ------------------------------ | --------- | -------------------------------- | ------------------------ | -------------------------------------------------- |
-| A7.1 `docs/experiment_log.md`  | `done`    | Formal v1→v5 deltas populated from five local `eval/runs/<ts>/agent_report.json` artefacts | `docs/experiment_log.md` | Manual audit (2026-05-29): all five reports share the same 31-run set, each has 31 trace JSONs, and `skipped.agent_error=0`; judge columns remain pending A3/A4 live run |
-| A7.2 README table mirror       | `partial` | README § Eval & Experiments mirrors the agent_eval table | `README.md`              | Agent_eval rows updated; judge columns filled after A3/A4 live run |
+| A7.1 `docs/experiment_log.md`  | `done`    | Formal v1→v5 deltas populated from five local `eval/runs/<ts>/agent_report.json` artefacts plus v5 live judge columns | `docs/experiment_log.md` | Manual audit (2026-05-29): all five reports share the same 31-run set, each has 31 trace JSONs, `skipped.agent_error=0`; v5 judge κ=0.741 on N=31 |
+| A7.2 README table mirror       | `done`    | README § Eval & Experiments mirrors the agent_eval table and v5 judge result | `README.md`              | Agent_eval rows updated; judge κ=0.741 reported |
 | A7.3 Spotlighting ablation row | `todo`    | Separate from v1→v5 sequence     | `docs/experiment_log.md` | After B6 injection report                          |
 
 
-**Epic status**: `partial` — A7.1 is done for agent_eval prompt iteration; A7.2 remains partial until judge columns are filled; A7.3 remains todo.
+**Epic status**: `partial` — A7.1 and A7.2 are done; A7.3 remains todo.
 
 #### A8 — Failure Analysis
 
 
 | Slice               | Status | Artefact / outcome                 | Core files                 | Verify                       |
 | ------------------- | ------ | ---------------------------------- | -------------------------- | ---------------------------- |
-| A8.1 Case studies   | `todo` | 2–3 failed samples with root cause | `docs/failure_analysis.md` | Manual review                |
-| A8.2 Trade-off line | `todo` | Quality vs latency vs cost         | `docs/failure_analysis.md` | One closing sentence present |
+| A8.1 Case studies   | `done` | 3 failed / rejected samples with root cause | `docs/failure_analysis.md` | Manual review: cases cover false failure, taxonomy mismatch, and memory/step drift |
+| A8.2 Trade-off line | `done` | Quality vs latency vs cost         | `docs/failure_analysis.md` | Closing sentence present |
 
 
-**Epic status**: `todo`
+**Epic status**: `done`
 
 ---
 
@@ -1001,7 +1007,7 @@ on a stable `analyze_run` path only.
 | D5 `docs/eval_agent.md` MCP subsection      | `todo`    | `docs/eval_agent.md`        | Link to `docs/mcp.md`                                                                                                                                     |
 | D6 README Eval & Experiments                | `partial` | `README.md`                 | Agent_eval table updated; judge column pending A3/A4                                                                                                      |
 | D7 `docs/experiment_log.md`                 | `done`    | `docs/experiment_log.md`    | See A7.1                                                                                                                                                  |
-| D8 `docs/failure_analysis.md`               | `todo`    | `docs/failure_analysis.md`  | See A8                                                                                                                                                    |
+| D8 `docs/failure_analysis.md`               | `done`    | `docs/failure_analysis.md`  | See A8                                                                                                                                                    |
 
 
 **Epic status**: `partial`
@@ -1025,7 +1031,7 @@ A single block to verify before the 48-hour push.
 [ ] eval/judge_report.md    κ_LLM,LLM row present with N=31 preferred, or reported deterministic stratified subset with `sample_size` and `selection_policy`
 [ ] eval/ragas_report.md    mode == "real", n ≥ 10
 [ ] README.md    "Eval & Experiments" table ≥ 5 rows with concrete deltas
-[ ] docs/failure_analysis.md    2-3 cases + one-line trade-off
+[x] docs/failure_analysis.md    2-3 cases + one-line trade-off
 [ ] mcp/server.py    planned lower-priority slice: six tools, zero excluded tools, analyze_run composite
 [ ] docs/mcp.md    tool inventory + analyze_run diagram + demo script
 [ ] docs/security_governance.md    nine-mechanism table with source links

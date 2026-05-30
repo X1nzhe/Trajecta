@@ -204,20 +204,30 @@ the Phase 8 Gemini/OpenAI judge run completes. See
 [docs/experiment_log.md](docs/experiment_log.md) for the full table and
 per-round source artefacts and caveats.
 
+For the v5 judge run, Judge A (`gemini-3.1-flash-lite`) accepted 13 / 31
+drafts and Judge B (`gpt-5.4-mini-2026-03-17`) accepted 15 / 31. The
+dual-judge agreement target is met: κ_LLM,LLM = 0.741 on the full
+31-case set.
+
 ### RAGAS
 
 ```bash
-cd backend
-python -m app.ragas_eval
+python -m backend.app.ragas_eval --trace-dir eval/runs/{timestamp}/traces --limit 10
 ```
 
-Reads from the SQLite `traces` table when present and from the most recent
-`eval/runs/{ts}/traces/` dir otherwise. Produces `eval/ragas_report.{json,md}`
-with `faithfulness` (primary) and `context_precision` (secondary).
+Reads recorded RAG tool queries and their matching retrieved contexts from the
+selected trace dump, then falls back to the SQLite `traces` table only when a
+dump is missing. Produces `eval/ragas_report.{json,md}` with no-ground-truth
+retrieval-grounded `faithfulness`; it is not an answer-correctness or human
+ground-truth evaluation.
 
 The stub-mode fallback remains for offline development but is **not** an
 acceptable production artefact under S18 § 2.2 Build 3 — `mode == "real"`
-is required, `n ≥ 10`.
+is required, sample count `≥ 10`.
+
+Latest Phase 8 A6 run: `eval/ragas_report.{json,md}` was generated from the
+v5 traces with `--limit 10`, `mode=real`, `ground_truth_source=none`, and
+`faithfulness=0.4068`.
 
 ### LLM judge + Cohen's κ
 

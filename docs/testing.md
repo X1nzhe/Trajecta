@@ -8,7 +8,7 @@ Trajecta's eval surface has four pillars. Each maps to a specific S18
 | --- | --- | --- |
 | Golden set | `eval/golden.jsonl`, 35 cases | 2.2 Build 1 |
 | Deterministic unit suite | `backend/tests/`, OfflineAgentMock | 2.2 Build 2 |
-| Semantic metric | `eval/ragas_report.{json,md}`, faithfulness + context_precision | 2.2 Build 3 |
+| Semantic metric | `eval/ragas_report.{json,md}`, no-ground-truth RAGAS faithfulness | 2.2 Build 3 |
 | LLM judge + κ | `eval/judge.py`, `eval/judge_report.{json,md}` | 2.2 Build 4 |
 
 ## Golden Set
@@ -277,23 +277,22 @@ Phase 8.
 
 ## RAGAS Evaluation
 
-Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads persisted `AgentTrace` records via `storage.load_trace(run_id)` (the `traces` SQLite table — no live agent re-runs, no live retrieval) and writes the report files below.
+Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads persisted `AgentTrace` records from an explicit `--trace-dir` first, then falls back to `storage.load_trace(run_id)` from the `traces` SQLite table. It does not re-run the agent or retrieval.
 
-Run one minimal RAGAS eval over failure memory RAG.
+Run one minimal no-ground-truth RAGAS eval over failure memory RAG.
 
-Preferred metrics:
+Primary metric:
 
 - `faithfulness`
-- `context_precision`
 
 Input shape:
 
 ```python
 {
-  "question": "What failure pattern does this trajectory most closely match?",
+  "question": search_tool_call.args["query"],
   "answer": ragas_answer_from_trace(trace),
-  "contexts": retrieved_context_texts_from_search_tool_results,
-  "ground_truth": "missed_constraint"
+  "contexts": matching_search_tool_result_items_as_text,
+  "ground_truth_source": "none"
 }
 ```
 
@@ -327,10 +326,12 @@ def ragas_answer_from_trace(trace: AgentTrace) -> str:
 
 Rules:
 
-- Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` are included in the RAGAS sample; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
+- Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` can contribute RAGAS samples; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
 - The answer text intentionally excludes `expected_behavior`, `regression_rule`, and `agent_message` events. `expected_behavior` describes the correct outcome (not the agent's claim about *this* run), and free-form `agent_message` text often contains discarded hypotheses that would inflate hallucination signal unfairly.
 - `actual_behavior` and `evidence[*].claim` are read from the **trace** (the tool-call `args`), not from a persisted `EvalCase` file, because drafts are not persisted and the trace is the only source available to `ragas_eval.py` (see [docs/eval_agent.md](eval_agent.md) Observability section).
-- `contexts` are accumulated from **all** `search_failure_memory` / `search_eval_cases` `tool_result` events in the trace, regardless of turn. A follow-up turn that retrieves additional evidence contributes to the same RAGAS sample as the initial turn's retrievals.
+- Each RAGAS sample corresponds to one recorded `search_failure_memory` or `search_eval_cases` tool call. `question` is that tool call's `args["query"]`; `contexts` are the matching following `tool_result.items`, not a cross-trace or whole-trace context pool.
+- No human or self-generated `ground_truth` is used. The A6 claim is limited to retrieval-grounded faithfulness: whether the final `actual_behavior` and evidence claims are supported by the contexts retrieved for the recorded query. It does not measure answer correctness, context recall, or human agreement.
+- RAG tool calls with no usable contexts are skipped and counted under `no_context`.
 
 Output files:
 
@@ -346,13 +347,19 @@ real RAGAS the deliverable:
 
 - Fix the path-resolution bug in `backend/app/ragas_eval.py`. The Phase
   7 version reads pre-storage-refactor paths and falls back to stub mode
-  even when `OPENAI_API_KEY` is set. Phase 8 reads from the SQLite
-  `traces` table when present and from the eval-harness trace dump dir
-  (`eval/runs/{ts}/traces/`, see Phase 8 A2) otherwise.
-- Run against ≥ 10 traces from the most recent golden-set evaluation.
+  even when `OPENAI_API_KEY` is set. Phase 8 reads from the explicit
+  eval-harness trace dump dir (`eval/runs/{ts}/traces/`, see Phase 8 A2)
+  first, then falls back to the SQLite `traces` table.
+- Run against ≥ 10 real RAG tool-call samples from the most recent golden-set evaluation.
 - `eval/ragas_report.md` `mode` field must read `"real"`, not `"stub"`.
 - The S18 § 2.2 Build 3 requirement is satisfied by `faithfulness`
-  alone; `context_precision` is reported as a secondary signal.
+  alone; no `ground_truth` or `context_precision` claim is made for A6.
+
+Latest Phase 8 A6 artefact: `eval/ragas_report.{json,md}` was generated
+from `eval/runs/2026-05-30T04-43-34Z/traces` with `--limit 10`; it reports
+`ragas_mode="real"`, `ground_truth_source="none"`, sample count 10,
+`faithfulness=0.4068`, and skipped counts
+`budget_exceeded=0`, `error=7`, `no_trace=4`, `no_context=17`.
 
 The stub-mode fallback remains in the code for offline development but
 is no longer an acceptable production artefact.
@@ -473,8 +480,12 @@ tests/test_agent_eval.py            (extend)
 - judge post-step runs env-configured Gemini-compatible and OpenAI-compatible judge configs with different committed judge prompt versions
 
 tests/test_ragas_eval.py            (extend)
-- path resolver reads from the SQLite traces table when a row exists
-- path resolver falls back to the eval-trace dump dir when no SQLite row exists
+- path resolver prefers the explicit eval-trace dump dir over SQLite when both exist
+- path resolver falls back to the SQLite traces table when no trace-dir file exists
+- samples use real RAG tool-call queries and matching tool-result contexts
+- `ground_truth_source` is `none`; disk fixtures do not turn A6 into answer correctness
+- retrieval calls without usable contexts increment `no_context`
+- `--limit` restricts valid sample count and is threaded through the CLI
 - mode field on the produced report is "real" when OPENAI_API_KEY is set and at least one trace is loadable
 - mode field falls back to "stub" only when OPENAI_API_KEY is unset
 
