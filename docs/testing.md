@@ -9,7 +9,7 @@ Trajecta's eval surface has four pillars. Each maps to a specific S18
 | Golden set | `eval/golden.jsonl`, 35 cases | 2.2 Build 1 |
 | Deterministic unit suite | `backend/tests/`, OfflineAgentMock | 2.2 Build 2 |
 | Semantic metric | `eval/ragas_report.{json,md}`, no-ground-truth RAGAS faithfulness | 2.2 Build 3 |
-| LLM judge + κ | `eval/judge.py`, `eval/judge_report.{json,md}` | 2.2 Build 4 |
+| LLM judge + κ | `eval/judge.py`, `eval/runs/{ts}/judge/judge_agreement_report.{json,md}` | 2.2 Build 4 |
 
 ## Golden Set
 
@@ -185,7 +185,7 @@ python -m backend.app.agent_eval \
     --trace-dir eval/runs/{timestamp}/traces \
     --judge
 
-# Rerun/debug path:
+# Rerun/debug path for a single configured slot:
 python -m eval.judge \
     --golden eval/golden.jsonl \
     --report eval/agent_report.json \
@@ -204,27 +204,22 @@ TRAJECTA_JUDGE_B_MODEL=<openai-model-id>
 TRAJECTA_JUDGE_B_PROMPT_VERSION=<judge-b-prompt-version>
 ```
 
-Advanced overrides may exist for experiments. Keep them out of the README
-main flow:
-
-```text
-python -m eval.judge \
-    --golden eval/golden.jsonl \
-    --report eval/agent_report.json \
-    --trace-dir eval/runs/{timestamp}/traces \
-    --judge-a-model <gemini-model-id> \
-    --judge-a-prompt-version <judge-a-prompt-version> \
-    --judge-b-model <openai-model-id> \
-    --judge-b-prompt-version <judge-b-prompt-version> \
-    --out eval/judge_report.json
-```
+Standalone reruns read one configured slot at a time. The production
+`agent_eval --judge` path runs the configured A/B slots and writes the
+agreement artefact under the timestamped eval archive.
 
 ### Outputs
 
-- `eval/judge_report.json` — per-case verdicts, acceptability
-  assertions, aggregate `acceptable_rate` by judge, and the κ_LLM,LLM row.
-- `eval/judge_report.md` — human-readable summary modelled on
-  `eval/agent_report.md`.
+- Production post-step:
+  `eval/runs/{timestamp}/judge/judge_agreement_report.{json,md}` —
+  κ_LLM,LLM across the successful Judge A/B slot reports.
+- Per-slot reports:
+  `eval/runs/{timestamp}/judge/{A,B}/judge_report.{json,md}` —
+  per-case verdicts, acceptability assertions, and aggregate
+  `acceptable_rate` for one judge.
+- Standalone rerun/debug:
+  `eval/judge_report.{json,md}` when `python -m eval.judge --out
+  eval/judge_report.json` is used for one configured slot.
 
 ## Cohen's κ
 
@@ -461,8 +456,8 @@ tests/test_golden_set.py            (new)
 tests/test_judge.py                 (new)
 - judge extracts the latest eval_case_draft from each agent_eval trace
 - mechanical prechecks produce reproducible assertion context
-- judge_report.json stores verdicts plus acceptability assertions
-- judge_report.json carries the κ_LLM,LLM row for Gemini vs OpenAI
+- judge_report.json stores per-slot verdicts plus acceptability assertions
+- judge_agreement_report.json carries the κ_LLM,LLM row for Gemini vs OpenAI
 - Cohen's κ matches a hand-computed value on a fixture Gemini/OpenAI verdict pair
 - disagreement-analysis section renders when κ < 0.6
 - judge does not synthesize verdicts from golden references
@@ -489,18 +484,19 @@ tests/test_ragas_eval.py            (extend)
 - mode field on the produced report is "real" when OPENAI_API_KEY is set and at least one trace is loadable
 - mode field falls back to "stub" only when OPENAI_API_KEY is unset
 
-tests/test_spotlight.py             (new, Phase 8 B6)
+tests/test_prompts.py               (Phase 8 B6 Spotlighting hardening)
 - spotlight_wrap() returns the same delimiter token within one agent run and different tokens across runs
-- spotlight_wrap() of an empty string still emits a valid delimited pair
-- trajectory_digest assembly wraps every StepObservation.visible_text, action_target, URL, and VLM text output
-- internal RAG retrieval results and agent message history are NOT wrapped
-- active system prompt contains the anti-injection preamble; sha256 stamp on the trace reflects it
+- spotlight_wrap() of an empty string still emits a valid delimited pair; off-mode is identity; missing token raises
+- spotlighting_enabled() parses TRAJECTA_SPOTLIGHTING (default on) and rejects unknown values
+- load_prompt_bundle prepends the anti-injection preamble when on; system + combined sha256 differ between on/off
 
-tests/test_injection_eval.py        (new, Phase 8 B6)
-- eval/injection_golden.jsonl validates against the GoldenCase schema and has ≥ 8 entries
-- injection_resistance_rate computation matches a hand-counted reference on a fixture
-- baseline-disabled run records injection_followed=True at least once on the crafted set (sanity: the eval is doing something)
-- Spotlighting-enabled run records strictly higher injection_resistance_rate than baseline on the same fixture set
+tests/test_eval_agent.py::SpotlightingWrapTests   (Phase 8 B6 Spotlighting hardening)
+- the initial digest HumanMessage wraps action_text, action_target, URL, title, and VLM low-detail summary in `<TRAJECTA_DATA_*>` markers
+- get_step_detail wraps vlm_summary, task_context, and observation text; the trusted run.task stays unwrapped
+- internal RAG retrieval results and agent message history are NOT wrapped
+- on/off runs stamp different prompt_sha256 and AgentTrace.spotlighting_enabled; followup re-mints a fresh token
+
+Spotlighting is unit-tested production hardening only — there is no injection golden set or `injection_resistance_rate` eval in Phase 8.
 
 ```
 
@@ -540,7 +536,7 @@ Checklist":
 
 - `eval/golden.jsonl` — 35 rows, schema-valid, all 8 categories present.
 - `eval/runs/{ts}/traces/` — per-sample trace JSONs from the last eval run (local-only).
-- `eval/judge_report.md` — κ_LLM,LLM row present with N=31 preferred, or a reported deterministic stratified subset; if κ < 0.6, disagreement analysis section present.
+- `eval/runs/{ts}/judge/judge_agreement_report.md` — κ_LLM,LLM row present with N=31 preferred, or a reported deterministic stratified subset; if κ < 0.6, disagreement analysis section present.
 - `eval/ragas_report.md` — `mode == "real"`, `n ≥ 10`.
 - `README.md` — "Eval & Experiments" table ≥ 5 rows with concrete metric deltas (no "improved slightly" phrasing).
 - `docs/failure_analysis.md` — 2–3 case studies + one-line trade-off.

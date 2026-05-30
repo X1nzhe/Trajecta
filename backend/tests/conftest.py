@@ -73,7 +73,7 @@ def real_llm_configured() -> bool:
 
 @pytest.fixture(autouse=True)
 def _isolated_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
-    from backend.app import db
+    from backend.app import db, prompts
 
     tmp = tempfile.TemporaryDirectory()
     monkeypatch.setenv("TRAJECTA_DATA_DIR", tmp.name)
@@ -83,9 +83,18 @@ def _isolated_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     monkeypatch.delenv("TRAJECTA_AGENT_MODEL", raising=False)
     monkeypatch.delenv("TRAJECTA_VLM_MODEL", raising=False)
     monkeypatch.delenv("TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION", raising=False)
+    # Default tests to Spotlighting OFF so existing fixtures that assert on
+    # raw vlm_summary / observation.url / digest fields keep passing. The
+    # Phase 8 B6 test suite (test_prompts.py, test_eval_agent.py spotlighting
+    # cases, test_tools.py spotlighting cases) explicitly flips this to "on".
+    monkeypatch.setenv(prompts.SPOTLIGHTING_ENV_VAR, "off")
+    prompts.load_prompt_bundle.cache_clear()
+    prompts.set_spotlight_token(None)
     db.reset_engine_cache()
     try:
         yield tmp.name
     finally:
+        prompts.load_prompt_bundle.cache_clear()
+        prompts.set_spotlight_token(None)
         db.reset_engine_cache()
         tmp.cleanup()

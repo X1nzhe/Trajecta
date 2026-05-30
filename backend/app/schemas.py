@@ -270,6 +270,12 @@ class AgentTrace(BaseModel):
     # to None; new traces stamp both at initial analyze.
     prompt_version: str | None = None
     prompt_sha256: str | None = None
+    # Phase 8 B6 Spotlighting state at trace start. When True, the system
+    # prompt was prepended with the anti-injection preamble and untrusted
+    # trajectory text passed through `spotlight_wrap()` before reaching the
+    # LLM. Recorded for audit so historical reports can distinguish on/off
+    # ablation runs. Old traces deserialize with False.
+    spotlighting_enabled: bool = False
     # The VLM that backed `get_step_detail` calls within this trace, plus
     # cumulative token usage across all calls (initial + followups).
     # `vlm_model` is stamped at trace creation from TRAJECTA_VLM_MODEL —

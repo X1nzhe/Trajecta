@@ -199,10 +199,10 @@ drops to 41.2 %. Full per-round metrics and deltas are in
 | 4 | `v4_search_strategy_rubric` | Clarify successful-run retrieval vs failure-memory retrieval. | Binary accuracy -6.5 pp; failure-type accuracy rises to 57.1 %. | Retrieval guidance helps the advisory failure-type signal, not the headline metric. |
 | 5 | `v5_constraint_verification` | Emphasize constraint evidence and failure verification. | Binary accuracy -6.5 pp; failure recall +14.3 pp to 100.0 %; success recall -23.5 pp. | Best for catching failures, but not the best general prompt. |
 
-The judge columns (`acceptable_rate` by judge and κ_LLM,LLM) are added once
-the Phase 8 Gemini/OpenAI judge run completes. See
-[docs/experiment_log.md](docs/experiment_log.md) for the full table and
-per-round source artefacts and caveats.
+The v5 judge columns (`acceptable_rate` by judge and κ_LLM,LLM) are
+populated from the Phase 8 Gemini/OpenAI judge run. See
+[docs/experiment_log.md](docs/experiment_log.md) for the full table,
+source artefacts, and caveats.
 
 For the v5 judge run, Judge A (`gemini-3.1-flash-lite`) accepted 13 / 31
 drafts and Judge B (`gpt-5.4-mini-2026-03-17`) accepted 15 / 31. The
@@ -239,7 +239,8 @@ python -m backend.app.agent_eval \
     --trace-dir eval/runs/{timestamp}/traces \
     --judge
 
-# Standalone judge rerun + κ_LLM,LLM rollup
+# Standalone judge rerun/debug path for a single configured slot.
+# The production κ artefact is under eval/runs/{timestamp}/judge/.
 python -m eval.judge \
     --golden eval/golden.jsonl \
     --report eval/agent_report.json \
@@ -259,6 +260,11 @@ pre-registered stratified subset is allowed if the report states
 `sample_size`, `selection_policy`, and skipped counts. When κ < 0.6, the
 report includes disagreement analysis over the split assertions — we do
 **not** silently relax the judge contract.
+
+In the production post-step, the agreement report is written to
+`eval/runs/{timestamp}/judge/judge_agreement_report.{json,md}`. The
+root-level `eval/judge_report.{json,md}` path is reserved for standalone
+rerun/debug output from `python -m eval.judge`.
 
 A human second judge is deliberately deferred because reviewer UI, workflow,
 and label-management design would expand Phase 8 scope.

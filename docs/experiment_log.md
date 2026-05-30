@@ -61,3 +61,14 @@ Use `v5_constraint_verification` only when the objective is to catch every
 failure and tolerate more false positives on successful runs. The live
 judge agreement target is met: κ_LLM,LLM = 0.741, above the 0.6 threshold,
 with 27 / 31 agreement and 4 disagreements.
+
+## Note on Spotlighting (B6)
+
+The Phase 8 B6 Spotlighting defense (delimiting wrap + anti-injection
+preamble) is a small production hardening feature, not an experiment in
+this log. It is shipped and unit-tested but deliberately **unmeasured** —
+there is no injection golden set, ablation, or `injection_resistance_rate`
+in Phase 8. A formal prompt-injection benchmark would be a separate
+security-evaluation phase. See
+[docs/security_governance.md](security_governance.md) Mechanism 9 for the
+defense description and threat model.
