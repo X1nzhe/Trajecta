@@ -102,6 +102,23 @@ except ImportError:  # pragma: no cover - python-dotenv is a hard dep
 from backend.app import eval_agent_graph, prompts, rag, storage
 from backend.app.schemas import AgentTrace
 
+# Phase 8 A3.5 — the post-step judge runner delegates to the A3.4
+# standalone CLI seam so this module never re-implements payload
+# assembly, LLM dispatch, or report writing. Importing at module top is
+# safe: ``eval.judge`` only depends on ``backend.app.{storage,schemas}``,
+# so no circular import is formed.
+from eval.judge import (  # noqa: E402
+    DEFAULT_GOLDEN_PATH as _JUDGE_DEFAULT_GOLDEN_PATH,
+    JudgeConfig,
+    JudgeProviderError,
+    LLMJudgeCallable,
+    build_judge_agreement_report,
+    judge_config_from_env,
+    run_standalone_judge,
+    write_judge_agreement_report,
+)
+from eval.judge import _default_judge_callable as _judge_default_callable  # noqa: E402
+
 TERMINAL_TOOL = "propose_eval_case"
 
 # v1 failure-type vocabulary (see docs/contracts.md "v1 Failure Type
@@ -1385,6 +1402,197 @@ def write_mock_smoke_test(
 
 
 # ---------------------------------------------------------------------------
+# Phase 8 A3.5 — post-eval LLM judge step
+#
+# After the production eval finishes writing its archive + per-sample
+# trace dumps, ``--judge`` fans the env-configured Gemini-compatible /
+# OpenAI-compatible judge slots across those artefacts via the A3.4
+# ``run_standalone_judge`` seam. The default callable (A4.1) builds an
+# OpenAI-compatible chat-completions client per slot from
+# ``TRAJECTA_JUDGE_<slot>_API_KEY`` / ``TRAJECTA_JUDGE_<slot>_BASE_URL``;
+# a slot whose env config is incomplete (missing key, missing SDK, or
+# a runtime transport error) surfaces as a per-slot ``failed`` entry
+# rather than aborting the whole run, so a single bad slot does not
+# block the other from producing its judge report.
+
+# Judge artefacts land beside the timestamped agent_report archive so
+# each eval run is a self-contained directory (report + traces + judge
+# stanzas) that survives independently of ``eval/agent_report.{json,md}``
+# being overwritten by the next eval invocation.
+_JUDGE_OUTPUT_SUBDIR = "judge"
+
+
+def _run_judge_post_step(
+    *,
+    report_path: Path,
+    trace_dir: Path | None,
+    archive_dir: Path,
+    golden_path: Path | None = None,
+    judge_callable: LLMJudgeCallable | None = None,
+    env: dict[str, str] | None = None,
+    prompts_root: Path | None = None,
+) -> int:
+    """Run env-configured judge slot(s) over the just-written eval run.
+
+    Returns:
+
+      * ``0`` — at least one slot was configured and produced a report.
+      * ``2`` — operator wiring error: no trace_dir to grade against, or
+        ``--judge`` was set but neither TRAJECTA_JUDGE_<slot>_MODEL +
+        TRAJECTA_JUDGE_<slot>_PROMPT_VERSION pair is complete.
+      * ``1`` — every configured slot raised an error (missing API key,
+        provider transport failure, etc.). The eval itself succeeded —
+        only the judge slots are unhealthy.
+
+    ``judge_callable`` / ``env`` / ``prompts_root`` are test-injection
+    seams so the post-step can be exercised end-to-end without a real
+    provider or the committed ``prompts/judge/`` tree. Production
+    callers leave them ``None``.
+    """
+    if trace_dir is None:
+        print(
+            "error: --judge requires per-sample trace dumps, but no"
+            " trace_dir was resolved for this run; pass --trace-dir or"
+            " run without --mock so the default eval/runs/<stamp>/traces"
+            " path is used.",
+            file=sys.stderr,
+        )
+        return 2
+
+    src = env if env is not None else os.environ
+    configured: list[JudgeConfig] = []
+    missing_slots: list[str] = []
+    for slot in ("A", "B"):
+        cfg = judge_config_from_env(slot, env=src)  # type: ignore[arg-type]
+        if cfg is None:
+            missing_slots.append(slot)
+        else:
+            configured.append(cfg)
+
+    if not configured:
+        print(
+            "error: --judge requested but no TRAJECTA_JUDGE_<slot>_MODEL"
+            " + TRAJECTA_JUDGE_<slot>_PROMPT_VERSION pair is set."
+            f" Missing slots: {missing_slots}.",
+            file=sys.stderr,
+        )
+        return 2
+
+    resolved_golden = golden_path or _JUDGE_DEFAULT_GOLDEN_PATH
+    judge_root = archive_dir / _JUDGE_OUTPUT_SUBDIR
+
+    ran: list[str] = []
+    failed: list[str] = []
+    reports_by_slot = {}
+    for cfg in configured:
+        out_path = judge_root / cfg.slot / "judge_report.json"
+        # Build a slot-specific callable from the same ``env`` the
+        # config resolver saw. Falling back to ``_default_judge_callable``
+        # inside ``run_llm_judge`` would re-read ``os.environ``, which
+        # silently bypasses the post-step's injected env in tests.
+        slot_callable = judge_callable
+        if slot_callable is None:
+            try:
+                slot_callable = _judge_default_callable(cfg, env=src)  # type: ignore[arg-type]
+            except JudgeProviderError as exc:
+                print(
+                    f"Judge {cfg.slot}: failed (provider unavailable) — {exc}.",
+                    file=sys.stderr,
+                )
+                failed.append(cfg.slot)
+                continue
+        try:
+            result = run_standalone_judge(
+                golden_path=resolved_golden,
+                report_path=report_path,
+                trace_dir=trace_dir,
+                out_path=out_path,
+                config=cfg,
+                judge_callable=slot_callable,
+                prompts_root=prompts_root,
+            )
+        except JudgeProviderError as exc:
+            # Slot config is structurally complete (model + prompt
+            # version were resolved) but the provider call cannot be
+            # made — missing API key, missing SDK, or runtime error.
+            # Log the slot-tagged message and move on so a single bad
+            # slot does not block the other.
+            print(
+                f"Judge {cfg.slot}: failed (provider unavailable) — {exc}.",
+                file=sys.stderr,
+            )
+            failed.append(cfg.slot)
+            continue
+        except Exception as exc:  # noqa: BLE001 — log per-slot, continue
+            print(
+                f"Judge {cfg.slot}: failed ({type(exc).__name__}: {exc}).",
+                file=sys.stderr,
+            )
+            failed.append(cfg.slot)
+            continue
+        print(
+            f"Judge {cfg.slot} ({cfg.model}, prompt={cfg.prompt_version}):"
+            f" graded {len(result.graded_run_ids)} cases →"
+            f" {result.json_path}",
+            file=sys.stderr,
+        )
+        for reason, ids in result.skipped.items():
+            print(
+                f"  Judge {cfg.slot} skipped[{reason}]={len(ids)}",
+                file=sys.stderr,
+            )
+        ran.append(cfg.slot)
+        reports_by_slot[cfg.slot] = result.report
+
+    agreement_failed = False
+    if "A" in reports_by_slot and "B" in reports_by_slot:
+        agreement_path = judge_root / "judge_agreement_report.json"
+        try:
+            agreement = build_judge_agreement_report(
+                reports_by_slot["A"],
+                reports_by_slot["B"],
+            )
+            json_path, md_path = write_judge_agreement_report(
+                agreement,
+                agreement_path,
+            )
+        except Exception as exc:  # noqa: BLE001 — bad pairing is a judge failure
+            print(
+                "Judge agreement: failed "
+                f"({type(exc).__name__}: {exc}).",
+                file=sys.stderr,
+            )
+            failed.append("agreement")
+            agreement_failed = True
+        else:
+            print(
+                "Judge agreement (κ_LLM,LLM):"
+                f" wrote {json_path} and {md_path}",
+                file=sys.stderr,
+            )
+    elif ran:
+        missing_for_agreement = [
+            slot for slot in ("A", "B") if slot not in reports_by_slot
+        ]
+        print(
+            "Judge agreement: skipped because both slots did not succeed."
+            f" Missing successful slots: {missing_for_agreement}.",
+            file=sys.stderr,
+        )
+
+    print(
+        f"Judge post-step summary: configured={[c.slot for c in configured]}"
+        f" ran={ran} failed={failed}",
+        file=sys.stderr,
+    )
+    if agreement_failed:
+        return 1
+    if ran:
+        return 0
+    return 1
+
+
+# ---------------------------------------------------------------------------
 # CLI
 
 
@@ -1457,7 +1665,30 @@ def main(argv: list[str] | None = None) -> int:
             " path here to force dumping in mock mode."
         ),
     )
+    parser.add_argument(
+        "--judge",
+        action="store_true",
+        help=(
+            "Run the env-configured LLM judge(s) over the just-written"
+            " agent_report.json + trace dumps after the eval finishes."
+            " Requires TRAJECTA_JUDGE_<slot>_MODEL and"
+            " TRAJECTA_JUDGE_<slot>_PROMPT_VERSION for at least one slot"
+            " (A or B). Each configured slot emits"
+            " <out>/runs/<stamp>/judge/<slot>/judge_report.{json,md}."
+            " Not compatible with --mock — mock mode does not produce a"
+            " real report worth grading."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.judge and args.mock:
+        print(
+            "error: --judge is incompatible with --mock; mock mode does "
+            "not produce a real agent_report to grade. Run the eval "
+            "without --mock first, then pass --judge.",
+            file=sys.stderr,
+        )
+        return 2
 
     # Eval mode is the only mode this harness has. Auto-enable so users
     # don't have to remember `TRAJECTA_EVAL_MODE=1` on every invocation.
@@ -1643,6 +1874,19 @@ def main(argv: list[str] | None = None) -> int:
         )
     if cost_usd.get("total_usd") is not None:
         print(f"Total cost: ${cost_usd['total_usd']:.4f} USD", file=sys.stderr)
+
+    if args.judge:
+        # The eval artefacts are now on disk; hand them to the A3.4
+        # standalone judge runner. The post-step's return code overrides
+        # the eval's "0" only when the operator explicitly asked for a
+        # judge — otherwise an unwired judge slot would silently fail
+        # green.
+        return _run_judge_post_step(
+            report_path=archive_json_path,
+            trace_dir=resolved_trace_dir,
+            archive_dir=archive_dir,
+        )
+
     return 0
 
 

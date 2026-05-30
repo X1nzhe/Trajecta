@@ -717,16 +717,22 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**A3.5** — `agent_eval --judge` post-step: invoke
-`run_standalone_judge` (now shipped in A3.4) immediately after
-`agent_eval` writes its report + trace dumps, fanning out one
-env-configured judge slot per `TRAJECTA_JUDGE_<slot>_*` pair found in
-the environment. The deterministic test path stays the A3.4
-`run_standalone_judge` seam with mocked `judge_callable`; A3.5 only
-adds the eval-side glue.
+**A7.1** — blocked on missing local `eval/runs/<ts>/agent_report.json`
+artefacts. `docs/experiment_log.md` has a placeholder that lists the
+required v1→v5 fields, but the concrete metric deltas
+(binary_verdict_accuracy, failure/success recall split, mean
+tool_call_count, mean wall-clock latency) must be drawn from local
+`eval/runs/<ts>/agent_report.json` reports. Do not fabricate experiment
+numbers. Reserve the v5 quality columns for A3.4 / A4.3 acceptable rates
++ κ_LLM,LLM once an operator runs the live judge pair and keeps the
+`judge_agreement_report.{json,md}` artefacts.
 
-Do **not** start A4 (two-model κ_LLM,LLM rollup) until A3.5 verify
-passes.
+A6.2 (real RAGAS run) and A6.3 (populated skipped-trace counts) stay
+`blocked` on operator action — both need `OPENAI_API_KEY` and a real
+agent_eval pass. The A6.1 loader fix is the codeable prerequisite;
+real-mode execution is out of scope here. Do **not** run real-mode
+RAGAS, touch A6.2 / A6.3 deliverables, or open A7.3 / A8 / MCP / B6
+until A7.1 verify passes.
 
 ### Agent Handoff Rule
 
@@ -756,6 +762,7 @@ Prompt template for each session:
 | Gemini provider key + model env | Judge A live verdicts                                                                                             | Set the Gemini-compatible provider key and `TRAJECTA_JUDGE_A_MODEL`, then run `python -m backend.app.agent_eval --trace-dir … --judge` against a real eval run |
 | OpenAI API key + model env      | Judge B live verdicts and real RAGAS                                                                              | Set `OPENAI_API_KEY` and `TRAJECTA_JUDGE_B_MODEL`, then run `python -m backend.app.agent_eval --trace-dir … --judge` and RAGAS against persisted traces        |
 | Real trace artefacts            | Production `eval/judge_report.{json,md}`, κ_LLM,LLM row, RAGAS, experiment log, and failure-analysis case studies | Run the 31-sample `agent_eval` path and keep local `eval/runs/{ts}/traces/`                                                                                    |
+| v1→v5 agent reports             | A7.1 concrete experiment deltas                                                                                   | Provide local `eval/runs/<ts>/agent_report.json` artefacts for prompt versions v1 through v5, or rerun those prompt versions and keep the timestamped reports |
 
 
 Local-only artefacts (`eval/runs/`, judge reports from real runs) stay
@@ -824,22 +831,22 @@ on a stable `analyze_run` path only.
 | A3.2 Judge payload/evidence resolution + one-provider LLM call foundation | `done` | `build_judge_payload` + `resolve_evidence_source` + env-configured `JudgeConfig` + mockable `run_llm_judge` runner that A4 reuses for the second provider                                                                                      | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py` → 63 passed (2026-05-29)                                                          |
 | A3.3 Report writers                                                       | `done` | `JudgeReport` / `JudgeCaseReport` dataclasses + `build_judge_report` + `write_judge_report`; emits `judge_report.{json,md}` with judge traceability, sample count, `acceptable_rate`, and per-case verdicts/rationale/assertions for one judge | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py -k report` → 12 passed (2026-05-29)                                                |
 | A3.4 Standalone env-configured CLI                                        | `done` | argparse CLI + `run_standalone_judge` seam over `eval/golden.jsonl` + `agent_report.json` + `--trace-dir`; env-configured single judge slot writes `judge_report.{json,md}`; `--sample-size` first-N cap; skip categories (`no_golden` / `missing_trace` / `no_proposal`) surfaced to stderr; real provider clients still A4.1 | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py` → 92 passed (2026-05-29); `pytest tests/test_judge.py -k cli` → 17 passed |
-| A3.5 `agent_eval --judge` post-step                                       | `todo` | Judge post-step invoked after eval with env-provided configs                                                                                                                                                                                   | `backend/app/agent_eval.py`, `eval/judge.py`   | `python -m backend.app.agent_eval --trace-dir … --judge`                                                                     |
+| A3.5 `agent_eval --judge` post-step                                       | `done` | `--judge` CLI flag + `_run_judge_post_step` glue: after eval writes report + traces, fans `run_standalone_judge` across each env-configured slot, lands artefacts under `<archive>/judge/<slot>/judge_report.{json,md}`; rejects `--mock`; exit codes 0/1/2/3 distinguish ran / failed / wiring-error / deferred-pending-A4.1 | `backend/app/agent_eval.py`, `backend/tests/test_agent_eval.py` | `cd backend && pytest tests/test_agent_eval.py` → 21 passed (2026-05-29); full sweep `pytest` → 307 passed, 1 skipped     |
 
 
-**Epic status**: `partial` — A3.1–A3.4 shipped; A3.5 next.
+**Epic status**: `done` — A3.1–A3.5 shipped; A4 provider clients + κ rollup are tracked below.
 
 #### A4 — κ_LLM,LLM
 
 
 | Slice                                 | Status | Artefact / outcome                                                                                                                                                                                                                     | Core files                                     | Verify                                                                                                                       |
 | ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| A4.1 Judge A/B env config             | `todo` | Gemini-compatible and OpenAI-compatible models + prompt versions are supplied by env                                                                                                                                                   | `eval/judge.py`, `backend/app/agent_eval.py`   | `python -m eval.judge --golden eval/golden.jsonl --report eval/agent_report.json --trace-dir … --out eval/judge_report.json` |
-| A4.2 Provider-specific prompt bundles | `todo` | Create provider-specific prompt bundles, e.g. `prompts/judge/v1_acceptability_gemini/` and `prompts/judge/v1_acceptability_openai/`, or document reuse of existing bundles if implementation chooses shared prompt + provider adapters | `prompts/judge/*`, `docs/prompt_versioning.md` | Prompt review; sha256 recorded per judge                                                                                     |
-| A4.3 κ_LLM,LLM rollup                 | `todo` | Primary κ row comparing Gemini vs OpenAI; N=31 preferred, deterministic stratified subset allowed when cost-constrained with policy reported                                                                                           | `eval/judge.py`                                | `python -m eval.judge --golden eval/golden.jsonl --report eval/agent_report.json --trace-dir … --out eval/judge_report.json` |
+| A4.1 Judge A/B env config             | `done` | `_default_judge_callable` wraps `openai.OpenAI` per slot via env contract `TRAJECTA_JUDGE_<slot>_{MODEL,PROMPT_VERSION,API_KEY,BASE_URL}`; slot B falls back to `OPENAI_API_KEY` / `OPENAI_BASE_URL`, slot A does not (keeps Gemini routing explicit); missing key → `JudgeProviderError` → standalone CLI exit 3 / post-step "failed" slot entry; A3.5 post-step threads its `env` into the resolver. No real network calls in tests | `eval/judge.py`, `backend/app/agent_eval.py`, `backend/tests/test_judge.py`, `backend/tests/test_agent_eval.py` | `cd backend && pytest tests/test_judge.py tests/test_agent_eval.py` → 131 passed (2026-05-29); full sweep `pytest` → 325 passed, 1 skipped |
+| A4.2 Provider-specific prompt bundles | `done` | `prompts/judge/v1_acceptability_gemini/prompt.md` (Judge A default) and `prompts/judge/v1_acceptability_openai/prompt.md` (Judge B default) shipped; both list the six required assertion names verbatim, demand JSON-only output, and resolve to distinct sha256 stamps. Shared baseline `v1_acceptability` preserved for ablations; `v2_strict_assertions` remains archived. `prompts/judge/README.md`, `docs/prompt_versioning.md`, `docs/testing.md` updated to reflect the production pair | `prompts/judge/v1_acceptability_gemini/prompt.md`, `prompts/judge/v1_acceptability_openai/prompt.md`, `prompts/judge/README.md`, `docs/prompt_versioning.md`, `docs/testing.md`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py -k prompt` → 15 passed (10 new for A4.2, 2026-05-29); full sweep `pytest` → 335 passed, 1 skipped |
+| A4.3 κ_LLM,LLM rollup                 | `done` | `JudgeAgreementCase` / `JudgeAgreementReport` + `build_judge_agreement_report` + `write_judge_agreement_report`; production `agent_eval --judge` now automatically combines successful A/B slot reports into `eval/runs/<ts>/judge/judge_agreement_report.{json,md}`. Single-slot or failed-slot runs skip the κ report rather than writing an invalid agreement artefact. Builder validates slot identity (A vs B) + run_id parity; `selection_policy` defaults to `"full_31_preferred"` and is operator-overrideable | `eval/judge.py`, `backend/app/agent_eval.py`, `backend/tests/test_judge.py`, `backend/tests/test_agent_eval.py` | `pytest backend/tests/test_agent_eval.py backend/tests/test_judge.py` → 158 passed (2026-05-29) |
 
 
-**Epic status**: `todo`
+**Epic status**: `done` — A4.1 + A4.2 + A4.3 shipped.
 
 #### A5 — Deferred human validation
 
@@ -856,24 +863,24 @@ on a stable `analyze_run` path only.
 
 | Slice                     | Status    | Artefact / outcome                   | Core files                    | Verify                                                   |
 | ------------------------- | --------- | ------------------------------------ | ----------------------------- | -------------------------------------------------------- |
-| A6.1 Fix trace loading    | `todo`    | Read SQLite `traces` or A2 trace-dir | `backend/app/ragas_eval.py`   | Unit test or smoke with fixture trace                    |
+| A6.1 Fix trace loading    | `done`    | `collect_samples` reads SQLite `traces` first via `storage.load_trace`, falls back to `--trace-dir/<run_id>.json` (Phase 8 A2 dump); discovery set is union of `storage.list_runs()` and `*.json` files; legacy `data/runs/<id>/last_trace.json` path retired; `--trace-dir` CLI flag added; skipped buckets (`budget_exceeded`, `error`, `no_trace`) preserved | `backend/app/ragas_eval.py`, `backend/tests/test_ragas_eval.py` | `cd backend && pytest tests/test_ragas_eval.py` → 21 passed (2026-05-29); full sweep `pytest` → 370 passed, 1 skipped |
 | A6.2 Real mode run        | `blocked` | `mode == "real"`, `n ≥ 10`           | `eval/ragas_report.{json,md}` | `python -m backend.app.ragas_eval` with `OPENAI_API_KEY` |
 | A6.3 Skipped-trace counts | `partial` | Report section exists (stub)         | `eval/ragas_report.md`        | Confirm keys present; populate on real run               |
 
 
-**Epic status**: `partial` — stub report only.
+**Epic status**: `partial` — A6.1 loader shipped; A6.2 real run + A6.3 populated skipped counts both blocked on operator `OPENAI_API_KEY` + real `agent_eval` pass.
 
 #### A7 — Experiment Log
 
 
 | Slice                          | Status    | Artefact / outcome               | Core files               | Verify                                             |
 | ------------------------------ | --------- | -------------------------------- | ------------------------ | -------------------------------------------------- |
-| A7.1 `docs/experiment_log.md`  | `todo`    | v1→v5 table with concrete deltas | `docs/experiment_log.md` | Manual review: ≥ 5 rows, negative results included |
+| A7.1 `docs/experiment_log.md`  | `blocked` | Placeholder created; concrete v1→v5 deltas require missing local `eval/runs/<ts>/agent_report.json` artefacts | `docs/experiment_log.md` | Blocked verification: `eval/runs/*/agent_report.json` not present; do not fabricate metrics |
 | A7.2 README table mirror       | `partial` | README § Eval & Experiments      | `README.md`              | Judge column filled after A3/A4                    |
 | A7.3 Spotlighting ablation row | `todo`    | Separate from v1→v5 sequence     | `docs/experiment_log.md` | After B6 injection report                          |
 
 
-**Epic status**: `todo`
+**Epic status**: `partial` — A7.1 is blocked on missing local agent-report artefacts; A7.2 remains partial and A7.3 remains todo.
 
 #### A8 — Failure Analysis
 
