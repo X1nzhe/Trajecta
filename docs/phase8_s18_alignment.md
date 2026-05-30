@@ -732,18 +732,16 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**C1 frontend build / C2 repo hygiene** — A3/A4 live judge agreement is complete:
-`eval/runs/2026-05-30T04-43-34Z/judge/judge_agreement_report.{json,md}`
-reports κ_LLM,LLM = 0.741 on N = 31, above the 0.6 target. A7.1 is also
-complete for the agent_eval v1→v5 prompt comparison and now includes the
-v5 judge columns. A6 real RAGAS is complete with
-`eval/ragas_report.{json,md}` reporting `mode == "real"`, `n = 10`,
-`ground_truth_source == "none"`, and `faithfulness = 0.4068`. A8 failure
-analysis is complete in `docs/failure_analysis.md`.
+**Push readiness / optional B-series** — Core Phase 8 eval deliverables
+(A1–A8 except deferred A5), A6 real RAGAS, and 8.C tactical cleanup are
+complete. C1 `cd frontend && npm run build` passes after fixing
+`EvalAgentPanel` `ReactElement` typing; C2 repo hygiene verified clean
+before the wrap-up commits.
 
-The next Phase 8 acceptance gap is C1/C2: run the frontend build if the
-frontend dependencies are available, then finish repo hygiene before the
-final push.
+Remaining tracker work is **optional or lower priority**: B1 MCP server,
+B6 Spotlighting (A7.3), D5 `docs/eval_agent.md` MCP subsection, and
+acceptance-checklist rows explicitly marked planned-lower-priority. Do
+not expand scope unless the operator requests them before push.
 
 ### Agent Handoff Rule
 
@@ -986,12 +984,12 @@ on a stable `analyze_run` path only.
 
 | Slice                        | Status | Artefact / outcome             | Core files                  | Verify                         |
 | ---------------------------- | ------ | ------------------------------ | --------------------------- | ------------------------------ |
-| C1 Frontend TypeScript build | `todo` | `npm run build` exits 0        | `frontend/src/`**           | `cd frontend && npm run build` |
-| C2 Repo hygiene              | `todo` | Clean working tree before push | `.gitignore`                | `git status` clean             |
-| C3 RAGAS path fix            | `todo` | Absorbed into A6.1             | `backend/app/ragas_eval.py` | See A6 verify                  |
+| C1 Frontend TypeScript build | `done` | `npm run build` exits 0        | `frontend/src/**`           | `cd frontend && npm run build` → exit 0 (2026-05-29); fixed `ToolGlyph` `Record<string, ReactElement>` |
+| C2 Repo hygiene              | `done` | Clean working tree before push | `.gitignore`                | `git status --short` empty after wrap-up commits |
+| C3 RAGAS path fix            | `done` | Absorbed into A6.1             | `backend/app/ragas_eval.py` | See A6 verify                  |
 
 
-**Epic status**: `todo`
+**Epic status**: `done`
 
 ---
 
@@ -1038,8 +1036,8 @@ A single block to verify before the 48-hour push.
 [ ] backend/app/prompts.py    spotlight_wrap utility + unit test
 [ ] eval/injection_golden.jsonl    ≥ 8 crafted injection cases
 [ ] eval/injection_report.md    injection_resistance_rate for on vs off
-[ ] cd frontend && npm run build    exits 0
-[ ] git status    clean
+[x] cd frontend && npm run build    exits 0
+[x] git status    clean
 [ ] PROJECT.md / README.md / roadmap.md / testing.md / eval_agent.md    reflect Phase 8
 [ ] docs/phase8_s18_alignment.md    this file, every checkbox above ticked
 ```
