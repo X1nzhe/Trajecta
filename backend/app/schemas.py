@@ -255,6 +255,11 @@ class AgentTrace(BaseModel):
     run_id: str
     user_intent: Literal["analyze_run", "analyze_step"]
     selected_step: int | None = None
+    # How this run was initiated: "ui" (HTTP analyze endpoint), "eval"
+    # (agent_eval harness), or "mcp" (the MCP server's analyze_run composite).
+    # Lets audit / Phase 8 reports distinguish run origin. Old persisted traces
+    # deserialize as "ui".
+    source: Literal["ui", "eval", "mcp"] = "ui"
     tool_call_count: int = 0
     turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"

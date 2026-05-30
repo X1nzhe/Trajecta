@@ -1,6 +1,6 @@
 # MCP — Trajecta's Composite Eval-Agent Tool
 
-This document is the design source of truth for the planned `mcp/server.py`.
+This document is the design source of truth for `trajecta_mcp/server.py` (shipped in Phase 8 B1).
 Phase 8 B1–B3 are lower priority than the Gemini judge agreement path;
 PROJECT.md and README.md link here for details.
 
@@ -15,13 +15,13 @@ The browser-agent ecosystem already covers two layers:
 
 What is **missing** is a remote callable agent that takes a recorded
 trajectory and produces a structured failure analysis with retrieval-grounded
-evidence and a regression-eval-case draft. The planned Trajecta MCP composite
-is intended to be that layer.
+evidence and a regression-eval-case draft. The Trajecta MCP composite
+is that layer.
 
 Trajecta MCP does **not** control browsers. It analyses trajectories
 produced by other agents.
 
-## Planned Tool Surface
+## Tool Surface
 
 | Tool | Backend delegate | Side effects |
 | --- | --- | --- |
@@ -41,22 +41,22 @@ produced by other agents.
 | `import_dataset` | Admin-level surface; outside the analysis scope. |
 | `set_prompt_version` | Prompt selection belongs to operator-controlled env vars, not external agents. |
 
-The exclusion list will be enforced by tool surface — `mcp/server.py` will
+The exclusion list is enforced by tool surface — `trajecta_mcp/server.py` does
 not register these names — not by post-hoc permission checks. Phase 8
 B4 (`docs/security_governance.md`) cites this surface as the primary
 least-privilege mechanism.
 
 ## `analyze_run` as a Composite Tool
 
-`analyze_run` is the load-bearing planned tool in this MCP server. It does not
+`analyze_run` is the load-bearing tool in this MCP server. It does not
 forward to a single backend function; it exposes the entire LangGraph
 Eval Agent loop as one MCP call.
 
 ```text
 MCP client (Claude Code, Cursor)
-    │ call analyze_run(run_id, intent="analyze_run", selected_step=None)
+    │ call analyze_run(run_id)
     ▼
-mcp/server.py
+trajecta_mcp/server.py
     │ delegates in-process
     ▼
 eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
@@ -111,7 +111,7 @@ reasons:
 
 ## Client Configuration
 
-Once `mcp/server.py` exists, add to `claude_desktop_config.json` (or the Cursor
+Add to `claude_desktop_config.json` (or the Cursor
 equivalent):
 
 ```json
@@ -119,18 +119,18 @@ equivalent):
   "mcpServers": {
     "trajecta": {
       "command": "python",
-      "args": ["mcp/server.py"],
+      "args": ["trajecta_mcp/server.py"],
       "cwd": "<path to Trajecta repo>"
     }
   }
 }
 ```
 
-We pass `mcp/server.py` as a script path rather than `-m mcp.server` to
+We pass `trajecta_mcp/server.py` as a script path rather than `-m trajecta_mcp.server` to
 avoid any chance of Python resolving `mcp` against the installed official
 SDK package. The script form is unambiguous.
 
-Alternative: `fastmcp run mcp/server.py:mcp` if FastMCP CLI is installed
+Alternative: `fastmcp run trajecta_mcp/server.py:mcp` if FastMCP CLI is installed
 globally. Both produce identical stdio-transport behaviour.
 
 Restart the client. `list_runs`, `analyze_run`, and the four other tools
@@ -138,7 +138,7 @@ should appear under the `trajecta` namespace.
 
 ## Demo Script
 
-The planned seven-step demo lives canonically here; `README.md` § "Planned MCP
+The seven-step demo lives canonically here; `README.md` § "MCP
 Connection" mirrors the user-facing version.
 
 1. Operator pre-imports MolmoWeb sample runs into Trajecta storage
@@ -146,7 +146,7 @@ Connection" mirrors the user-facing version.
 2. In Claude Code, user asks: *"List my Trajecta runs."*
 3. Claude Code calls `trajecta.list_runs()`. It picks a failed sample.
 4. User asks: *"Why did this booking run fail?"*
-5. Claude Code calls `trajecta.analyze_run(run_id, intent="analyze_run")`.
+5. Claude Code calls `trajecta.analyze_run(run_id)`.
 6. Trajecta runs the Eval Agent end-to-end:
    - Preprocess builds the trajectory digest.
    - Agent loop deep-inspects suspicious steps via `get_step_detail`.
@@ -163,53 +163,56 @@ review, edit, and mark a draft `human_validated=true`. This is by design.
 ### Framework: FastMCP (standalone)
 
 We use the **standalone `fastmcp` package** (`pip install fastmcp`) rather
-than the FastMCP class shipped inside the official `mcp[cli]` SDK. Reason:
-our server directory is `mcp/`, and `from mcp.server.fastmcp import FastMCP`
-would be shadowed by the local package. `from fastmcp import FastMCP`
-avoids the collision entirely.
-
-If we ever migrate to the official `mcp` SDK, rename the directory to
-`trajecta_mcp/` first.
+than the FastMCP class shipped inside the official `mcp[cli]` SDK. The
+server package is named **`trajecta_mcp/`** (not `mcp/`): the server adds
+the repo root to `sys.path` for `from backend.app import …`, and a
+top-level `mcp/` package on that path would shadow the official `mcp` SDK
+that `fastmcp` imports internally. Naming it `trajecta_mcp` keeps
+`import mcp` resolving to the installed SDK.
 
 ### Server skeleton
 
 ```python
-# mcp/server.py
+# trajecta_mcp/server.py
+import sys
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from fastmcp import FastMCP
 
-from backend.app import eval_agent_graph, rag, storage
+from backend.app import eval_agent_graph, storage, tools
 
 mcp = FastMCP("Trajecta")
 
-@mcp.tool()
+@mcp.tool
 def list_runs() -> list[dict]:
-    """List imported trajectory runs (metadata only)."""
-    return [r.model_dump(mode="json") for r in storage.list_runs()]
+    """List imported trajectory runs (metadata only — no steps array)."""
+    return [
+        {"run_id": r.run_id, "task": r.task, "source": r.source,
+         "status": r.status, "step_count": len(r.steps), "metadata": r.metadata}
+        for r in storage.list_runs()
+    ]
 
-@mcp.tool()
-def analyze_run(
-    run_id: str,
-    intent: Literal["analyze_run", "analyze_step"] = "analyze_run",
-    selected_step: int | None = None,
-) -> dict:
-    """Run the full LangGraph Eval Agent on a trajectory.
+@mcp.tool
+def analyze_run(run_id: str) -> dict:
+    """Run the full LangGraph Eval Agent on a trajectory (full-run only).
 
     Returns an EvalCase draft (human_validated=False) plus the full
-    AgentTrace with source="mcp" stamped on every event.
+    AgentTrace with source="mcp" stamped. There is no per-step mode — the
+    backend analyze_run analyses the whole trajectory.
     """
-    result = eval_agent_graph.analyze_run(
-        run_id,
-        intent=intent,
-        selected_step=selected_step,
-        persist=True,
-        source="mcp",
-    )
+    result = eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
     return {
         "eval_case_draft": result.eval_case_draft,
-        "agent_trace": result.trace.model_dump(mode="json", exclude={"screenshot_bytes"}),
+        # AgentTrace events are byte-sanitised at append time, so the dump
+        # carries no screenshot/image bytes.
+        "agent_trace": result.trace.model_dump(mode="json"),
     }
 
-# (Four more @mcp.tool() decorators for get_run, get_step_detail,
+# (Four more @mcp.tool delegates for get_run, get_step_detail,
 #  search_failure_memory, search_eval_cases.)
 
 if __name__ == "__main__":

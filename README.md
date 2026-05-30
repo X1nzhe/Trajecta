@@ -273,17 +273,18 @@ See [docs/testing.md](docs/testing.md) § "LLM Judge" for the judge
 contract and [docs/failure_analysis.md](docs/failure_analysis.md) for
 case studies.
 
-## Planned MCP Connection
+## MCP Connection
 
-MCP is a planned, lower-priority Phase 8 item after the judge agreement
-path. The planned server will expose the entire Eval Agent as a composite tool
-so external coding agents (Claude Code, Cursor) can diagnose a
-browser-agent trajectory via one MCP call.
+MCP shipped in Phase 8 B1 (lower priority than the judge agreement path).
+The server exposes the entire Eval Agent as a composite tool so external
+coding agents (Claude Code, Cursor) can diagnose a browser-agent
+trajectory via one MCP call. The live-client smoke (B1.5) is the only
+operator-gated piece.
 
-The design uses the standalone `fastmcp` package
-(`pip install fastmcp`); tool registration is decorator-based and JSON
-schemas are auto-derived from Python type hints. Once `mcp/server.py`
-exists, add to
+The server uses the standalone `fastmcp` package
+(`pip install fastmcp`, pinned in `backend/requirements.txt`); tool
+registration is decorator-based and JSON schemas are auto-derived from
+Python type hints. Add `trajecta_mcp/server.py` to
 `claude_desktop_config.json`:
 
 ```json
@@ -291,7 +292,7 @@ exists, add to
   "mcpServers": {
     "trajecta": {
       "command": "python",
-      "args": ["mcp/server.py"],
+      "args": ["trajecta_mcp/server.py"],
       "cwd": "<path to Trajecta repo>"
     }
   }
@@ -304,16 +305,16 @@ Demo (Claude Code session):
 You: List my Trajecta runs.
 Claude Code: <calls trajecta.list_runs(), picks a failed sample>
 You: Why did this booking run fail?
-Claude Code: <calls trajecta.analyze_run(run_id, intent="analyze_run")>
+Claude Code: <calls trajecta.analyze_run(run_id)>
              <Trajecta runs the LangGraph Eval Agent: digest → suspicious
               step inspection → failure_memory retrieval → propose_eval_case>
              <returns EvalCase draft + AgentTrace, summarises for you>
 You: <opens Trajecta UI to validate the draft — MCP cannot mark it validated>
 ```
 
-The planned MCP surface deliberately excludes `save_validated_eval_case`,
-`delete_*`, and `import_dataset`. Validation stays HITL-gated on the
-Trajecta-UI side. Full design in [docs/mcp.md](docs/mcp.md); the exclusion
+The MCP surface deliberately excludes `save_validated_eval_case`,
+`delete_*`, `import_dataset`, and `set_prompt_version`. Validation stays
+HITL-gated on the Trajecta-UI side. Full design in [docs/mcp.md](docs/mcp.md); the exclusion
 list is also the primary least-privilege artefact in
 [docs/security_governance.md](docs/security_governance.md) § Mechanism 7.
 
@@ -370,7 +371,7 @@ coverage, and a simple React UI.
 Gemini/OpenAI dual LLM judge with κ_LLM,LLM, real RAGAS, experiment log,
 failure analysis, and Security / Governance component framing. Human judge
 validation is deferred because reviewer UI, workflow, and label-management
-design would expand scope. The MCP composite remains planned but lower
+design would expand scope. The MCP composite shipped in B1, lower
 priority than the judge path. See
 [docs/phase8_s18_alignment.md](docs/phase8_s18_alignment.md) for the
 operating spec and [docs/roadmap.md](docs/roadmap.md) for the full plan.

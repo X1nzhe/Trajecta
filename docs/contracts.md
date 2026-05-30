@@ -158,7 +158,7 @@ class EvalCase(BaseModel):
 
 class AgentTraceEvent(BaseModel):
     seq: int
-    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error"]
+    type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error", "phase"]
     name: Optional[str] = None
     args: Optional[Dict[str, Any]] = None
     result: Optional[Dict[str, Any]] = None
@@ -167,10 +167,23 @@ class AgentTraceEvent(BaseModel):
     turn: int = 0
 
 
+class TurnMetrics(BaseModel):
+    # Per-turn breakdown of the cumulative AgentTrace counters. turn 0 ==
+    # initial analyze; turn >= 1 == followups. The UI reads these to show
+    # per-turn cost/latency instead of whole-session totals.
+    turn: int
+    runtime_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
 class AgentTrace(BaseModel):
     run_id: str
     user_intent: Literal["analyze_run", "analyze_step"]
     selected_step: Optional[int] = None
+    # Run origin: "ui" (HTTP analyze), "eval" (agent_eval harness), or "mcp"
+    # (MCP analyze_run composite). Old traces deserialize "ui".
+    source: Literal["ui", "eval", "mcp"] = "ui"
     tool_call_count: int = 0
     turn_count: int = 1
     terminated_by: Literal["propose_eval_case", "budget_exceeded", "error"] = "error"
@@ -178,12 +191,18 @@ class AgentTrace(BaseModel):
     model: Optional[str] = None
     prompt_version: Optional[str] = None
     prompt_sha256: Optional[str] = None
+    # Phase 8 B6 Spotlighting state at trace start (anti-injection preamble +
+    # untrusted-text wrapping). Recorded for audit; old traces deserialize False.
+    spotlighting_enabled: bool = False
     vlm_model: Optional[str] = None
     vlm_input_tokens: int = 0
     vlm_output_tokens: int = 0
     runtime_ms: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    # Per-turn breakdown of the counters above; one entry per analyze/followup
+    # turn. Empty on traces written before this field existed.
+    turn_metrics: List[TurnMetrics] = Field(default_factory=list)
 ```
 
 Schema field notes:

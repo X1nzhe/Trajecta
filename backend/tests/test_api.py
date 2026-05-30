@@ -217,6 +217,25 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
 
+    def test_get_step_detail_ok_when_spotlighting_on_without_token(self) -> None:
+        """Phase 8 P0 regression: the HTTP detail endpoint must not require an
+        agent spotlight token. With TRAJECTA_SPOTLIGHTING on (the production
+        default) and no active token, it returns raw, usable detail — not the
+        HTTP 500 the B6.3 in-tool wrapping caused. The agent path wraps
+        separately at the tool-result seam, where a token is guaranteed set.
+        """
+        from backend.app import prompts
+
+        prompts.set_spotlight_token(None)  # state outside an agent run
+        with mock.patch.dict(os.environ, {"TRAJECTA_SPOTLIGHTING": "on"}):
+            response = self.client.get("/api/runs/run_api/steps/0/detail")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        # Raw, not Spotlight-wrapped: no delimiter markers anywhere.
+        self.assertNotIn("<TRAJECTA_DATA_", json.dumps(body))
+        self.assertEqual(body["action"]["raw"], "wait()")
+
     def test_screenshot_path_traversal_rejected(self) -> None:
         response = self.client.get("/api/runs/run_api/screenshots/%2E%2E/trajectory.json")
 

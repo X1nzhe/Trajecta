@@ -255,18 +255,18 @@ For a 30-step run where the dataset provides no `visible_text`, preprocessing co
 
 The agent prompt is laid out with the stable prefix first — system prompt, then the trajectory digest — followed by the dynamic tool-call turns. v1 does not wire provider-specific cache controls; this layout exists so that a caching-capable provider benefits transparently if used, but the cost story does not depend on it.
 
-## Planned MCP Exposure
+## MCP Exposure
 
-MCP exposure is planned for Phase 8 after the Gemini judge agreement path. The
+MCP exposure shipped in Phase 8 B1, after the Gemini judge agreement path. The
 entire `agent_loop` described above should be reachable via the `analyze_run`
-tool in `mcp/server.py` once that slice ships. External coding agents (Claude
+tool in `trajecta_mcp/server.py` (shipped in Phase 8 B1). External coding agents (Claude
 Code, Cursor) would invoke the full LangGraph cycle as a single MCP call rather
 than orchestrating individual tools across the MCP boundary. Per-turn budget,
 trace integrity, prompt-version stamping, and the HITL gate should all apply
 unchanged across MCP invocations; the only observable difference is
 `AgentTrace.source == "mcp"`.
 
-The planned `mcp/server.py` is a thin transport adapter built on the standalone
+`trajecta_mcp/server.py` is a thin transport adapter built on the standalone
 `fastmcp` package — it does not duplicate any logic in this file. Tools
 are registered via `@mcp.tool()` decorators; the `analyze_run` tool
 delegates directly to `eval_agent_graph.analyze_run(..., source="mcp")`.

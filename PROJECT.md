@@ -31,14 +31,15 @@ This is an Eval Agent for browser-use agent trajectories.
 
 Trajecta's current S18 component story relies on three shipped components.
 Three components used well — with a clear story for why they are wired
-together — is the bar. MCP remains a planned, lower-priority Phase 8 extension
-and is not counted as shipped until `mcp/server.py` exists and passes its demo.
+together — is the bar. The MCP server (`trajecta_mcp/server.py`) shipped in
+Phase 8 B1 as a lower-priority extension on top of those three; only the
+live-client smoke demo (B1.5) remains operator-gated.
 
 | Component | How Trajecta uses it | Anchor doc |
 | --- | --- | --- |
 | **RAG** | ChromaDB over three collections (`failure_memory`, `eval_cases`, `successful_runs`). Agent-authored queries; every retrieved case ID surfaces in `retrieved_context_ids` so claims trace back to evidence. | [docs/rag.md](docs/rag.md) |
 | **Tools** | LangGraph tool-calling agent with six typed tools (`get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, `propose_eval_case`). Per-turn budget bounds cost; terminal tool enforces schema. | [docs/eval_agent.md](docs/eval_agent.md) |
-| **Security / Governance** | Schema validation, tool-call budget, path-traversal protection, coordinate validation, `AgentTrace` audit log, HITL persistence gate, prompt-version + sha256 traceability, and planned Spotlighting prompt input validation against indirect prompt injection in trajectory text. | [docs/security_governance.md](docs/security_governance.md) |
+| **Security / Governance** | Schema validation, tool-call budget, path-traversal protection, coordinate validation, `AgentTrace` audit log, HITL persistence gate, prompt-version + sha256 traceability, and Spotlighting prompt input validation against indirect prompt injection in trajectory text. | [docs/security_governance.md](docs/security_governance.md) |
 
 **Not claimed**: Multi-agent (Trajecta is one Eval Agent plus a human validator;
 HITL is the load-bearing role split but Trajecta does not run a supervisor +
@@ -56,9 +57,8 @@ Agent-Eval-Refine) publish recorded runs.
 What is missing is a remote callable agent that takes a recorded
 trajectory, diagnoses its failure mode with retrieval-grounded evidence,
 and produces a regression-eval-case draft. Trajecta fills that gap. The
-planned MCP composite tool `analyze_run` (see [docs/mcp.md](docs/mcp.md))
-is the lower-priority remote interface to this missing layer once the judge
-deliverable is complete.
+MCP composite tool `analyze_run` (see [docs/mcp.md](docs/mcp.md)) is the
+lower-priority remote interface to this missing layer, shipped in Phase 8 B1.
 
 ## Core User Flow
 
@@ -107,9 +107,9 @@ These are the load-bearing decisions for v1. Each is justified by task character
    Default 8 calls per run. Exceeding the budget terminates the loop with `terminated_by="budget_exceeded"` rather than runaway tool use.
 6. **Human-in-the-loop is mandatory before export.**
    The agent proposes; the human validates. No `EvalCase` is exported with `human_validated = false`.
-7. **The planned MCP server should expose the agent as a composite, not as raw tools.**
-   MCP is lower priority than the Phase 8 judge. When implemented,
-   `mcp/server.py` should expose the entire LangGraph loop as a single
+7. **The MCP server exposes the agent as a composite, not as raw tools.**
+   MCP was lower priority than the Phase 8 judge. As shipped,
+   `trajecta_mcp/server.py` exposes the entire LangGraph loop as a single
    `analyze_run` tool plus five read-only / cost-bounded tools. Splitting the
    loop across the MCP boundary would break the per-turn budget contract and
    produce disjoint traces that RAGAS and the Phase 8 judge cannot score. See
@@ -159,7 +159,7 @@ and measurable κ_LLM,LLM agreement, an experiment log, a failure-analysis
 writeup, and a single-doc treatment of governance machinery. A human second
 judge is deliberately deferred because reviewer workflow, UI, and
 label-management design would add implementation scope beyond Phase 8. The MCP
-composite remains planned for Phase 8, but lower priority than the judge
+composite shipped in Phase 8 B1, lower priority than the judge
 agreement path.
 
 Phase 8 ships:
@@ -176,12 +176,12 @@ Phase 8 ships:
   `docs/experiment_log.md` with v1→v5 prompt metric deltas;
   `docs/failure_analysis.md` with 2–3 case studies and the quality /
   latency / cost trade-off.
-- **8.B — Planned MCP + Component story.** Lower-priority `mcp/server.py`
-  plan with six tools including the `analyze_run` composite;
+- **8.B — MCP + Component story.** Lower-priority `trajecta_mcp/server.py`
+  (shipped) with six tools including the `analyze_run` composite;
   [docs/mcp.md](docs/mcp.md);
   [docs/security_governance.md](docs/security_governance.md) framing the
-  existing governance mechanisms as one cohesive component, plus planned
-  **Spotlighting prompt input validation** work as defense against indirect
+  existing governance mechanisms as one cohesive component, plus the shipped
+  **Spotlighting prompt input validation** defense against indirect
   prompt injection in trajectory text.
 - **8.C — Tactical cleanup.** Frontend TypeScript build fix; RAGAS path
   bug fix; repo-hygiene sweep before the 48-hour push.
@@ -205,8 +205,8 @@ considered done.
 | [docs/eval_agent.md](docs/eval_agent.md) | LangGraph Eval Agent behavior, loop design, observability, and Skill wrapper. |
 | [docs/prompt_versioning.md](docs/prompt_versioning.md) | Prompt version registry, traceability, rollback, and failure-memory refresh rules. |
 | [docs/rag.md](docs/rag.md) | ChromaDB RAG retrieval strategy. |
-| [docs/mcp.md](docs/mcp.md) | Planned MCP server design: tool surface, `analyze_run` composite semantics, client config, demo script. |
-| [docs/security_governance.md](docs/security_governance.md) | Security / Governance component story, including the planned Phase 8 B6 Spotlighting defense against indirect prompt injection. |
+| [docs/mcp.md](docs/mcp.md) | MCP server design (shipped Phase 8 B1): tool surface, `analyze_run` composite semantics, client config, demo script. |
+| [docs/security_governance.md](docs/security_governance.md) | Security / Governance component story, including the shipped Phase 8 B6 Spotlighting defense against indirect prompt injection. |
 | [docs/api.md](docs/api.md) | FastAPI implementation notes for endpoint contracts. |
 | [docs/frontend.md](docs/frontend.md) | React UI layout, components, and product copy. |
 | [docs/testing.md](docs/testing.md) | pytest, RAGAS evaluation, golden set + judge protocol, and acceptance criteria. |

@@ -5,8 +5,8 @@ versioned prompts, a 31-sample agent-quality report, and a polished React UI.
 Phase 8 closes the gap to the S18 capstone deliverable: a defendable eval
 harness, Gemini and OpenAI LLM judges with measurable κ_LLM,LLM agreement,
 an experiment log, a failure-analysis writeup, and a single-doc treatment of
-the existing governance machinery. The MCP composite remains a planned Phase
-8 item, but it is lower priority than the judge agreement path.
+the existing governance machinery. The MCP composite shipped in B1 (lower priority than the judge agreement
+path); only the live-client demo (B1.5) is operator-gated.
 
 This file is the **operating spec** for Phase 8. Every other Phase 8 doc
 (`PROJECT.md`, `docs/mcp.md`, `docs/security_governance.md`, `docs/testing.md`,
@@ -16,7 +16,7 @@ This file is the **operating spec** for Phase 8. Every other Phase 8 doc
 ## Scope Boundary
 
 Phase 8 prioritizes **eval rigor, experiment log, judge agreement, and
-component framing**. MCP remains planned after the judge path. Phase 8 does
+component framing**. MCP shipped in B1 after the judge path. Phase 8 does
 **not**:
 
 - restructure the agent into a supervisor + worker multi-agent system,
@@ -35,7 +35,7 @@ Reasoning for each non-goal is in `PROJECT.md` "Phase 8 Design Decisions".
 
 | S18 §       | Requirement                                                                                     | Phase 8 deliverable                                                                          | Section below |
 | ----------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------- |
-| 2.1         | ≥3 of 6 components, used well                                                                   | RAG + Tools + Security/Governance (MCP planned, lower priority)                              | 8.B           |
+| 2.1         | ≥3 of 6 components, used well                                                                   | RAG + Tools + Security/Governance (MCP shipped, lower priority)                              | 8.B           |
 | 2.2 Build 1 | `eval/golden.jsonl` ≥25 cases, `{input, expected_facts, forbidden_facts, tags}`                 | A1                                                                                           | 8.A           |
 | 2.2 Build 2 | ≥8 deterministic pytest, LLM mocked                                                             | Already shipped in Phase 1–7 (`backend/tests/`, OfflineAgentMock). Phase 8 adds judge tests. | 8.A.3         |
 | 2.2 Build 3 | ≥1 RAGAS metric (faithfulness or context recall)                                                | A6                                                                                           | 8.A           |
@@ -98,7 +98,7 @@ deterministic script (`scripts/build_golden_jsonl.py`, **new** in Phase
   - `tags = [category, *labelled_set]`.
 
 `triage_notes.csv` stays the canonical annotation source; `golden.jsonl`
-is a build artifact. The script is idempotent and runs in CI.
+is a build artifact. The script is idempotent and is intended as a pre-commit / pre-push `--check` guard (no CI gate in Phase 8).
 
 **Acceptance**:
 
@@ -106,7 +106,7 @@ is a build artifact. The script is idempotent and runs in CI.
 - All 8 categories represented (`allrecipes`, `amazon`, `apple`, `arxiv`,
 `booking`, `github`, `google_flight`, `huggingface`).
 - `scripts/build_golden_jsonl.py --check` exits non-zero if
-`triage_notes.csv` was modified after `golden.jsonl` (CI guard).
+`triage_notes.csv` was modified after `golden.jsonl` (`--check` guard, run pre-commit).
 
 ### A2. Eval trace persistence and judge handoff
 
@@ -420,15 +420,15 @@ headline prompt (v3) shows mean 9.96 s / about $0.033 per run.
 **Acceptance**: 2-3 cases, each with named root cause and an explicit
 fix-or-defer decision.
 
-## 8.B — Planned MCP + Component Framing
+## 8.B — MCP + Component Framing
 
-MCP is lower priority than the Phase 8 judge work. Treat this section as the
-planned design and acceptance target for the MCP slice; do not describe it as
-completed until B1 exits `todo` / `blocked`.
+MCP was lower priority than the Phase 8 judge work and shipped after it.
+This section is the design + acceptance target for the MCP slice; B1/B2 are
+now `done` (see the tracker) and only the B1.5 live-client demo is `blocked`.
 
-### B1. Planned `mcp/server.py`
+### B1. `trajecta_mcp/server.py` (shipped)
 
-Planned minimal Trajecta MCP server, built on the **standalone `fastmcp` package**
+Minimal Trajecta MCP server, built on the **standalone `fastmcp` package**
 (`pip install fastmcp`). Tools are registered via `@mcp.tool()` decorators;
 JSON-Schema is auto-derived from Python type hints. Excluded tools are
 not decorated and therefore not registered — `method_not_found` falls
@@ -465,7 +465,7 @@ tool surface, not by post-hoc rules.
 
 **Acceptance**:
 
-- `mcp/server.py` will expose exactly the six tools above via
+- `trajecta_mcp/server.py` exposes exactly the six tools above via
 `@mcp.tool()` decorators on the `FastMCP("Trajecta")` instance.
 - `backend/requirements.txt` pins `fastmcp>=2.0`.
 - A Claude Code client can connect using a 5-line config in
@@ -482,8 +482,8 @@ function. It exposes the entire LangGraph Eval Agent loop as one MCP
 tool. Lifecycle:
 
 ```text
-MCP client → mcp/server.py
-              │ call analyze_run(run_id, intent="analyze_run")
+MCP client → trajecta_mcp/server.py
+              │ call analyze_run(run_id)
               ▼
             eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
               │ Preprocess → tool-calling loop → propose_eval_case
@@ -507,7 +507,7 @@ surface has no path to flip that field — only Trajecta's UI does.
 
 **Acceptance**:
 
-- A trace produced via `mcp/server.py analyze_run` equals a trace
+- A trace produced via `trajecta_mcp/server.py analyze_run` equals a trace
 produced via `POST /api/runs/{id}/analyze` modulo the `source` field
 and timestamps.
 - The trace returned to the MCP client contains the same
@@ -516,7 +516,7 @@ UI shows.
 
 ### B3. `docs/mcp.md`
 
-**Design doc**. Single source of truth for the planned MCP design:
+**Design doc**. Single source of truth for the MCP design:
 
 1. Tool inventory with the include/exclude table from B1.
 2. `analyze_run` composition diagram and invariants from B2.
@@ -533,8 +533,8 @@ internals.
 ### B4. `docs/security_governance.md`
 
 **Design doc**. Single component story covering machinery already shipped
-in Phase 1–7 plus planned Phase 8 additions. MCP least-privilege exposure is
-planned with B1, and the Spotlighting defense is planned with B6:
+in Phase 1–7 plus Phase 8 additions — MCP least-privilege exposure (B1) and
+the Spotlighting defense (B6), both shipped:
 
 
 | Mechanism                                             | Where it lives                                                                                                             | What it guards                                                                                                                                                                    |
@@ -545,9 +545,9 @@ planned with B1, and the Spotlighting defense is planned with B6:
 | Coordinate validation                                 | `backend/app/coordinate_validator.py`                                                                                      | Input sanity; out-of-bounds coords never produce overlays.                                                                                                                        |
 | `AgentTrace` as audit log                             | `backend/app/storage.py`, `traces` table                                                                                   | Every tool call, tool result, and termination reason is logged with `seq` + `turn`.                                                                                               |
 | HITL gate                                             | `EvalCase.human_validated` default `False`; `POST /api/eval-cases` rejects `human_validated=false` with 422                | Validated cases require human action; agent cannot self-certify.                                                                                                                  |
-| Planned MCP least-privilege exposure                  | `mcp/server.py` include/exclude table (B1)                                                                                 | External agents cannot persist validated cases, mutate runs, or import data.                                                                                                      |
+| MCP least-privilege exposure (shipped)                  | `trajecta_mcp/server.py` include/exclude table (B1)                                                                                 | External agents cannot persist validated cases, mutate runs, or import data.                                                                                                      |
 | Prompt versioning + sha256                            | `backend/app/prompts.py`, stamps on `AgentTrace` and reports                                                               | Every output traces back to the exact prompt bytes that produced it.                                                                                                              |
-| Planned **Spotlighting prompt input validation** (B6) | `backend/app/prompts.py` `spotlight_wrap()`; anti-injection preamble in active system prompt; wrap at digest assembly time | Reduces indirect prompt injection success rate when malicious instructions are embedded in trajectory text (DOM, action targets, URLs, VLM outputs). Probabilistic, not absolute. |
+| **Spotlighting prompt input validation** (B6) | `backend/app/prompts.py` `spotlight_wrap()`; anti-injection preamble in active system prompt; wrap at digest assembly time | Reduces indirect prompt injection success rate when malicious instructions are embedded in trajectory text (DOM, action targets, URLs, VLM outputs). Probabilistic, not absolute. |
 
 
 **Acceptance**:
@@ -555,19 +555,19 @@ planned with B1, and the Spotlighting defense is planned with B6:
 - `PROJECT.md` cites this doc as the Security / Governance component.
 - Each mechanism row links to the source file(s) implementing it.
 - The doc explicitly states which mechanisms are already shipped and which
-remain planned Phase 8 work.
+remain operator-gated (only the B1.5 live-client demo).
 
-### B5. README planned MCP demo
+### B5. README MCP demo
 
-`README.md` § "Planned MCP Connection":
+`README.md` § "MCP Connection":
 
 ```text
-1. Once `mcp/server.py` exists, add to claude_desktop_config.json:
+1. Add `trajecta_mcp/server.py` to claude_desktop_config.json:
    {
      "mcpServers": {
        "trajecta": {
          "command": "python",
-         "args": ["mcp/server.py"],
+         "args": ["trajecta_mcp/server.py"],
          "cwd": "<path to Trajecta repo>"
        }
      }
@@ -575,7 +575,7 @@ remain planned Phase 8 work.
 2. Restart Claude Code.
 3. In Claude Code: "List my Trajecta runs."
 4. Claude Code calls list_runs() and picks a failed run.
-5. Claude Code calls analyze_run(run_id, intent="analyze_run").
+5. Claude Code calls analyze_run(run_id).
 6. Trajecta runs the Eval Agent (RAG retrieval, coarse-to-fine VLM,
    propose_eval_case) and returns an EvalCase draft + AgentTrace.
 7. To validate, the user opens Trajecta's own UI — the MCP surface
@@ -672,12 +672,12 @@ Absorbed into A6.
 
 | File                                            | Phase 8 change                                                                                                                                                                                                                                                                                               |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PROJECT.md`                                    | Add Phase 8 section; add "Components Used" table (RAG + Tools + Security/Governance, MCP planned lower priority); add "Market Positioning" paragraph; add "Phase 8 Design Decisions" listing the non-goals (no Reviewer Agent, no Mem0, no Langfuse) with one-line rationales.                               |
-| `docs/roadmap.md`                               | Add Phase 8 entry mirroring 8.A / 8.B / 8.C; update Resume Bullets with the planned lower-priority MCP composite, Gemini/OpenAI judge κ, and experiment log lines.                                                                                                                                           |
+| `PROJECT.md`                                    | Add Phase 8 section; add "Components Used" table (RAG + Tools + Security/Governance, MCP lower priority); add "Market Positioning" paragraph; add "Phase 8 Design Decisions" listing the non-goals (no Reviewer Agent, no Mem0, no Langfuse) with one-line rationales.                               |
+| `docs/roadmap.md`                               | Add Phase 8 entry mirroring 8.A / 8.B / 8.C; update Resume Bullets with the lower-priority MCP composite, Gemini/OpenAI judge κ, and experiment log lines.                                                                                                                                           |
 | `docs/testing.md`                               | Add `eval/golden.jsonl` schema and the build script reference; add the `agent_eval` → `eval/judge.py` protocol and acceptability-assertion judge contract; document Cohen's κ computation and the disagreement-analysis fallback; update the RAGAS section so it no longer claims `mode=stub` is acceptable. |
 | `docs/prompt_versioning.md` + `prompts/judge/`* | Add judge prompt versioning for the Gemini/OpenAI judge path; keep any stricter prompt bundle archived / experimental.                                                                                                                                                                                       |
 | `docs/eval_agent.md`                            | Add a short "MCP exposure" subsection that links to `docs/mcp.md` and clarifies that the entire `agent_loop` is reachable via the `analyze_run` MCP tool. Do not restructure the rest of the doc.                                                                                                            |
-| `README.md`                                     | Add an "Eval & Experiments" section with the A7 experiment log table; add a planned MCP connection section (B5); add a link to `docs/failure_analysis.md`; surface the best agent_eval prompt and v5 trade-off with a footnote pointing at `docs/experiment_log.md`.                                         |
+| `README.md`                                     | Add an "Eval & Experiments" section with the A7 experiment log table; add an MCP connection section (B5); add a link to `docs/failure_analysis.md`; surface the best agent_eval prompt and v5 trade-off with a footnote pointing at `docs/experiment_log.md`.                                         |
 | `docs/phase8_s18_alignment.md`                  | This file.                                                                                                                                                                                                                                                                                                   |
 | `docs/mcp.md`                                   | New, see B3.                                                                                                                                                                                                                                                                                                 |
 | `docs/security_governance.md`                   | New, see B4.                                                                                                                                                                                                                                                                                                 |
@@ -695,7 +695,7 @@ walkthrough; treat it as a default, not a contract.
 | ----------------- | ----- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Architecture      | 2 min | `PROJECT.md`, `docs/architecture.md`                                                                             | One diagram, four components, data flow.                                                     |
 | Code              | 3 min | `backend/app/eval_agent_graph.py`, `eval/judge.py`                                                               | LangGraph loop + Gemini/OpenAI judge handoff.                                                |
-| Use case          | 2 min | `PROJECT.md` § "Market Positioning"                                                                              | The missing eval layer for browser-agent trajectories; MCP as planned remote packaging.      |
+| Use case          | 2 min | `PROJECT.md` § "Market Positioning"                                                                              | The missing eval layer for browser-agent trajectories; MCP as remote packaging.      |
 | Eval & Experiment | 5 min | `eval/golden.jsonl`, `eval/judge.py`, `eval/runs/{ts}/judge/judge_agreement_report.md`, `docs/experiment_log.md` | Golden set construction, judge post-step, acceptability assertions, κ_LLM,LLM, v1→v5 deltas. |
 | Result            | 3 min | `eval/agent_report.md` (local), `docs/failure_analysis.md`                                                       | v3 best headline result, v5 failure-sensitive trade-off, 2-3 failure cases.                  |
 
@@ -725,18 +725,20 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**Push readiness / optional B-series** — Core Phase 8 eval deliverables
-(A1–A8 except deferred A5), A6 real RAGAS, B6.1–B6.3 Spotlighting
-hardening (defense shipped + unit-tested; the B6.4/B6.5 eval layer was
-deliberately trimmed), and 8.C tactical cleanup are complete. C1
-`cd frontend && npm run build` passes after fixing `EvalAgentPanel`
-`ReactElement` typing; C2 repo hygiene verified clean before the wrap-up
-commits.
+**Phase 8 functionally complete.** Core eval deliverables (A1–A8 except
+deferred A5), A6 real RAGAS, B6.1–B6.3 Spotlighting hardening (defense
+shipped + unit-tested; B6.4/B6.5 eval layer deliberately trimmed), 8.C
+tactical cleanup, and now **B1 + B2 (MCP server)** are all complete.
+`trajecta_mcp/server.py` ships the six-tool surface + `analyze_run`
+composite; `tests/test_mcp_server.py` (15 tests) proves the surface and
+the B2 invariants. Full suite: 440 passed / 1 skipped in the `trajecta`
+env.
 
-Remaining tracker work is **optional or lower priority**: B1 MCP server
-and B2 MCP invariants. A formal prompt-injection benchmark is a possible
-future security-evaluation phase, not Phase 8. Do not expand scope unless
-the operator requests it before push.
+The **only** remaining item is **B1.5 live demo** (`blocked`): an
+operator connecting a real MCP client (Claude Code/Cursor) and calling
+`analyze_run` — it cannot be proven in a headless env. A formal
+prompt-injection benchmark remains a possible future security-evaluation
+phase, not Phase 8. Do not expand scope unless the operator requests it.
 
 ### Agent Handoff Rule
 
@@ -784,7 +786,7 @@ flowchart LR
   A4 --> A8[A8 FailureAnalysis]
   A2 --> A6[A6 RAGAS]
   A5[A5 DeferredHumanValidation]
-  A3 --> B1[B1 MCP Server planned]
+  A3 --> B1[B1 MCP Server]
   B1 --> B5[B5 README Demo]
   B6[B6 Spotlighting] --> B4[B4 SecurityDoc]
   C1[C1 FrontendBuild] --> C2[C2 RepoHygiene]
@@ -900,33 +902,33 @@ on a stable `analyze_run` path only.
 
 ---
 
-### 8.B — Planned MCP + Component Framing
+### 8.B — MCP + Component Framing
 
 #### B1 — MCP Server
 
 
 | Slice                        | Status    | Artefact / outcome                                             | Core files                 | Verify                                                |
 | ---------------------------- | --------- | -------------------------------------------------------------- | -------------------------- | ----------------------------------------------------- |
-| B1.1 FastMCP skeleton        | `todo`    | `FastMCP("Trajecta")` instance                                 | `mcp/server.py`            | `python -c "import mcp.server"` or client lists tools |
-| B1.2 Five read-only tools    | `todo`    | `list_runs`, `get_run`, `get_step_detail`, `search_*`          | `mcp/server.py`            | MCP client tool inventory = 6 total                   |
-| B1.3 `analyze_run` composite | `todo`    | Delegates to `eval_agent_graph.analyze_run(..., source="mcp")` | `mcp/server.py`            | Trace parity with HTTP analyze                        |
-| B1.4 Excluded tools          | `todo`    | No `save_validated_eval_case`, `delete_*`, `import_dataset`    | `mcp/server.py`            | Excluded name → `method_not_found`                    |
-| B1.5 Live demo               | `blocked` | Claude Code connects in ≤ 2 min                                | `docs/mcp.md`, `README.md` | Operator smoke per B5 script                          |
+| B1.1 FastMCP skeleton        | `done`    | `FastMCP("Trajecta")` instance; dir named `trajecta_mcp/` (not `mcp/`) to avoid shadowing the official `mcp` SDK | `trajecta_mcp/server.py`   | `pytest tests/test_mcp_server.py::test_exactly_six_tools_registered` |
+| B1.2 Five read-only tools    | `done`    | `list_runs`, `get_run`, `get_step_detail`, `search_failure_memory`, `search_eval_cases` thin delegates | `trajecta_mcp/server.py`   | MCP client tool inventory == 6 total                  |
+| B1.3 `analyze_run` composite | `done`    | Delegates to `eval_agent_graph.analyze_run(..., source="mcp")`; strips bytes; full-run only | `trajecta_mcp/server.py`   | `test_analyze_run_trace_parity_with_http_path`        |
+| B1.4 Excluded tools          | `done`    | `save_validated_eval_case`, `delete_*`, `import_dataset`, `set_prompt_version` never decorated | `trajecta_mcp/server.py`   | `test_excluded_tool_call_raises_method_not_found`     |
+| B1.5 Live demo               | `blocked` | Claude Code connects in ≤ 2 min                                | `docs/mcp.md`, `README.md` | Operator smoke per B5 script (headless env cannot prove) |
 
 
-**Epic status**: `todo` — `docs/mcp.md` drafted; `mcp/server.py` not shipped.
+**Epic status**: `done` (code) — B1.1–B1.4 shipped + tested (15 tests in `tests/test_mcp_server.py`). Those tests guard with `pytest.importorskip("fastmcp")`, so they run in the project `trajecta` env (or any env after `pip install -r backend/requirements.txt`, which pins `fastmcp>=2.0`) and are skipped where fastmcp is absent — same opt-in pattern as `test_real_llm_integration`. There is no CI gate (Phase 8 defers it; see the S18 map "Optional" row). B1.5 live demo stays `blocked` on an operator connecting a real MCP client.
 
 #### B2 — `analyze_run` Invariants
 
 
 | Slice                        | Status | Artefact / outcome                                  | Core files                                      | Verify                                 |
 | ---------------------------- | ------ | --------------------------------------------------- | ----------------------------------------------- | -------------------------------------- |
-| B2.1 Budget honoured         | `todo` | `terminated_by="budget_exceeded"` reachable via MCP | `mcp/server.py`, `eval_agent_graph.py`          | Compare `tool_call_count` with UI path |
-| B2.2 `source="mcp"` stamp    | `todo` | Trace origin distinguishable                        | `backend/app/schemas.py`, `eval_agent_graph.py` | Assert field in MCP trace JSON         |
-| B2.3 `human_validated=false` | `todo` | Draft only; no MCP persist path                     | `mcp/server.py`                                 | Returned EvalCase field check          |
+| B2.1 Budget honoured         | `done` | Budget applies inside the MCP call (same graph); `terminated_by` always surfaced | `trajecta_mcp/server.py`, `eval_agent_graph.py` | `test_analyze_run_budget_invariant_surfaces_terminated_by` |
+| B2.2 `source="mcp"` stamp    | `done` | `AgentTrace.source ∈ {ui,eval,mcp}` threaded through all entry points | `backend/app/schemas.py`, `eval_agent_graph.py`, `agent_eval.py` | `test_analyze_run_stamps_mcp_source_and_draft` |
+| B2.3 `human_validated=false` | `done` | Draft only; no MCP persist path                     | `trajecta_mcp/server.py`                         | `test_analyze_run_stamps_mcp_source_and_draft` |
 
 
-**Epic status**: `todo` — depends on B1.3.
+**Epic status**: `done` — invariants proven by `tests/test_mcp_server.py` (source stamp, HITL draft, budget, trace parity).
 
 #### B3 — `docs/mcp.md`
 
@@ -943,17 +945,17 @@ on a stable `analyze_run` path only.
 
 | Slice                     | Status | Artefact / outcome                                                                        | Core files                    | Verify                                   |
 | ------------------------- | ------ | ----------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------- |
-| B4.1 Nine-mechanism table | `done` | Mechanisms 1–6 and 8 framed as complete; MCP and B6 framed as planned lower-priority work | `docs/security_governance.md` | Doc no longer describes B1/B6 as shipped |
+| B4.1 Nine-mechanism table | `done` | Mechanisms 1–9 framed truthfully; B6 + MCP (Mechanism 7/9) shipped, only B1.5 live demo gated | `docs/security_governance.md` | Doc describes B1/B6 as shipped |
 
 
-**Epic status**: `done` — B4 is a truthful component story; B1 and B6 remain separate planned implementation slices.
+**Epic status**: `done` — B4 is a truthful component story; B1 and B6 shipped as their own slices.
 
 #### B5 — README MCP Demo
 
 
 | Slice                | Status | Artefact / outcome                       | Core files                 | Verify        |
 | -------------------- | ------ | ---------------------------------------- | -------------------------- | ------------- |
-| B5.1 Seven-step demo | `done` | User-facing planned connect instructions | `README.md`, `docs/mcp.md` | Manual review |
+| B5.1 Seven-step demo | `done` | User-facing connect instructions | `README.md`, `docs/mcp.md` | Manual review |
 
 
 **Epic status**: `done` (doc); live proof blocked on B1.
@@ -997,7 +999,7 @@ on a stable `analyze_run` path only.
 | D2 `docs/roadmap.md` Phase 8 entry          | `done` | `docs/roadmap.md`           | 8.A / 8.B / 8.C listed                                                                                                                               |
 | D3 `docs/testing.md` judge protocol         | `done` | `docs/testing.md`           | Golden + dual LLM judge + κ sections                                                                                                                 |
 | D4 `docs/prompt_versioning.md` judge config | `done` | `docs/prompt_versioning.md` | Env-driven model + prompt-version rules documented; provider-specific A/B prompt bundles shipped; stricter prompt archived / experimental if present |
-| D5 `docs/eval_agent.md` MCP subsection      | `done` | `docs/eval_agent.md`        | Planned MCP subsection links to `docs/mcp.md`                                                                                                        |
+| D5 `docs/eval_agent.md` MCP subsection      | `done` | `docs/eval_agent.md`        | MCP subsection links to `docs/mcp.md`                                                                                                        |
 | D6 README Eval & Experiments                | `done` | `README.md`                 | Agent_eval table, v5 judge κ, and real RAGAS result documented                                                                                       |
 | D7 `docs/experiment_log.md`                 | `done` | `docs/experiment_log.md`    | See A7.1                                                                                                                                             |
 | D8 `docs/failure_analysis.md`               | `done` | `docs/failure_analysis.md`  | See A8                                                                                                                                               |
@@ -1025,9 +1027,9 @@ A single block to verify before the 48-hour push.
 [x] eval/ragas_report.md    mode == "real", n ≥ 10
 [x] README.md    "Eval & Experiments" table ≥ 5 rows with concrete deltas
 [x] docs/failure_analysis.md    2-3 cases + one-line trade-off
-[ ] mcp/server.py    planned lower-priority slice: six tools, zero excluded tools, analyze_run composite
-[x] docs/mcp.md    planned tool inventory + analyze_run diagram + demo script
-[x] docs/security_governance.md    shipped mechanisms (incl. B6 Spotlighting, unmeasured) separated honestly from planned B1 MCP work
+[x] trajecta_mcp/server.py    six tools, zero excluded (method_not_found), analyze_run composite (source=mcp); B1.5 live demo still operator-gated
+[x] docs/mcp.md    tool inventory + analyze_run diagram + demo script
+[x] docs/security_governance.md    shipped mechanisms (incl. B6 Spotlighting, unmeasured; MCP Mechanism 7) framed honestly; only B1.5 live demo gated
 [x] backend/app/prompts.py + eval_agent_graph.py + tools.py    B6.1–B6.3 Spotlighting hardening shipped + unit-tested (test_prompts.py, SpotlightingWrapTests); B6.4/B6.5 eval layer intentionally out of scope
 [x] cd frontend && npm run build    exits 0
 [x] git status    clean

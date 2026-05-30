@@ -19,7 +19,7 @@ import logging
 import os
 from typing import Any, Literal
 
-from backend.app import llm, prompts, rag, storage
+from backend.app import llm, rag, storage
 from backend.app.ids import make_eval_case_id, make_success_case_id
 from backend.app.schemas import (
     EvalCase,
@@ -270,39 +270,31 @@ def get_step_detail(
     if has_screenshot and screenshot_filename is not None:
         screenshot_url = f"/api/runs/{run_id}/screenshots/{screenshot_filename}"
 
-    # Phase 8 B6 Spotlighting: wrap untrusted trajectory text before it
-    # reaches the LLM via the tool result. `run.task` is the user-supplied
-    # task description and is intentionally NOT wrapped — the preamble tells
-    # the agent to ignore instructions inside markers, but the task is
-    # exactly the instruction we want it to follow.
-    wrap = prompts.spotlight_wrap_optional
-    action_dump = step.action.model_dump(mode="json")
-    for field in ("label", "text", "raw"):
-        if field in action_dump:
-            action_dump[field] = wrap(action_dump[field])
-    observation_dump = step.observation.model_dump(mode="json")
-    for field in ("url", "title", "visible_text"):
-        if field in observation_dump:
-            observation_dump[field] = wrap(observation_dump[field])
-
+    # NOTE: this returns RAW step detail. The HTTP detail endpoint
+    # (GET /api/runs/{id}/steps/{idx}/detail) and the MCP read tool both
+    # call this directly and need token-free, unwrapped data. Phase 8 B6
+    # Spotlighting wrapping of untrusted text is applied only when this
+    # result is fed into the Eval Agent's own LLM context — see
+    # ``_spotlight_wrap_step_detail`` in eval_agent_graph.py, which wraps at
+    # the tool-result seam where a per-run spotlight token is guaranteed set.
     return {
         "run_id": run_id,
         "step_index": step_index,
         "has_screenshot": has_screenshot,
         "image_detail": image_detail,
-        "vlm_summary": wrap(vlm_summary),
+        "vlm_summary": vlm_summary,
         "vlm_prompt_version": vlm_prompt_version,
         "vlm_prompt_sha256": vlm_prompt_sha256,
         "task_context": {
             "task": run.task,
-            "url": wrap(step.observation.url),
-            "title": wrap(step.observation.title),
-            "action_label": wrap(step.action.label),
-            "action_text": wrap(step.action.text),
-            "action_raw": wrap(step.action.raw),
+            "url": step.observation.url,
+            "title": step.observation.title,
+            "action_label": step.action.label,
+            "action_text": step.action.text,
+            "action_raw": step.action.raw,
         },
-        "action": action_dump,
-        "observation": observation_dump,
+        "action": step.action.model_dump(mode="json"),
+        "observation": step.observation.model_dump(mode="json"),
         "result": step.result.model_dump(mode="json"),
         "coordinate_validation": step.coordinate_validation.model_dump(mode="json"),
         "screenshot_url": screenshot_url,

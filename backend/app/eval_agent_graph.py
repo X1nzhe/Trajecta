@@ -170,6 +170,7 @@ def analyze_run(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_analyze_run(
@@ -177,6 +178,7 @@ def analyze_run(
             llm_client=llm_client,
             budget=budget,
             persist=persist,
+            source=source,
         )
     )
 
@@ -187,6 +189,7 @@ def stream_analyze_run(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> Iterator[AgentStreamItem]:
     """Analyze the full trajectory.
 
@@ -197,6 +200,9 @@ def stream_analyze_run(
     ``user_intent="analyze_run"`` and ``selected_step=None``; the
     ``selected_step`` field is retained in the schema only for back-compat
     reading of older traces from disk.
+
+    ``source`` records run origin on the trace ("ui" default, "eval" from
+    the agent_eval harness, "mcp" from the MCP composite tool).
     """
 
     yield from stream_analyze(
@@ -206,6 +212,7 @@ def stream_analyze_run(
         llm_client=llm_client,
         budget=budget,
         persist=persist,
+        source=source,
     )
 
 
@@ -217,6 +224,7 @@ def analyze(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_analyze(
@@ -226,6 +234,7 @@ def analyze(
             llm_client=llm_client,
             budget=budget,
             persist=persist,
+            source=source,
         )
     )
 
@@ -238,6 +247,7 @@ def stream_analyze(
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
+    source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> Iterator[AgentStreamItem]:
     # Mirror the env-var split used by _default_llm_client: a real
     # OpenAI-backed agent only runs when both OPENAI_API_KEY and
@@ -260,6 +270,7 @@ def stream_analyze(
         run_id=run_id,
         user_intent=user_intent,
         selected_step=selected_step,
+        source=source,
         turn_count=1,
         terminated_by="error",
         model=trace_model,
@@ -832,6 +843,14 @@ def _execute_tool_node(state: GraphState) -> GraphState:
             _record_recoverable_tool_error(state, name=name, args=args, call_id=call_id, error=error)
         return state
 
+    # Phase 8 B6 Spotlighting: wrap untrusted text in the get_step_detail
+    # result here, at the agent-tool-result seam, not inside the tool. The
+    # tool stays reusable by the token-free HTTP detail endpoint + MCP read
+    # tool; wrapping only happens when the result enters the Eval Agent's own
+    # LLM context, where stream_analyze has already set a per-run token.
+    if name == "get_step_detail" and isinstance(result, dict):
+        result = _spotlight_wrap_step_detail(result)
+
     event_result = _trace_result_payload(result)
     _append_event(trace, "tool_result", turn=turn, name=name, result=event_result)
     _append_tool_message(state, name=name, call_id=call_id, payload=event_result)
@@ -1159,6 +1178,38 @@ def _wrap_digest_for_prompt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 new_row[field] = prompts.spotlight_wrap_optional(new_row[field])
         wrapped.append(new_row)
     return wrapped
+
+
+def _spotlight_wrap_step_detail(result: dict[str, Any]) -> dict[str, Any]:
+    """Spotlight-wrap untrusted text in a ``get_step_detail`` result.
+
+    Applied at the agent tool-result seam (not inside ``tools.get_step_detail``)
+    so the tool stays reusable by the token-free HTTP detail endpoint and MCP
+    read tool. ``task_context.task`` is the user's own goal and stays unwrapped;
+    structural fields (ids, statuses, coords, screenshot_url) are not text and
+    pass through. Mutates the freshly-built result dict in place. Off-mode and
+    None/empty values degrade to identity via ``spotlight_wrap_optional``.
+    """
+
+    wrap = prompts.spotlight_wrap_optional
+    if "vlm_summary" in result:
+        result["vlm_summary"] = wrap(result["vlm_summary"])
+    task_context = result.get("task_context")
+    if isinstance(task_context, dict):
+        for field in ("url", "title", "action_label", "action_text", "action_raw"):
+            if field in task_context:
+                task_context[field] = wrap(task_context[field])
+    observation = result.get("observation")
+    if isinstance(observation, dict):
+        for field in ("url", "title", "visible_text"):
+            if field in observation:
+                observation[field] = wrap(observation[field])
+    action = result.get("action")
+    if isinstance(action, dict):
+        for field in ("label", "text", "raw"):
+            if field in action:
+                action[field] = wrap(action[field])
+    return result
 
 
 def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:

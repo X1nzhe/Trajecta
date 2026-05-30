@@ -76,8 +76,8 @@ Phase 8). Each row validates on load.
 - All eight category tags present (`allrecipes`, `amazon`, `apple`,
   `arxiv`, `booking`, `github`, `google_flight`, `huggingface`).
 - `scripts/build_golden_jsonl.py --check` exits non-zero when
-  `triage_notes.csv` was modified after `golden.jsonl`. Wired into CI as
-  a soft gate.
+  `triage_notes.csv` was modified after `golden.jsonl`. Intended as a
+  pre-commit `--check` soft gate (Phase 8 adds no CI).
 
 ## LLM Judge
 
@@ -540,7 +540,7 @@ Checklist":
 - `eval/ragas_report.md` — `mode == "real"`, `n ≥ 10`.
 - `README.md` — "Eval & Experiments" table ≥ 5 rows with concrete metric deltas (no "improved slightly" phrasing).
 - `docs/failure_analysis.md` — 2–3 case studies + one-line trade-off.
-- Planned lower-priority `mcp/server.py` — six tools exposed, zero excluded tools registered, `analyze_run` composite present once the MCP slice ships.
+- `backend/tests/test_mcp_server.py` (Phase 8 B1, skips if fastmcp absent) — exactly six tools exposed, excluded names raise `method_not_found`, `analyze_run` composite stamps `source=mcp` + `human_validated=False` + trace parity with the HTTP path.
 - `cd frontend && npm run build` — exits 0.
 - `git status` — clean.
 - `PROJECT.md`, `README.md`, `docs/roadmap.md`, `docs/testing.md`, `docs/eval_agent.md` — all reflect Phase 8.
