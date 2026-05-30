@@ -73,6 +73,7 @@ import shutil
 import statistics
 import sys
 import time
+from collections.abc import Callable
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -617,6 +618,41 @@ def _run_agent(run_id: str, *, force_mock: bool) -> AgentTrace:
     return result.trace
 
 
+_RETRYABLE_ERROR_CLASS_HINTS = (
+    "RateLimit",
+    "APITimeout",
+    "APIConnection",
+    "Timeout",
+    "Connection",
+)
+_RETRYABLE_ERROR_MESSAGE_HINTS = (
+    "429",
+    "rate limit",
+    "temporarily unavailable",
+    "timeout",
+    "timed out",
+    "connection error",
+)
+
+
+def _is_retryable_error(exc: BaseException) -> bool:
+    """Return True for transient provider / network failures worth retrying."""
+
+    class_name = type(exc).__name__
+    if any(hint in class_name for hint in _RETRYABLE_ERROR_CLASS_HINTS):
+        return True
+    message = str(exc).lower()
+    return any(hint in message for hint in _RETRYABLE_ERROR_MESSAGE_HINTS)
+
+
+def _retry_delay_s(attempt_index: int, *, base_s: float, max_s: float) -> float:
+    """Exponential backoff delay for a 0-based retry attempt."""
+
+    base = max(0.0, base_s)
+    cap = max(0.0, max_s)
+    return min(cap, base * (2 ** attempt_index))
+
+
 def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
     """Persist one AgentTrace as ``{trace_dir}/{run_id}.json``.
 
@@ -649,12 +685,58 @@ def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
         return None
 
 
+def _load_resume_trace(
+    trace_dir: Path,
+    run_id: str,
+    *,
+    expected_prompt_version: str,
+) -> AgentTrace | None:
+    """Load a completed per-sample trace if this run can be resumed."""
+
+    path = trace_dir / f"{run_id}.json"
+    if not path.exists():
+        return None
+    trace = AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
+    if trace.run_id != run_id:
+        raise ValueError(
+            f"resume trace {path} has run_id={trace.run_id!r}, expected {run_id!r}"
+        )
+    if trace.prompt_version != expected_prompt_version:
+        raise ValueError(
+            f"resume trace {path} has prompt_version={trace.prompt_version!r}, "
+            f"expected {expected_prompt_version!r}"
+        )
+    return trace
+
+
+def _trace_latency_s(trace: AgentTrace) -> float:
+    return (trace.runtime_ms or 0) / 1000.0
+
+
+def _resolve_archive_dir(
+    *,
+    out_dir: Path,
+    archive_stamp: str,
+    trace_dir: Path | None,
+    trace_dir_explicit: bool,
+) -> Path:
+    """Choose where the timestamped report for this eval run belongs."""
+
+    if trace_dir_explicit and trace_dir is not None and trace_dir.name == "traces":
+        return trace_dir.parent
+    return out_dir / "runs" / archive_stamp
+
+
 def collect_graded_samples(
     golden: list[GoldenSample],
     *,
     force_mock: bool,
     limit: int | None = None,
     trace_dir: Path | None = None,
+    max_retries: int = 3,
+    retry_base_s: float = 10.0,
+    retry_max_s: float = 120.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
 ) -> tuple[list[GradedSample], SkippedCounts]:
     """Run the agent against every importable sample and grade each result.
 
@@ -675,6 +757,7 @@ def collect_graded_samples(
     subset = golden if limit is None else golden[:limit]
     total = len(subset)
     overall_start = time.perf_counter()
+    expected_prompt_version = prompts.active_prompt_version()
     for i, sample in enumerate(subset, start=1):
         prefix = f"[{i:2d}/{total}] {sample.run_id[:12]}…"
         try:
@@ -691,21 +774,71 @@ def collect_graded_samples(
             flush=True,
         )
         start = time.perf_counter()
-        try:
-            trace = _run_agent(sample.run_id, force_mock=force_mock)
-        except Exception as exc:  # pragma: no cover - defensive
-            elapsed = time.perf_counter() - start
-            skipped.agent_error += 1
-            print(
-                f"{prefix} ERROR after {elapsed:.1f}s: "
-                f"{type(exc).__name__}: {exc}",
-                file=sys.stderr,
-                flush=True,
-            )
-            continue
-        latency_s = time.perf_counter() - start
+        resumed = False
         if trace_dir is not None:
-            _dump_trace(trace, trace_dir, sample.run_id)
+            try:
+                trace = _load_resume_trace(
+                    trace_dir,
+                    sample.run_id,
+                    expected_prompt_version=expected_prompt_version,
+                )
+            except Exception as exc:
+                elapsed = time.perf_counter() - start
+                print(
+                    f"{prefix} ERROR after {elapsed:.1f}s: "
+                    f"cannot resume trace: {type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                raise
+            if trace is not None:
+                resumed = True
+                latency_s = _trace_latency_s(trace)
+                print(
+                    f"{prefix} resumed from trace "
+                    f"({trace_dir / f'{sample.run_id}.json'})",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        if not resumed:
+            attempts = max(0, max_retries) + 1
+            trace = None
+            for attempt in range(attempts):
+                try:
+                    trace = _run_agent(sample.run_id, force_mock=force_mock)
+                    break
+                except Exception as exc:  # pragma: no cover - defensive
+                    elapsed = time.perf_counter() - start
+                    can_retry = _is_retryable_error(exc) and attempt < attempts - 1
+                    if can_retry:
+                        delay = _retry_delay_s(
+                            attempt,
+                            base_s=retry_base_s,
+                            max_s=retry_max_s,
+                        )
+                        print(
+                            f"{prefix} retryable error after {elapsed:.1f}s "
+                            f"(attempt {attempt + 1}/{attempts}): "
+                            f"{type(exc).__name__}: {exc}; "
+                            f"sleeping {delay:.1f}s before retry",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        sleep_fn(delay)
+                        continue
+                    skipped.agent_error += 1
+                    print(
+                        f"{prefix} ERROR after {elapsed:.1f}s: "
+                        f"{type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    break
+            if trace is None:
+                continue
+            latency_s = time.perf_counter() - start
+            if trace_dir is not None:
+                _dump_trace(trace, trace_dir, sample.run_id)
         graded_sample = _grade(
             sample, trace, latency_s=latency_s, step_count=step_count
         )
@@ -1666,6 +1799,24 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Retry each sample this many times for 429 / transient API errors.",
+    )
+    parser.add_argument(
+        "--retry-base-s",
+        type=float,
+        default=10.0,
+        help="Initial per-sample retry backoff in seconds.",
+    )
+    parser.add_argument(
+        "--retry-max-s",
+        type=float,
+        default=120.0,
+        help="Maximum per-sample retry backoff in seconds.",
+    )
+    parser.add_argument(
         "--judge",
         action="store_true",
         help=(
@@ -1764,6 +1915,9 @@ def main(argv: list[str] | None = None) -> int:
         force_mock=args.mock,
         limit=args.limit,
         trace_dir=resolved_trace_dir,
+        max_retries=args.max_retries,
+        retry_base_s=args.retry_base_s,
+        retry_max_s=args.retry_max_s,
     )
     eval_finished_at = datetime.now(timezone.utc)
     wall_clock_total_s = round(time.perf_counter() - eval_start_perf, 3)
@@ -1834,10 +1988,15 @@ def main(argv: list[str] | None = None) -> int:
     report.vlm_high_detail_prompt_sha256 = vlm_prompt_bundle.sha256
     report.cost_usd = cost_usd
 
-    # Write a timestamped archive at <out>/runs/<ts>/agent_report.{json,md}
-    # so each eval run is preserved and comparable. ``archive_stamp`` was
-    # computed earlier in main() so the trace-dump dir could share it.
-    archive_dir = args.out / "runs" / archive_stamp
+    # Write the report beside the trace directory when resuming an existing
+    # eval/runs/<stamp>/traces directory; otherwise use a fresh timestamped
+    # archive under <out>/runs/<ts>/.
+    archive_dir = _resolve_archive_dir(
+        out_dir=args.out,
+        archive_stamp=archive_stamp,
+        trace_dir=resolved_trace_dir,
+        trace_dir_explicit=args.trace_dir is not None,
+    )
     archive_json_path, archive_md_path = write_report(report, archive_dir)
     # Mirror to <out>/agent_report.{json,md} as the "latest" pointer that
     # tooling and humans bookmark. Plain copy (not symlink) for portability.

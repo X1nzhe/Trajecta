@@ -119,7 +119,16 @@ in `agent_report.json` is not enough.
 each graded sample dumps its `AgentTrace` (`trace.model_dump(mode="json")`)
 to `{trace_dir}/{run_id}.json` before grading. Default value is
 `eval/runs/{timestamp}/traces/` so each timestamped report carries its
-own traces.
+own traces. Formal runs also use sample-level retry/backoff for transient
+provider failures (429, timeout, connection errors) and can resume from an
+existing trace dir without rebilling completed samples.
+
+**Resume guard**: `agent_eval.py --trace-dir eval/runs/{ts}/traces`
+reuses existing `{run_id}.json` traces only when their `prompt_version`
+matches the active `TRAJECTA_PROMPT_VERSION`. A mismatch fails fast so
+prompt-version experiments cannot mix outputs. When resuming from
+`eval/runs/{ts}/traces`, the final `agent_report.{json,md}` is written back
+to `eval/runs/{ts}/`.
 
 **Do not** route eval traces into the SQLite `traces` table — that row
 is keyed by `run_id` and overwrites the latest UI-driven analyze. The
@@ -813,7 +822,8 @@ on a stable `analyze_run` path only.
 | A2.2 Per-sample trace JSON            | `done`    | `{trace_dir}/{run_id}.json` per gradeable sample          | `backend/app/agent_eval.py` (`_dump_trace`) | same as above                                                                                        |
 | A2.3 Default `eval/runs/{ts}/traces/` | `done`    | Timestamped archive when flag omitted but archive enabled | `backend/app/agent_eval.py`                 | Inspect stderr path on eval run                                                                      |
 | A2.4 No SQLite overwrite              | `done`    | Eval traces decoupled from UI `traces` row                | `backend/app/agent_eval.py`                 | Confirm eval uses file dump only                                                                     |
-| A2.5 End-to-end smoke                 | `blocked` | 31 trace JSONs under `eval/runs/{ts}/traces/`             | local only                                  | `python -m backend.app.agent_eval --trace-dir eval/runs/manual/traces` (needs real or mock eval run) |
+| A2.5 Retry/resume guard               | `done`    | Transient 429/timeout/connection failures retry per sample; existing trace files resume only when prompt_version matches; resumed reports write beside the trace dir | `backend/app/agent_eval.py`, `backend/tests/test_agent_eval.py` | `pytest backend/tests/test_agent_eval.py`                                                            |
+| A2.6 End-to-end smoke                 | `blocked` | 31 trace JSONs under `eval/runs/{ts}/traces/`             | local only                                  | `python -m backend.app.agent_eval --trace-dir eval/runs/manual/traces` (needs real or mock eval run) |
 
 
 **Epic status**: `partial` — code done; production trace dump awaits operator eval run.

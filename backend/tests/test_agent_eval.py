@@ -315,6 +315,153 @@ class TraceDumpTests(unittest.TestCase):
             # The temp dir was never touched by trace dumping.
             self.assertFalse(any(Path(tmp).rglob("*.json")))
 
+    def test_collect_graded_samples_retries_retryable_error(self) -> None:
+        """429 / transient API errors are retried at the sample level."""
+        sample = agent_eval.GoldenSample(
+            run_id="run_retry",
+            category="x",
+            outcome="success",
+            failure_types=[],
+            failure_step=None,
+            notes="",
+        )
+        trace = self._make_trace("run_retry")
+
+        class _FakeRun:
+            steps = [None] * 5
+
+        delays: list[float] = []
+        run_agent = MagicMock(side_effect=[RuntimeError("429 rate limit"), trace])
+        with (
+            patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+            patch("backend.app.agent_eval._run_agent", run_agent),
+        ):
+            graded, skipped = agent_eval.collect_graded_samples(
+                [sample],
+                force_mock=False,
+                max_retries=2,
+                retry_base_s=1.0,
+                retry_max_s=10.0,
+                sleep_fn=delays.append,
+            )
+
+        self.assertEqual(len(graded), 1)
+        self.assertEqual(skipped.agent_error, 0)
+        self.assertEqual(run_agent.call_count, 2)
+        self.assertEqual(delays, [1.0])
+
+    def test_collect_graded_samples_does_not_retry_non_retryable_error(self) -> None:
+        """Non-transient failures keep the old behavior: mark agent_error and continue."""
+        sample = agent_eval.GoldenSample(
+            run_id="run_non_retry",
+            category="x",
+            outcome="success",
+            failure_types=[],
+            failure_step=None,
+            notes="",
+        )
+
+        class _FakeRun:
+            steps = [None] * 5
+
+        run_agent = MagicMock(side_effect=ValueError("bad eval case schema"))
+        with (
+            patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+            patch("backend.app.agent_eval._run_agent", run_agent),
+        ):
+            graded, skipped = agent_eval.collect_graded_samples(
+                [sample],
+                force_mock=False,
+                max_retries=3,
+                retry_base_s=1.0,
+                retry_max_s=10.0,
+                sleep_fn=lambda _delay: None,
+            )
+
+        self.assertEqual(graded, [])
+        self.assertEqual(skipped.agent_error, 1)
+        self.assertEqual(run_agent.call_count, 1)
+
+    def test_collect_graded_samples_resumes_existing_trace(self) -> None:
+        """Existing trace_dir/{run_id}.json is graded without calling the agent."""
+        sample = agent_eval.GoldenSample(
+            run_id="run_resume",
+            category="x",
+            outcome="success",
+            failure_types=[],
+            failure_step=None,
+            notes="",
+        )
+        trace = self._make_trace("run_resume")
+        trace.runtime_ms = 1234
+
+        class _FakeRun:
+            steps = [None] * 5
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace_dir = Path(tmp) / "traces"
+            trace_dir.mkdir()
+            (trace_dir / "run_resume.json").write_text(
+                trace.model_dump_json(),
+                encoding="utf-8",
+            )
+            run_agent = MagicMock()
+            with (
+                patch.dict(
+                    os.environ,
+                    {"TRAJECTA_PROMPT_VERSION": "v5_constraint_verification"},
+                ),
+                patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+                patch("backend.app.agent_eval._run_agent", run_agent),
+            ):
+                graded, skipped = agent_eval.collect_graded_samples(
+                    [sample],
+                    force_mock=False,
+                    trace_dir=trace_dir,
+                )
+
+        self.assertEqual(len(graded), 1)
+        self.assertEqual(graded[0].latency_s, 1.234)
+        self.assertEqual(skipped.agent_error, 0)
+        run_agent.assert_not_called()
+
+    def test_collect_graded_samples_rejects_prompt_mismatched_trace(self) -> None:
+        """Resume refuses traces from another TRAJECTA_PROMPT_VERSION."""
+        sample = agent_eval.GoldenSample(
+            run_id="run_prompt_mismatch",
+            category="x",
+            outcome="success",
+            failure_types=[],
+            failure_step=None,
+            notes="",
+        )
+        trace = self._make_trace("run_prompt_mismatch")
+
+        class _FakeRun:
+            steps = [None] * 5
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace_dir = Path(tmp) / "traces"
+            trace_dir.mkdir()
+            (trace_dir / "run_prompt_mismatch.json").write_text(
+                trace.model_dump_json(),
+                encoding="utf-8",
+            )
+            run_agent = MagicMock()
+            with (
+                patch.dict(os.environ, {"TRAJECTA_PROMPT_VERSION": "v3_balanced_rubric"}),
+                patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+                patch("backend.app.agent_eval._run_agent", run_agent),
+            ):
+                with self.assertRaises(ValueError):
+                    agent_eval.collect_graded_samples(
+                        [sample],
+                        force_mock=False,
+                        trace_dir=trace_dir,
+                    )
+
+        run_agent.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # Phase 8 A3.5 — `agent_eval --judge` post-step
@@ -965,6 +1112,50 @@ class MainJudgeWiringTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         mock_post.assert_not_called()
+
+    def test_main_writes_report_beside_explicit_traces_dir(self) -> None:
+        """Resume mode should complete the original eval/runs/<stamp> dir,
+        not create a fresh archive timestamp for the final report."""
+        with (
+            patch.object(agent_eval, "load_golden_set", return_value=[]),
+            patch.object(
+                agent_eval,
+                "filter_golden_set_for_failure_memory_overlap",
+                return_value=([], agent_eval.GoldenSetFilterSummary()),
+            ),
+            patch.object(agent_eval.rag, "hydrate_all"),
+            patch.object(
+                agent_eval,
+                "collect_graded_samples",
+                return_value=([], agent_eval.SkippedCounts()),
+            ),
+            patch.object(agent_eval, "compute_label_baselines", return_value={}),
+            patch.object(
+                agent_eval,
+                "write_report",
+                return_value=(Path("/tmp/r.json"), Path("/tmp/r.md")),
+            ) as mock_write,
+            patch("shutil.copyfile"),
+            tempfile.TemporaryDirectory() as tmp,
+        ):
+            csv_path = Path(tmp) / "triage_notes.csv"
+            csv_path.write_text("sample_id,category,outcome\n", encoding="utf-8")
+            out_dir = Path(tmp) / "eval"
+            resumed_archive_dir = out_dir / "runs" / "2026-05-30T04-11-14Z"
+            trace_dir = resumed_archive_dir / "traces"
+            rc = agent_eval.main(
+                [
+                    "--csv",
+                    str(csv_path),
+                    "--out",
+                    str(out_dir),
+                    "--trace-dir",
+                    str(trace_dir),
+                ]
+            )
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(mock_write.call_args.args[1], resumed_archive_dir)
 
 
 if __name__ == "__main__":

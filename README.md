@@ -152,6 +152,24 @@ Produces `eval/agent_report.{json,md}` plus per-sample trace JSONs under
 the `--trace-dir`. Both `eval/agent_report.*` and `eval/runs/` are
 `.gitignore`d; they are reproducible local artefacts.
 
+`agent_eval` retries transient provider failures per sample: 429, rate
+limit, timeout, and connection errors retry up to 3 times by default.
+Tune with `--max-retries`, `--retry-base-s`, and `--retry-max-s`.
+
+If a formal eval is interrupted, resume with the original trace dump dir:
+
+```bash
+TRAJECTA_PROMPT_VERSION=v3_balanced_rubric \
+python -m backend.app.agent_eval \
+  --trace-dir eval/runs/2026-05-30T03-54-45Z/traces
+```
+
+Existing `{run_id}.json` traces are reused and not billed again. The prompt
+version must match the trace metadata; mismatches fail fast to avoid mixing
+v3/v4/v5 outputs. When `--trace-dir` points at `eval/runs/<stamp>/traces`,
+the completed `agent_report.{json,md}` is written back to
+`eval/runs/<stamp>/` and mirrored to `eval/agent_report.*`.
+
 The formal Phase 8 v1→v5 prompt comparison uses 31 filtered golden-set
 samples with `gpt-5.4-mini-2026-03-17` for both the Eval Agent and VLM.
 The best headline prompt is `v3_balanced_rubric`:

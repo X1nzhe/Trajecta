@@ -452,6 +452,11 @@ tests/test_agent_eval.py            (extend)
 - --trace-dir flag dumps one per-sample trace JSON under the given dir
 - dumped trace contains the propose_eval_case args and the full evidence list
 - the dump path defaults to eval/runs/{ts}/traces/ when the flag is omitted
+- retryable 429 / timeout / connection failures are retried per sample
+- non-retryable agent errors are not retried and still count as agent_error
+- existing trace_dir/{run_id}.json files resume directly into grading without calling _run_agent
+- resume rejects prompt_version mismatches to prevent cross-prompt contamination
+- explicit eval/runs/{ts}/traces resume writes the final report back to eval/runs/{ts}/
 - judge post-step receives the same report path and trace dir produced by the eval run
 - judge post-step runs env-configured Gemini-compatible and OpenAI-compatible judge configs with different committed judge prompt versions
 
