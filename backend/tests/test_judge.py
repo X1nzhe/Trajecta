@@ -16,6 +16,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -38,14 +39,19 @@ from backend.app.schemas import (
 )
 from eval.judge import (
     ClauseEvaluation,
+    DEFAULT_SELECTION_POLICY,
+    JudgeAgreementCase,
+    JudgeAgreementReport,
     JudgeAssertion,
     JudgeCaseReport,
     JudgeConfig,
     JudgeLLMResult,
+    JudgeProviderError,
     JudgeReport,
     StandaloneJudgeResult,
     aggregate_verdict,
     build_arg_parser,
+    build_judge_agreement_report,
     build_judge_payload,
     build_judge_report,
     clause_1_verdict_match,
@@ -66,9 +72,14 @@ from eval.judge import (
     resolve_evidence_source,
     run_llm_judge,
     run_standalone_judge,
+    write_judge_agreement_report,
     write_judge_report,
 )
-from eval.judge import _parse_judge_response  # noqa: E402 — direct test access
+from eval.judge import (  # noqa: E402 — direct test access
+    _default_judge_callable,
+    _parse_judge_response,
+    _resolve_provider_creds,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GOLDEN_PATH = REPO_ROOT / "eval" / "golden.jsonl"
@@ -1139,13 +1150,19 @@ def test_run_llm_judge_propagates_parser_failure(tmp_path: Path) -> None:
         )
 
 
-def test_run_llm_judge_default_callable_raises_without_provider(tmp_path: Path) -> None:
-    """No real provider is wired in A3.2 — a caller that forgets to pass
-    a callable gets a clear NotImplementedError instead of an accidental
-    network call."""
+def test_run_llm_judge_default_callable_raises_when_provider_unconfigured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A4.1 wires a real provider-backed default callable. Without a
+    provider API key in env, the construction-time resolver raises
+    ``JudgeProviderError`` so a caller that forgets to pass a mocked
+    callable still cannot reach the network — they get an actionable
+    error pointing at the missing env var."""
+    monkeypatch.delenv("TRAJECTA_JUDGE_A_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     config = JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v_acc")
     payload = {"run_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
-    with pytest.raises(NotImplementedError, match="judge_callable"):
+    with pytest.raises(JudgeProviderError, match="TRAJECTA_JUDGE_A_API_KEY"):
         run_llm_judge(payload, config, prompts_root=_judge_prompt_dir(tmp_path))
 
 
@@ -1939,13 +1956,18 @@ def test_cli_main_returns_nonzero_when_env_missing(
     assert "TRAJECTA_JUDGE_A_MODEL" in stderr or "TRAJECTA_JUDGE_A_PROMPT_VERSION" in stderr
 
 
-def test_cli_main_default_callable_returns_not_implemented_exit_code(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_cli_main_default_callable_without_api_key_returns_provider_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Until A4.1 wires real provider clients, ``main`` without a
-    callable resolves to ``_default_judge_callable`` which raises
-    ``NotImplementedError``. The CLI converts that to exit code 3 with
-    a hint pointing at A4.1 — not a stack trace dumped to the operator."""
+    """A4.1: ``main`` without a mocked callable resolves to
+    ``_default_judge_callable``, which builds an OpenAI-compatible
+    client. When the slot's API key env is absent the resolver raises
+    ``JudgeProviderError`` and the CLI surfaces a clean exit code 3
+    with an actionable message — not a stack trace."""
+    monkeypatch.delenv("TRAJECTA_JUDGE_A_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     paths = _cli_inputs(tmp_path, ["run_a"])
     argv = [
         "--golden",
@@ -1964,4 +1986,941 @@ def test_cli_main_default_callable_returns_not_implemented_exit_code(
     rc = judge_main(argv, env=env, prompts_root=paths["prompts_root"])
     assert rc == 3
     stderr = capsys.readouterr().err
-    assert "A4.1" in stderr
+    assert "TRAJECTA_JUDGE_A_API_KEY" in stderr
+    assert "'A'" in stderr or "slot 'A'" in stderr
+
+
+# ---------------------------------------------------------------------------
+# A4.1 — env-driven default judge callable
+#
+# The default callable wraps an OpenAI-compatible chat-completions
+# client. These tests cover the resolver (env contract) and the call
+# layer (request shape + response handling) with a mocked
+# ``openai.OpenAI`` constructor — no real HTTP, no network.
+
+
+def _judge_config(slot: str = "A", model: str = "judge-model") -> JudgeConfig:
+    return JudgeConfig(slot=slot, model=model, prompt_version="v_acc")  # type: ignore[arg-type]
+
+
+class _FakeChatMessage:
+    def __init__(self, content: object) -> None:
+        self.content = content
+
+
+class _FakeChoice:
+    def __init__(self, content: object) -> None:
+        self.message = _FakeChatMessage(content)
+
+
+class _FakeChatCompletion:
+    def __init__(self, content: object) -> None:
+        self.choices = [_FakeChoice(content)]
+
+
+class _FakeChatCompletions:
+    def __init__(self, owner: "_FakeOpenAI") -> None:
+        self._owner = owner
+
+    def create(self, **kwargs):
+        self._owner.calls.append(kwargs)
+        if self._owner.exc is not None:
+            raise self._owner.exc
+        return _FakeChatCompletion(self._owner.content)
+
+
+class _FakeChat:
+    def __init__(self, owner: "_FakeOpenAI") -> None:
+        self.completions = _FakeChatCompletions(owner)
+
+
+class _FakeOpenAI:
+    """Stand-in for ``openai.OpenAI`` that records construction kwargs
+    and exposes a controllable ``chat.completions.create`` response.
+
+    Patching ``openai.OpenAI`` with a factory that returns one of these
+    keeps the entire provider call path deterministic and offline."""
+
+    def __init__(
+        self, *, content: object = '{"verdict": "acceptable", "rationale": "", "assertions": []}',
+        exc: BaseException | None = None,
+    ) -> None:
+        self.construction_calls: list[dict[str, object]] = []
+        self.calls: list[dict[str, object]] = []
+        self.content = content
+        self.exc = exc
+        self.chat = _FakeChat(self)
+
+    def factory(self) -> "type[_FakeOpenAI]":
+        """Return a callable usable as the ``openai.OpenAI`` constructor.
+
+        We can't just patch ``openai.OpenAI`` with ``self`` because the
+        production code instantiates it with kwargs. Instead, hand back
+        a closure that records kwargs then returns ``self``."""
+        fake = self
+
+        class _Constructor:
+            def __init__(self, **kwargs):
+                fake.construction_calls.append(kwargs)
+                # Mirror the OpenAI client surface
+                self.chat = fake.chat
+
+        return _Constructor  # type: ignore[return-value]
+
+
+# ---- _resolve_provider_creds ---------------------------------------------
+
+
+def test_resolve_provider_creds_slot_A_requires_explicit_key() -> None:
+    """Slot A is Gemini-compatible — silently using OPENAI_API_KEY would
+    route the call to the wrong provider. The resolver must demand
+    TRAJECTA_JUDGE_A_API_KEY explicitly."""
+    with pytest.raises(JudgeProviderError, match="TRAJECTA_JUDGE_A_API_KEY"):
+        _resolve_provider_creds(
+            _judge_config(slot="A"),
+            env={"OPENAI_API_KEY": "should-not-be-used"},
+        )
+
+
+def test_resolve_provider_creds_slot_A_message_excludes_openai_fallback_hint() -> None:
+    """Defence against future regression: the error for slot A must NOT
+    list OPENAI_API_KEY as a fallback — that would mislead operators
+    into setting the wrong key."""
+    try:
+        _resolve_provider_creds(_judge_config(slot="A"), env={})
+    except JudgeProviderError as exc:
+        assert "OPENAI_API_KEY" not in str(exc)
+    else:
+        pytest.fail("expected JudgeProviderError")
+
+
+def test_resolve_provider_creds_slot_A_reads_slot_specific_env() -> None:
+    api_key, base_url = _resolve_provider_creds(
+        _judge_config(slot="A"),
+        env={
+            "TRAJECTA_JUDGE_A_API_KEY": "gemini-key",
+            "TRAJECTA_JUDGE_A_BASE_URL": "https://gemini.example/v1",
+        },
+    )
+    assert api_key == "gemini-key"
+    assert base_url == "https://gemini.example/v1"
+
+
+def test_resolve_provider_creds_slot_B_prefers_slot_specific_key() -> None:
+    """When both TRAJECTA_JUDGE_B_API_KEY and OPENAI_API_KEY are set,
+    the slot-specific one wins — the operator's intent to call a
+    different OpenAI-compatible endpoint for the judge must not be
+    silently overridden by the agent's existing OPENAI_API_KEY."""
+    api_key, base_url = _resolve_provider_creds(
+        _judge_config(slot="B"),
+        env={
+            "TRAJECTA_JUDGE_B_API_KEY": "explicit-judge-b",
+            "OPENAI_API_KEY": "ambient-agent-key",
+        },
+    )
+    assert api_key == "explicit-judge-b"
+    assert base_url is None
+
+
+def test_resolve_provider_creds_slot_B_falls_back_to_openai_env() -> None:
+    """The documented convenience for operators already running the
+    agent against OpenAI: slot B without its own key reuses
+    OPENAI_API_KEY / OPENAI_BASE_URL."""
+    api_key, base_url = _resolve_provider_creds(
+        _judge_config(slot="B"),
+        env={
+            "OPENAI_API_KEY": "ambient-openai",
+            "OPENAI_BASE_URL": "https://api.openai.test/v1",
+        },
+    )
+    assert api_key == "ambient-openai"
+    assert base_url == "https://api.openai.test/v1"
+
+
+def test_resolve_provider_creds_slot_B_error_mentions_openai_fallback() -> None:
+    """For slot B, the error message should advertise the OPENAI_API_KEY
+    fallback so operators know they have two valid ways to wire it."""
+    try:
+        _resolve_provider_creds(_judge_config(slot="B"), env={})
+    except JudgeProviderError as exc:
+        assert "TRAJECTA_JUDGE_B_API_KEY" in str(exc)
+        assert "OPENAI_API_KEY" in str(exc)
+    else:
+        pytest.fail("expected JudgeProviderError")
+
+
+def test_resolve_provider_creds_blank_strings_count_as_missing() -> None:
+    """Whitespace-only env values are a common operator typo
+    (`export TRAJECTA_JUDGE_A_API_KEY=` leaves it set to ""). Treat
+    blank as missing rather than letting it through to the provider."""
+    with pytest.raises(JudgeProviderError):
+        _resolve_provider_creds(
+            _judge_config(slot="A"),
+            env={"TRAJECTA_JUDGE_A_API_KEY": "   "},
+        )
+
+
+# ---- _default_judge_callable (provider call path) ------------------------
+
+
+def _patch_openai(fake: _FakeOpenAI):
+    """Patch the ``openai`` module's ``OpenAI`` attribute so the inner
+    ``from openai import OpenAI`` picks up our fake. Returns the
+    patcher context manager."""
+    import openai
+
+    return patch.object(openai, "OpenAI", fake.factory())
+
+
+def test_default_judge_callable_sends_prompt_as_system_payload_as_user(
+    tmp_path: Path,
+) -> None:
+    """The callable's request shape is the judge contract: rubric in
+    system, structured payload in user. A regression that swaps the
+    roles would change the model's effective task."""
+    fake = _FakeOpenAI()
+    cfg = JudgeConfig(slot="A", model="judge-a-model", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg,
+        env={"TRAJECTA_JUDGE_A_API_KEY": "k", "TRAJECTA_JUDGE_A_BASE_URL": "https://x"},
+    )
+    payload = {"run_id": "run_x", "extra": {"nested": [1, 2, 3]}}
+    with _patch_openai(fake):
+        raw = callable_("RUBRIC TEXT", payload)
+    assert raw == '{"verdict": "acceptable", "rationale": "", "assertions": []}'
+    # The fake recorded one provider call.
+    assert len(fake.calls) == 1
+    call = fake.calls[0]
+    assert call["model"] == "judge-a-model"
+    # temperature=0 stamped for determinism — A4.3's κ rollup would be
+    # noisy without it.
+    assert call["temperature"] == 0
+    messages = call["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == "RUBRIC TEXT"
+    assert messages[1]["role"] == "user"
+    assert "run_x" in messages[1]["content"]
+    assert "```json" in messages[1]["content"]
+
+
+def test_default_judge_callable_threads_base_url_into_client(tmp_path: Path) -> None:
+    """For Gemini-compatible endpoints the operator-supplied base URL
+    must reach the OpenAI client constructor. Without this the call
+    would land on api.openai.com regardless of slot A's env config."""
+    fake = _FakeOpenAI()
+    cfg = JudgeConfig(slot="A", model="judge-a-model", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg,
+        env={
+            "TRAJECTA_JUDGE_A_API_KEY": "gemini-key",
+            "TRAJECTA_JUDGE_A_BASE_URL": "https://gemini.example/v1",
+        },
+    )
+    with _patch_openai(fake):
+        callable_("rubric", {"run_id": "r"})
+    assert fake.construction_calls == [
+        {"api_key": "gemini-key", "base_url": "https://gemini.example/v1"}
+    ]
+
+
+def test_default_judge_callable_omits_base_url_when_unset(tmp_path: Path) -> None:
+    """Slot B without a base URL falls back to the SDK default. Passing
+    ``base_url=None`` would override the SDK's own default, so the
+    factory must omit the kwarg entirely."""
+    fake = _FakeOpenAI()
+    cfg = JudgeConfig(slot="B", model="openai-model", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg, env={"TRAJECTA_JUDGE_B_API_KEY": "openai-key"}
+    )
+    with _patch_openai(fake):
+        callable_("rubric", {"run_id": "r"})
+    assert fake.construction_calls == [{"api_key": "openai-key"}]
+
+
+def test_default_judge_callable_uses_slot_A_model_not_slot_B(tmp_path: Path) -> None:
+    """Cross-slot regression guard: slot A's call must carry slot A's
+    model, even when slot B's env vars also happen to be set in the
+    process. The factory closes over ``config.model`` at construction."""
+    fake = _FakeOpenAI()
+    cfg = JudgeConfig(slot="A", model="model-A", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg,
+        env={
+            "TRAJECTA_JUDGE_A_API_KEY": "ka",
+            "TRAJECTA_JUDGE_B_API_KEY": "kb",
+            "TRAJECTA_JUDGE_B_MODEL": "model-B",  # noise — must be ignored
+        },
+    )
+    with _patch_openai(fake):
+        callable_("rubric", {"run_id": "r"})
+    assert fake.calls[0]["model"] == "model-A"
+
+
+def test_default_judge_callable_uses_slot_B_model_not_slot_A(tmp_path: Path) -> None:
+    fake = _FakeOpenAI()
+    cfg = JudgeConfig(slot="B", model="model-B", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg,
+        env={
+            "TRAJECTA_JUDGE_B_API_KEY": "kb",
+            "TRAJECTA_JUDGE_A_API_KEY": "ka",
+            "TRAJECTA_JUDGE_A_MODEL": "model-A",  # noise — must be ignored
+        },
+    )
+    with _patch_openai(fake):
+        callable_("rubric", {"run_id": "r"})
+    assert fake.calls[0]["model"] == "model-B"
+
+
+def test_default_judge_callable_returns_provider_content_verbatim(
+    tmp_path: Path,
+) -> None:
+    """The callable returns raw text; ``_parse_judge_response`` (one
+    layer up) is responsible for verdict / assertion parsing. The
+    raw passthrough keeps the parser tolerant of provider-specific
+    response wrapping (code fences, etc.)."""
+    raw_json = '```json\n{"verdict": "unacceptable", "rationale": "x", "assertions": []}\n```'
+    fake = _FakeOpenAI(content=raw_json)
+    cfg = JudgeConfig(slot="B", model="m", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg, env={"TRAJECTA_JUDGE_B_API_KEY": "k"}
+    )
+    with _patch_openai(fake):
+        assert callable_("rubric", {"run_id": "r"}) == raw_json
+
+
+def test_default_judge_callable_propagates_provider_exception_as_judge_error() -> None:
+    """A 4xx from the provider, network timeout, etc. must surface as
+    ``JudgeProviderError`` so the CLI / post-step can categorize it as
+    a slot-level failure rather than letting the raw exception escape
+    through the eval pipeline."""
+    fake = _FakeOpenAI(exc=RuntimeError("simulated 401"))
+    cfg = JudgeConfig(slot="A", model="m", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg, env={"TRAJECTA_JUDGE_A_API_KEY": "k"}
+    )
+    with _patch_openai(fake):
+        with pytest.raises(JudgeProviderError, match="provider call failed"):
+            callable_("rubric", {"run_id": "r"})
+
+
+def test_default_judge_callable_rejects_empty_response_content() -> None:
+    """An empty / non-string response would slip through the parser
+    layer as a json.JSONDecodeError that doesn't name the slot. Catch
+    it here so the operator sees the slot tag in the error."""
+    fake = _FakeOpenAI(content="")
+    cfg = JudgeConfig(slot="A", model="m", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg, env={"TRAJECTA_JUDGE_A_API_KEY": "k"}
+    )
+    with _patch_openai(fake):
+        with pytest.raises(JudgeProviderError, match="empty or non-string"):
+            callable_("rubric", {"run_id": "r"})
+
+
+def test_default_judge_callable_rejects_non_string_response_content() -> None:
+    """Some providers return structured tool-call outputs in
+    ``message.content`` (e.g. a list of content blocks). The
+    chat-completion contract says it should be a string — anything
+    else is provider drift and should surface as a slot error."""
+    fake = _FakeOpenAI(content=[{"type": "text", "text": "x"}])
+    cfg = JudgeConfig(slot="A", model="m", prompt_version="v_acc")
+    callable_ = _default_judge_callable(
+        cfg, env={"TRAJECTA_JUDGE_A_API_KEY": "k"}
+    )
+    with _patch_openai(fake):
+        with pytest.raises(JudgeProviderError, match="empty or non-string"):
+            callable_("rubric", {"run_id": "r"})
+
+
+def test_run_llm_judge_uses_default_callable_when_env_set(tmp_path: Path) -> None:
+    """End-to-end: ``run_llm_judge`` without a ``judge_callable`` kwarg
+    falls through to the env-driven default. The mocked OpenAI client
+    completes the loop without a real network call."""
+    fake = _FakeOpenAI(
+        content=json.dumps(
+            {
+                "verdict": "acceptable",
+                "rationale": "ok",
+                "assertions": [
+                    {"name": "verdict_alignment", "status": "pass", "rationale": "ok"}
+                ],
+            }
+        )
+    )
+    cfg = JudgeConfig(slot="B", model="openai-test", prompt_version="v_acc")
+    payload = {
+        "run_id": "run_x",
+        "golden_reference": {},
+        "proposed_eval_case": {},
+        "evidence_with_sources": [],
+    }
+    with patch.dict(
+        "os.environ",
+        {"TRAJECTA_JUDGE_B_API_KEY": "k"},
+        clear=False,
+    ):
+        with _patch_openai(fake):
+            result = run_llm_judge(
+                payload, cfg, prompts_root=_judge_prompt_dir(tmp_path)
+            )
+    assert isinstance(result, JudgeLLMResult)
+    assert result.verdict == "acceptable"
+    assert result.slot == "B"
+    assert result.model == "openai-test"
+    # The mocked client was called exactly once.
+    assert len(fake.calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# A4.2 — provider-specific judge prompt bundles
+#
+# Both bundles must exist, list the six required assertion names
+# verbatim, demand JSON-only output, and produce distinct sha256
+# stamps. These tests lock in the contract that A4.3's κ_LLM,LLM
+# rollup relies on: any silent edit that breaks rubric alignment fails
+# CI before the κ number is computed.
+
+
+_A42_REQUIRED_ASSERTION_NAMES = (
+    "verdict_alignment",
+    "failure_mode_compatibility",
+    "failure_step_localization",
+    "regression_case_usefulness",
+    "no_forbidden_claim",
+    "evidence_support",
+)
+_A42_PROVIDER_BUNDLES = ("v1_acceptability_gemini", "v1_acceptability_openai")
+
+
+@pytest.mark.parametrize("version", _A42_PROVIDER_BUNDLES)
+def test_prompt_a42_provider_specific_bundle_loads(version: str) -> None:
+    """``load_judge_prompt`` resolves the new bundle and returns a
+    non-empty text + 64-char sha256. A missing file would skip the
+    judge silently in production via FileNotFoundError; we lock
+    existence here."""
+    text, sha = load_judge_prompt(version)
+    assert text.strip(), f"{version} prompt.md is empty"
+    assert len(sha) == 64
+
+
+@pytest.mark.parametrize("version", _A42_PROVIDER_BUNDLES)
+def test_prompt_a42_lists_all_six_assertion_names(version: str) -> None:
+    """Both bundles must name every required assertion verbatim. A
+    drift here turns A4.3's κ into a comparison of two different
+    rubrics rather than two providers grading the same rubric."""
+    text, _ = load_judge_prompt(version)
+    missing = [name for name in _A42_REQUIRED_ASSERTION_NAMES if name not in text]
+    assert not missing, (
+        f"{version} prompt is missing required assertion names: {missing}"
+    )
+
+
+@pytest.mark.parametrize("version", _A42_PROVIDER_BUNDLES)
+def test_prompt_a42_demands_json_only_output(version: str) -> None:
+    """The judge parser only accepts a single JSON object (with a
+    tolerant ```` ```json ``` ```` strip). Both bundles must explicitly
+    tell the model to emit JSON-only — a bundle that lets the model
+    free-form narrate would surface as a flood of parse errors at
+    run time."""
+    text, _ = load_judge_prompt(version)
+    lowered = text.lower()
+    # Lock in vocabulary: at least one phrase that signals "only JSON".
+    # Tolerant to either bundle's exact phrasing so future provider
+    # tweaks don't have to touch this test.
+    phrases = (
+        "only json",
+        "return only",
+        "raw json",
+        "no preamble",
+        "single json",
+    )
+    assert any(p in lowered for p in phrases), (
+        f"{version} prompt does not request JSON-only output "
+        f"(expected one of: {phrases})"
+    )
+
+
+@pytest.mark.parametrize("version", _A42_PROVIDER_BUNDLES)
+def test_prompt_a42_declares_shared_verdict_vocabulary(version: str) -> None:
+    """Both bundles must reference ``acceptable`` / ``unacceptable``
+    verdicts and ``pass`` / ``fail`` status values so the parser's
+    enum check (``_parse_judge_response``) matches the prompt's
+    self-description."""
+    text, _ = load_judge_prompt(version)
+    lowered = text.lower()
+    assert "acceptable" in lowered
+    assert "unacceptable" in lowered
+    assert "pass" in lowered
+    assert "fail" in lowered
+
+
+def test_prompt_a42_provider_bundles_have_distinct_sha256() -> None:
+    """The provider-specific bundles are allowed to share rubric
+    semantics, but they must not be byte-identical — A4.3's κ_LLM,LLM
+    is a dual-provider check, and copy-pasted prompts would silently
+    turn it into a single-prompt ablation."""
+    _, sha_gemini = load_judge_prompt("v1_acceptability_gemini")
+    _, sha_openai = load_judge_prompt("v1_acceptability_openai")
+    assert sha_gemini != sha_openai
+
+
+def test_prompt_a42_shared_baseline_still_loads() -> None:
+    """The baseline ``v1_acceptability`` bundle is the rubric the two
+    provider-specific variants follow. A4.2 must not delete it — a
+    future operator may point both slots at it for a shared-prompt
+    ablation, and the standalone CLI uses it as a documented default
+    elsewhere in the suite."""
+    text, sha = load_judge_prompt("v1_acceptability")
+    assert "acceptable_eval_case" in text
+    assert len(sha) == 64
+
+
+# ---------------------------------------------------------------------------
+# A4.3 — κ_LLM,LLM dual-judge agreement rollup
+#
+# Tests cover the builder (paired structure + κ math) and the writer
+# (JSON shape + Markdown layout, with and without the κ < 0.6
+# disagreement-analysis fallback). All deterministic; no real LLM
+# anywhere — the helpers below assemble JudgeReports from compact
+# verdict tuples to keep the agreement tests focused on rollup
+# behaviour rather than fixture plumbing already exercised by A3.3.
+
+
+_AGREEMENT_SHA_A = "a" * 64
+_AGREEMENT_SHA_B = "b" * 64
+
+
+def _judge_report(
+    *,
+    slot: str = "A",
+    model: str = "gemini-mock",
+    prompt_version: str = "v1_acceptability_gemini",
+    prompt_sha256: str = _AGREEMENT_SHA_A,
+    cases: list[tuple[str, str, list[JudgeAssertion] | None]] | None = None,
+) -> JudgeReport:
+    cases = cases or [("run_1", "acceptable", None)]
+    judge = JudgeConfig(slot=slot, model=model, prompt_version=prompt_version)  # type: ignore[arg-type]
+    case_reports = []
+    for run_id, verdict, assertions in cases:
+        case_reports.append(
+            JudgeCaseReport(
+                run_id=run_id,
+                verdict=verdict,  # type: ignore[arg-type]
+                rationale=f"{slot} says {verdict}",
+                assertions=assertions or [],
+            )
+        )
+    return JudgeReport(
+        judge=judge,
+        prompt_sha256=prompt_sha256,
+        cases=case_reports,
+    )
+
+
+def _verdicts(*verdicts: str) -> list[tuple[str, str, list[JudgeAssertion] | None]]:
+    """Compact factory: index-numbered run_ids paired with verdicts."""
+    return [(f"run_{i + 1}", v, None) for i, v in enumerate(verdicts)]
+
+
+# ---- build_judge_agreement_report -----------------------------------------
+
+
+def test_agreement_kappa_perfect_when_verdicts_identical() -> None:
+    """Two judges with byte-identical verdict streams yield κ = 1.0 by
+    the formula in docs/testing.md § Cohen's κ."""
+    a = _judge_report(
+        slot="A",
+        cases=_verdicts("acceptable", "acceptable", "unacceptable", "acceptable"),
+    )
+    b = _judge_report(
+        slot="B",
+        model="openai-mock",
+        prompt_version="v1_acceptability_openai",
+        prompt_sha256=_AGREEMENT_SHA_B,
+        cases=_verdicts("acceptable", "acceptable", "unacceptable", "acceptable"),
+    )
+    report = build_judge_agreement_report(a, b)
+    assert report.kappa == 1.0
+    assert report.agreement_count == 4
+    assert report.disagreement_count == 0
+    assert report.needs_disagreement_analysis is False
+
+
+def test_agreement_kappa_matches_hand_computed_on_mixed_stream() -> None:
+    """5 cases, A=[T,T,T,F,F], B=[T,T,F,F,T] — hand-computed κ from
+    docs/testing.md § cohens_kappa pseudocode: (0.6 - 0.52) / (1 - 0.52)
+    = 0.08 / 0.48. The agreement builder must reach the same number
+    cohens_kappa returns directly so the report-level κ stays
+    auditable."""
+    a = _judge_report(
+        slot="A",
+        cases=_verdicts(
+            "acceptable", "acceptable", "acceptable", "unacceptable", "unacceptable"
+        ),
+    )
+    b = _judge_report(
+        slot="B",
+        prompt_sha256=_AGREEMENT_SHA_B,
+        cases=_verdicts(
+            "acceptable", "acceptable", "unacceptable", "unacceptable", "acceptable"
+        ),
+    )
+    report = build_judge_agreement_report(a, b)
+    assert math.isclose(report.kappa, 0.08 / 0.48, abs_tol=1e-9)
+    assert report.agreement_count == 3
+    assert report.disagreement_count == 2
+
+
+def test_agreement_rejects_swapped_slot_arguments() -> None:
+    """build expects ``judge_a`` to be slot A and ``judge_b`` slot B —
+    swapping them silently would mis-label every downstream column."""
+    a = _judge_report(slot="A", cases=_verdicts("acceptable"))
+    b = _judge_report(
+        slot="B", prompt_sha256=_AGREEMENT_SHA_B, cases=_verdicts("acceptable")
+    )
+    # judge_a position with a slot-B report.
+    with pytest.raises(ValueError, match="judge_a.slot='A'"):
+        build_judge_agreement_report(b, b)
+    with pytest.raises(ValueError, match="judge_b.slot='B'"):
+        build_judge_agreement_report(a, a)
+
+
+def test_agreement_rejects_mismatched_run_id_set() -> None:
+    """A judge B graded on a different golden subset is a wiring bug —
+    κ over disjoint cases is meaningless."""
+    a = _judge_report(slot="A", cases=_verdicts("acceptable", "acceptable"))
+    b = _judge_report(
+        slot="B",
+        prompt_sha256=_AGREEMENT_SHA_B,
+        cases=[("run_1", "acceptable", None), ("run_X", "acceptable", None)],
+    )
+    with pytest.raises(ValueError, match="only_in_A|only_in_B"):
+        build_judge_agreement_report(a, b)
+
+
+def test_agreement_rejects_mismatched_run_id_order() -> None:
+    """Even when the sets match, the ordering must match too — paired
+    indices are how κ matches verdicts."""
+    a = _judge_report(slot="A", cases=_verdicts("acceptable", "unacceptable"))
+    b = _judge_report(
+        slot="B",
+        prompt_sha256=_AGREEMENT_SHA_B,
+        cases=[
+            ("run_2", "unacceptable", None),
+            ("run_1", "acceptable", None),
+        ],
+    )
+    with pytest.raises(ValueError, match="different run_id ordering"):
+        build_judge_agreement_report(a, b)
+
+
+def test_agreement_preserves_per_judge_acceptable_rate() -> None:
+    """The single-judge ``acceptable_rate`` (already exposed by
+    JudgeReport) must round-trip through the paired report — A7's
+    experiment-log table reads these numbers."""
+    a = _judge_report(
+        slot="A", cases=_verdicts("acceptable", "acceptable", "unacceptable")
+    )
+    b = _judge_report(
+        slot="B",
+        prompt_sha256=_AGREEMENT_SHA_B,
+        cases=_verdicts("acceptable", "unacceptable", "unacceptable"),
+    )
+    report = build_judge_agreement_report(a, b)
+    assert report.judge_a.acceptable_rate == 2 / 3
+    assert report.judge_b.acceptable_rate == 1 / 3
+
+
+def test_agreement_default_selection_policy() -> None:
+    a = _judge_report(slot="A", cases=_verdicts("acceptable"))
+    b = _judge_report(
+        slot="B", prompt_sha256=_AGREEMENT_SHA_B, cases=_verdicts("acceptable")
+    )
+    report = build_judge_agreement_report(a, b)
+    assert report.selection_policy == DEFAULT_SELECTION_POLICY
+
+
+def test_agreement_custom_selection_policy_threaded_through() -> None:
+    """A cost-constrained run must be able to stamp its own policy
+    string. docs/testing.md § Sample policy doesn't prescribe the exact
+    label, so the field stays opaque — but it must reach the report."""
+    a = _judge_report(slot="A", cases=_verdicts("acceptable"))
+    b = _judge_report(
+        slot="B", prompt_sha256=_AGREEMENT_SHA_B, cases=_verdicts("acceptable")
+    )
+    report = build_judge_agreement_report(
+        a, b, selection_policy="deterministic_stratified_n10"
+    )
+    assert report.selection_policy == "deterministic_stratified_n10"
+
+
+# ---- write_judge_agreement_report — JSON shape ----------------------------
+
+
+def _two_judges(
+    *,
+    a_verdicts: list[str],
+    b_verdicts: list[str],
+    a_assertions: list[list[JudgeAssertion] | None] | None = None,
+    b_assertions: list[list[JudgeAssertion] | None] | None = None,
+) -> tuple[JudgeReport, JudgeReport]:
+    """Helper: build two slot-paired reports from parallel verdict
+    lists with optional per-case assertion overrides."""
+
+    def _cases(
+        verdicts: list[str],
+        assertions: list[list[JudgeAssertion] | None] | None,
+    ) -> list[tuple[str, str, list[JudgeAssertion] | None]]:
+        out: list[tuple[str, str, list[JudgeAssertion] | None]] = []
+        for i, verdict in enumerate(verdicts):
+            extra = assertions[i] if assertions and i < len(assertions) else None
+            out.append((f"run_{i + 1}", verdict, extra))
+        return out
+
+    a = _judge_report(
+        slot="A",
+        model="gemini-mock",
+        prompt_version="v1_acceptability_gemini",
+        prompt_sha256=_AGREEMENT_SHA_A,
+        cases=_cases(a_verdicts, a_assertions),
+    )
+    b = _judge_report(
+        slot="B",
+        model="openai-mock",
+        prompt_version="v1_acceptability_openai",
+        prompt_sha256=_AGREEMENT_SHA_B,
+        cases=_cases(b_verdicts, b_assertions),
+    )
+    return a, b
+
+
+def test_write_agreement_json_carries_kappa_sample_size_policy_and_judges(
+    tmp_path: Path,
+) -> None:
+    """JSON top-level keys are the contract the experiment log + the
+    Acceptance Checklist read from. This test locks in the documented
+    shape rather than the cosmetic ordering."""
+    a, b = _two_judges(
+        a_verdicts=["acceptable", "acceptable", "unacceptable"],
+        b_verdicts=["acceptable", "unacceptable", "unacceptable"],
+    )
+    report = build_judge_agreement_report(
+        a, b, selection_policy="deterministic_stratified_n3"
+    )
+    json_path, _ = write_judge_agreement_report(
+        report, tmp_path / "judge_report.json"
+    )
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert data["sample_size"] == 3
+    assert data["selection_policy"] == "deterministic_stratified_n3"
+    assert "kappa_llm_llm" in data
+    assert data["kappa_threshold"] == 0.6
+    assert data["judges"]["A"]["slot"] == "A"
+    assert data["judges"]["A"]["model"] == "gemini-mock"
+    assert data["judges"]["A"]["prompt_version"] == "v1_acceptability_gemini"
+    assert data["judges"]["A"]["prompt_sha256"] == _AGREEMENT_SHA_A
+    assert data["judges"]["B"]["slot"] == "B"
+    assert data["judges"]["B"]["model"] == "openai-mock"
+    assert data["judges"]["B"]["prompt_sha256"] == _AGREEMENT_SHA_B
+    assert data["judges"]["A"]["acceptable_rate"] == 2 / 3
+    assert data["judges"]["B"]["acceptable_rate"] == 1 / 3
+    assert [c["run_id"] for c in data["cases"]] == ["run_1", "run_2", "run_3"]
+    assert data["cases"][0]["agree"] is True
+    assert data["cases"][1]["agree"] is False
+    assert data["agreement_count"] == 2
+    assert data["disagreement_count"] == 1
+
+
+def test_write_agreement_json_disagreements_list_failed_assertions(
+    tmp_path: Path,
+) -> None:
+    """For each disagreement case the JSON surfaces the failed
+    assertion names per side. A4 disagreement-analysis fallback uses
+    this list to categorise the split."""
+    failed_a = [
+        JudgeAssertion(
+            name="verdict_alignment", status="pass", rationale="ok"
+        ),
+        JudgeAssertion(
+            name="evidence_support", status="fail", rationale="missing"
+        ),
+    ]
+    failed_b = [
+        JudgeAssertion(
+            name="verdict_alignment", status="fail", rationale="mismatch"
+        )
+    ]
+    a, b = _two_judges(
+        a_verdicts=["acceptable", "unacceptable"],
+        b_verdicts=["acceptable", "acceptable"],
+        a_assertions=[None, failed_a],
+        b_assertions=[None, failed_b],
+    )
+    report = build_judge_agreement_report(a, b)
+    json_path, _ = write_judge_agreement_report(
+        report, tmp_path / "judge_report.json"
+    )
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+    assert len(data["disagreements"]) == 1
+    row = data["disagreements"][0]
+    assert row["run_id"] == "run_2"
+    assert row["judge_a"]["failed_assertions"] == ["evidence_support"]
+    assert row["judge_b"]["failed_assertions"] == ["verdict_alignment"]
+
+
+# ---- write_judge_agreement_report — Markdown shape ------------------------
+
+
+def test_write_agreement_md_contains_kappa_row_and_per_judge_rates(
+    tmp_path: Path,
+) -> None:
+    """Markdown headline numbers are what an operator reads in 10
+    seconds. Keep the strings stable so the doc snapshot in the
+    experiment log can quote them verbatim."""
+    a, b = _two_judges(
+        a_verdicts=["acceptable", "acceptable", "unacceptable"],
+        b_verdicts=["acceptable", "unacceptable", "unacceptable"],
+    )
+    report = build_judge_agreement_report(a, b)
+    _, md_path = write_judge_agreement_report(
+        report, tmp_path / "judge_report.json"
+    )
+    md = md_path.read_text(encoding="utf-8")
+
+    assert md.startswith("# Judge Agreement Report")
+    assert "Judge A (slot A)" in md
+    assert "`gemini-mock`" in md
+    assert "`v1_acceptability_gemini`" in md
+    assert "Judge B (slot B)" in md
+    assert "`openai-mock`" in md
+    assert "`v1_acceptability_openai`" in md
+    assert "| A | 2 / 3 | 66.7% |" in md
+    assert "| B | 1 / 3 | 33.3% |" in md
+    assert "κ_LLM,LLM" in md
+    assert "target ≥ 0.6" in md
+    assert "Selection policy: `full_31_preferred`" in md
+
+
+def test_write_agreement_md_renders_disagreement_section_when_kappa_below_threshold(
+    tmp_path: Path,
+) -> None:
+    """5 cases with three splits → κ ≈ -0.05 (well below 0.6). The
+    Markdown writer must render the Disagreement Analysis section and
+    list every disagreeing case."""
+    a, b = _two_judges(
+        a_verdicts=[
+            "acceptable",
+            "acceptable",
+            "unacceptable",
+            "acceptable",
+            "unacceptable",
+        ],
+        b_verdicts=[
+            "unacceptable",
+            "acceptable",
+            "acceptable",
+            "unacceptable",
+            "unacceptable",
+        ],
+    )
+    report = build_judge_agreement_report(a, b)
+    assert report.kappa < 0.6
+    assert report.needs_disagreement_analysis is True
+
+    _, md_path = write_judge_agreement_report(
+        report, tmp_path / "judge_report.json"
+    )
+    md = md_path.read_text(encoding="utf-8")
+    assert "## Disagreement Analysis" in md
+    assert "BELOW THRESHOLD" in md
+    assert "### `run_1`" in md
+    assert "### `run_3`" in md
+    assert "### `run_4`" in md
+    assert "### `run_2`" not in md
+    assert "### `run_5`" not in md
+
+
+def test_write_agreement_md_omits_disagreement_section_when_kappa_above_threshold(
+    tmp_path: Path,
+) -> None:
+    """κ ≥ 0.6 ⇒ no Disagreement Analysis section. The Markdown should
+    still mention the per-case table and the kappa row, but skipping
+    the long-form analysis keeps the report digestible when the run
+    actually agreed."""
+    a, b = _two_judges(
+        a_verdicts=["acceptable", "acceptable", "unacceptable", "unacceptable"],
+        b_verdicts=["acceptable", "acceptable", "unacceptable", "unacceptable"],
+    )
+    report = build_judge_agreement_report(a, b)
+    assert report.needs_disagreement_analysis is False
+    _, md_path = write_judge_agreement_report(
+        report, tmp_path / "judge_report.json"
+    )
+    md = md_path.read_text(encoding="utf-8")
+    assert "## Disagreement Analysis" not in md
+    assert "PASS" in md
+    assert "## Per-case verdicts" in md
+
+
+def test_write_agreement_md_disagreement_section_lists_failed_assertions(
+    tmp_path: Path,
+) -> None:
+    """Each disagreement subsection must list both judges' failed
+    assertion names so the operator can see *why* the split happened
+    without paging through the full per-case JSON."""
+    failed_a = [
+        JudgeAssertion(name="verdict_alignment", status="pass", rationale="ok"),
+        JudgeAssertion(name="evidence_support", status="fail", rationale="missing"),
+    ]
+    failed_b = [
+        JudgeAssertion(
+            name="failure_mode_compatibility", status="fail", rationale="wrong type"
+        )
+    ]
+    a, b = _two_judges(
+        a_verdicts=["acceptable", "unacceptable"],
+        b_verdicts=["unacceptable", "acceptable"],
+        a_assertions=[None, failed_a],
+        b_assertions=[None, failed_b],
+    )
+    report = build_judge_agreement_report(a, b)
+    assert report.needs_disagreement_analysis is True
+    _, md_path = write_judge_agreement_report(
+        report, tmp_path / "judge_report.json"
+    )
+    md = md_path.read_text(encoding="utf-8")
+    assert "`evidence_support`" in md
+    assert "`failure_mode_compatibility`" in md
+
+
+def test_write_agreement_creates_parent_directory(tmp_path: Path) -> None:
+    """The writer must auto-create its parent dir — the dual-judge
+    artefact lands under ``<archive>/judge/agreement/`` (or similar)
+    which may not exist yet on first run."""
+    a, b = _two_judges(
+        a_verdicts=["acceptable"], b_verdicts=["acceptable"]
+    )
+    report = build_judge_agreement_report(a, b)
+    out = tmp_path / "nested" / "deep" / "judge_report.json"
+    json_path, md_path = write_judge_agreement_report(report, out)
+    assert json_path.exists()
+    assert md_path.exists()
+
+
+def test_agreement_case_agree_property_matches_paired_verdicts() -> None:
+    """Sanity: the JSON ``agree`` field is the per-case property, not a
+    separately-tracked counter. Drift between the two would corrupt
+    agreement_count downstream."""
+    ca = JudgeCaseReport(
+        run_id="run_1", verdict="acceptable", rationale="x", assertions=[]
+    )
+    cb_same = JudgeCaseReport(
+        run_id="run_1", verdict="acceptable", rationale="y", assertions=[]
+    )
+    cb_diff = JudgeCaseReport(
+        run_id="run_1", verdict="unacceptable", rationale="z", assertions=[]
+    )
+    assert JudgeAgreementCase(run_id="run_1", judge_a=ca, judge_b=cb_same).agree is True
+    assert JudgeAgreementCase(run_id="run_1", judge_a=ca, judge_b=cb_diff).agree is False

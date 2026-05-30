@@ -113,6 +113,18 @@ hard-coded as a repo default. The two prompt versions must keep the same rubric
 semantics; provider-specific formatting and instruction wording are allowed,
 but the acceptability criteria must remain equivalent.
 
+Phase 8 A4.2 ships two provider-specific prompt bundles for the
+production judge pair:
+
+- `prompts/judge/v1_acceptability_gemini/` — Judge A default.
+- `prompts/judge/v1_acceptability_openai/` — Judge B default.
+
+Both bundles list the six required assertion names below verbatim and
+demand JSON-only output. `backend/tests/test_judge.py` locks in
+existence, assertion-name coverage, and distinct sha256 stamps for the
+two bundles so a future edit that breaks rubric alignment fails CI
+before the κ_LLM,LLM rollup is computed.
+
 | Assertion | Predicate |
 | --- | --- |
 | Verdict alignment | The draft's success/failure shape matches the golden `OutcomeFact`. |

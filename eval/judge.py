@@ -1010,21 +1010,150 @@ def _parse_judge_response(raw: str) -> dict[str, Any]:
     return {"verdict": verdict, "rationale": rationale, "assertions": assertions}
 
 
-def _default_judge_callable(config: JudgeConfig) -> LLMJudgeCallable:
-    """Build a real provider-backed callable when no mock was supplied.
+# Phase 8 A4.1 — provider env contract.
+#
+# Both judge slots speak the OpenAI Chat Completions API via the
+# ``openai`` SDK. Slot A is documented as Gemini-compatible — operators
+# point ``TRAJECTA_JUDGE_A_BASE_URL`` at a Gemini-served OpenAI-compatible
+# endpoint and set ``TRAJECTA_JUDGE_A_API_KEY`` to the matching key. Slot
+# B is OpenAI-compatible; it may also fall back to the project-wide
+# ``OPENAI_API_KEY`` / ``OPENAI_BASE_URL`` so operators already running
+# the eval against OpenAI do not need a second key.
+#
+# Slot A intentionally does **not** fall back to ``OPENAI_API_KEY`` —
+# silently using an OpenAI key for the "Gemini-compatible" slot would
+# route the call to the wrong provider and the κ_LLM,LLM number A4.3
+# computes would compare two OpenAI judges, not the dual-provider pair
+# the S18 deliverable asks for.
+_JUDGE_API_KEY_ENV_TMPL = "TRAJECTA_JUDGE_{slot}_API_KEY"
+_JUDGE_BASE_URL_ENV_TMPL = "TRAJECTA_JUDGE_{slot}_BASE_URL"
 
-    A3.2 ships the foundation but does not commit to a specific provider
-    SDK at import time. Provider wiring (Gemini-compatible, OpenAI-compatible)
-    lands with A4.1 alongside the second-judge κ rollup. Until then,
-    any caller that does not pass ``judge_callable`` gets a clear
-    error explaining what to wire next — the goal is to keep accidental
-    network calls (and silent test failures) impossible.
+
+class JudgeProviderError(RuntimeError):
+    """Raised when the default judge callable cannot reach its provider.
+
+    Categories covered: missing API key, missing ``openai`` package,
+    empty / malformed response content, or any error raised by the
+    chat-completions call itself. The standalone CLI and the
+    ``agent_eval --judge`` post-step translate this into a per-slot
+    "failed" entry rather than letting a stack trace escape — the eval
+    itself succeeded; only the judge slot is unhealthy.
     """
-    raise NotImplementedError(
-        "no default judge callable is wired for "
-        f"slot={config.slot!r} model={config.model!r}; "
-        "pass judge_callable=... (mocked in tests, real provider client in A4.1)"
+
+
+def _resolve_provider_creds(
+    config: JudgeConfig, *, env: dict[str, str] | None = None
+) -> tuple[str, str | None]:
+    """Resolve ``(api_key, base_url)`` for one judge slot from env.
+
+    Raises ``JudgeProviderError`` with a slot-tagged message when the
+    required API key is missing. ``base_url`` is allowed to be ``None``
+    (the openai SDK then uses its built-in default — only meaningful
+    for slot B / OpenAI directly).
+    """
+    src = env if env is not None else os.environ
+    key_env = _JUDGE_API_KEY_ENV_TMPL.format(slot=config.slot)
+    api_key = (src.get(key_env) or "").strip()
+    if not api_key and config.slot == "B":
+        api_key = (src.get("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        fallback_hint = (
+            " (or OPENAI_API_KEY)" if config.slot == "B" else ""
+        )
+        raise JudgeProviderError(
+            f"missing API key for judge slot {config.slot!r}: "
+            f"set {key_env}{fallback_hint} before running the judge "
+            f"(model={config.model!r})"
+        )
+
+    base_url_env = _JUDGE_BASE_URL_ENV_TMPL.format(slot=config.slot)
+    base_url = (src.get(base_url_env) or "").strip() or None
+    if base_url is None and config.slot == "B":
+        base_url = (src.get("OPENAI_BASE_URL") or "").strip() or None
+    return api_key, base_url
+
+
+def _build_judge_user_message(payload: dict[str, Any]) -> str:
+    """Render the per-case payload as the user-turn content.
+
+    The committed v1_acceptability prompt is the system rubric; the
+    user turn carries the structured payload exactly so the LLM has
+    no reason to invent fields. Code-fenced JSON keeps the boundary
+    explicit even for providers that do not honour
+    ``response_format={"type": "json_object"}``.
+    """
+    return (
+        "Case payload (JSON):\n"
+        "```json\n"
+        + json.dumps(payload, indent=2, sort_keys=True)
+        + "\n```"
     )
+
+
+def _default_judge_callable(
+    config: JudgeConfig, *, env: dict[str, str] | None = None
+) -> LLMJudgeCallable:
+    """Build a real OpenAI-compatible callable for one judge slot.
+
+    Resolution happens **here**, at construction time, so a missing
+    API key fails before any provider call is dispatched. The returned
+    closure does the per-case work: serialize payload, call
+    ``chat.completions.create``, return the raw response text. The
+    A3.2 ``_parse_judge_response`` layer is still the only piece
+    responsible for verdict / assertion parsing — providers vary
+    enough that we keep the parser one level up.
+
+    Tests inject ``env`` to drive a deterministic config without
+    touching ``os.environ``; production callers leave it ``None``.
+    """
+    api_key, base_url = _resolve_provider_creds(config, env=env)
+    model_name = config.model
+    slot = config.slot
+
+    def _call(prompt_text: str, payload: dict[str, Any]) -> str:
+        try:
+            from openai import OpenAI
+        except ImportError as exc:
+            raise JudgeProviderError(
+                f"the `openai` package is required for judge slot {slot!r} "
+                f"(model={model_name!r}); install it with `pip install openai`"
+            ) from exc
+
+        client_kwargs: dict[str, Any] = {"api_key": api_key}
+        if base_url is not None:
+            client_kwargs["base_url"] = base_url
+        client = OpenAI(**client_kwargs)
+        messages = [
+            {"role": "system", "content": prompt_text},
+            {"role": "user", "content": _build_judge_user_message(payload)},
+        ]
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=0,
+            )
+        except Exception as exc:  # noqa: BLE001 — re-raise as JudgeProviderError
+            raise JudgeProviderError(
+                f"judge slot {slot!r} provider call failed "
+                f"(model={model_name!r}): {type(exc).__name__}: {exc}"
+            ) from exc
+
+        try:
+            content = response.choices[0].message.content
+        except (AttributeError, IndexError) as exc:
+            raise JudgeProviderError(
+                f"judge slot {slot!r} response had no choices[0].message.content "
+                f"(model={model_name!r})"
+            ) from exc
+        if not isinstance(content, str) or not content.strip():
+            raise JudgeProviderError(
+                f"judge slot {slot!r} returned empty or non-string content "
+                f"(model={model_name!r}, type={type(content).__name__})"
+            )
+        return content
+
+    return _call
 
 
 # ---------------------------------------------------------------------------
@@ -1253,6 +1382,366 @@ def _md_one_line(s: str, *, max_len: int) -> str:
     if len(flat) <= max_len:
         return flat
     return flat[: max_len - 1].rstrip() + "…"
+
+
+# ---------------------------------------------------------------------------
+# A4.3 — κ_LLM,LLM dual-judge agreement rollup
+#
+# Two one-judge ``JudgeReport``s (one slot A, one slot B) graded over
+# the same run_ids in the same order are folded into a single
+# ``JudgeAgreementReport`` that carries the per-judge ``acceptable_rate``,
+# the binary-verdict Cohen's κ, and the disagreement breakdown that
+# ``docs/testing.md`` § "Target and fallback" mandates when κ drops
+# below the S18 threshold.
+#
+# ``selection_policy`` is a free-form string the caller stamps on the
+# rollup so a future reader can tell at a glance whether the report
+# covers the full 31 gradeable cases (the preferred sample) or a
+# deterministic cost-constrained subset — ``docs/testing.md`` §
+# "Sample policy" requires the disclosure but does not prescribe the
+# exact label, so the field stays opaque to the writer.
+
+
+# Phase 8 S18 target. Above this, the Markdown writer omits the
+# disagreement-analysis section per ``docs/testing.md`` § "Target and
+# fallback". Below it, the disagreement section is mandatory and the
+# Markdown calls out the κ < 0.6 outcome explicitly so the reader does
+# not have to compute the comparison.
+_KAPPA_THRESHOLD = 0.6
+DEFAULT_SELECTION_POLICY = "full_31_preferred"
+
+
+def _failed_assertion_names(case: JudgeCaseReport) -> list[str]:
+    """Failed assertion names for one case, preserved in author order.
+
+    Used by both the JSON disagreement entries and the Markdown
+    disagreement-analysis section. Returning names only (not the full
+    rationale) keeps the disagreement table compact; the per-case
+    ``cases`` list above still carries full assertion detail when a
+    reader wants to drill in."""
+    return [a.name for a in case.assertions if a.status == "fail"]
+
+
+@dataclass(frozen=True)
+class JudgeAgreementCase:
+    """One paired (Judge A, Judge B) verdict for a single run_id.
+
+    ``judge_a`` and ``judge_b`` are the original single-judge
+    ``JudgeCaseReport`` rows verbatim; surfacing them whole keeps the
+    paired report self-contained — a downstream consumer never needs
+    to cross-reference the two underlying single-judge reports.
+    """
+
+    run_id: str
+    judge_a: JudgeCaseReport
+    judge_b: JudgeCaseReport
+
+    @property
+    def agree(self) -> bool:
+        return self.judge_a.verdict == self.judge_b.verdict
+
+    @property
+    def both_acceptable(self) -> bool:
+        return self.judge_a.acceptable and self.judge_b.acceptable
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "judge_a": self.judge_a.as_dict(),
+            "judge_b": self.judge_b.as_dict(),
+            "agree": self.agree,
+        }
+
+
+@dataclass(frozen=True)
+class JudgeAgreementReport:
+    """Dual-judge rollup carrying κ_LLM,LLM and the disagreement set.
+
+    Each underlying ``JudgeReport`` keeps its own traceability triple
+    (slot / model / prompt_version / prompt_sha256). The combined
+    report adds the κ row, per-judge acceptable rates already exposed
+    by ``JudgeReport.acceptable_rate``, and a list of paired-verdict
+    rows in the same order both judges saw.
+
+    ``selection_policy`` is a free-form string the caller stamps so the
+    JSON/Markdown clearly state whether the rollup covers the full 31
+    gradeable cases or a deterministic cost-constrained subset.
+    """
+
+    judge_a: JudgeReport
+    judge_b: JudgeReport
+    cases: list[JudgeAgreementCase]
+    kappa: float
+    selection_policy: str = DEFAULT_SELECTION_POLICY
+
+    @property
+    def sample_size(self) -> int:
+        return len(self.cases)
+
+    @property
+    def agreement_count(self) -> int:
+        return sum(1 for c in self.cases if c.agree)
+
+    @property
+    def disagreement_count(self) -> int:
+        return self.sample_size - self.agreement_count
+
+    @property
+    def disagreements(self) -> list[JudgeAgreementCase]:
+        return [c for c in self.cases if not c.agree]
+
+    @property
+    def needs_disagreement_analysis(self) -> bool:
+        """``True`` iff κ falls below the S18 target. Drives the
+        Markdown writer's "Disagreement Analysis" section."""
+        return self.kappa < _KAPPA_THRESHOLD
+
+    def as_dict(self) -> dict[str, Any]:
+        def _judge_summary(report: JudgeReport) -> dict[str, Any]:
+            return {
+                "slot": report.judge.slot,
+                "model": report.judge.model,
+                "prompt_version": report.judge.prompt_version,
+                "prompt_sha256": report.prompt_sha256,
+                "acceptable_count": report.acceptable_count,
+                "unacceptable_count": report.unacceptable_count,
+                "acceptable_rate": report.acceptable_rate,
+            }
+
+        return {
+            "sample_size": self.sample_size,
+            "selection_policy": self.selection_policy,
+            "kappa_llm_llm": self.kappa,
+            "kappa_threshold": _KAPPA_THRESHOLD,
+            "needs_disagreement_analysis": self.needs_disagreement_analysis,
+            "agreement_count": self.agreement_count,
+            "disagreement_count": self.disagreement_count,
+            "judges": {
+                "A": _judge_summary(self.judge_a),
+                "B": _judge_summary(self.judge_b),
+            },
+            "cases": [c.as_dict() for c in self.cases],
+            "disagreements": [
+                {
+                    "run_id": c.run_id,
+                    "judge_a": {
+                        "verdict": c.judge_a.verdict,
+                        "rationale": c.judge_a.rationale,
+                        "failed_assertions": _failed_assertion_names(c.judge_a),
+                    },
+                    "judge_b": {
+                        "verdict": c.judge_b.verdict,
+                        "rationale": c.judge_b.rationale,
+                        "failed_assertions": _failed_assertion_names(c.judge_b),
+                    },
+                }
+                for c in self.disagreements
+            ],
+        }
+
+
+def build_judge_agreement_report(
+    judge_a: JudgeReport,
+    judge_b: JudgeReport,
+    *,
+    selection_policy: str = DEFAULT_SELECTION_POLICY,
+) -> JudgeAgreementReport:
+    """Fold two single-judge reports into a paired agreement report.
+
+    Invariants enforced here:
+
+      * ``judge_a`` must carry slot ``"A"`` and ``judge_b`` slot
+        ``"B"``. Swapping them silently would mis-label the κ row and
+        every downstream column.
+      * Both reports must list the same run_ids in the same order. The
+        agent_eval post-step already grades the two slots over an
+        identical fan-out, so a mismatch here is a wiring bug (e.g.
+        one slot was rerun against a different golden subset).
+
+    κ is computed via ``cohens_kappa`` over the binary
+    ``acceptable`` streams. The threshold check / disagreement
+    rendering happens in the writer; this builder is responsible only
+    for the data structure.
+    """
+    if judge_a.judge.slot != "A":
+        raise ValueError(
+            f"build_judge_agreement_report expected judge_a.slot='A'; "
+            f"got {judge_a.judge.slot!r}. The two-judge rollup is "
+            f"asymmetric: slot A is Gemini-compatible, slot B is "
+            f"OpenAI-compatible (docs/testing.md § Acceptability)."
+        )
+    if judge_b.judge.slot != "B":
+        raise ValueError(
+            f"build_judge_agreement_report expected judge_b.slot='B'; "
+            f"got {judge_b.judge.slot!r}."
+        )
+
+    a_run_ids = [c.run_id for c in judge_a.cases]
+    b_run_ids = [c.run_id for c in judge_b.cases]
+    if a_run_ids != b_run_ids:
+        only_a = sorted(set(a_run_ids) - set(b_run_ids))
+        only_b = sorted(set(b_run_ids) - set(a_run_ids))
+        order_only_mismatch = set(a_run_ids) == set(b_run_ids)
+        detail = (
+            "different run_id ordering" if order_only_mismatch
+            else f"coverage diff: only_in_A={only_a}, only_in_B={only_b}"
+        )
+        raise ValueError(
+            "build_judge_agreement_report requires both judges to grade "
+            "the same run_ids in the same order; "
+            f"{detail}. A4.3 κ_LLM,LLM is only meaningful when the two "
+            "judge streams are paired one-to-one."
+        )
+
+    paired = [
+        JudgeAgreementCase(run_id=a.run_id, judge_a=a, judge_b=b)
+        for a, b in zip(judge_a.cases, judge_b.cases)
+    ]
+    a_acceptable = [c.judge_a.acceptable for c in paired]
+    b_acceptable = [c.judge_b.acceptable for c in paired]
+    kappa = cohens_kappa(a_acceptable, b_acceptable)
+
+    return JudgeAgreementReport(
+        judge_a=judge_a,
+        judge_b=judge_b,
+        cases=paired,
+        kappa=kappa,
+        selection_policy=selection_policy,
+    )
+
+
+def write_judge_agreement_report(
+    report: JudgeAgreementReport, out_path: Path | str
+) -> tuple[Path, Path]:
+    """Persist ``report`` as ``out_path`` (JSON) and a sibling ``.md``.
+
+    Mirrors ``write_judge_report``'s contract: ``out_path`` is the JSON
+    destination; the Markdown path is ``out_path.with_suffix(".md")``.
+    The two artefacts together are the Phase 8 § 8.A primary agreement
+    deliverable.
+    """
+    json_path = Path(out_path)
+    md_path = json_path.with_suffix(".md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(
+        json.dumps(report.as_dict(), indent=2, sort_keys=False) + "\n",
+        encoding="utf-8",
+    )
+    md_path.write_text(_render_judge_agreement_md(report), encoding="utf-8")
+    return json_path, md_path
+
+
+def _render_judge_agreement_md(report: JudgeAgreementReport) -> str:
+    """Markdown: title → judges → sample/policy → rates → κ row →
+    per-case verdicts → disagreement analysis (conditional).
+
+    Layout mirrors the single-judge Markdown writer so a reader who
+    has scanned ``eval/judge_report.md`` for one judge can read the
+    dual-judge artefact without context switching.
+    """
+    a = report.judge_a
+    b = report.judge_b
+    kappa_status = (
+        "PASS — disagreement analysis not required"
+        if not report.needs_disagreement_analysis
+        else f"BELOW THRESHOLD ({_KAPPA_THRESHOLD}) — see disagreement analysis below"
+    )
+
+    lines: list[str] = [
+        "# Judge Agreement Report (κ_LLM,LLM)",
+        "",
+        "## Judges",
+        "",
+        f"- **Judge A (slot {a.judge.slot})**: model `{a.judge.model}`, "
+        f"prompt `{a.judge.prompt_version}` (sha256 `{a.prompt_sha256}`)",
+        f"- **Judge B (slot {b.judge.slot})**: model `{b.judge.model}`, "
+        f"prompt `{b.judge.prompt_version}` (sha256 `{b.prompt_sha256}`)",
+        "",
+        "## Sample",
+        "",
+        f"- Sample size: **{report.sample_size}**",
+        f"- Selection policy: `{report.selection_policy}`",
+        "",
+        "## Acceptable rates",
+        "",
+        "| Judge | acceptable / total | acceptable_rate |",
+        "| --- | --- | --- |",
+        f"| A | {a.acceptable_count} / {a.sample_size} | {a.acceptable_rate:.1%} |",
+        f"| B | {b.acceptable_count} / {b.sample_size} | {b.acceptable_rate:.1%} |",
+        "",
+        "## Agreement",
+        "",
+        f"- **κ_LLM,LLM**: `{report.kappa:.4f}` (target ≥ {_KAPPA_THRESHOLD}) — {kappa_status}",
+        f"- Agreement: {report.agreement_count} / {report.sample_size} "
+        f"({(report.agreement_count / report.sample_size if report.sample_size else 0):.1%})",
+        f"- Disagreements: {report.disagreement_count}",
+        "",
+        "## Per-case verdicts",
+        "",
+        "| run_id | Judge A | Judge B | agree |",
+        "| --- | --- | --- | --- |",
+    ]
+    for case in report.cases:
+        marker = "✓" if case.agree else "✗"
+        lines.append(
+            f"| `{case.run_id}` | `{case.judge_a.verdict}` | "
+            f"`{case.judge_b.verdict}` | {marker} |"
+        )
+    lines.append("")
+
+    if report.needs_disagreement_analysis:
+        lines.extend(_render_disagreement_section(report))
+    return "\n".join(lines) + "\n"
+
+
+def _render_disagreement_section(report: JudgeAgreementReport) -> list[str]:
+    """Per-case disagreement breakdown for the κ < 0.6 fallback path.
+
+    Each disagreement entry lists both judges' verdicts, the failed
+    assertion names (one short list per side), and a clipped rationale
+    so the reader can immediately see *why* the split happened without
+    paging through the full per-case table.
+    """
+    lines: list[str] = [
+        "## Disagreement Analysis",
+        "",
+        f"κ_LLM,LLM fell below the {_KAPPA_THRESHOLD} target; the cases below "
+        "are every run where the two judges produced different verdicts. "
+        "Failed assertions are surfaced per side so the operator can "
+        "categorise the disagreement (prompt ambiguity vs model behaviour "
+        "vs genuinely hard sample). Per `docs/testing.md` § Target and "
+        "fallback: a negative result is reported, not relaxed.",
+        "",
+    ]
+    if not report.disagreements:
+        # Below-threshold κ with zero disagreements is a degenerate
+        # mathematical edge (e.g. unanimous-but-different marginals);
+        # docs/testing.md § cohens_kappa documents this as the 0.0
+        # fallback. State it explicitly so the section is never empty.
+        lines.append(
+            "_No paired-verdict disagreements. κ_LLM,LLM reflects a "
+            "degenerate marginal distribution rather than per-case "
+            "splits — see `cohens_kappa` docstring._"
+        )
+        lines.append("")
+        return lines
+    for case in report.disagreements:
+        a_failed = _failed_assertion_names(case.judge_a) or ["(none)"]
+        b_failed = _failed_assertion_names(case.judge_b) or ["(none)"]
+        lines.extend(
+            [
+                f"### `{case.run_id}`",
+                "",
+                f"- **Judge A**: `{case.judge_a.verdict}`",
+                f"  - Failed assertions: {', '.join(f'`{n}`' for n in a_failed)}",
+                f"  - Rationale: {_md_one_line(case.judge_a.rationale, max_len=200)}",
+                f"- **Judge B**: `{case.judge_b.verdict}`",
+                f"  - Failed assertions: {', '.join(f'`{n}`' for n in b_failed)}",
+                f"  - Rationale: {_md_one_line(case.judge_b.rationale, max_len=200)}",
+                "",
+            ]
+        )
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -1531,14 +2020,12 @@ def main(
             sample_size=args.sample_size,
             prompts_root=prompts_root,
         )
-    except NotImplementedError as exc:
-        # A4.1 still owed: the default callable refuses real network calls.
-        # Surface a clean operator-facing message rather than the raw stack.
-        sys.stderr.write(
-            f"error: {exc}\n"
-            "hint: A4.1 ships the real Gemini/OpenAI provider clients; "
-            "until then pass a callable from your own runner or wait for A4.\n"
-        )
+    except JudgeProviderError as exc:
+        # Provider-side failure (missing API key, missing SDK, network
+        # transport, empty content). The eval artefacts are still on
+        # disk; only this slot is unhealthy. Surface a clean error
+        # rather than a stack trace.
+        sys.stderr.write(f"error: judge slot {config.slot!r} unavailable: {exc}\n")
         return 3
 
     sys.stderr.write(
@@ -1563,16 +2050,21 @@ __all__ = [
     "DEFAULT_JUDGE_PROMPTS_ROOT",
     "DEFAULT_JUDGE_REPORT_PATH",
     "DEFAULT_REPORT_PATH",
+    "DEFAULT_SELECTION_POLICY",
+    "JudgeAgreementCase",
+    "JudgeAgreementReport",
     "JudgeAssertion",
     "JudgeCaseReport",
     "JudgeConfig",
     "JudgeLLMResult",
+    "JudgeProviderError",
     "JudgeReport",
     "JudgeSlot",
     "LLMJudgeCallable",
     "StandaloneJudgeResult",
     "aggregate_verdict",
     "build_arg_parser",
+    "build_judge_agreement_report",
     "build_judge_payload",
     "build_judge_report",
     "clause_1_verdict_match",
@@ -1593,5 +2085,6 @@ __all__ = [
     "resolve_evidence_source",
     "run_llm_judge",
     "run_standalone_judge",
+    "write_judge_agreement_report",
     "write_judge_report",
 ]

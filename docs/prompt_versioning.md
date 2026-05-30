@@ -43,17 +43,41 @@ judge configs over the same `agent_eval` artifact set:
 No Gemini or OpenAI model ID is hard-coded as a repo default. Operators choose
 the concrete model IDs for each run.
 
-At this writing the repository contains `prompts/judge/v1_acceptability/` and
-`prompts/judge/v2_strict_assertions/`. Provider-specific bundles are a Phase 8
-A4.2 todo: create provider-specific prompt bundles, for example
-`prompts/judge/v1_acceptability_gemini/` and
-`prompts/judge/v1_acceptability_openai/`, or document reuse of the existing
-bundle if implementation chooses a shared prompt plus provider adapters.
+The repository ships four judge prompt bundles:
 
-The two judge prompt configurations must preserve the same acceptability rubric
-semantics, but may differ in formatting, provider-specific response
-instructions, or wording needed to make each model follow the rubric reliably.
-Phase 8 computes κ_LLM,LLM between the two judge verdict streams.
+- `prompts/judge/v1_acceptability/` — the shared baseline rubric.
+- `prompts/judge/v1_acceptability_gemini/` (Phase 8 A4.2) — the
+  Gemini-flavored Judge A bundle. Same six required assertions, same
+  verdict vocabulary, and same `"acceptable" iff every assertion passes`
+  rule as the baseline. The response-format instructions are tuned for
+  Gemini's tendency to wrap output in markdown code fences (the bundle
+  explicitly demands raw JSON, no preamble, no backticks).
+- `prompts/judge/v1_acceptability_openai/` (Phase 8 A4.2) — the
+  OpenAI-flavored Judge B bundle. Same rubric semantics; response-format
+  instructions emphasize strict JSON parsability and concise rationales.
+- `prompts/judge/v2_strict_assertions/` — archived / experimental. Not
+  part of the Phase 8 mandatory path; not required for the Gemini /
+  OpenAI production pair.
+
+The two `v1_acceptability_*` bundles **must preserve the same
+acceptability rubric semantics**: identical assertion names
+(`verdict_alignment`, `failure_mode_compatibility`,
+`failure_step_localization`, `regression_case_usefulness`,
+`no_forbidden_claim`, `evidence_support`), identical verdict vocabulary
+(`"acceptable"` / `"unacceptable"`), identical status vocabulary
+(`"pass"` / `"fail"`), and the same rule that `verdict: "acceptable"`
+requires every assertion to pass. Only the provider-specific
+response-format instructions and wording may differ. Phase 8 computes
+κ_LLM,LLM between the two judge verdict streams; rubric drift would
+turn that disagreement into a prompt-content artefact rather than a
+genuine model-vs-model signal.
+
+No Gemini or OpenAI model ID is hard-coded as a repo default. Operators
+choose `TRAJECTA_JUDGE_<slot>_MODEL` per run; the judge prompt bundle
+is selected independently via `TRAJECTA_JUDGE_<slot>_PROMPT_VERSION`,
+so the same prompt bundle can in principle drive multiple model
+choices, and an operator may also point both slots at the same bundle
+if a shared-rubric ablation is desired.
 
 ## Rules
 

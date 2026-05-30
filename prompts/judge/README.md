@@ -10,6 +10,23 @@ Each version directory contains:
 prompt.md
 ```
 
+## Bundles
+
+| Version | Role | Notes |
+| --- | --- | --- |
+| `v1_acceptability` | Shared baseline | Provider-agnostic acceptability rubric. Reference for the two provider-specific bundles below. |
+| `v1_acceptability_gemini` | Phase 8 Judge A | Gemini-flavored response instructions (no code fences, raw JSON). Same six required assertions and same verdict vocabulary as the baseline. |
+| `v1_acceptability_openai` | Phase 8 Judge B | OpenAI-flavored response instructions (strict JSON, concise rationales). Same six required assertions and same verdict vocabulary as the baseline. |
+| `v2_strict_assertions` | Archived / experimental | Not part of the Phase 8 mandatory path. |
+
+The two `v1_acceptability_*` bundles **must keep the same rubric
+semantics** — assertion names, verdict vocabulary, status vocabulary,
+and the rule that `verdict: "acceptable"` requires every assertion to
+pass. Provider-specific wording is allowed only in the response-format
+instructions.
+
+## Rules
+
 Do not edit a version after it has been used in a judge report. Create a
 new version directory and record `judge_prompt_version` plus
 `judge_prompt_sha256` in the report.
