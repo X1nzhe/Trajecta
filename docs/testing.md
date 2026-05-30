@@ -76,8 +76,8 @@ Phase 8). Each row validates on load.
 - All eight category tags present (`allrecipes`, `amazon`, `apple`,
   `arxiv`, `booking`, `github`, `google_flight`, `huggingface`).
 - `scripts/build_golden_jsonl.py --check` exits non-zero when
-  `triage_notes.csv` was modified after `golden.jsonl`. Wired into CI as
-  a soft gate.
+  `triage_notes.csv` was modified after `golden.jsonl`. Intended as a
+  pre-commit `--check` soft gate (Phase 8 adds no CI).
 
 ## LLM Judge
 

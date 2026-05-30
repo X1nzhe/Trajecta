@@ -140,6 +140,13 @@ export interface AgentTrace {
   turn_count: number;
   terminated_by: "propose_eval_case" | "budget_exceeded" | "error";
   events: AgentTraceEvent[];
+  // Run origin: "ui" (HTTP analyze), "eval" (agent_eval harness), or
+  // "mcp" (MCP analyze_run composite). Optional on the wire; old traces
+  // deserialize without it.
+  source?: "ui" | "eval" | "mcp";
+  // Phase 8 B6 Spotlighting state at trace start (anti-injection preamble
+  // + untrusted-text wrapping). Audit-only; old traces lack it.
+  spotlighting_enabled?: boolean;
   // LLM that produced this trace ("mock" when running the offline
   // OfflineAgentMock path). Stamped at initial stream_analyze and
   // preserved across followups. Optional on the wire so old traces

@@ -98,7 +98,7 @@ deterministic script (`scripts/build_golden_jsonl.py`, **new** in Phase
   - `tags = [category, *labelled_set]`.
 
 `triage_notes.csv` stays the canonical annotation source; `golden.jsonl`
-is a build artifact. The script is idempotent and runs in CI.
+is a build artifact. The script is idempotent and is intended as a pre-commit / pre-push `--check` guard (no CI gate in Phase 8).
 
 **Acceptance**:
 
@@ -106,7 +106,7 @@ is a build artifact. The script is idempotent and runs in CI.
 - All 8 categories represented (`allrecipes`, `amazon`, `apple`, `arxiv`,
 `booking`, `github`, `google_flight`, `huggingface`).
 - `scripts/build_golden_jsonl.py --check` exits non-zero if
-`triage_notes.csv` was modified after `golden.jsonl` (CI guard).
+`triage_notes.csv` was modified after `golden.jsonl` (`--check` guard, run pre-commit).
 
 ### A2. Eval trace persistence and judge handoff
 
@@ -483,7 +483,7 @@ tool. Lifecycle:
 
 ```text
 MCP client → trajecta_mcp/server.py
-              │ call analyze_run(run_id, intent="analyze_run")
+              │ call analyze_run(run_id)
               ▼
             eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
               │ Preprocess → tool-calling loop → propose_eval_case
@@ -575,7 +575,7 @@ remain planned Phase 8 work.
 2. Restart Claude Code.
 3. In Claude Code: "List my Trajecta runs."
 4. Claude Code calls list_runs() and picks a failed run.
-5. Claude Code calls analyze_run(run_id, intent="analyze_run").
+5. Claude Code calls analyze_run(run_id).
 6. Trajecta runs the Eval Agent (RAG retrieval, coarse-to-fine VLM,
    propose_eval_case) and returns an EvalCase draft + AgentTrace.
 7. To validate, the user opens Trajecta's own UI — the MCP surface
@@ -916,7 +916,7 @@ on a stable `analyze_run` path only.
 | B1.5 Live demo               | `blocked` | Claude Code connects in ≤ 2 min                                | `docs/mcp.md`, `README.md` | Operator smoke per B5 script (headless env cannot prove) |
 
 
-**Epic status**: `done` (code) — B1.1–B1.4 shipped + tested (15 tests in `tests/test_mcp_server.py`). B1.5 live demo stays `blocked` on an operator connecting a real MCP client.
+**Epic status**: `done` (code) — B1.1–B1.4 shipped + tested (15 tests in `tests/test_mcp_server.py`). Those tests guard with `pytest.importorskip("fastmcp")`, so they run in the project `trajecta` env (or any env after `pip install -r backend/requirements.txt`, which pins `fastmcp>=2.0`) and are skipped where fastmcp is absent — same opt-in pattern as `test_real_llm_integration`. There is no CI gate (Phase 8 defers it; see the S18 map "Optional" row). B1.5 live demo stays `blocked` on an operator connecting a real MCP client.
 
 #### B2 — `analyze_run` Invariants
 

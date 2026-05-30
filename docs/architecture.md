@@ -115,7 +115,7 @@ trajecta/
   skills/
     create-eval-case/
       SKILL.md
-  mcp/
+  trajecta_mcp/
     server.py
   eval/
     ragas_report.json
