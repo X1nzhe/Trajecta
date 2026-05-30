@@ -10,7 +10,8 @@ subset).
 The Phase 8 production flow is ``backend.app.agent_eval`` first, then a
 judge post-step over the exact ``agent_report.json`` and trace directory
 that eval run produced. ``eval/judge.py`` remains the standalone
-rerun/debug entry point.
+rerun/debug entry point, exposed via A3.4's
+``python -m eval.judge --golden … --report … --trace-dir … --out …``.
 
 The final judge task is not "evidence traceability". It is: decide
 whether the draft is acceptable as a reusable regression eval case, then
@@ -47,13 +48,27 @@ A3.3 (this file) adds report writers on top of A3.2:
       sibling ``eval/judge_report.md`` modelled on
       ``eval/agent_report.md``.
 
+A3.4 (this file) adds the standalone CLI on top of A3.2/A3.3:
+
+    * ``load_agent_report`` — read the ordered ``samples[].run_id``
+      list from an ``agent_report.json`` produced by ``agent_eval``.
+    * ``run_standalone_judge`` — internal runner that fans out one
+      env-configured judge slot across the report's run_ids using the
+      A3.2 ``run_llm_judge`` runner + A3.3 ``write_judge_report``
+      writers. ``judge_callable`` injection keeps the path mockable in
+      tests; the default callable still raises ``NotImplementedError``
+      until A4.1 wires real Gemini/OpenAI provider clients.
+    * ``build_arg_parser`` + ``main`` — argparse CLI that the
+      ``python -m eval.judge`` entry point dispatches to.
+
 A4 extends ``JudgeReport`` to carry both judges plus the κ_LLM,LLM row;
-A3.4/A3.5 add the standalone CLI and the ``agent_eval --judge``
-post-step that produce real-judge reports against persisted traces.
+A3.5 adds the ``agent_eval --judge`` post-step that calls
+``run_standalone_judge`` end-of-eval against the same artefacts.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -88,6 +103,8 @@ from backend.app.schemas import (  # noqa: E402
 # generated locally). The CLI in A3.4 will accept overrides.
 DEFAULT_GOLDEN_PATH = _REPO_ROOT / "eval" / "golden.jsonl"
 DEFAULT_JUDGE_PROMPTS_ROOT = _REPO_ROOT / "prompts" / "judge"
+DEFAULT_REPORT_PATH = _REPO_ROOT / "eval" / "agent_report.json"
+DEFAULT_JUDGE_REPORT_PATH = _REPO_ROOT / "eval" / "judge_report.json"
 
 # Tool names that surface retrieval evidence into a trace. Used by
 # ``resolve_evidence_source`` to scan for ``failure_memory`` / ``eval_case``
@@ -1238,9 +1255,314 @@ def _md_one_line(s: str, *, max_len: int) -> str:
     return flat[: max_len - 1].rstrip() + "…"
 
 
+# ---------------------------------------------------------------------------
+# A3.4 — standalone env-configured CLI
+#
+# The judge post-step that ``agent_eval --judge`` will call in A3.5 needs
+# to be runnable as a standalone rerun/debug entry point too: given an
+# ``agent_report.json`` produced by an earlier eval run plus the matching
+# per-sample trace directory, fan out one env-configured judge slot across
+# every gradeable run, write ``judge_report.{json,md}`` to a caller-
+# supplied ``--out``, and surface a clean stderr summary.
+#
+# The internal seam is ``run_standalone_judge`` — ``main`` reads env +
+# CLI args and delegates the actual fan-out so the runner stays testable
+# with a mocked ``judge_callable``. Real provider clients land with A4.1
+# and ``_default_judge_callable`` still raises until then; the CLI fails
+# loudly rather than silently producing an empty report.
+
+
+@dataclass(frozen=True)
+class StandaloneJudgeResult:
+    """Outcome of one ``run_standalone_judge`` invocation.
+
+    ``report`` is the rolled-up ``JudgeReport`` written to disk; the two
+    path fields are the resolved ``(json_path, md_path)`` tuple returned
+    by ``write_judge_report``. ``graded_run_ids`` preserves the order
+    the runner submitted to the judge so the caller can compare against
+    the report's per-case table. ``skipped`` is a reason → run_ids mapping
+    so the stderr summary (and A3.5's post-step) can disclose what got
+    left out, matching the Phase 8 ``sample_size`` / ``selection_policy``
+    disclosure rule in ``docs/testing.md`` § Sample policy.
+    """
+
+    report: JudgeReport
+    json_path: Path
+    md_path: Path
+    graded_run_ids: list[str]
+    skipped: dict[str, list[str]] = field(default_factory=dict)
+
+    @property
+    def skipped_total(self) -> int:
+        return sum(len(ids) for ids in self.skipped.values())
+
+
+def load_agent_report(path: Path) -> list[str]:
+    """Read the ordered ``samples[].run_id`` list from an
+    ``agent_report.json`` produced by ``backend.app.agent_eval``.
+
+    The report carries a ``samples`` array — one row per gradeable run
+    — and a separate ``skipped`` mapping for runs the eval itself
+    rejected. A3.4 grades whatever is in ``samples`` (the report's view
+    of "gradeable"), preserves its order so reruns are deterministic,
+    and surfaces a clean error when the file is missing or malformed.
+    """
+    if not path.exists():
+        raise FileNotFoundError(
+            f"agent_report.json not found at {path}; "
+            f"run `python -m backend.app.agent_eval` to produce one"
+        )
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+    samples = data.get("samples")
+    if not isinstance(samples, list):
+        raise ValueError(
+            f"{path} is missing a `samples` array; expected a report "
+            f"produced by backend.app.agent_eval"
+        )
+    run_ids: list[str] = []
+    for i, row in enumerate(samples):
+        if not isinstance(row, dict) or not isinstance(row.get("run_id"), str):
+            raise ValueError(
+                f"{path}: samples[{i}] is missing a string `run_id` field"
+            )
+        run_ids.append(row["run_id"])
+    return run_ids
+
+
+def run_standalone_judge(
+    *,
+    golden_path: Path,
+    report_path: Path,
+    trace_dir: Path,
+    out_path: Path,
+    config: JudgeConfig,
+    judge_callable: LLMJudgeCallable | None = None,
+    sample_size: int | None = None,
+    prompts_root: Path | None = None,
+) -> StandaloneJudgeResult:
+    """Run one judge slot over every gradeable run in an agent report.
+
+    Selection order:
+
+      1. Read ``samples[].run_id`` from ``report_path`` (preserves the
+         eval run's per-sample order).
+      2. Drop run_ids that have no matching ``GoldenCase`` —
+         ``skipped["no_golden"]``.
+      3. Drop run_ids whose trace dump is missing —
+         ``skipped["missing_trace"]``.
+      4. Drop run_ids whose trace did not terminate via
+         ``propose_eval_case`` (no draft to grade) —
+         ``skipped["no_proposal"]``.
+      5. Apply ``sample_size`` (first-N by the report's order).
+
+    The judge is then called once per remaining run with
+    ``run_llm_judge(payload, config, judge_callable=…)``. Tests pass a
+    mocked callable; production callers either rely on the env-configured
+    real provider (wired in A4.1) or feed a callable they built
+    themselves. The result is rolled up via ``build_judge_report`` and
+    persisted via ``write_judge_report``.
+
+    ``sample_size`` must be a positive integer when supplied. A request
+    for more cases than the run produced is honoured silently — the
+    grade list shrinks naturally — and the caller sees the skipped
+    breakdown.
+
+    Raises ``ValueError`` when no gradeable run remains: an empty judge
+    run is an operator wiring bug (wrong report / trace-dir pair) and
+    ``build_judge_report`` would reject the empty result list anyway.
+    """
+    if sample_size is not None and sample_size <= 0:
+        raise ValueError(
+            f"sample_size must be a positive integer when supplied; "
+            f"got {sample_size!r}"
+        )
+
+    golden_cases = load_golden_cases(golden_path)
+    report_run_ids = load_agent_report(report_path)
+
+    graded: list[tuple[str, JudgeLLMResult]] = []
+    graded_run_ids: list[str] = []
+    skipped: dict[str, list[str]] = {
+        "no_golden": [],
+        "missing_trace": [],
+        "no_proposal": [],
+    }
+
+    for run_id in report_run_ids:
+        if sample_size is not None and len(graded) >= sample_size:
+            break
+        golden = golden_cases.get(run_id)
+        if golden is None:
+            skipped["no_golden"].append(run_id)
+            continue
+        try:
+            trace = load_trace(trace_dir, run_id)
+        except FileNotFoundError:
+            skipped["missing_trace"].append(run_id)
+            continue
+        if extract_proposed_eval_case(trace) is None:
+            skipped["no_proposal"].append(run_id)
+            continue
+        payload = build_judge_payload(run_id=run_id, golden=golden, trace=trace)
+        result = run_llm_judge(
+            payload,
+            config,
+            judge_callable=judge_callable,
+            prompts_root=prompts_root,
+        )
+        graded.append((run_id, result))
+        graded_run_ids.append(run_id)
+
+    if not graded:
+        raise ValueError(
+            "no gradeable runs found; "
+            f"report={report_path} trace_dir={trace_dir} "
+            f"golden={golden_path}; skipped={ {k: len(v) for k, v in skipped.items()} }"
+        )
+
+    report = build_judge_report(graded)
+    json_path, md_path = write_judge_report(report, out_path)
+    return StandaloneJudgeResult(
+        report=report,
+        json_path=json_path,
+        md_path=md_path,
+        graded_run_ids=graded_run_ids,
+        skipped={k: v for k, v in skipped.items() if v},
+    )
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Argument parser for the ``python -m eval.judge`` entry point.
+
+    Mirrors the CLI shape documented in
+    ``docs/testing.md`` § Required CLI shape. ``--judge-slot`` defaults
+    to ``A`` because the Phase 8 production target lists Judge A
+    (Gemini-compatible) first; the rerun/debug path can flip to ``B``
+    without further code changes.
+    """
+    parser = argparse.ArgumentParser(
+        prog="python -m eval.judge",
+        description=(
+            "Rerun the env-configured Trajecta LLM judge against a "
+            "previously written agent_report.json + trace directory and "
+            "emit eval/judge_report.{json,md} for one judge slot."
+        ),
+    )
+    parser.add_argument(
+        "--golden",
+        type=Path,
+        default=DEFAULT_GOLDEN_PATH,
+        help="path to eval/golden.jsonl (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=DEFAULT_REPORT_PATH,
+        help="path to agent_report.json (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--trace-dir",
+        type=Path,
+        required=True,
+        help="directory of per-sample AgentTrace JSON dumps "
+        "(eval/runs/<stamp>/traces/)",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=DEFAULT_JUDGE_REPORT_PATH,
+        help="judge_report.json output path (default: %(default)s); a "
+        "sibling .md file is written next to it",
+    )
+    parser.add_argument(
+        "--judge-slot",
+        choices=("A", "B"),
+        default="A",
+        help="which TRAJECTA_JUDGE_<slot>_* env config to use (default: A)",
+    )
+    parser.add_argument(
+        "--sample-size",
+        type=int,
+        default=None,
+        help="cap the number of gradeable runs (deterministic first-N "
+        "by report order); the report carries the resulting sample_size",
+    )
+    return parser
+
+
+def main(
+    argv: list[str] | None = None,
+    *,
+    judge_callable: LLMJudgeCallable | None = None,
+    env: dict[str, str] | None = None,
+    prompts_root: Path | None = None,
+) -> int:
+    """CLI entry point. Returns 0 on success.
+
+    ``judge_callable`` / ``env`` / ``prompts_root`` are test seams so a
+    deterministic pytest can exercise the CLI without a real provider
+    client or repo-relative env. Production callers (the ``__main__``
+    block + A3.5 post-step) leave them ``None`` and inherit
+    ``os.environ`` + the committed ``prompts/judge/`` tree.
+    """
+    args = build_arg_parser().parse_args(argv)
+    slot: JudgeSlot = args.judge_slot
+    config = judge_config_from_env(slot, env=env)
+    if config is None:
+        sys.stderr.write(
+            f"error: missing TRAJECTA_JUDGE_{slot}_MODEL or "
+            f"TRAJECTA_JUDGE_{slot}_PROMPT_VERSION environment variable; "
+            f"set both before running `python -m eval.judge` or pass "
+            f"--judge-slot for the configured slot\n"
+        )
+        return 2
+
+    try:
+        result = run_standalone_judge(
+            golden_path=args.golden,
+            report_path=args.report,
+            trace_dir=args.trace_dir,
+            out_path=args.out,
+            config=config,
+            judge_callable=judge_callable,
+            sample_size=args.sample_size,
+            prompts_root=prompts_root,
+        )
+    except NotImplementedError as exc:
+        # A4.1 still owed: the default callable refuses real network calls.
+        # Surface a clean operator-facing message rather than the raw stack.
+        sys.stderr.write(
+            f"error: {exc}\n"
+            "hint: A4.1 ships the real Gemini/OpenAI provider clients; "
+            "until then pass a callable from your own runner or wait for A4.\n"
+        )
+        return 3
+
+    sys.stderr.write(
+        f"wrote {result.json_path}\n"
+        f"wrote {result.md_path}\n"
+        f"graded {len(result.graded_run_ids)} cases for judge slot "
+        f"{config.slot} (model={config.model}, "
+        f"prompt_version={config.prompt_version})\n"
+    )
+    for reason, ids in result.skipped.items():
+        sys.stderr.write(f"skipped[{reason}]={len(ids)}\n")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover — exercised via tests via main()
+    raise SystemExit(main())
+
+
 __all__ = [
     "ClauseEvaluation",
+    "DEFAULT_GOLDEN_PATH",
     "DEFAULT_JUDGE_PROMPTS_ROOT",
+    "DEFAULT_JUDGE_REPORT_PATH",
+    "DEFAULT_REPORT_PATH",
     "JudgeAssertion",
     "JudgeCaseReport",
     "JudgeConfig",
@@ -1248,7 +1570,9 @@ __all__ = [
     "JudgeReport",
     "JudgeSlot",
     "LLMJudgeCallable",
+    "StandaloneJudgeResult",
     "aggregate_verdict",
+    "build_arg_parser",
     "build_judge_payload",
     "build_judge_report",
     "clause_1_verdict_match",
@@ -1261,10 +1585,13 @@ __all__ = [
     "evaluate_mechanical_clauses",
     "extract_proposed_eval_case",
     "judge_config_from_env",
+    "load_agent_report",
     "load_golden_cases",
     "load_judge_prompt",
     "load_trace",
+    "main",
     "resolve_evidence_source",
     "run_llm_judge",
+    "run_standalone_judge",
     "write_judge_report",
 ]

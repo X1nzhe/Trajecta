@@ -717,17 +717,16 @@ file before starting any Phase 8 work.
 
 ### Current Focus
 
-**A3.4** — standalone env-configured CLI: expose `python -m eval.judge`
-as a rerun/debug entry point that loads `eval/golden.jsonl`, an
-`agent_report.json`, and a `--trace-dir`, runs one env-configured judge
-slot end-to-end (using the A3.2 `run_llm_judge` runner + the A3.3
-report writers), and emits `eval/judge_report.{json,md}` to a
-caller-supplied `--out`. Provider-specific clients still live behind
-the `judge_callable` injection seam — A4.1 wires the real Gemini /
-OpenAI providers.
+**A3.5** — `agent_eval --judge` post-step: invoke
+`run_standalone_judge` (now shipped in A3.4) immediately after
+`agent_eval` writes its report + trace dumps, fanning out one
+env-configured judge slot per `TRAJECTA_JUDGE_<slot>_*` pair found in
+the environment. The deterministic test path stays the A3.4
+`run_standalone_judge` seam with mocked `judge_callable`; A3.5 only
+adds the eval-side glue.
 
-Do **not** start A3.5 (`agent_eval --judge` post-step) or A4 (two-model
-κ_LLM,LLM rollup) until A3.4 verify passes.
+Do **not** start A4 (two-model κ_LLM,LLM rollup) until A3.5 verify
+passes.
 
 ### Agent Handoff Rule
 
@@ -824,11 +823,11 @@ on a stable `analyze_run` path only.
 | A3.1 Mechanical prechecks + κ math                                        | `done` | Clauses 1–5, `cohens_kappa`, loaders                                                                                                                                                                                                           | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py`                                                                                   |
 | A3.2 Judge payload/evidence resolution + one-provider LLM call foundation | `done` | `build_judge_payload` + `resolve_evidence_source` + env-configured `JudgeConfig` + mockable `run_llm_judge` runner that A4 reuses for the second provider                                                                                      | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py` → 63 passed (2026-05-29)                                                          |
 | A3.3 Report writers                                                       | `done` | `JudgeReport` / `JudgeCaseReport` dataclasses + `build_judge_report` + `write_judge_report`; emits `judge_report.{json,md}` with judge traceability, sample count, `acceptable_rate`, and per-case verdicts/rationale/assertions for one judge | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py -k report` → 12 passed (2026-05-29)                                                |
-| A3.4 Standalone env-configured CLI                                        | `todo` | Rerun against report + trace-dir using env-provided judge config                                                                                                                                                                               | `eval/judge.py`                                | `python -m eval.judge --golden eval/golden.jsonl --report eval/agent_report.json --trace-dir … --out eval/judge_report.json` |
+| A3.4 Standalone env-configured CLI                                        | `done` | argparse CLI + `run_standalone_judge` seam over `eval/golden.jsonl` + `agent_report.json` + `--trace-dir`; env-configured single judge slot writes `judge_report.{json,md}`; `--sample-size` first-N cap; skip categories (`no_golden` / `missing_trace` / `no_proposal`) surfaced to stderr; real provider clients still A4.1 | `eval/judge.py`, `backend/tests/test_judge.py` | `cd backend && pytest tests/test_judge.py` → 92 passed (2026-05-29); `pytest tests/test_judge.py -k cli` → 17 passed |
 | A3.5 `agent_eval --judge` post-step                                       | `todo` | Judge post-step invoked after eval with env-provided configs                                                                                                                                                                                   | `backend/app/agent_eval.py`, `eval/judge.py`   | `python -m backend.app.agent_eval --trace-dir … --judge`                                                                     |
 
 
-**Epic status**: `partial` — A3.1–A3.3 shipped; A3.4 next.
+**Epic status**: `partial` — A3.1–A3.4 shipped; A3.5 next.
 
 #### A4 — κ_LLM,LLM
 

@@ -43,7 +43,9 @@ from eval.judge import (
     JudgeConfig,
     JudgeLLMResult,
     JudgeReport,
+    StandaloneJudgeResult,
     aggregate_verdict,
+    build_arg_parser,
     build_judge_payload,
     build_judge_report,
     clause_1_verdict_match,
@@ -56,11 +58,14 @@ from eval.judge import (
     evaluate_mechanical_clauses,
     extract_proposed_eval_case,
     judge_config_from_env,
+    load_agent_report,
     load_golden_cases,
     load_judge_prompt,
     load_trace,
+    main as judge_main,
     resolve_evidence_source,
     run_llm_judge,
+    run_standalone_judge,
     write_judge_report,
 )
 from eval.judge import _parse_judge_response  # noqa: E402 — direct test access
@@ -1448,3 +1453,515 @@ def test_judge_report_acceptable_rate_all_unacceptable() -> None:
     report = build_judge_report(results)
     assert report.acceptable_rate == 0.0
     assert report.acceptable_count == 0
+
+
+# ---------------------------------------------------------------------------
+# A3.4 — standalone env-configured CLI
+#
+# These tests exercise the rerun/debug entry point end-to-end with a mocked
+# ``judge_callable`` so the pytest suite stays deterministic and never
+# touches a real provider. The CLI ``main`` accepts test-only
+# ``judge_callable`` / ``env`` / ``prompts_root`` kwargs so the same path
+# can be driven without re-parsing env or copying the committed prompt
+# bundle into ``tmp_path``.
+
+
+def _agent_report_with_samples(run_ids: list[str]) -> dict:
+    """A minimal ``agent_report.json``-shaped dict for CLI tests.
+
+    The standalone runner only reads ``samples[].run_id``; the other
+    fields the real eval populates (timing, prompt_version, metrics,
+    skipped) are irrelevant for the judge fan-out and would just couple
+    these tests to the eval-report schema unnecessarily."""
+    return {
+        "samples": [{"run_id": rid} for rid in run_ids],
+        "skipped": {"not_importable": 0, "agent_error": 0},
+    }
+
+
+def _write_trace(trace_dir: Path, run_id: str, *, with_propose: bool = True) -> None:
+    """Write a per-sample trace dump in the on-disk format that
+    ``agent_eval --trace-dir`` produces. ``with_propose=False`` mimics a
+    budget_exceeded / error termination — no draft to grade."""
+    if with_propose:
+        events = [
+            AgentTraceEvent(
+                seq=0,
+                turn=0,
+                type="tool_call",
+                name="propose_eval_case",
+                args={
+                    "run_id": run_id,
+                    "failure_step": 5,
+                    "failure_type": "missed_constraint",
+                    "expected_behavior": "should satisfy constraint",
+                    "actual_behavior": "did not satisfy constraint",
+                    "evidence": [],
+                    "regression_rule": "verify constraint",
+                    "retrieved_context_ids": [],
+                },
+            ),
+        ]
+        terminated_by = "propose_eval_case"
+        tool_call_count = 1
+    else:
+        events = [AgentTraceEvent(seq=0, turn=0, type="agent_message", message="...")]
+        terminated_by = "budget_exceeded"
+        tool_call_count = 8
+    trace = AgentTrace(
+        run_id=run_id,
+        user_intent="analyze_run",
+        selected_step=None,
+        tool_call_count=tool_call_count,
+        turn_count=1,
+        terminated_by=terminated_by,
+        events=events,
+        model="mock",
+        prompt_version="v5",
+        prompt_sha256="0" * 64,
+        vlm_model="mock",
+    )
+    trace_dir.mkdir(parents=True, exist_ok=True)
+    (trace_dir / f"{run_id}.json").write_text(
+        trace.model_dump_json(indent=2), encoding="utf-8"
+    )
+
+
+def _write_golden(path: Path, run_ids: list[str]) -> None:
+    """Emit a minimal ``golden.jsonl`` covering ``run_ids`` (all failed-shape)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for rid in run_ids:
+        rows.append(
+            {
+                "input": {"run_id": rid, "intent": "analyze_run"},
+                "expected_facts": [
+                    {"field": "outcome", "op": "eq", "value": "failed"},
+                    {
+                        "field": "failure_type",
+                        "op": "in",
+                        "value": ["missed_constraint"],
+                    },
+                ],
+                "forbidden_facts": [
+                    {"field": "outcome", "op": "eq", "value": "success"}
+                ],
+                "tags": ["site", "missed_constraint"],
+            }
+        )
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+
+def _judge_prompts_dir(tmp_path: Path, *, body: str = "rubric") -> Path:
+    """Lay out a fake ``prompts/judge/<version>/prompt.md`` tree so the
+    CLI tests do not depend on the committed prompt bundle's exact
+    bytes."""
+    root = tmp_path / "judge_prompts"
+    bundle = root / "v_cli" / "prompt.md"
+    bundle.parent.mkdir(parents=True)
+    bundle.write_text(body, encoding="utf-8")
+    return root
+
+
+def _accept_callable(verdict: str = "acceptable"):
+    """A judge callable that ignores its inputs and returns a fixed
+    valid JSON response. Lets the CLI tests focus on selection /
+    skipping / writer wiring rather than response parsing (covered
+    separately above)."""
+
+    def _fake(prompt: str, payload: dict[str, object]) -> str:
+        return json.dumps(
+            {
+                "verdict": verdict,
+                "rationale": f"deterministic {verdict}",
+                "assertions": [
+                    {
+                        "name": "verdict_alignment",
+                        "status": "pass" if verdict == "acceptable" else "fail",
+                        "rationale": "mock",
+                    }
+                ],
+            }
+        )
+
+    return _fake
+
+
+# ---- load_agent_report ----------------------------------------------------
+
+
+def test_cli_load_agent_report_returns_sample_run_ids(tmp_path: Path) -> None:
+    """The runner reads ``samples[].run_id`` in order so subsequent
+    ``--sample-size`` selection is deterministic across reruns."""
+    report_path = tmp_path / "agent_report.json"
+    report_path.write_text(
+        json.dumps(_agent_report_with_samples(["run_a", "run_b", "run_c"])),
+        encoding="utf-8",
+    )
+    assert load_agent_report(report_path) == ["run_a", "run_b", "run_c"]
+
+
+def test_cli_load_agent_report_missing_file_raises() -> None:
+    with pytest.raises(FileNotFoundError, match="agent_report.json"):
+        load_agent_report(Path("/no/such/agent_report.json"))
+
+
+def test_cli_load_agent_report_rejects_missing_samples_key(tmp_path: Path) -> None:
+    """A report without a ``samples`` array is almost certainly the wrong
+    file — surface that loudly rather than silently producing an empty
+    judge run."""
+    path = tmp_path / "agent_report.json"
+    path.write_text(json.dumps({"started_at_utc": "x"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="samples"):
+        load_agent_report(path)
+
+
+def test_cli_load_agent_report_rejects_non_string_run_id(tmp_path: Path) -> None:
+    path = tmp_path / "agent_report.json"
+    path.write_text(
+        json.dumps({"samples": [{"run_id": 123}]}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="run_id"):
+        load_agent_report(path)
+
+
+# ---- run_standalone_judge -------------------------------------------------
+
+
+def _cli_inputs(
+    tmp_path: Path, run_ids: list[str], *, with_propose: bool | dict[str, bool] = True
+) -> dict[str, Path]:
+    """Lay out a tmp_path with golden + agent_report + trace dir for
+    ``run_ids``. ``with_propose`` may be a single bool (applied to all)
+    or a per-run mapping so a test can mix gradeable and non-gradeable
+    runs in one fixture."""
+    if isinstance(with_propose, bool):
+        propose_map = {rid: with_propose for rid in run_ids}
+    else:
+        propose_map = with_propose
+    golden_path = tmp_path / "golden.jsonl"
+    _write_golden(golden_path, run_ids)
+    report_path = tmp_path / "agent_report.json"
+    report_path.write_text(
+        json.dumps(_agent_report_with_samples(run_ids)), encoding="utf-8"
+    )
+    trace_dir = tmp_path / "traces"
+    for rid, has_propose in propose_map.items():
+        _write_trace(trace_dir, rid, with_propose=has_propose)
+    out_path = tmp_path / "judge_report.json"
+    return {
+        "golden": golden_path,
+        "report": report_path,
+        "trace_dir": trace_dir,
+        "out": out_path,
+        "prompts_root": _judge_prompts_dir(tmp_path),
+    }
+
+
+def test_cli_run_standalone_judge_grades_each_run(tmp_path: Path) -> None:
+    """Happy path: golden + trace + propose_eval_case for every sample.
+    The mocked callable runs once per run_id and the rolled-up report
+    carries per-case verdicts in submission order."""
+    paths = _cli_inputs(tmp_path, ["run_a", "run_b", "run_c"])
+    seen_run_ids: list[str] = []
+
+    def fake(prompt: str, payload: dict[str, object]) -> str:
+        seen_run_ids.append(payload["run_id"])  # type: ignore[arg-type]
+        return _accept_callable("acceptable")(prompt, payload)
+
+    result = run_standalone_judge(
+        golden_path=paths["golden"],
+        report_path=paths["report"],
+        trace_dir=paths["trace_dir"],
+        out_path=paths["out"],
+        config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+        judge_callable=fake,
+        prompts_root=paths["prompts_root"],
+    )
+
+    assert isinstance(result, StandaloneJudgeResult)
+    assert seen_run_ids == ["run_a", "run_b", "run_c"]
+    assert result.graded_run_ids == ["run_a", "run_b", "run_c"]
+    assert result.report.sample_size == 3
+    assert result.report.acceptable_rate == 1.0
+    # Every skipped category was empty so it was pruned from the dict.
+    assert result.skipped == {}
+    assert result.skipped_total == 0
+
+
+def test_cli_run_standalone_judge_writes_json_and_md(tmp_path: Path) -> None:
+    """The runner persists exactly the same JSON / Markdown layout as
+    the A3.3 writer — the CLI's job is wiring, not re-rendering."""
+    paths = _cli_inputs(tmp_path, ["run_a"])
+    result = run_standalone_judge(
+        golden_path=paths["golden"],
+        report_path=paths["report"],
+        trace_dir=paths["trace_dir"],
+        out_path=paths["out"],
+        config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+        judge_callable=_accept_callable("acceptable"),
+        prompts_root=paths["prompts_root"],
+    )
+    assert result.json_path == paths["out"]
+    assert result.md_path == paths["out"].with_suffix(".md")
+    data = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert data["sample_size"] == 1
+    assert data["judge"]["slot"] == "A"
+    assert data["judge"]["prompt_version"] == "v_cli"
+    assert "# Judge Report" in result.md_path.read_text(encoding="utf-8")
+
+
+def test_cli_run_standalone_judge_respects_sample_size(tmp_path: Path) -> None:
+    """``--sample-size`` is a first-N cap by report order — the
+    deterministic selection policy the rerun path uses to keep the
+    cost-constrained subset reproducible."""
+    paths = _cli_inputs(tmp_path, ["run_a", "run_b", "run_c", "run_d"])
+    result = run_standalone_judge(
+        golden_path=paths["golden"],
+        report_path=paths["report"],
+        trace_dir=paths["trace_dir"],
+        out_path=paths["out"],
+        config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+        judge_callable=_accept_callable("acceptable"),
+        sample_size=2,
+        prompts_root=paths["prompts_root"],
+    )
+    assert result.graded_run_ids == ["run_a", "run_b"]
+    assert result.report.sample_size == 2
+
+
+def test_cli_run_standalone_judge_sample_size_zero_rejected(tmp_path: Path) -> None:
+    """``sample_size`` of 0 / negative is an operator typo — refuse to
+    write a meaningless empty report."""
+    paths = _cli_inputs(tmp_path, ["run_a"])
+    with pytest.raises(ValueError, match="sample_size"):
+        run_standalone_judge(
+            golden_path=paths["golden"],
+            report_path=paths["report"],
+            trace_dir=paths["trace_dir"],
+            out_path=paths["out"],
+            config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+            judge_callable=_accept_callable("acceptable"),
+            sample_size=0,
+            prompts_root=paths["prompts_root"],
+        )
+
+
+def test_cli_run_standalone_judge_skips_missing_trace(tmp_path: Path) -> None:
+    """A run in the agent report whose trace dump was never written
+    (or was cleaned up) is skipped under ``missing_trace`` — the
+    rerun path must not crash because one run is missing its trace
+    file."""
+    paths = _cli_inputs(tmp_path, ["run_a", "run_b"])
+    # Delete one of the two trace dumps so the runner can see it as missing.
+    (paths["trace_dir"] / "run_b.json").unlink()
+
+    result = run_standalone_judge(
+        golden_path=paths["golden"],
+        report_path=paths["report"],
+        trace_dir=paths["trace_dir"],
+        out_path=paths["out"],
+        config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+        judge_callable=_accept_callable("acceptable"),
+        prompts_root=paths["prompts_root"],
+    )
+    assert result.graded_run_ids == ["run_a"]
+    assert result.skipped == {"missing_trace": ["run_b"]}
+    assert result.report.sample_size == 1
+
+
+def test_cli_run_standalone_judge_skips_when_no_proposal(tmp_path: Path) -> None:
+    """A trace that terminated via ``budget_exceeded`` carries no
+    ``propose_eval_case`` args. Without a draft to grade we skip — the
+    judge would just be asked to grade ``None`` and call it
+    unacceptable, which adds no signal but burns provider budget."""
+    paths = _cli_inputs(
+        tmp_path,
+        ["run_a", "run_b"],
+        with_propose={"run_a": True, "run_b": False},
+    )
+    result = run_standalone_judge(
+        golden_path=paths["golden"],
+        report_path=paths["report"],
+        trace_dir=paths["trace_dir"],
+        out_path=paths["out"],
+        config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+        judge_callable=_accept_callable("acceptable"),
+        prompts_root=paths["prompts_root"],
+    )
+    assert result.graded_run_ids == ["run_a"]
+    assert result.skipped == {"no_proposal": ["run_b"]}
+
+
+def test_cli_run_standalone_judge_skips_when_no_golden(tmp_path: Path) -> None:
+    """Defensive: a run in the agent report that the current golden set
+    no longer covers is skipped under ``no_golden`` rather than raising.
+    This protects reruns against an out-of-date report+golden pairing."""
+    paths = _cli_inputs(tmp_path, ["run_a"])
+    # Add a second sample to the report that the golden does not cover.
+    paths["report"].write_text(
+        json.dumps(_agent_report_with_samples(["run_a", "run_x"])),
+        encoding="utf-8",
+    )
+    _write_trace(paths["trace_dir"], "run_x", with_propose=True)
+
+    result = run_standalone_judge(
+        golden_path=paths["golden"],
+        report_path=paths["report"],
+        trace_dir=paths["trace_dir"],
+        out_path=paths["out"],
+        config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+        judge_callable=_accept_callable("acceptable"),
+        prompts_root=paths["prompts_root"],
+    )
+    assert result.graded_run_ids == ["run_a"]
+    assert result.skipped == {"no_golden": ["run_x"]}
+
+
+def test_cli_run_standalone_judge_empty_result_raises(tmp_path: Path) -> None:
+    """All runs skipped → no judge calls → no report. Refuse to write
+    an empty report so a wrong --report / --trace-dir pair surfaces as
+    an error rather than a misleading 0-row report."""
+    paths = _cli_inputs(
+        tmp_path,
+        ["run_a", "run_b"],
+        with_propose={"run_a": False, "run_b": False},
+    )
+    with pytest.raises(ValueError, match="no gradeable"):
+        run_standalone_judge(
+            golden_path=paths["golden"],
+            report_path=paths["report"],
+            trace_dir=paths["trace_dir"],
+            out_path=paths["out"],
+            config=JudgeConfig(slot="A", model="m", prompt_version="v_cli"),
+            judge_callable=_accept_callable("acceptable"),
+            prompts_root=paths["prompts_root"],
+        )
+
+
+# ---- argparse + main() ----------------------------------------------------
+
+
+def test_cli_build_arg_parser_accepts_documented_flags(tmp_path: Path) -> None:
+    """Documented CLI shape: --golden / --report / --trace-dir / --out /
+    --judge-slot / --sample-size. The default values surface on parse so
+    a regression in the parser shape is caught here rather than at
+    rerun time."""
+    parser = build_arg_parser()
+    args = parser.parse_args(
+        [
+            "--golden",
+            str(tmp_path / "g.jsonl"),
+            "--report",
+            str(tmp_path / "r.json"),
+            "--trace-dir",
+            str(tmp_path / "traces"),
+            "--out",
+            str(tmp_path / "j.json"),
+            "--judge-slot",
+            "B",
+            "--sample-size",
+            "5",
+        ]
+    )
+    assert args.golden == tmp_path / "g.jsonl"
+    assert args.report == tmp_path / "r.json"
+    assert args.trace_dir == tmp_path / "traces"
+    assert args.out == tmp_path / "j.json"
+    assert args.judge_slot == "B"
+    assert args.sample_size == 5
+
+
+def test_cli_build_arg_parser_defaults_to_judge_slot_a() -> None:
+    parser = build_arg_parser()
+    args = parser.parse_args(["--trace-dir", "/tmp/traces"])
+    assert args.judge_slot == "A"
+    assert args.sample_size is None
+
+
+def test_cli_main_with_env_and_mocked_callable(tmp_path: Path) -> None:
+    """End-to-end ``main([...])`` exercise with mocked env + callable:
+    no real provider, no real env vars, no committed prompt bundle
+    dependency. Verifies the CLI wiring (env read → config → runner →
+    writer) lines up."""
+    paths = _cli_inputs(tmp_path, ["run_a", "run_b"])
+    argv = [
+        "--golden",
+        str(paths["golden"]),
+        "--report",
+        str(paths["report"]),
+        "--trace-dir",
+        str(paths["trace_dir"]),
+        "--out",
+        str(paths["out"]),
+        "--judge-slot",
+        "A",
+    ]
+    env = {
+        "TRAJECTA_JUDGE_A_MODEL": "gemini-flash-mock",
+        "TRAJECTA_JUDGE_A_PROMPT_VERSION": "v_cli",
+    }
+    rc = judge_main(
+        argv,
+        judge_callable=_accept_callable("acceptable"),
+        env=env,
+        prompts_root=paths["prompts_root"],
+    )
+    assert rc == 0
+    data = json.loads(paths["out"].read_text(encoding="utf-8"))
+    assert data["sample_size"] == 2
+    assert data["judge"]["model"] == "gemini-flash-mock"
+    assert data["judge"]["prompt_version"] == "v_cli"
+    assert paths["out"].with_suffix(".md").exists()
+
+
+def test_cli_main_returns_nonzero_when_env_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Without ``TRAJECTA_JUDGE_<slot>_MODEL`` and
+    ``..._PROMPT_VERSION`` set, the CLI must fail loudly — silently
+    falling back to "no-op" would leave the operator with a missing
+    judge report and no error."""
+    paths = _cli_inputs(tmp_path, ["run_a"])
+    argv = [
+        "--golden",
+        str(paths["golden"]),
+        "--report",
+        str(paths["report"]),
+        "--trace-dir",
+        str(paths["trace_dir"]),
+        "--out",
+        str(paths["out"]),
+    ]
+    rc = judge_main(argv, env={}, prompts_root=paths["prompts_root"])
+    assert rc != 0
+    stderr = capsys.readouterr().err
+    assert "TRAJECTA_JUDGE_A_MODEL" in stderr or "TRAJECTA_JUDGE_A_PROMPT_VERSION" in stderr
+
+
+def test_cli_main_default_callable_returns_not_implemented_exit_code(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Until A4.1 wires real provider clients, ``main`` without a
+    callable resolves to ``_default_judge_callable`` which raises
+    ``NotImplementedError``. The CLI converts that to exit code 3 with
+    a hint pointing at A4.1 — not a stack trace dumped to the operator."""
+    paths = _cli_inputs(tmp_path, ["run_a"])
+    argv = [
+        "--golden",
+        str(paths["golden"]),
+        "--report",
+        str(paths["report"]),
+        "--trace-dir",
+        str(paths["trace_dir"]),
+        "--out",
+        str(paths["out"]),
+    ]
+    env = {
+        "TRAJECTA_JUDGE_A_MODEL": "gemini-flash-mock",
+        "TRAJECTA_JUDGE_A_PROMPT_VERSION": "v_cli",
+    }
+    rc = judge_main(argv, env=env, prompts_root=paths["prompts_root"])
+    assert rc == 3
+    stderr = capsys.readouterr().err
+    assert "A4.1" in stderr
