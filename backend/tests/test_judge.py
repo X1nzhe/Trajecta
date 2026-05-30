@@ -39,10 +39,13 @@ from backend.app.schemas import (
 from eval.judge import (
     ClauseEvaluation,
     JudgeAssertion,
+    JudgeCaseReport,
     JudgeConfig,
     JudgeLLMResult,
+    JudgeReport,
     aggregate_verdict,
     build_judge_payload,
+    build_judge_report,
     clause_1_verdict_match,
     clause_2_failure_type_compatibility,
     clause_3_failure_step_locality,
@@ -58,6 +61,7 @@ from eval.judge import (
     load_trace,
     resolve_evidence_source,
     run_llm_judge,
+    write_judge_report,
 )
 from eval.judge import _parse_judge_response  # noqa: E402 — direct test access
 
@@ -1167,3 +1171,280 @@ def test_run_llm_judge_pipes_payload_into_callable(tmp_path: Path) -> None:
         prompts_root=_judge_prompt_dir(tmp_path),
     )
     assert seen == [payload_in]
+
+
+# ---------------------------------------------------------------------------
+# A3.3 — report writers
+#
+# Single-judge reports only. A4 will extend the writer to a dual-judge
+# report carrying the κ_LLM,LLM row; the helpers below produce
+# JudgeLLMResult fixtures so the report tests stay deterministic and
+# never touch a real provider.
+
+
+_SHA_A = "a" * 64
+_SHA_B = "b" * 64
+
+
+def _llm_result(
+    *,
+    slot: str = "A",
+    model: str = "judge-a-model",
+    prompt_version: str = "v1_acceptability",
+    prompt_sha256: str = _SHA_A,
+    verdict: str = "acceptable",
+    rationale: str = "all checks pass",
+    assertions: list[JudgeAssertion] | None = None,
+) -> JudgeLLMResult:
+    if assertions is None:
+        assertions = [
+            JudgeAssertion(
+                name="verdict_alignment", status="pass", rationale="shape matches"
+            )
+        ]
+    return JudgeLLMResult(
+        slot=slot,  # type: ignore[arg-type]  # Literal narrowing in tests
+        model=model,
+        prompt_version=prompt_version,
+        prompt_sha256=prompt_sha256,
+        verdict=verdict,  # type: ignore[arg-type]
+        rationale=rationale,
+        assertions=assertions,
+    )
+
+
+def test_judge_case_report_from_llm_result_copies_fields() -> None:
+    result = _llm_result(
+        verdict="unacceptable",
+        rationale="verdict mismatch",
+        assertions=[
+            JudgeAssertion(name="verdict_alignment", status="fail", rationale="X"),
+            JudgeAssertion(name="evidence_support", status="pass", rationale="Y"),
+        ],
+    )
+    row = JudgeCaseReport.from_llm_result("run_x", result)
+    assert row.run_id == "run_x"
+    assert row.verdict == "unacceptable"
+    assert row.rationale == "verdict mismatch"
+    assert row.acceptable is False
+    assert [a.status for a in row.assertions] == ["fail", "pass"]
+
+
+def test_build_judge_report_aggregates_acceptable_rate() -> None:
+    """acceptable_rate = acceptable_count / sample_size — N=4 with one
+    unacceptable yields 0.75. Tested at the dataclass property level so
+    A4's downstream κ rollup does not double-count the boundary."""
+    results = [
+        ("run_1", _llm_result(verdict="acceptable")),
+        ("run_2", _llm_result(verdict="acceptable")),
+        ("run_3", _llm_result(verdict="unacceptable", rationale="oops")),
+        ("run_4", _llm_result(verdict="acceptable")),
+    ]
+    report = build_judge_report(results)
+    assert report.sample_size == 4
+    assert report.acceptable_count == 3
+    assert report.unacceptable_count == 1
+    assert report.acceptable_rate == 0.75
+
+
+def test_build_judge_report_preserves_input_order() -> None:
+    """The per-case table mirrors the order results were graded in so a
+    reader can scan the JSON next to the Markdown."""
+    results = [
+        ("run_b", _llm_result(verdict="unacceptable")),
+        ("run_a", _llm_result(verdict="acceptable")),
+        ("run_c", _llm_result(verdict="acceptable")),
+    ]
+    report = build_judge_report(results)
+    assert [c.run_id for c in report.cases] == ["run_b", "run_a", "run_c"]
+
+
+def test_build_judge_report_rejects_empty_results() -> None:
+    """An empty case list is an operator wiring bug, not a valid
+    "zero acceptable cases" outcome."""
+    with pytest.raises(ValueError, match="at least one"):
+        build_judge_report([])
+
+
+def test_build_judge_report_rejects_mixed_judge_identity() -> None:
+    """Mixing two judges into one report would silently corrupt the
+    aggregate rate and break A4's κ rollup — the builder must catch it."""
+    results = [
+        ("run_1", _llm_result(slot="A", model="judge-a-model")),
+        ("run_2", _llm_result(slot="B", model="judge-b-model", prompt_sha256=_SHA_B)),
+    ]
+    with pytest.raises(ValueError, match="mixed judge identity"):
+        build_judge_report(results)
+
+
+def test_build_judge_report_rejects_mixed_prompt_sha() -> None:
+    """Same model + slot but the prompt bytes drifted (e.g. an in-flight
+    bundle edit) — the prompt_sha256 mismatch is what catches it."""
+    results = [
+        ("run_1", _llm_result(prompt_sha256=_SHA_A)),
+        ("run_2", _llm_result(prompt_sha256=_SHA_B)),
+    ]
+    with pytest.raises(ValueError, match="mixed judge identity"):
+        build_judge_report(results)
+
+
+def test_write_judge_report_emits_json_shape(tmp_path: Path) -> None:
+    """JSON report contains the documented top-level keys (judge config,
+    aggregate counts, per-case list) and the per-case assertions."""
+    results = [
+        (
+            "run_1",
+            _llm_result(
+                verdict="acceptable",
+                rationale="all checks pass",
+                assertions=[
+                    JudgeAssertion(
+                        name="verdict_alignment",
+                        status="pass",
+                        rationale="shape matches",
+                    ),
+                    JudgeAssertion(
+                        name="evidence_support",
+                        status="pass",
+                        rationale="evidence cites step 3",
+                    ),
+                ],
+            ),
+        ),
+        (
+            "run_2",
+            _llm_result(
+                verdict="unacceptable",
+                rationale="failure_type mismatch",
+                assertions=[
+                    JudgeAssertion(
+                        name="failure_mode_compatibility",
+                        status="fail",
+                        rationale="wrong_target outside expected set",
+                    ),
+                ],
+            ),
+        ),
+    ]
+    report = build_judge_report(results)
+    json_path, md_path = write_judge_report(report, tmp_path / "judge_report.json")
+    assert json_path == tmp_path / "judge_report.json"
+    assert md_path == tmp_path / "judge_report.md"
+
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+    assert data["judge"] == {
+        "slot": "A",
+        "model": "judge-a-model",
+        "prompt_version": "v1_acceptability",
+        "prompt_sha256": _SHA_A,
+    }
+    assert data["sample_size"] == 2
+    assert data["acceptable_count"] == 1
+    assert data["unacceptable_count"] == 1
+    assert data["acceptable_rate"] == 0.5
+    assert [c["run_id"] for c in data["cases"]] == ["run_1", "run_2"]
+    assert [c["verdict"] for c in data["cases"]] == ["acceptable", "unacceptable"]
+    # Assertions land in JSON exactly as the judge returned them.
+    case_1_assertions = data["cases"][0]["assertions"]
+    assert [(a["name"], a["status"]) for a in case_1_assertions] == [
+        ("verdict_alignment", "pass"),
+        ("evidence_support", "pass"),
+    ]
+    case_2_assertions = data["cases"][1]["assertions"]
+    assert case_2_assertions == [
+        {
+            "name": "failure_mode_compatibility",
+            "status": "fail",
+            "rationale": "wrong_target outside expected set",
+        }
+    ]
+
+
+def test_write_judge_report_md_contains_sample_count_and_rate(tmp_path: Path) -> None:
+    """Markdown surfaces the headline numbers and the judge traceability
+    triple. A reader scanning the .md should see model, prompt_version,
+    prompt_sha256, sample count, acceptable_rate, and per-case verdicts
+    without opening the JSON."""
+    results = [
+        ("run_1", _llm_result(verdict="acceptable")),
+        ("run_2", _llm_result(verdict="unacceptable", rationale="bad")),
+        ("run_3", _llm_result(verdict="acceptable")),
+    ]
+    report = build_judge_report(results)
+    _, md_path = write_judge_report(report, tmp_path / "judge_report.json")
+    md = md_path.read_text(encoding="utf-8")
+
+    assert md.startswith("# Judge Report")
+    # Judge traceability triple appears.
+    assert "Slot: `A`" in md
+    assert "Model: `judge-a-model`" in md
+    assert "Prompt version: `v1_acceptability`" in md
+    assert f"Prompt SHA-256: `{_SHA_A}`" in md
+    # Aggregate block.
+    assert "Sample count: **3**" in md
+    # 2/3 ≈ 66.7% — formatted to one decimal place.
+    assert "acceptable_rate: 66.7%" in md
+    # Per-case table contains both verdicts and run_ids.
+    assert "| `run_1` | `acceptable` |" in md
+    assert "| `run_2` | `unacceptable` |" in md
+    assert "| `run_3` | `acceptable` |" in md
+
+
+def test_write_judge_report_md_escapes_pipes_and_collapses_newlines(
+    tmp_path: Path,
+) -> None:
+    """A rationale containing pipes or newlines must not shatter the
+    Markdown table — pipes get backslash-escaped, newlines collapse to
+    spaces."""
+    results = [
+        (
+            "run_1",
+            _llm_result(
+                verdict="unacceptable",
+                rationale="line one\nline two | with pipe",
+            ),
+        )
+    ]
+    report = build_judge_report(results)
+    _, md_path = write_judge_report(report, tmp_path / "judge_report.json")
+    md = md_path.read_text(encoding="utf-8")
+    # The row should be exactly one line — newline replaced by space, pipe escaped.
+    assert "line one line two \\| with pipe" in md
+    # And there is no raw embedded newline inside the table row.
+    table_row = next(
+        line for line in md.splitlines() if line.startswith("| `run_1` |")
+    )
+    assert "\n" not in table_row
+
+
+def test_write_judge_report_creates_parent_directory(tmp_path: Path) -> None:
+    """A standalone judge run might point ``--out`` at a fresh
+    ``eval/runs/{ts}/`` subdir that does not exist yet. The writer
+    should create it rather than crash."""
+    out_path = tmp_path / "nested" / "deep" / "judge_report.json"
+    results = [("run_1", _llm_result())]
+    report = build_judge_report(results)
+    json_path, md_path = write_judge_report(report, out_path)
+    assert json_path.exists()
+    assert md_path.exists()
+
+
+def test_judge_report_acceptable_rate_all_acceptable() -> None:
+    """All-acceptable should round-trip cleanly to 100% — the boundary
+    that an A4 cost-constrained subset is most likely to hit."""
+    results = [("run_1", _llm_result()), ("run_2", _llm_result())]
+    report = build_judge_report(results)
+    assert report.acceptable_rate == 1.0
+    assert report.unacceptable_count == 0
+
+
+def test_judge_report_acceptable_rate_all_unacceptable() -> None:
+    """And the symmetric all-unacceptable case yields 0% — the report
+    must not silently drop unacceptable rows."""
+    results = [
+        ("run_1", _llm_result(verdict="unacceptable")),
+        ("run_2", _llm_result(verdict="unacceptable")),
+    ]
+    report = build_judge_report(results)
+    assert report.acceptable_rate == 0.0
+    assert report.acceptable_count == 0

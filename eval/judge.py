@@ -36,8 +36,20 @@ A3.2 (this file) adds:
       (``run_llm_judge``) that A4 reuses for the second provider and
       κ_LLM,LLM rollup.
 
-A3.3 will layer report writers on top; A3.4/A3.5 add the standalone CLI
-and the ``agent_eval --judge`` post-step.
+A3.3 (this file) adds report writers on top of A3.2:
+
+    * ``JudgeCaseReport`` / ``JudgeReport`` dataclasses.
+    * ``build_judge_report`` — one-judge per-case rollup from
+      ``(run_id, JudgeLLMResult)`` pairs, including ``acceptable_rate``
+      and the judge traceability triple (slot, model, prompt_version,
+      prompt_sha256).
+    * ``write_judge_report`` — emits ``eval/judge_report.json`` and a
+      sibling ``eval/judge_report.md`` modelled on
+      ``eval/agent_report.md``.
+
+A4 extends ``JudgeReport`` to carry both judges plus the κ_LLM,LLM row;
+A3.4/A3.5 add the standalone CLI and the ``agent_eval --judge``
+post-step that produce real-judge reports against persisted traces.
 """
 
 from __future__ import annotations
@@ -998,16 +1010,247 @@ def _default_judge_callable(config: JudgeConfig) -> LLMJudgeCallable:
     )
 
 
+# ---------------------------------------------------------------------------
+# A3.3 — report writers
+#
+# Produces ``eval/judge_report.{json,md}`` from per-case
+# ``JudgeLLMResult`` objects for a single judge. A4 extends this to a
+# dual-judge report carrying the κ_LLM,LLM row; A3.3 deliberately keeps
+# the surface single-judge so the report writer is testable against the
+# mockable runner already shipped in A3.2 without provoking real LLM
+# calls.
+#
+# The Markdown layout mirrors ``eval/agent_report.md``: a title, a
+# config block, an aggregate block, and a per-case table. The JSON shape
+# matches ``docs/testing.md`` § Outputs — one judge stanza, per-case
+# entries with assertions, and the aggregate ``acceptable_rate``.
+
+
+@dataclass(frozen=True)
+class JudgeCaseReport:
+    """One row in a ``JudgeReport``.
+
+    The fields mirror ``docs/testing.md`` § Output shape (per case);
+    ``assertions`` is the LLM judge's per-rubric breakdown so the report
+    surfaces which assertions a draft failed — A4's disagreement analysis
+    reads the same field when κ < 0.6.
+    """
+
+    run_id: str
+    verdict: Literal["acceptable", "unacceptable"]
+    rationale: str
+    assertions: list[JudgeAssertion] = field(default_factory=list)
+
+    @classmethod
+    def from_llm_result(
+        cls, run_id: str, result: JudgeLLMResult
+    ) -> "JudgeCaseReport":
+        return cls(
+            run_id=run_id,
+            verdict=result.verdict,
+            rationale=result.rationale,
+            assertions=list(result.assertions),
+        )
+
+    @property
+    def acceptable(self) -> bool:
+        return self.verdict == "acceptable"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "verdict": self.verdict,
+            "rationale": self.rationale,
+            "assertions": [a.as_dict() for a in self.assertions],
+        }
+
+
+@dataclass(frozen=True)
+class JudgeReport:
+    """One-judge per-case rollup.
+
+    Carries the judge traceability triple (slot, model, prompt_version,
+    prompt_sha256) so every JSON / Markdown artefact ties verdicts back
+    to the exact prompt bytes that produced them — the same contract
+    ``AgentTrace`` honours for agent prompts (see
+    ``docs/prompt_versioning.md`` § Traceability).
+    """
+
+    judge: JudgeConfig
+    prompt_sha256: str
+    cases: list[JudgeCaseReport] = field(default_factory=list)
+
+    @property
+    def sample_size(self) -> int:
+        return len(self.cases)
+
+    @property
+    def acceptable_count(self) -> int:
+        return sum(1 for c in self.cases if c.acceptable)
+
+    @property
+    def unacceptable_count(self) -> int:
+        return self.sample_size - self.acceptable_count
+
+    @property
+    def acceptable_rate(self) -> float:
+        """Fraction of cases the judge marked ``acceptable``.
+
+        Returns ``0.0`` when no cases are present — the build path
+        already rejects an empty result list, so this guard only matters
+        if a caller constructs an empty ``JudgeReport`` directly.
+        """
+        if self.sample_size == 0:
+            return 0.0
+        return self.acceptable_count / self.sample_size
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "judge": {
+                "slot": self.judge.slot,
+                "model": self.judge.model,
+                "prompt_version": self.judge.prompt_version,
+                "prompt_sha256": self.prompt_sha256,
+            },
+            "sample_size": self.sample_size,
+            "acceptable_count": self.acceptable_count,
+            "unacceptable_count": self.unacceptable_count,
+            "acceptable_rate": self.acceptable_rate,
+            "cases": [c.as_dict() for c in self.cases],
+        }
+
+
+def build_judge_report(
+    judge_results: list[tuple[str, JudgeLLMResult]],
+) -> JudgeReport:
+    """Roll up ``(run_id, JudgeLLMResult)`` pairs into a one-judge report.
+
+    Validates that every result carries the same slot / model /
+    prompt_version / prompt_sha256 — mixing two judges into one report
+    would corrupt the aggregate ``acceptable_rate`` and silently break
+    A4's κ_LLM,LLM rollup, which depends on per-judge identity.
+
+    Empty input raises: A3.3 reports describe an actual judge run, and
+    an empty result set is an operator wiring bug rather than a valid
+    "zero acceptable cases" outcome.
+    """
+    if not judge_results:
+        raise ValueError(
+            "build_judge_report requires at least one (run_id, JudgeLLMResult) pair; "
+            "an empty result set is an operator wiring bug, not a valid report"
+        )
+    first = judge_results[0][1]
+    judge = JudgeConfig(
+        slot=first.slot,
+        model=first.model,
+        prompt_version=first.prompt_version,
+    )
+    for run_id, result in judge_results:
+        if (
+            result.slot != first.slot
+            or result.model != first.model
+            or result.prompt_version != first.prompt_version
+            or result.prompt_sha256 != first.prompt_sha256
+        ):
+            raise ValueError(
+                f"build_judge_report received mixed judge identity at run_id={run_id!r}; "
+                f"expected slot={first.slot!r} model={first.model!r} "
+                f"prompt_version={first.prompt_version!r}; "
+                f"got slot={result.slot!r} model={result.model!r} "
+                f"prompt_version={result.prompt_version!r}"
+            )
+    cases = [
+        JudgeCaseReport.from_llm_result(run_id, result)
+        for run_id, result in judge_results
+    ]
+    return JudgeReport(judge=judge, prompt_sha256=first.prompt_sha256, cases=cases)
+
+
+def write_judge_report(
+    report: JudgeReport, out_path: Path | str
+) -> tuple[Path, Path]:
+    """Persist ``report`` as ``out_path`` (JSON) and a sibling ``.md``.
+
+    ``out_path`` is the JSON destination; the Markdown path is
+    ``out_path.with_suffix(".md")`` so a caller passing
+    ``eval/judge_report.json`` gets ``eval/judge_report.md`` next to it.
+    Returns ``(json_path, md_path)``.
+    """
+    json_path = Path(out_path)
+    md_path = json_path.with_suffix(".md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(
+        json.dumps(report.as_dict(), indent=2, sort_keys=False) + "\n",
+        encoding="utf-8",
+    )
+    md_path.write_text(_render_judge_report_md(report), encoding="utf-8")
+    return json_path, md_path
+
+
+def _render_judge_report_md(report: JudgeReport) -> str:
+    """Markdown layout: title → judge config → aggregate → per-case table.
+
+    Mirrors ``eval/agent_report.md`` so a reader who has seen the agent
+    quality report can read the judge report without context switching.
+    A4 will append the κ_LLM,LLM row and (when needed) a disagreement
+    analysis section after the aggregate block.
+    """
+    lines: list[str] = [
+        "# Judge Report",
+        "",
+        "## Judge configuration",
+        "",
+        f"- Slot: `{report.judge.slot}`",
+        f"- Model: `{report.judge.model}`",
+        f"- Prompt version: `{report.judge.prompt_version}`",
+        f"- Prompt SHA-256: `{report.prompt_sha256}`",
+        "",
+        "## Aggregate",
+        "",
+        f"- Sample count: **{report.sample_size}**",
+        f"- Acceptable: {report.acceptable_count}",
+        f"- Unacceptable: {report.unacceptable_count}",
+        f"- **acceptable_rate: {report.acceptable_rate:.1%}**",
+        "",
+        "## Per-case verdicts",
+        "",
+        "| run_id | verdict | rationale |",
+        "| --- | --- | --- |",
+    ]
+    for case in report.cases:
+        rationale = _md_one_line(case.rationale, max_len=120)
+        lines.append(f"| `{case.run_id}` | `{case.verdict}` | {rationale} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _md_one_line(s: str, *, max_len: int) -> str:
+    """Collapse a multi-line string into one Markdown-table-safe row.
+
+    Pipes are escaped, newlines collapsed to spaces, and the result is
+    truncated with an ellipsis so a long rationale does not visually
+    shatter the per-case table.
+    """
+    flat = (s or "").replace("\r", " ").replace("\n", " ").strip()
+    flat = flat.replace("|", "\\|")
+    if len(flat) <= max_len:
+        return flat
+    return flat[: max_len - 1].rstrip() + "…"
+
+
 __all__ = [
     "ClauseEvaluation",
     "DEFAULT_JUDGE_PROMPTS_ROOT",
     "JudgeAssertion",
+    "JudgeCaseReport",
     "JudgeConfig",
     "JudgeLLMResult",
+    "JudgeReport",
     "JudgeSlot",
     "LLMJudgeCallable",
     "aggregate_verdict",
     "build_judge_payload",
+    "build_judge_report",
     "clause_1_verdict_match",
     "clause_2_failure_type_compatibility",
     "clause_3_failure_step_locality",
@@ -1023,4 +1266,5 @@ __all__ = [
     "load_trace",
     "resolve_evidence_source",
     "run_llm_judge",
+    "write_judge_report",
 ]
