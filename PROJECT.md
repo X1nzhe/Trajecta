@@ -180,8 +180,8 @@ Phase 8 ships:
   (shipped) with six tools including the `analyze_run` composite;
   [docs/mcp.md](docs/mcp.md);
   [docs/security_governance.md](docs/security_governance.md) framing the
-  existing governance mechanisms as one cohesive component, plus planned
-  **Spotlighting prompt input validation** work as defense against indirect
+  existing governance mechanisms as one cohesive component, plus the shipped
+  **Spotlighting prompt input validation** defense against indirect
   prompt injection in trajectory text.
 - **8.C — Tactical cleanup.** Frontend TypeScript build fix; RAGAS path
   bug fix; repo-hygiene sweep before the 48-hour push.

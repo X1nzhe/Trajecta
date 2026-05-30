@@ -257,7 +257,7 @@ The agent prompt is laid out with the stable prefix first — system prompt, the
 
 ## MCP Exposure
 
-MCP exposure is planned for Phase 8 after the Gemini judge agreement path. The
+MCP exposure shipped in Phase 8 B1, after the Gemini judge agreement path. The
 entire `agent_loop` described above should be reachable via the `analyze_run`
 tool in `trajecta_mcp/server.py` (shipped in Phase 8 B1). External coding agents (Claude
 Code, Cursor) would invoke the full LangGraph cycle as a single MCP call rather
