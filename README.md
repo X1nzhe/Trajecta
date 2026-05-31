@@ -74,7 +74,13 @@ The app also runs cold without LLM credentials. When model env vars are unset, t
 
 ## Configuration
 
-Local configuration is read from environment variables. You may use `.env` at the repo root; do not commit secrets.
+Local configuration is read from environment variables. Copy the template at the repo root, then edit secrets locally:
+
+```bash
+cp .env.example .env
+```
+
+Do not commit `.env`. Shell exports take precedence over the file. See [`.env.example`](.env.example) for the full variable list; the essentials are below.
 
 ```text
 # Required for the real-LLM agent + VLM paths.
