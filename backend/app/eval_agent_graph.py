@@ -87,6 +87,11 @@ class GraphState(EvalState, total=False):
     active_tool_call: dict[str, Any] | None
     llm_client: AgentLLM | Any | None
     done: bool
+    # Per-run Spotlighting token, minted in stream_analyze / stream_followup
+    # and threaded to every node so digest / step-detail wrapping never depends
+    # on a ContextVar that the sync NDJSON stream loses across chunks.
+    spotlight_token: str | None
+    spotlighting_enabled: bool
 
 
 @dataclass
@@ -156,7 +161,7 @@ _TOOL_REGISTRY = {
 }
 
 
-def preprocess_node(state: EvalState) -> EvalState:
+def preprocess_node(state: GraphState) -> GraphState:
     digest = preprocess.load_or_build_digest(state["run_id"])
     state["trajectory_digest"] = [step.model_dump(mode="json") for step in digest.steps]
     if not state["messages"]:
@@ -297,6 +302,12 @@ def stream_analyze(
         "active_tool_call": None,
         "llm_client": llm_client,
         "done": False,
+        # Carry the token as data, not just in the ContextVar: the sync NDJSON
+        # stream is pumped one chunk per thread-pool task (fresh context each),
+        # so the set() above is gone by the chunk that runs the graph. Nodes
+        # read the token from here when wrapping (see spotlight_wrap).
+        "spotlight_token": spotlight_token,
+        "spotlighting_enabled": spotlighting_on,
     }
     result: AgentExecutionResult | None = None
     start = time.perf_counter()
@@ -420,7 +431,8 @@ def stream_followup(
     # the new turn use the new token; messages replayed from the saved
     # trace keep their original token bytes. Both delimiter shapes match
     # the `<TRAJECTA_DATA_*>` preamble pattern so the defense still applies.
-    prompts.set_spotlight_token(prompts.new_spotlight_token())
+    spotlight_token = prompts.new_spotlight_token()
+    prompts.set_spotlight_token(spotlight_token)
     # Followup VLM scope: any get_step_detail tool call in this turn adds
     # to the bucket; at the end we ADD to the trace's cumulative counters
     # (not assign — earlier turns already contributed).
@@ -445,6 +457,10 @@ def stream_followup(
                 "active_tool_call": None,
                 "llm_client": llm_client,
                 "done": False,
+                # See stream_analyze: the token rides in state so each node can
+                # wrap with it after the stream's cross-chunk context copy.
+                "spotlight_token": spotlight_token,
+                "spotlighting_enabled": trace.spotlighting_enabled,
             }
             result = yield from _stream_graph_result(
                 state,
@@ -849,7 +865,7 @@ def _execute_tool_node(state: GraphState) -> GraphState:
     # tool; wrapping only happens when the result enters the Eval Agent's own
     # LLM context, where stream_analyze has already set a per-run token.
     if name == "get_step_detail" and isinstance(result, dict):
-        result = _spotlight_wrap_step_detail(result)
+        result = _spotlight_wrap_step_detail(result, state.get("spotlight_token"))
 
     event_result = _trace_result_payload(result)
     _append_event(trace, "tool_result", turn=turn, name=name, result=event_result)
@@ -1158,7 +1174,9 @@ _DIGEST_UNTRUSTED_TEXT_FIELDS: tuple[str, ...] = (
 )
 
 
-def _wrap_digest_for_prompt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _wrap_digest_for_prompt(
+    rows: list[dict[str, Any]], token: str | None = None
+) -> list[dict[str, Any]]:
     """Return a copy of ``rows`` with untrusted text fields Spotlight-wrapped.
 
     Walks every digest row (already serialised to plain dicts by
@@ -1175,12 +1193,16 @@ def _wrap_digest_for_prompt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         new_row = dict(row)
         for field in _DIGEST_UNTRUSTED_TEXT_FIELDS:
             if field in new_row:
-                new_row[field] = prompts.spotlight_wrap_optional(new_row[field])
+                new_row[field] = prompts.spotlight_wrap_optional(
+                    new_row[field], token
+                )
         wrapped.append(new_row)
     return wrapped
 
 
-def _spotlight_wrap_step_detail(result: dict[str, Any]) -> dict[str, Any]:
+def _spotlight_wrap_step_detail(
+    result: dict[str, Any], token: str | None = None
+) -> dict[str, Any]:
     """Spotlight-wrap untrusted text in a ``get_step_detail`` result.
 
     Applied at the agent tool-result seam (not inside ``tools.get_step_detail``)
@@ -1191,7 +1213,9 @@ def _spotlight_wrap_step_detail(result: dict[str, Any]) -> dict[str, Any]:
     None/empty values degrade to identity via ``spotlight_wrap_optional``.
     """
 
-    wrap = prompts.spotlight_wrap_optional
+    def wrap(text: str | None) -> str | None:
+        return prompts.spotlight_wrap_optional(text, token)
+
     if "vlm_summary" in result:
         result["vlm_summary"] = wrap(result["vlm_summary"])
     task_context = result.get("task_context")
@@ -1212,7 +1236,7 @@ def _spotlight_wrap_step_detail(result: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
+def _initial_messages(state: GraphState, *, followup: bool) -> list[AnyMessage]:
     return [
         SystemMessage(
             content=_system_prompt(
@@ -1227,7 +1251,8 @@ def _initial_messages(state: EvalState, *, followup: bool) -> list[AnyMessage]:
                     "user_intent": state["user_intent"],
                     "selected_step": state["selected_step"],
                     "trajectory_digest": _wrap_digest_for_prompt(
-                        state["trajectory_digest"]
+                        state["trajectory_digest"],
+                        state.get("spotlight_token"),
                     ),
                 },
                 ensure_ascii=False,

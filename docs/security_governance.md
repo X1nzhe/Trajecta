@@ -6,8 +6,8 @@ Security / Governance component declared in
 [`docs/phase8_s18_alignment.md`](phase8_s18_alignment.md) § B4.
 
 **Honesty notice.** Mechanisms 1–9 below are shipped machinery (Mechanism 7
-MCP least-privilege exposure shipped in Phase 8 B1; only the B1.5 live-client
-demo remains operator-gated). The S18 component requirement is
+MCP least-privilege exposure shipped in Phase 8 B1, and the B1.5
+live-client smoke was verified with MCP Inspector). The S18 component requirement is
 satisfied by the real, load-bearing mechanisms already present, not by
 overstating planned work as shipped.
 
@@ -16,7 +16,7 @@ overstating planned work as shipped.
 Trajecta is an offline trajectory-analysis agent. The threat surface is
 narrow but real: validation of agent-generated artefacts, cost /
 latency control, filesystem boundaries on the screenshot endpoint, and
-future exposure of the agent over MCP. **Indirect prompt injection** via
+the MCP exposure of the agent. **Indirect prompt injection** via
 untrusted text embedded in imported trajectories is the residual
 risk Mechanism 9 (Spotlighting) now addresses — it is shipped as of
 Phase 8 B6 and remains probabilistic, not a hard seal. There is
@@ -193,8 +193,9 @@ This is the Security / Governance composite demo: one MCP call, seven
 mechanisms present in the returned trace. B1 shipped
 (`trajecta_mcp/server.py`); `backend/tests/test_mcp_server.py` already verifies
 `source="mcp"`, the `human_validated=false` HITL draft, and the budget bound.
-The remaining gap is the **live-client smoke** (B1.5) — connecting a real
-Claude Code / Cursor client and running the demo end-to-end.
+B1.5 is accepted from the operator's MCP Inspector live-client smoke:
+connection succeeds, the six-tool surface is visible, and `analyze_run`
+returns a trace stamped `source="mcp"`.
 
 ## Out of Scope for v1
 

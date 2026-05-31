@@ -21,7 +21,7 @@ The project must clearly demonstrate:
 - Evaluation case generation
 - Testing and evaluation
 - RAGAS-based retrieval/grounding evaluation
-- Time-permitting MCP and Skill-style workflow packaging
+- MCP composite interface for remote callable trajectory analysis
 
 This is not a browser-use agent.
 
@@ -32,8 +32,8 @@ This is an Eval Agent for browser-use agent trajectories.
 Trajecta's current S18 component story relies on three shipped components.
 Three components used well — with a clear story for why they are wired
 together — is the bar. The MCP server (`trajecta_mcp/server.py`) shipped in
-Phase 8 B1 as a lower-priority extension on top of those three; only the
-live-client smoke demo (B1.5) remains operator-gated.
+Phase 8 B1 as a lower-priority extension on top of those three, and the
+B1.5 live-client smoke was verified with MCP Inspector.
 
 | Component | How Trajecta uses it | Anchor doc |
 | --- | --- | --- |
@@ -157,10 +157,11 @@ Phase 8 closes the gap to the S18 capstone deliverable: a defendable
 eval harness, Gemini/OpenAI dual LLM judges with operator-configured models
 and measurable κ_LLM,LLM agreement, an experiment log, a failure-analysis
 writeup, and a single-doc treatment of governance machinery. A human second
-judge is deliberately deferred because reviewer workflow, UI, and
-label-management design would add implementation scope beyond Phase 8. The MCP
-composite shipped in Phase 8 B1, lower priority than the judge
-agreement path.
+judge / reviewer UI is deliberately not included in V1 because reviewer
+workflow and label-management design would add implementation scope beyond
+Phase 8. The MCP composite shipped in Phase 8 B1, lower priority than the
+judge agreement path, and the live-client smoke was verified with MCP
+Inspector.
 
 Phase 8 ships:
 
@@ -202,7 +203,7 @@ considered done.
 | [docs/data_model.md](docs/data_model.md) | Implementation notes for Pydantic schemas defined in `docs/contracts.md`. |
 | [docs/dataset_import.md](docs/dataset_import.md) | MolmoWeb-HumanSkills sample import strategy and coordinate validation risk. |
 | [docs/preprocessing.md](docs/preprocessing.md) | Trajectory Preprocessing: digest schema, low-detail VLM contract, caching, fallbacks. |
-| [docs/eval_agent.md](docs/eval_agent.md) | LangGraph Eval Agent behavior, loop design, observability, and Skill wrapper. |
+| [docs/eval_agent.md](docs/eval_agent.md) | LangGraph Eval Agent behavior, loop design, observability, and optional Skill-wrapper notes not included in V1. |
 | [docs/prompt_versioning.md](docs/prompt_versioning.md) | Prompt version registry, traceability, rollback, and failure-memory refresh rules. |
 | [docs/rag.md](docs/rag.md) | ChromaDB RAG retrieval strategy. |
 | [docs/mcp.md](docs/mcp.md) | MCP server design (shipped Phase 8 B1): tool surface, `analyze_run` composite semantics, client config, demo script. |

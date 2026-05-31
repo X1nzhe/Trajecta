@@ -1,8 +1,9 @@
 # MCP — Trajecta's Composite Eval-Agent Tool
 
 This document is the design source of truth for `trajecta_mcp/server.py` (shipped in Phase 8 B1).
-Phase 8 B1–B3 are lower priority than the Gemini judge agreement path;
-PROJECT.md and README.md link here for details.
+Phase 8 B1–B3 were lower priority than the Gemini judge agreement path;
+PROJECT.md and README.md link here for details. The B1.5 live-client smoke
+is complete: the operator verified the server with MCP Inspector.
 
 ## Position in the Ecosystem
 
@@ -135,6 +136,32 @@ globally. Both produce identical stdio-transport behaviour.
 
 Restart the client. `list_runs`, `analyze_run`, and the four other tools
 should appear under the `trajecta` namespace.
+
+## MCP Inspector Smoke Test
+
+The Phase 8 B1.5 live-client smoke was verified by the operator with MCP
+Inspector. To repeat it from the repo root, use an environment where
+`backend/requirements.txt` has already been installed:
+
+```bash
+npx @modelcontextprotocol/inspector python trajecta_mcp/server.py
+```
+
+Manual acceptance criteria:
+
+1. The Inspector connects to the stdio server.
+2. The Tools tab lists exactly six tools: `list_runs`, `get_run`,
+   `get_step_detail`, `search_failure_memory`, `search_eval_cases`,
+   `analyze_run`.
+3. `list_runs` returns imported Trajecta runs.
+4. `analyze_run` returns an `eval_case_draft` and an `agent_trace`.
+5. The returned trace has `agent_trace.source == "mcp"`.
+6. Mutation and admin tools are absent: `save_validated_eval_case`,
+   `delete_*`, `import_dataset`, and `set_prompt_version`.
+
+This smoke proves client connectivity and tool execution. It does not
+change the HITL boundary: validation and export still happen through the
+Trajecta UI.
 
 ## Demo Script
 

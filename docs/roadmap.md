@@ -3,7 +3,8 @@
 ## MCP
 
 MCP shipped in **Phase 8 B1**; it was lower priority than the
-LLM-judge agreement path. Shipped in Phase 8 B1 (`trajecta_mcp/server.py`); only the live-client smoke test (B1.5) is operator-gated.
+LLM-judge agreement path. The B1.5 live-client smoke is accepted from the
+operator's MCP Inspector test.
 
 `trajecta_mcp/server.py` exposes six tools (`list_runs`, `get_run`,
 `get_step_detail`, `search_failure_memory`, `search_eval_cases`,
@@ -55,7 +56,7 @@ least-privilege artefact in [docs/security_governance.md](security_governance.md
 - Screenshot viewer
 - Step details (Action / Observation / Coordinate Validation / Metadata tabs)
 
-### Phase 6 - Done except SKILL.md and MCP server
+### Phase 6 - Done
 
 - Add Eval Agent panel as a chat-style timeline (renders trace events grouped by turn)
 - Wire Analyze Run / Analyze Step as the only fresh-trace entrypoints
@@ -63,8 +64,8 @@ least-privilege artefact in [docs/security_governance.md](security_governance.md
 - Termination badge, View Draft / Mark validated / Export eval case flow
 - Visual-only thumbs feedback (not wired)
 - Footer dataset/run summary
-- Add SKILL.md if time permits
-- Optional minimal MCP server
+- Skill-style packaging was not included in the V1 closeout
+- MCP shipped later in Phase 8 B1 and was verified with MCP Inspector
 
 ### Phase 7 - Done
 
@@ -90,7 +91,7 @@ Operating spec: [docs/phase8_s18_alignment.md](phase8_s18_alignment.md).
 - `eval/judge.py` Gemini-compatible and OpenAI-compatible LLM judges, with concrete models supplied by `TRAJECTA_JUDGE_A_MODEL` and `TRAJECTA_JUDGE_B_MODEL`, binary `acceptable_eval_case` verdicts, and acceptability assertions
 - Provider-specific prompt bundles shipped for the production pair: `prompts/judge/v1_acceptability_gemini/` and `prompts/judge/v1_acceptability_openai/`
 - κ_LLM,LLM table in `eval/runs/{ts}/judge/judge_agreement_report.md`, computed between Gemini and OpenAI verdicts; preferred N=31 gradeable cases, with deterministic pre-registered stratified subsets allowed for cost-constrained judge runs when `sample_size` and `selection_policy` are reported; disagreement analysis when κ < 0.6
-- A human second judge is deferred because reviewer workflow, UI, and label-management design would add implementation scope beyond Phase 8; no frontend/API judge-review mode is required
+- A human second judge / reviewer UI is not included in V1 because reviewer workflow and label-management design would add implementation scope beyond Phase 8; no frontend/API judge-review mode is required
 - Real RAGAS (path bug fix + run against persisted traces, `mode == "real"`, `n ≥ 10`)
 - `docs/experiment_log.md` + README table — v1→v5 metric deltas
 - `docs/failure_analysis.md` — 2–3 cases + one-line trade-off
@@ -135,7 +136,10 @@ README tagline:
 Trajecta turns raw browser-agent trajectories into human-validated regression eval cases.
 ```
 
-## v2 and Backlog
+## Not in Current V1 Closeout
+
+These items are intentionally paused; they are not required for the V1
+presentation or Phase 8 closeout.
 
 - Recorder middleware
 - MCP expansion
@@ -154,7 +158,7 @@ are actually done:
 
 - Built **Trajecta**, an AI-native Eval Agent for browser-agent trajectory evaluation that converts raw trajectories into human-reviewable regression eval cases. Filled the missing layer between browser-control MCP servers (browser-use, Browserbase) and trajectory datasets (MolmoWeb-HumanSkills, WebArena) — a remote callable agent that diagnoses failures with retrieval-grounded evidence.
 - Designed and implemented a **LangGraph tool-calling agent** with multi-turn follow-up: the agent autonomously decides which trajectory steps to deep-dive, when to retrieve failure memory, and when to terminate via a typed `propose_eval_case` tool — users can ask follow-up questions that resume the same trace under a smaller per-turn budget, with the agent free to revise the draft.
-- Designed a lower-priority **MCP composite** plan to expose the entire LangGraph Eval Agent as a single `analyze_run` tool once implemented. The design keeps external coding agents on one remote call that internally orchestrates RAG retrieval, coarse-to-fine VLM inspection, and structured `EvalCase` proposal — while persistence and validation remain HITL-gated outside the MCP boundary.
+- Shipped a lower-priority **MCP composite** exposing the entire LangGraph Eval Agent as a single `analyze_run` tool, verified through MCP Inspector. The design keeps external coding agents on one remote call that internally orchestrates RAG retrieval, coarse-to-fine VLM inspection, and structured `EvalCase` proposal — while persistence and validation remain HITL-gated outside the MCP boundary.
 - Reduced visual-token cost ~80 % via a **coarse-to-fine VLM strategy**: Trajectory Preprocessing calls a low-detail VLM (~85 tokens/image) on every step to build a digest, while high-detail VLM is invoked on demand by the agent only for steps it flags as suspicious. Measured the savings end-to-end against the naive all-steps-high-detail baseline.
 - Built **ChromaDB-backed RAG** over failure memory and prior eval cases, with agent-authored queries and traceable `retrieved_context_ids` linking each generated case back to its supporting evidence.
 - Designed and implemented an **LLM-judge eval harness** wired as an `agent_eval` post-step, scoring generated eval case drafts as `acceptable_eval_case` over a 35-case golden set with env-configured Gemini-compatible and OpenAI-compatible judges; reported Cohen's κ between the two LLM judges, with disagreement analysis when κ < 0.6 rather than relaxing the judge contract.

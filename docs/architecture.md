@@ -34,7 +34,7 @@ Configuration:
   `backend/.env`, which must not be committed.
 - `OPENAI_API_KEY`: required only when real LLM/VLM calls are enabled
 - `OPENAI_BASE_URL`: optional override for OpenAI-compatible providers
-- `TRAJECTA_LLM_MODEL`: text model for trajectory analysis
+- `TRAJECTA_AGENT_MODEL`: tool-calling Eval Agent model
 - `TRAJECTA_VLM_MODEL`: vision model for screenshot summaries
 - `TRAJECTA_PROMPT_VERSION`: committed prompt bundle under `prompts/eval_agent/`; defaults to `v1_minimal`
 - `TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION`: committed high-detail VLM prompt under `prompts/vlm_high_detail/`; defaults to `v1_task_context`
@@ -58,6 +58,34 @@ missing, use deterministic mocked LLM/VLM summaries and agent outputs.
 Trajecta is an Eval Agent for browser-use agent trajectories. It imports existing trajectory data, displays the run, analyzes failures, retrieves similar failure memory, and drafts regression eval cases.
 
 Trajecta does not control a live browser in v1. It does not include CDP, Playwright recorder middleware, OS-level computer-use support, video replay, multi-user auth, OpenTelemetry integration, SaaS features, or automatic root-cause claims without human review.
+
+## System Diagram
+
+```mermaid
+flowchart LR
+  Dataset["MolmoWeb-HumanSkills sample fixtures"] --> Importer["Dataset importer"]
+  Importer --> SQLite[("SQLite data/trajecta.db<br/>runs, steps, screenshots,<br/>digests, traces, eval cases")]
+  FailureSeed["failure_memory/cases.jsonl"] --> SQLite
+  SQLite --> Preprocess["Trajectory preprocessing<br/>parse actions<br/>coordinate validation<br/>low-detail VLM digest"]
+  Preprocess --> Agent["LangGraph Eval Agent"]
+  SQLite --> Tools["Typed tools<br/>get_run<br/>get_step_detail<br/>find_similar_successful_run<br/>search_failure_memory<br/>search_eval_cases<br/>propose_eval_case"]
+  Chroma[("ChromaDB data/chroma<br/>failure_memory<br/>eval_cases<br/>successful_runs")] --> Tools
+  Tools --> Agent
+  Agent --> Draft["EvalCase draft"]
+  Agent --> Trace["AgentTrace"]
+  API["FastAPI backend"] --> UI["React replay UI"]
+  SQLite --> API
+  Draft --> UI
+  Trace --> UI
+  MCP["FastMCP server<br/>trajecta_mcp/server.py"] --> Agent
+  Inspector["MCP Inspector<br/>Claude Code / Cursor"] --> MCP
+  Eval["Eval harness<br/>golden set<br/>agent_eval<br/>LLM judge<br/>RAGAS"] --> Agent
+```
+
+The MCP path is a remote interface to the same in-process Eval Agent loop.
+It was verified with MCP Inspector for the V1 closeout. The eval harness is
+not a product feature; it is the project-quality measurement layer used for
+the presentation.
 
 ## Repository Structure
 
@@ -112,9 +140,6 @@ trajecta/
     failure_memory/
       cases.jsonl                        # human-edited seed corpus; hydrated into DB on load
     chroma/                              # vector store (separate persistent layer)
-  skills/
-    create-eval-case/
-      SKILL.md
   trajecta_mcp/
     server.py
   eval/
