@@ -98,14 +98,22 @@ def current_spotlight_token() -> str | None:
     return _SPOTLIGHT_TOKEN_VAR.get()
 
 
-def spotlight_wrap(text: str) -> str:
+def spotlight_wrap(text: str, token: str | None = None) -> str:
     if text is None or not isinstance(text, str):
         raise TypeError(
             f"spotlight_wrap expected str, got {type(text).__name__}"
         )
     if not spotlighting_enabled():
         return text
-    token = _SPOTLIGHT_TOKEN_VAR.get()
+    # Prefer an explicit token (threaded through GraphState by the Eval Agent
+    # graph) over the ContextVar. The HTTP analyze path streams a *sync*
+    # generator that Starlette pumps via anyio.to_thread.run_sync — one call
+    # per chunk, each in a fresh copied context — so a token set on the request
+    # thread is gone by the chunk that runs the graph and wraps the digest.
+    # Passing the token as plain data is pump/thread-independent; the ContextVar
+    # stays as a fallback for direct callers (and existing unit tests).
+    if token is None:
+        token = _SPOTLIGHT_TOKEN_VAR.get()
     if token is None:
         raise RuntimeError(
             "spotlight_wrap called without an active token; "
@@ -115,17 +123,19 @@ def spotlight_wrap(text: str) -> str:
     return f"<TRAJECTA_DATA_{token}>{text}</TRAJECTA_DATA_{token}>"
 
 
-def spotlight_wrap_optional(text: str | None) -> str | None:
+def spotlight_wrap_optional(
+    text: str | None, token: str | None = None
+) -> str | None:
     """Wrap when ``text`` is a non-empty string; pass None / empty through.
 
     Empty strings stay empty so JSON payloads stay compact — wrapping ""
     would add 32+ bytes of markers per missing field with no defense value.
-    Off-mode is identity.
+    Off-mode is identity. ``token`` is forwarded to ``spotlight_wrap``.
     """
 
     if text is None or text == "":
         return text
-    return spotlight_wrap(text)
+    return spotlight_wrap(text, token)
 
 
 def available_prompt_versions() -> list[str]:
