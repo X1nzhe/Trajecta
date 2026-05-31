@@ -265,10 +265,9 @@ about the source of disagreement (prompt ambiguity vs model behavior vs
 genuinely hard sample). Per S18 § 2.3 closing note: "a negative result is
 still a result".
 
-Reviewer validation can be added later as a separate confidence check, but it
-is deferred and not part of the Phase 8 acceptance path because reviewer
-workflow, UI, and label-management design would add implementation scope beyond
-Phase 8.
+Reviewer validation is not part of the V1 / Phase 8 acceptance path because
+reviewer workflow, UI, and label-management design would add implementation
+scope beyond Phase 8.
 
 ## RAGAS Evaluation
 

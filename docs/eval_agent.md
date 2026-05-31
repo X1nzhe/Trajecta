@@ -276,9 +276,10 @@ than as raw tools.
 
 ## Skill
 
-The Skill wrapper is optional packaging around the Eval Agent. It is not a v1 blocker.
+The Skill wrapper is optional packaging around the Eval Agent. It is not part
+of the V1 closeout.
 
-Create one skill file:
+If future work reopens this track, create one skill file:
 
 `skills/create-eval-case/SKILL.md`
 

@@ -5,8 +5,9 @@ versioned prompts, a 31-sample agent-quality report, and a polished React UI.
 Phase 8 closes the gap to the S18 capstone deliverable: a defendable eval
 harness, Gemini and OpenAI LLM judges with measurable κ_LLM,LLM agreement,
 an experiment log, a failure-analysis writeup, and a single-doc treatment of
-the existing governance machinery. The MCP composite shipped in B1 (lower priority than the judge agreement
-path); only the live-client demo (B1.5) is operator-gated.
+the existing governance machinery. The MCP composite shipped in B1 (lower
+priority than the judge agreement path), and the B1.5 live-client smoke has
+been verified with MCP Inspector.
 
 This file is the **operating spec** for Phase 8. Every other Phase 8 doc
 (`PROJECT.md`, `docs/mcp.md`, `docs/security_governance.md`, `docs/testing.md`,
@@ -25,8 +26,9 @@ component framing**. MCP shipped in B1 after the judge path. Phase 8 does
 - add frontend/API flows for a Phase 8 judge reviewer,
 - migrate observability to Langfuse or Inspect AI.
 
-A human second judge is deliberately deferred because reviewer workflow, UI, and
-label-management design would add implementation scope beyond Phase 8.
+Human second-judge and reviewer-UI work is not included in V1 because reviewer
+workflow and label-management design would add implementation scope beyond
+Phase 8.
 
 Reasoning for each non-goal is in `PROJECT.md` "Phase 8 Design Decisions".
 
@@ -335,14 +337,13 @@ failed acceptability assertions by judge.
 `prompts/judge/v2_strict_assertions/`, if present, is an archived /
 experimental prompt bundle. It is not part of the Phase 8 mandatory path.
 
-### A5. Deferred human validation
+### A5. Human reviewer workflow not included
 
-Human validation can be added later as a confidence-building check, but it is
-not a Phase 8 blocker and is not required for the primary S18 acceptance path.
-A human second judge is deliberately deferred because reviewer workflow, UI, and
-label-management design would add implementation scope beyond Phase 8. Phase 8
-does not add a frontend judge-review mode, a new API surface, or a required
-reviewer file.
+Human validation of eval-case drafts remains part of the product UI, but a
+second judge / reviewer workflow for the evaluation harness is not included in
+V1. Reviewer workflow, UI, and label-management design would add implementation
+scope beyond Phase 8. Phase 8 does not add a frontend judge-review mode, a new
+API surface, or a required reviewer file.
 
 If future validation is added, reviewers should inspect the trajectory
 timeline, screenshots, generated `EvalCase` draft, agent trace, cited
@@ -424,7 +425,7 @@ fix-or-defer decision.
 
 MCP was lower priority than the Phase 8 judge work and shipped after it.
 This section is the design + acceptance target for the MCP slice; B1/B2 are
-now `done` (see the tracker) and only the B1.5 live-client demo is `blocked`.
+now `done` (see the tracker), and B1.5 is verified with MCP Inspector.
 
 ### B1. `trajecta_mcp/server.py` (shipped)
 
@@ -554,8 +555,8 @@ the Spotlighting defense (B6), both shipped:
 
 - `PROJECT.md` cites this doc as the Security / Governance component.
 - Each mechanism row links to the source file(s) implementing it.
-- The doc explicitly states which mechanisms are already shipped and which
-remain operator-gated (only the B1.5 live-client demo).
+- The doc explicitly states which mechanisms are already shipped; B1.5 is
+verified with MCP Inspector.
 
 ### B5. README MCP demo
 
@@ -718,27 +719,28 @@ file before starting any Phase 8 work.
 | `done`     | Slice acceptance met; verify command recorded below.                           |
 | `partial`  | Foundation shipped; slice acceptance not yet met.                              |
 | `todo`     | Not started.                                                                   |
-| `blocked`  | Requires operator action (keys, budget, real traces) before coding can finish. |
+| `operator_required` | Requires operator action (keys, budget, real traces) before coding can finish. |
 | `deferred` | Optional future work, not a Phase 8 acceptance blocker.                        |
 | `removed`  | Deliberately not planned; not an acceptance blocker.                           |
 
 
 ### Current Focus
 
-**Phase 8 functionally complete.** Core eval deliverables (A1–A8 except
-deferred A5), A6 real RAGAS, B6.1–B6.3 Spotlighting hardening (defense
+**Phase 8 complete.** Core eval deliverables (A1–A8 except
+removed A5 reviewer workflow), A6 real RAGAS, B6.1–B6.3 Spotlighting hardening (defense
 shipped + unit-tested; B6.4/B6.5 eval layer deliberately trimmed), 8.C
-tactical cleanup, and now **B1 + B2 (MCP server)** are all complete.
+tactical cleanup, and **B1 + B2 + B1.5 (MCP server + live-client smoke)**
+are complete.
 `trajecta_mcp/server.py` ships the six-tool surface + `analyze_run`
 composite; `tests/test_mcp_server.py` (15 tests) proves the surface and
 the B2 invariants. Full suite: 440 passed / 1 skipped in the `trajecta`
 env.
 
-The **only** remaining item is **B1.5 live demo** (`blocked`): an
-operator connecting a real MCP client (Claude Code/Cursor) and calling
-`analyze_run` — it cannot be proven in a headless env. A formal
-prompt-injection benchmark remains a possible future security-evaluation
-phase, not Phase 8. Do not expand scope unless the operator requests it.
+The B1.5 live-client smoke is accepted based on the operator's MCP
+Inspector test: the server connects, exposes the six expected tools, and
+`analyze_run` returns an `eval_case_draft` plus an `agent_trace` with
+`source="mcp"`. A formal prompt-injection benchmark remains out of V1.
+Do not expand scope unless the operator requests it.
 
 ### Agent Handoff Rule
 
@@ -749,18 +751,21 @@ Every coding-agent session must follow this loop:
 3. Do not expand scope into v2 items listed under [Scope Boundary](#scope-boundary).
 4. Run the slice **Verify** command; record pass/fail in the slice row.
 5. Update **Current Focus** to the next `todo` slice in dependency order.
-6. If blocked, set slice status to `blocked` and add an entry under
-  **Blocked / Requires Operator** — do not silently skip acceptance.
+6. If operator action is required, set slice status to
+  `operator_required` and add an entry under **Requires Operator**.
 
 Prompt template for each session:
 
 ```text
 只做 docs/phase8_s18_alignment.md Execution Tracker 的 <SLICE_ID>。
 完成前不要推进下一个 slice。
-完成后只更新该 slice 的状态、Verify 结果和 Blocked 项。
+完成后只更新该 slice 的状态、Verify 结果和 Requires Operator 项。
 ```
 
-### Blocked / Requires Operator
+### Requires Operator
+
+No unresolved operator actions remain for V1 closeout. Historical operator
+dependencies are recorded below for reproducibility.
 
 
 | Item                            | Blocks                                  | Operator action                                                                                                                                           |
@@ -785,7 +790,7 @@ flowchart LR
   A4 --> A7[A7 ExperimentLog]
   A4 --> A8[A8 FailureAnalysis]
   A2 --> A6[A6 RAGAS]
-  A5[A5 DeferredHumanValidation]
+  A5[A5 ReviewerNotIncluded]
   A3 --> B1[B1 MCP Server]
   B1 --> B5[B5 README Demo]
   B6[B6 Spotlighting] --> B4[B4 SecurityDoc]
@@ -855,15 +860,15 @@ on a stable `analyze_run` path only.
 
 **Epic status**: `done` — A4.1 + A4.2 + A4.3 shipped.
 
-#### A5 — Deferred human validation
+#### A5 — Human reviewer workflow not included
 
 
-| Slice                         | Status     | Artefact / outcome                                                                                               | Core files  | Verify |
-| ----------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------- | ----------- | ------ |
-| A5.1 Future reviewer protocol | `deferred` | A human second judge is deferred because reviewer workflow, UI, and label-management design exceed Phase 8 scope | future docs | n/a    |
+| Slice                         | Status    | Artefact / outcome                                                                                       | Core files | Verify |
+| ----------------------------- | --------- | -------------------------------------------------------------------------------------------------------- | ---------- | ------ |
+| A5.1 Future reviewer protocol | `removed` | Human second judge / reviewer UI is not included in V1 because it exceeds Phase 8 scope | —          | n/a    |
 
 
-**Epic status**: `deferred`
+**Epic status**: `removed`
 
 #### A6 — Real RAGAS
 
@@ -913,10 +918,10 @@ on a stable `analyze_run` path only.
 | B1.2 Five read-only tools    | `done`    | `list_runs`, `get_run`, `get_step_detail`, `search_failure_memory`, `search_eval_cases` thin delegates | `trajecta_mcp/server.py`   | MCP client tool inventory == 6 total                  |
 | B1.3 `analyze_run` composite | `done`    | Delegates to `eval_agent_graph.analyze_run(..., source="mcp")`; strips bytes; full-run only | `trajecta_mcp/server.py`   | `test_analyze_run_trace_parity_with_http_path`        |
 | B1.4 Excluded tools          | `done`    | `save_validated_eval_case`, `delete_*`, `import_dataset`, `set_prompt_version` never decorated | `trajecta_mcp/server.py`   | `test_excluded_tool_call_raises_method_not_found`     |
-| B1.5 Live demo               | `blocked` | Claude Code connects in ≤ 2 min                                | `docs/mcp.md`, `README.md` | Operator smoke per B5 script (headless env cannot prove) |
+| B1.5 Live demo               | `done`    | MCP Inspector connects, lists six tools, and `analyze_run` returns `eval_case_draft` + `agent_trace.source == "mcp"` | `docs/mcp.md`, `README.md` | User verified with MCP Inspector |
 
 
-**Epic status**: `done` (code) — B1.1–B1.4 shipped + tested (15 tests in `tests/test_mcp_server.py`). Those tests guard with `pytest.importorskip("fastmcp")`, so they run in the project `trajecta` env (or any env after `pip install -r backend/requirements.txt`, which pins `fastmcp>=2.0`) and are skipped where fastmcp is absent — same opt-in pattern as `test_real_llm_integration`. There is no CI gate (Phase 8 defers it; see the S18 map "Optional" row). B1.5 live demo stays `blocked` on an operator connecting a real MCP client.
+**Epic status**: `done` — B1.1–B1.4 shipped + tested (15 tests in `tests/test_mcp_server.py`). Those tests guard with `pytest.importorskip("fastmcp")`, so they run in the project `trajecta` env (or any env after `pip install -r backend/requirements.txt`, which pins `fastmcp>=2.0`) and are skipped where fastmcp is absent — same opt-in pattern as `test_real_llm_integration`. B1.5 is accepted from the operator's MCP Inspector live-client smoke.
 
 #### B2 — `analyze_run` Invariants
 
@@ -945,7 +950,7 @@ on a stable `analyze_run` path only.
 
 | Slice                     | Status | Artefact / outcome                                                                        | Core files                    | Verify                                   |
 | ------------------------- | ------ | ----------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------- |
-| B4.1 Nine-mechanism table | `done` | Mechanisms 1–9 framed truthfully; B6 + MCP (Mechanism 7/9) shipped, only B1.5 live demo gated | `docs/security_governance.md` | Doc describes B1/B6 as shipped |
+| B4.1 Nine-mechanism table | `done` | Mechanisms 1–9 framed truthfully; B6 + MCP (Mechanism 7/9) shipped; B1.5 verified with MCP Inspector | `docs/security_governance.md` | Doc describes B1/B6 as shipped |
 
 
 **Epic status**: `done` — B4 is a truthful component story; B1 and B6 shipped as their own slices.
@@ -958,7 +963,7 @@ on a stable `analyze_run` path only.
 | B5.1 Seven-step demo | `done` | User-facing connect instructions | `README.md`, `docs/mcp.md` | Manual review |
 
 
-**Epic status**: `done` (doc); live proof blocked on B1.
+**Epic status**: `done`; live proof accepted from MCP Inspector.
 
 #### B6 — Spotlighting
 
@@ -1011,7 +1016,7 @@ on a stable `analyze_run` path only.
 
 ### Tracker → Acceptance Checklist Map
 
-When every slice above is `done` (or `blocked` items resolved by operator),
+When every slice above is `done` (or operator-required items are resolved),
 the [Acceptance Checklist](#acceptance-checklist) below should pass without
 re-scoping. If a checklist item fails, add or split a slice here first —
 do not patch acceptance in prompt memory.
@@ -1027,13 +1032,12 @@ A single block to verify before the 48-hour push.
 [x] eval/ragas_report.md    mode == "real", n ≥ 10
 [x] README.md    "Eval & Experiments" table ≥ 5 rows with concrete deltas
 [x] docs/failure_analysis.md    2-3 cases + one-line trade-off
-[x] trajecta_mcp/server.py    six tools, zero excluded (method_not_found), analyze_run composite (source=mcp); B1.5 live demo still operator-gated
+[x] trajecta_mcp/server.py    six tools, zero excluded (method_not_found), analyze_run composite (source=mcp); B1.5 verified with MCP Inspector
 [x] docs/mcp.md    tool inventory + analyze_run diagram + demo script
-[x] docs/security_governance.md    shipped mechanisms (incl. B6 Spotlighting, unmeasured; MCP Mechanism 7) framed honestly; only B1.5 live demo gated
+[x] docs/security_governance.md    shipped mechanisms (incl. B6 Spotlighting, unmeasured; MCP Mechanism 7) framed honestly; MCP Inspector smoke accepted
 [x] backend/app/prompts.py + eval_agent_graph.py + tools.py    B6.1–B6.3 Spotlighting hardening shipped + unit-tested (test_prompts.py, SpotlightingWrapTests); B6.4/B6.5 eval layer intentionally out of scope
 [x] cd frontend && npm run build    exits 0
 [x] git status    clean
 [x] PROJECT.md / README.md / roadmap.md / testing.md / eval_agent.md    reflect Phase 8
 [x] docs/phase8_s18_alignment.md    core acceptance rows updated; planned lower-priority rows intentionally remain open
 ```
-

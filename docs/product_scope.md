@@ -23,7 +23,7 @@ The project must clearly demonstrate:
 - Evaluation case generation
 - Testing and evaluation
 - RAGAS-based retrieval/grounding evaluation
-- Time-permitting MCP and Skill-style workflow packaging
+- MCP composite access verified through MCP Inspector
 
 ## Core User Flow
 
@@ -64,13 +64,16 @@ The project must clearly demonstrate:
 - `AGENTS.md` at repo root
 
 
-## Should Have
+## Not In Current V1 Closeout
 
-- One `skills/create-eval-case/SKILL.md`
+- `skills/create-eval-case/SKILL.md`
+- Reviewer UI / human second judge workflow
+- Spotlighting security benchmark
+- v2 backlog work
 
 ## Nice to Have
 
-- Minimal MCP server exposing 1-2 tools
+- MCP server (shipped in Phase 8 B1 and verified with MCP Inspector)
 - Run comparison
 - Failure memory search UI
 - Coordinate validation report for MolmoWeb samples
