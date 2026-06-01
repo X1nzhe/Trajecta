@@ -13,6 +13,37 @@
 - no_trace: 4
 - no_context: 17
 
+## Retrieval evidence summary
+
+Retrieved contexts are what the RAG tools returned; cited context ids are the subset the final `propose_eval_case` referenced — the two need not match. The per-tool table below is scoped to each search tool, while the occurrence and citation tables are aggregated across all tools.
+
+| Tool | Samples | Retrieved contexts |
+| --- | ---: | ---: |
+| `search_failure_memory` | 10 | 30 |
+| `search_eval_cases` | 0 | 0 |
+
+### Evidence context occurrences
+
+| Context id | Occurrences in retrieved contexts |
+| --- | ---: |
+| `fm_missed_constraint_001` | 10 |
+| `fm_inefficient_search_001` | 8 |
+| `fm_wrong_result_001` | 6 |
+| `fm_early_terminated_001` | 4 |
+| `fm_wrong_target_001` | 2 |
+
+### Cited context ids
+
+- Traces with a proposal: 10
+- Unique cited context ids: `fm_early_terminated_001`, `fm_missed_constraint_001`, `fm_wrong_result_001`
+- Total cited-id references (deduped per trace): 11
+
+| Context id | Traces citing it |
+| --- | ---: |
+| `fm_missed_constraint_001` | 7 |
+| `fm_early_terminated_001` | 3 |
+| `fm_wrong_result_001` | 1 |
+
 ## How this was generated
 
 `ragas_mode=real` — real `ragas` faithfulness evaluation over retrieved contexts.

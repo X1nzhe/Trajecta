@@ -183,5 +183,38 @@
   },
   "ground_truth_source": "none",
   "ragas_mode": "real",
-  "fallback_reason": null
+  "fallback_reason": null,
+  "retrieval_stats": {
+    "by_tool": {
+      "search_failure_memory": {
+        "sample_count": 10,
+        "retrieved_context_count": 30
+      },
+      "search_eval_cases": {
+        "sample_count": 0,
+        "retrieved_context_count": 0
+      }
+    },
+    "evidence_context_occurrences": {
+      "fm_missed_constraint_001": 10,
+      "fm_inefficient_search_001": 8,
+      "fm_wrong_result_001": 6,
+      "fm_early_terminated_001": 4,
+      "fm_wrong_target_001": 2
+    },
+    "cited_context_ids": {
+      "trace_count": 10,
+      "unique_cited_context_ids": [
+        "fm_early_terminated_001",
+        "fm_missed_constraint_001",
+        "fm_wrong_result_001"
+      ],
+      "cited_context_id_trace_counts": {
+        "fm_missed_constraint_001": 7,
+        "fm_early_terminated_001": 3,
+        "fm_wrong_result_001": 1
+      },
+      "cited_context_id_mentions": 11
+    }
+  }
 }
