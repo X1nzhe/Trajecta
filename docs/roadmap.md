@@ -39,7 +39,7 @@ least-privilege artefact in [docs/security_governance.md](security_governance.md
 ### Phase 3 - Done
 
 - Implement Trajectory Preprocessing (`preprocess.py`) per [docs/preprocessing.md](preprocessing.md): build the `trajectory_digest` with low-detail VLM hints, parsed actions, and coordinate validation
-- Implement ChromaDB RAG (`failure_memory` + `eval_cases` + `successful_runs` collections)
+- Implement ChromaDB RAG (`failure_pattern_memory`, `failure_eval_cases`, and `successful_trajectories`; legacy implementation names: `failure_memory`, `eval_cases`, `successful_runs`)
 - Implement the LangGraph tool-calling Eval Agent with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and the terminal `propose_eval_case` tool
 - Convert the agent loop's final `messages` into an `AgentTrace` and persist via `storage.save_trace(run_id, trace)` (writes the `traces` SQLite row, overwritten each analyze; originally written as `data/runs/{run_id}/last_trace.json` pre-SQLite refactor)
 

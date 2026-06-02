@@ -11,10 +11,39 @@ This file is the single source of truth for shared Trajecta contracts:
 Topic docs may explain behavior and implementation strategy, but they should not
 redefine fields, endpoint lists, or tool signatures.
 
+## Terminology
+
+Use these terms consistently in durable docs and new designs:
+
+- `trajectory`: one imported browser-agent execution record. Current v1
+  implementation names still expose this as `run`: SQLite table `runs`, field
+  `run_id`, API path `/api/runs`, and agent tool `get_run`.
+- `eval_case`: one human-validated `EvalCase`. It can be success-shaped or
+  failure-shaped and is stored in the SQLite `eval_cases` table.
+- `success_eval_case`: an `EvalCase` whose five failure fields are all `None`.
+  It validates that the source trajectory completed the task.
+- `failure_eval_case`: an `EvalCase` whose five failure fields are all
+  populated. It is the human-validated failure precedent retrieved by
+  `search_eval_cases`.
+- `successful_trajectory`: a trajectory whose success was human-validated by a
+  `success_eval_case`. It is indexed for replay-and-diff comparison.
+- `failure_pattern_memory`: hand-written seed memory describing reusable
+  failure patterns. It is separate from human-generated `EvalCase` records.
+- `trajectory_digest`: the low-detail, per-step preprocessing summary consumed
+  by the Eval Agent before high-detail inspection.
+- `agent_trace`: the auditable record of messages, tool calls, tool results,
+  model/prompt metadata, and terminal eval-case draft.
+
+Legacy public names remain part of the current contract until a later migration:
+`run`, `run_id`, `source_run_id`, `/api/runs`, `get_run`,
+`find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`,
+and `EvidenceItem.source` values such as `"failure_memory"` and
+`"successful_run"` all refer to the canonical concepts above.
+
 ## v1 Assumptions
 
-- **Single user, single concurrency.** v1 assumes one analyze request at a time per run; concurrent analyzes on the same `run_id` race on the `traces` row and have undefined behavior.
-- **No force-rebuild knob.** `POST /api/runs/{run_id}/preprocess` is cache-first with no override; rebuilding a digest requires deleting the `digests` row for the run or bumping `preprocess_version` in code.
+- **Single user, single concurrency.** v1 assumes one analyze request at a time per trajectory; concurrent analyzes on the same `run_id` race on the `traces` row and have undefined behavior.
+- **No force-rebuild knob.** `POST /api/runs/{run_id}/preprocess` is cache-first with no override; rebuilding a digest requires deleting the `digests` row for the trajectory or bumping `preprocess_version` in code.
 - **Missing screenshots are non-fatal.** If `StepObservation.screenshot` references a row that is absent from the `screenshots` table, `has_screenshot=false` is recorded in the digest, `get_step_detail` returns no VLM summary, and `GET /api/runs/{run_id}/screenshots/{filename}` returns `404`.
 
 ## Schema Contracts
@@ -290,6 +319,8 @@ data/
     run_status_overlay.json          # hand-curated status, see docs/dataset_import.md
   trajecta.db                        # SQLite: runs, steps, screenshots,
                                      # digests, traces, eval_cases, failure_memory
+                                     # runs = all trajectories
+                                     # eval_cases = success + failure EvalCases
   failure_memory/cases.jsonl         # FailureMemoryCase seed corpus (hydrated into DB on load)
   chroma/                            # ChromaDB persistence (TRAJECTA_CHROMA_DIR override)
 ```
@@ -363,8 +394,8 @@ def find_similar_successful_run(
 
     Used by the agent for replay-and-diff: after identifying a likely failure
     step in the current run, the agent calls this to find a comparable
-    successful run, then calls `get_run(other_run_id)` to load that run's
-    digest and reasons about where the two runs diverge.
+    successful trajectory, then calls `get_run(other_run_id)` to load that
+    trajectory's digest and reasons about where the two trajectories diverge.
 
     Returns a list of dicts with:
     - `run_id`: str
@@ -409,11 +440,19 @@ def get_step_detail(
 
 
 def search_failure_memory(query: str, top_k: int = 3) -> list[dict]:
-    """Retrieve FailureMemoryCase-like records from the failure_memory collection."""
+    """Retrieve hand-written failure_pattern_memory records.
+
+    Current implementation name: failure_memory collection.
+    """
 
 
 def search_eval_cases(query: str, top_k: int = 3, only_validated: bool = True) -> list[dict]:
-    """Retrieve EvalCase-like records from the eval_cases collection."""
+    """Retrieve prior human-validated failure_eval_case records.
+
+    Current implementation collection name: `eval_cases`. Success-shaped
+    EvalCases are stored in SQLite but do not belong in this failure-case
+    retrieval index.
+    """
 
 
 def propose_eval_case(
@@ -533,15 +572,17 @@ Behavior:
 `POST /api/eval-cases` accepts a complete `EvalCase` with
 `human_validated=true` and persists it as a final regression case. The
 endpoint accepts both failure-shape and success-shape cases (XOR enforced
-by the schema). The handler:
+by the schema). This is why `/api/eval-cases` contains both positive
+(`success_eval_case`) and negative (`failure_eval_case`) human verdicts. The
+handler:
 
 1. Validates the body against the `EvalCase` schema; returns `422` if `human_validated=false`, if the failure-fields XOR is violated, or if any other field is malformed.
 2. Loads the source run; returns `404` if `source_run_id` is unknown.
 3. Calls `storage.save_eval_case(case)` — inserts into the `eval_cases` SQLite table (raises 409 if `case_id` already exists).
 4. Flips the source run's `status`: `"failed"` for a failure case, `"success"` for a success case, and persists via `storage.save_run` (in-place update; trace and screenshots are preserved per the storage contract).
 5. Routes the RAG write:
-   - Failure case → `rag.upsert_eval_case(case)` into the `eval_cases` collection.
-   - Success case → `rag.upsert_successful_run(updated_run)` into the `successful_runs` collection (so `find_similar_successful_run` starts returning it).
+   - Failure case → `rag.upsert_eval_case(case)` into the conceptual `failure_eval_cases` collection (current implementation name: `eval_cases`).
+   - Success case → `rag.upsert_successful_run(updated_run)` into the conceptual `successful_trajectories` collection (current implementation name: `successful_runs`) so `find_similar_successful_run` starts returning it.
 6. Returns the persisted `EvalCase`.
 
 Drafts (`human_validated=false`) returned by `POST /api/runs/{run_id}/analyze`
@@ -555,7 +596,10 @@ querying the `eval_cases` SQLite table (not via ChromaDB).
 Search endpoint responses:
 
 - `GET /api/failure-memory/search?q=...` returns `list[FailureMemoryCase]`.
-- `GET /api/eval-cases/search?q=...` returns `list[EvalCase]` and defaults to `only_validated=true`.
+- `GET /api/eval-cases/search?q=...` returns prior human-validated failure
+  EvalCases and defaults to `only_validated=true`. Despite the endpoint name,
+  this is failure-case precedent retrieval, not a list of every SQLite
+  `eval_cases` row.
 - Similarity scores are not part of v1 API responses; keep scoring internal to retrieval.
 
 Run-scoped endpoints must return `404` for an unknown `run_id`, including
@@ -576,10 +620,19 @@ Persistence directory:
 Indexing model:
 
 - Index writes are **synchronous** with the request that produces the data. No background workers in v1.
-- On FastAPI startup, the failure_memory collection is hydrated from `data/failure_memory/cases.jsonl` (the seed corpus is also mirrored into the `failure_memory` SQLite table). successful_runs is hydrated by querying the `runs` table for any row with post-overlay `status == "success"` and upserting one row per such run.
+- On FastAPI startup, `failure_pattern_memory` is hydrated from
+  `data/failure_memory/cases.jsonl` (the seed corpus is also mirrored into the
+  `failure_memory` SQLite table). `failure_eval_cases` and
+  `successful_trajectories` are hydrated from persisted, human-validated data by
+  stable ID. Success-shaped EvalCases must not be indexed into
+  `failure_eval_cases`.
 - All `upsert` operations are idempotent: re-indexing the same `case_id` / `run_id` overwrites the existing row.
 
-### `failure_memory`
+Current implementation names are still `failure_memory`, `eval_cases`, and
+`successful_runs`. Those names are legacy aliases for the conceptual
+collections below until the code migration renames the constants.
+
+### `failure_pattern_memory` (legacy implementation: `failure_memory`)
 
 Metadata:
 
@@ -610,9 +663,9 @@ Seed requirements:
 Index trigger:
 
 - FastAPI startup: read `cases.jsonl`, validate every row, and upsert into the collection. If the collection already contains the same `case_id`, the row is overwritten (idempotent restart).
-- v1 has no API endpoint to add new failure memories; the file is the source of truth.
+- v1 has no API endpoint to add new failure pattern memories; the file is the source of truth.
 
-### `eval_cases`
+### `failure_eval_cases` (legacy implementation: `eval_cases`)
 
 Metadata must preserve a complete `EvalCase`. The embedded document text may use
 a retrieval-optimized subset.
@@ -626,13 +679,17 @@ task + failure_type + expected_behavior + actual_behavior + evidence.claim + reg
 Index trigger:
 
 - Synchronous inside `POST /api/eval-cases`, after `storage.save_eval_case` succeeds.
-- The collection only contains `human_validated=true` records — drafts are never indexed.
-- FastAPI startup: rebuild the collection from `data/eval_cases/validated/*.json` if empty, for crash recovery.
+- The collection only contains failure-shaped, `human_validated=true` records.
+  Success-shaped EvalCases are stored in SQLite `eval_cases`, but they are not
+  failure precedents and do not belong in this index.
+- FastAPI startup: rebuild the collection from persisted human-validated
+  failure EvalCases if empty, for crash recovery.
 
-### `successful_runs`
+### `successful_trajectories` (legacy implementation: `successful_runs`)
 
-Indexes imported runs that completed successfully, so the agent can pull a
-counter-example for replay-and-diff via `find_similar_successful_run`.
+Indexes trajectories whose success was human-validated through a
+`success_eval_case`, so the agent can pull a counter-example for
+replay-and-diff via `find_similar_successful_run`.
 
 Metadata:
 
@@ -649,18 +706,21 @@ task
 
 Seed requirements:
 
-- Populated at dataset-import time. Only `TrajectoryRun` records with
-  `status == "success"` (after applying `run_status_overlay.json`) are indexed.
-- At least one success run per fixture task category should be present so
-  replay-and-diff is reachable from each demo run.
-- If no successful run exists for a given task category, the tool returns an
-  empty list and the agent must proceed without comparison.
+- Starts empty after dataset import. Dataset import creates trajectories, not
+  EvalCases, and therefore cannot human-validate success.
+- Grows only when a human validates a success-shaped `EvalCase` through
+  `POST /api/eval-cases`.
+- If no successful trajectory exists for a given task category, the tool
+  returns an empty list and the agent must proceed without comparison.
 
 Index trigger:
 
-- Synchronous inside `POST /api/import/molmoweb-sample`: for each imported run whose post-overlay status is `"success"`, upsert one row keyed by `run_id`.
-- Re-importing an existing `run_id` upserts (overwrites) the row.
-- FastAPI startup: rebuild the collection from the `runs` SQLite table if empty.
+- Synchronous inside `POST /api/eval-cases`: when a success-shaped EvalCase is
+  validated, the source trajectory is upserted by `run_id`.
+- Re-importing an existing `run_id` removes any stale successful-trajectory
+  index row; the trajectory becomes unanalyzed until a human validates it again.
+- FastAPI startup: rebuild the collection from SQLite trajectories whose
+  status is `"success"`, which represents prior human validation.
 
 ### `step_summaries` (v2 placeholder)
 

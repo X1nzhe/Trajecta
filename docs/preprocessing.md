@@ -133,7 +133,11 @@ If the digest is missing or malformed, the `preprocess` node must fail fast rath
 
 ## Contract with RAG
 
-Preprocessing **does not write to ChromaDB**. RAG ingestion of `failure_memory`, `eval_cases`, and `successful_runs` is a separate concern owned by [docs/rag.md](rag.md).
+Preprocessing **does not write to ChromaDB**. RAG ingestion of
+`failure_pattern_memory`, `failure_eval_cases`, and
+`successful_trajectories` is a separate concern owned by [docs/rag.md](rag.md).
+Current code may still use the legacy collection names `failure_memory`,
+`eval_cases`, and `successful_runs`.
 
 ## Acceptance Criteria
 

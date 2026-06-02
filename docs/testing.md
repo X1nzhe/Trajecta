@@ -403,8 +403,8 @@ tests/test_tools.py
 - get_run accepts a comparison run_id distinct from the run currently under analysis
 - get_step_detail returns high-detail analysis for a valid step
 - get_step_detail with image_detail="low" returns a low-detail analysis without throwing
-- find_similar_successful_run returns only runs with status=="success" and excludes the queried run_id
-- find_similar_successful_run returns an empty list when no successful run is indexed for the task
+- find_similar_successful_run returns only human-validated successful trajectories and excludes the queried run_id
+- find_similar_successful_run returns an empty list when no successful trajectory is indexed for the task
 - propose_eval_case rejects an EvalCase draft missing required fields
 
 tests/test_eval_agent.py
@@ -443,8 +443,8 @@ tests/test_rag.py
 - ChromaDB collection initializes
 - failure memory seed contains at least 5 cases including missed_constraint
 - search_failure_memory returns missed_constraint case for constraint query
-- search_eval_cases defaults to human_validated=true cases
-- successful_runs collection only indexes runs with status=="success"
+- search_eval_cases defaults to human_validated=true failure EvalCases
+- successful_trajectories (legacy collection name: successful_runs) only indexes trajectories with human-validated `status=="success"`
 - find_similar_successful_run returns higher similarity for same-task runs than for cross-task runs
 - top_k length is respected
 

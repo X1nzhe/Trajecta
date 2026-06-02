@@ -55,7 +55,7 @@ missing, use deterministic mocked LLM/VLM summaries and agent outputs.
 
 ## System Boundaries
 
-Trajecta is an Eval Agent for browser-use agent trajectories. It imports existing trajectory data, displays the run, analyzes failures, retrieves similar failure memory, and drafts regression eval cases.
+Trajecta is an Eval Agent for browser-use agent trajectories. It imports existing trajectory data, displays the trajectory, analyzes failures, retrieves failure pattern memory and failure EvalCases, and drafts regression eval cases.
 
 Trajecta does not control a live browser in v1. It does not include CDP, Playwright recorder middleware, OS-level computer-use support, video replay, multi-user auth, OpenTelemetry integration, SaaS features, or automatic root-cause claims without human review.
 
@@ -64,12 +64,12 @@ Trajecta does not control a live browser in v1. It does not include CDP, Playwri
 ```mermaid
 flowchart LR
   Dataset["MolmoWeb-HumanSkills sample fixtures"] --> Importer["Dataset importer"]
-  Importer --> SQLite[("SQLite data/trajecta.db<br/>runs, steps, screenshots,<br/>digests, traces, eval cases")]
-  FailureSeed["failure_memory/cases.jsonl"] --> SQLite
+  Importer --> SQLite[("SQLite data/trajecta.db<br/>runs = all trajectories<br/>eval_cases = success + failure<br/>steps, screenshots, digests, traces")]
+  FailureSeed["failure_pattern_memory seed<br/>data/failure_memory/cases.jsonl"] --> SQLite
   SQLite --> Preprocess["Trajectory preprocessing<br/>parse actions<br/>coordinate validation<br/>low-detail VLM digest"]
   Preprocess --> Agent["LangGraph Eval Agent"]
   SQLite --> Tools["Typed tools<br/>get_run<br/>get_step_detail<br/>find_similar_successful_run<br/>search_failure_memory<br/>search_eval_cases<br/>propose_eval_case"]
-  Chroma[("ChromaDB data/chroma<br/>failure_memory<br/>eval_cases<br/>successful_runs")] --> Tools
+  Chroma[("ChromaDB data/chroma<br/>failure_pattern_memory<br/>failure_eval_cases<br/>successful_trajectories")] --> Tools
   Tools --> Agent
   Agent --> Draft["EvalCase draft"]
   Agent --> Trace["AgentTrace"]
@@ -86,6 +86,10 @@ The MCP path is a remote interface to the same in-process Eval Agent loop.
 It was verified with MCP Inspector for the V1 closeout. The eval harness is
 not a product feature; it is the project-quality measurement layer used for
 the presentation.
+
+Terminology note: `trajectory` is the canonical term. Current public API/tool
+names such as `run`, `run_id`, `/api/runs`, and `get_run` remain
+legacy-compatible names for trajectories until a later migration.
 
 ## Repository Structure
 
@@ -135,8 +139,10 @@ trajecta/
     raw/
       molmoweb_humanskills_sample/
         run_status_overlay.json
-    trajecta.db                          # SQLite: runs, steps, screenshots (BLOB),
-                                         # digests, traces, eval_cases, failure_memory
+    trajecta.db                          # SQLite: runs (all trajectories),
+                                         # eval_cases (success + failure),
+                                         # steps, screenshots (BLOB),
+                                         # digests, traces, failure_memory
     failure_memory/
       cases.jsonl                        # human-edited seed corpus; hydrated into DB on load
     chroma/                              # vector store (separate persistent layer)

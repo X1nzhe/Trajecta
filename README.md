@@ -2,7 +2,7 @@
 
 Trajecta turns raw browser-agent trajectories into human-validated regression eval cases.
 
-Trajecta is an AI-native Eval Agent for browser-agent trajectory evaluation. It imports recorded browser-agent runs, replays screenshots and actions, uses a LangGraph tool-calling agent to inspect suspicious steps, retrieves similar failures from ChromaDB, and produces eval case drafts that humans review before export.
+Trajecta is an AI-native Eval Agent for browser-agent trajectory evaluation. It imports recorded browser-agent trajectories, replays screenshots and actions, uses a LangGraph tool-calling agent to inspect suspicious steps, retrieves similar failures from ChromaDB, and produces eval case drafts that humans review before export.
 
 This is not a browser-use agent. It does not control a live browser in v1.
 
@@ -22,12 +22,12 @@ Use this README as the presentation entry point:
 ```mermaid
 flowchart LR
   Dataset["MolmoWeb-HumanSkills sample fixtures"] --> Importer["Dataset importer"]
-  Importer --> SQLite[("SQLite data/trajecta.db<br/>runs, steps, screenshots, digests,<br/>traces, eval cases")]
-  FailureSeed["failure_memory/cases.jsonl"] --> SQLite
+  Importer --> SQLite[("SQLite data/trajecta.db<br/>runs = all trajectories<br/>eval_cases = success + failure<br/>steps, screenshots, digests, traces")]
+  FailureSeed["failure_pattern_memory seed<br/>data/failure_memory/cases.jsonl"] --> SQLite
   SQLite --> Preprocess["Trajectory preprocessing<br/>parse actions<br/>validate coordinates<br/>low-detail VLM digest"]
   Preprocess --> Agent["LangGraph Eval Agent"]
   SQLite --> Tools["Typed tools<br/>get_run<br/>get_step_detail<br/>find_similar_successful_run<br/>search_failure_memory<br/>search_eval_cases<br/>propose_eval_case"]
-  Chroma[("ChromaDB data/chroma<br/>failure_memory<br/>eval_cases<br/>successful_runs")] --> Tools
+  Chroma[("ChromaDB data/chroma<br/>failure_pattern_memory<br/>failure_eval_cases<br/>successful_trajectories")] --> Tools
   Tools --> Agent
   Agent --> Draft["EvalCase draft<br/>human_validated=false"]
   Agent --> Trace["AgentTrace<br/>tool calls, evidence,<br/>prompt version, source"]
@@ -42,6 +42,10 @@ flowchart LR
 ```
 
 Core contracts live in [docs/contracts.md](docs/contracts.md). Behavior docs live in [docs/preprocessing.md](docs/preprocessing.md), [docs/eval_agent.md](docs/eval_agent.md), [docs/rag.md](docs/rag.md), [docs/api.md](docs/api.md), and [docs/architecture.md](docs/architecture.md).
+
+Terminology note: `trajectory` is the canonical product term. Current public
+API/tool names such as `run`, `run_id`, `/api/runs`, and `get_run` remain
+legacy-compatible names for trajectories until a later migration.
 
 ## Quick Start
 
@@ -178,7 +182,7 @@ The formal Phase 8 v1 to v5 comparison uses 31 filtered golden-set samples with 
 
 | Round | Prompt | Change | Metric delta | Conclusion |
 | --- | --- | --- | --- | --- |
-| 1 | `v1_minimal` | Minimal failure-shape instructions, no rubric. | Baseline binary accuracy 74.2%; success recall 58.8%; failure recall 92.9%. | Strong failure sensitivity, but too many successful runs are marked failed. |
+| 1 | `v1_minimal` | Minimal failure-shape instructions, no rubric. | Baseline binary accuracy 74.2%; success recall 58.8%; failure recall 92.9%. | Strong failure sensitivity, but too many successful trajectories are marked failed. |
 | 2 | `v2_success_rubric` | Add explicit success-shape rubric. | Binary accuracy +3.2 pp; success recall +29.4 pp; failure recall -28.6 pp. | Success hallucinations drop, but the prompt becomes too conservative on failures. |
 | 3 | `v3_balanced_rubric` | Balance success/failure criteria and tighten stop conditions. | Binary accuracy +3.2 pp vs v2; mean tool calls -0.68; latency -1.50 s. | Best headline accuracy at 80.6% with lower tool use. |
 | 4 | `v4_search_strategy_rubric` | Clarify successful-run retrieval vs failure-memory retrieval. | Binary accuracy -6.5 pp; failure-type accuracy rises to 57.1%. | Retrieval guidance helps the advisory failure-type signal, not the headline metric. |
