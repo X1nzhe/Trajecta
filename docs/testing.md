@@ -334,6 +334,16 @@ eval/ragas_report.json
 eval/ragas_report.md
 ```
 
+The JSON report includes aggregate `retrieval_stats` derived from the
+serialized samples, and the Markdown renders the same high-level summary
+(no per-sample rows). It tracks two distinct id populations that need not
+match: `evidence_context_occurrences` is what the RAG tools *returned*
+(parsed from each sample's contexts, global across tools), while
+`cited_context_ids` is the subset the final `propose_eval_case`
+*referenced*. Cited ids are proposal-level, so they are deduped per
+`run_id` before aggregating — never summed per-sample or attributed to a
+single search tool.
+
 ### Phase 8 status
 
 Phase 7 shipped a stub fallback for cold-start demos. Phase 8 A6 makes
@@ -354,6 +364,8 @@ from `eval/runs/2026-05-30T04-43-34Z/traces` with `--limit 10`; it reports
 `ragas_mode="real"`, `ground_truth_source="none"`, sample count 10,
 `faithfulness=0.4068`, and skipped counts
 `budget_exceeded=0`, `error=7`, `no_trace=4`, `no_context=17`.
+Its retrieval evidence summary reports 10 `search_failure_memory`
+samples with 30 retrieved contexts and 0 `search_eval_cases` samples.
 
 The stub-mode fallback remains in the code for offline development but
 is no longer an acceptable production artefact.

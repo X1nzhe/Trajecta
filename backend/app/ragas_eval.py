@@ -59,7 +59,8 @@ from backend.app import storage
 from backend.app.schemas import AgentTrace, AgentTraceEvent
 
 
-SEARCH_TOOL_NAMES = {"search_failure_memory", "search_eval_cases"}
+SEARCH_TOOL_ORDER = ("search_failure_memory", "search_eval_cases")
+SEARCH_TOOL_NAMES = set(SEARCH_TOOL_ORDER)
 TERMINAL_TOOL = "propose_eval_case"
 GROUND_TRUTH_SOURCE_NONE = "none"
 
@@ -101,6 +102,160 @@ class RagasReport:
     ground_truth_source: str = GROUND_TRUTH_SOURCE_NONE
     ragas_mode: str = "stub"  # "real" | "stub"
     fallback_reason: str | None = None
+    retrieval_stats: dict[str, Any] = field(default_factory=dict)
+
+
+def _empty_retrieval_tool_stats() -> dict[str, Any]:
+    return {
+        "sample_count": 0,
+        "retrieved_context_count": 0,
+    }
+
+
+def _context_id_from_context_text(context: str) -> str | None:
+    # Parses the leading id out of the rendered context string produced by
+    # `_context_text_from_item` ("{case_id}: {summary} [tags]"). Coupled to that
+    # render format: a change there silently zeroes the occurrences table.
+    context_id, separator, _ = context.partition(":")
+    if not separator:
+        return None
+    context_id = context_id.strip()
+    return context_id or None
+
+
+def _sorted_by_count_then_id(counts: dict[str, int]) -> dict[str, int]:
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
+def build_retrieval_stats(samples: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate retrieval evidence counts from serialized RAGAS samples.
+
+    Two distinct id populations are tracked, and they need not match:
+
+    * ``evidence_context_occurrences`` — what the RAG tools *returned*, parsed
+      from each sample's rendered ``contexts``. Global across tools.
+    * ``cited_context_ids`` — the subset the final ``propose_eval_case``
+      *referenced*. These are trace-level (the same list rides on every RAG
+      sample of a trace and is not tool-specific), so they are deduped per
+      ``run_id`` before aggregating — never summed per-sample or charged to a
+      single tool.
+    """
+
+    by_tool = {
+        tool_name: _empty_retrieval_tool_stats()
+        for tool_name in SEARCH_TOOL_ORDER
+    }
+    context_occurrences: dict[str, int] = {}
+    cited_by_run: dict[str, set[str]] = {}
+
+    for sample in samples:
+        if not isinstance(sample, dict):
+            continue
+        raw_tool_name = sample.get("tool_name")
+        tool_name = (
+            raw_tool_name
+            if isinstance(raw_tool_name, str) and raw_tool_name
+            else "unknown"
+        )
+        if tool_name not in by_tool:
+            by_tool[tool_name] = _empty_retrieval_tool_stats()
+
+        raw_contexts = sample.get("contexts")
+        contexts = (
+            [context for context in raw_contexts if isinstance(context, str)]
+            if isinstance(raw_contexts, list)
+            else []
+        )
+
+        raw_context_ids = sample.get("retrieved_context_ids")
+        cited_context_ids = (
+            [
+                context_id.strip()
+                for context_id in raw_context_ids
+                if isinstance(context_id, str) and context_id.strip()
+            ]
+            if isinstance(raw_context_ids, list)
+            else []
+        )
+
+        tool_stats = by_tool[tool_name]
+        tool_stats["sample_count"] += 1
+        tool_stats["retrieved_context_count"] += len(contexts)
+
+        raw_run_id = sample.get("run_id")
+        run_id = raw_run_id if isinstance(raw_run_id, str) and raw_run_id else ""
+        # Group cited ids per trace so the proposal's list is counted once,
+        # regardless of how many RAG samples the trace produced.
+        cited_by_run.setdefault(run_id, set()).update(cited_context_ids)
+
+        for context in contexts:
+            context_id = _context_id_from_context_text(context)
+            if context_id is None:
+                continue
+            context_occurrences[context_id] = (
+                context_occurrences.get(context_id, 0) + 1
+            )
+
+    trace_counts: dict[str, int] = {}
+    for cited_ids in cited_by_run.values():
+        for context_id in cited_ids:
+            trace_counts[context_id] = trace_counts.get(context_id, 0) + 1
+    cited_context_id_trace_counts = _sorted_by_count_then_id(trace_counts)
+
+    return {
+        "by_tool": by_tool,
+        "evidence_context_occurrences": _sorted_by_count_then_id(context_occurrences),
+        "cited_context_ids": {
+            "trace_count": len(cited_by_run),
+            "unique_cited_context_ids": sorted(trace_counts),
+            "cited_context_id_trace_counts": cited_context_id_trace_counts,
+            "cited_context_id_mentions": sum(trace_counts.values()),
+        },
+    }
+
+
+def _skipped_counts_from_payload(payload: Any) -> SkippedCounts:
+    payload = payload if isinstance(payload, dict) else {}
+    return SkippedCounts(
+        budget_exceeded=int(payload.get("budget_exceeded") or 0),
+        error=int(payload.get("error") or 0),
+        no_trace=int(payload.get("no_trace") or 0),
+        no_context=int(payload.get("no_context") or 0),
+    )
+
+
+def report_from_json_payload(payload: dict[str, Any]) -> RagasReport:
+    """Load a report payload, recomputing retrieval stats for old JSON."""
+
+    raw_samples = payload.get("samples")
+    samples = (
+        [sample for sample in raw_samples if isinstance(sample, dict)]
+        if isinstance(raw_samples, list)
+        else []
+    )
+    raw_metric_means = payload.get("metric_means")
+    metric_means = raw_metric_means if isinstance(raw_metric_means, dict) else {}
+    raw_retrieval_stats = payload.get("retrieval_stats")
+    retrieval_stats = (
+        raw_retrieval_stats
+        if isinstance(raw_retrieval_stats, dict) and raw_retrieval_stats
+        else build_retrieval_stats(samples)
+    )
+    return RagasReport(
+        samples=samples,
+        metric_means=metric_means,
+        skipped=_skipped_counts_from_payload(payload.get("skipped")),
+        ground_truth_source=str(
+            payload.get("ground_truth_source") or GROUND_TRUTH_SOURCE_NONE
+        ),
+        ragas_mode=str(payload.get("ragas_mode") or "stub"),
+        fallback_reason=(
+            payload.get("fallback_reason")
+            if isinstance(payload.get("fallback_reason"), str)
+            else None
+        ),
+        retrieval_stats=retrieval_stats,
+    )
 
 
 def ragas_answer_from_trace(trace: AgentTrace) -> str:
@@ -413,6 +568,7 @@ def build_report(
     if not samples:
         report.ragas_mode = "stub"
         report.metric_means = {"faithfulness": 0.0}
+        report.retrieval_stats = build_retrieval_stats(report.samples)
         return report
 
     report.ground_truth_source = _resolve_ground_truth_source(samples)
@@ -430,6 +586,7 @@ def build_report(
         }
         for s in samples
     ]
+    report.retrieval_stats = build_retrieval_stats(report.samples)
 
     if force_stub:
         report.fallback_reason = "force_stub requested"
@@ -462,6 +619,8 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / "ragas_report.json"
     md_path = output_dir / "ragas_report.md"
+    retrieval_stats = report.retrieval_stats or build_retrieval_stats(report.samples)
+    report.retrieval_stats = retrieval_stats
 
     json_payload = {
         "samples": report.samples,
@@ -470,6 +629,7 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
         "ground_truth_source": report.ground_truth_source,
         "ragas_mode": report.ragas_mode,
         "fallback_reason": report.fallback_reason,
+        "retrieval_stats": retrieval_stats,
     }
     json_path.write_text(
         json.dumps(json_payload, indent=2, ensure_ascii=False) + "\n",
@@ -500,6 +660,65 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     skipped = report.skipped.to_dict()
     for key in ("budget_exceeded", "error", "no_trace", "no_context"):
         lines.append(f"- {key}: {skipped[key]}")
+    lines.append("")
+    lines.append("## Retrieval evidence summary")
+    lines.append("")
+    lines.append(
+        "Retrieved contexts are what the RAG tools returned; cited context ids "
+        "are the subset the final `propose_eval_case` referenced — the two need "
+        "not match. The per-tool table below is scoped to each search tool, "
+        "while the occurrence and citation tables are aggregated across all tools."
+    )
+    lines.append("")
+    lines.append("| Tool | Samples | Retrieved contexts |")
+    lines.append("| --- | ---: | ---: |")
+    by_tool = retrieval_stats.get("by_tool", {})
+    tool_names = list(SEARCH_TOOL_ORDER)
+    tool_names.extend(
+        tool_name
+        for tool_name in sorted(by_tool)
+        if tool_name not in SEARCH_TOOL_NAMES
+    )
+    for tool_name in tool_names:
+        tool_stats = by_tool.get(tool_name, _empty_retrieval_tool_stats())
+        lines.append(
+            f"| `{tool_name}` | {tool_stats.get('sample_count', 0)} | "
+            f"{tool_stats.get('retrieved_context_count', 0)} |"
+        )
+    lines.append("")
+    lines.append("### Evidence context occurrences")
+    lines.append("")
+    occurrences = retrieval_stats.get("evidence_context_occurrences") or {}
+    if occurrences:
+        lines.append("| Context id | Occurrences in retrieved contexts |")
+        lines.append("| --- | ---: |")
+        for context_id, count in occurrences.items():
+            lines.append(f"| `{context_id}` | {count} |")
+    else:
+        lines.append("- (no retrieved context ids parsed from contexts)")
+    lines.append("")
+    lines.append("### Cited context ids")
+    lines.append("")
+    cited = retrieval_stats.get("cited_context_ids") or {}
+    unique_cited = cited.get("unique_cited_context_ids") or []
+    unique_cited_text = (
+        ", ".join(f"`{context_id}`" for context_id in unique_cited) or "(none)"
+    )
+    lines.append(f"- Traces with a proposal: {cited.get('trace_count', 0)}")
+    lines.append(f"- Unique cited context ids: {unique_cited_text}")
+    lines.append(
+        "- Total cited-id references (deduped per trace): "
+        f"{cited.get('cited_context_id_mentions', 0)}"
+    )
+    lines.append("")
+    trace_counts = cited.get("cited_context_id_trace_counts") or {}
+    if trace_counts:
+        lines.append("| Context id | Traces citing it |")
+        lines.append("| --- | ---: |")
+        for context_id, count in trace_counts.items():
+            lines.append(f"| `{context_id}` | {count} |")
+    else:
+        lines.append("- (no cited context ids recorded)")
     lines.append("")
     lines.append("## How this was generated")
     lines.append("")

@@ -128,6 +128,179 @@ class RagasEvalTests(unittest.TestCase):
         self.assertIn("model unavailable", report.fallback_reason)
 
 
+class RetrievalStatsTests(unittest.TestCase):
+    def test_build_retrieval_stats_counts_tools_and_context_ids(self) -> None:
+        stats = ragas_eval.build_retrieval_stats(
+            [
+                {
+                    "run_id": "run_1",
+                    "tool_name": "search_failure_memory",
+                    "contexts": [
+                        "fm_a: First memory. [tag]",
+                        "fm_b: Second memory. [tag]",
+                    ],
+                    "retrieved_context_ids": ["fm_a", "fm_c"],
+                },
+                {
+                    "run_id": "run_2",
+                    "tool_name": "search_eval_cases",
+                    "contexts": ["ec_1: Eval case. [case]"],
+                    "retrieved_context_ids": [],
+                },
+                {
+                    "run_id": "run_3",
+                    "tool_name": "search_failure_memory",
+                    "contexts": ["fm_a: Repeated memory. [tag]"],
+                    "retrieved_context_ids": ["fm_a"],
+                },
+            ]
+        )
+
+        # by_tool keeps only the genuinely per-tool/per-sample counts.
+        self.assertEqual(
+            stats["by_tool"]["search_failure_memory"],
+            {"sample_count": 2, "retrieved_context_count": 3},
+        )
+        self.assertEqual(
+            stats["by_tool"]["search_eval_cases"],
+            {"sample_count": 1, "retrieved_context_count": 1},
+        )
+
+        # Retrieved-context histogram (global, from rendered contexts).
+        self.assertEqual(
+            stats["evidence_context_occurrences"],
+            {"fm_a": 2, "ec_1": 1, "fm_b": 1},
+        )
+
+        # Cited ids are proposal-level: deduped per trace, not charged to a tool.
+        self.assertEqual(
+            stats["cited_context_ids"],
+            {
+                "trace_count": 3,
+                "unique_cited_context_ids": ["fm_a", "fm_c"],
+                "cited_context_id_trace_counts": {"fm_a": 2, "fm_c": 1},
+                "cited_context_id_mentions": 3,
+            },
+        )
+
+    def test_build_retrieval_stats_dedupes_cited_ids_per_trace(self) -> None:
+        # One trace makes two RAG calls; both samples carry the same proposal
+        # cited ids. They must be counted once per trace, not once per sample.
+        stats = ragas_eval.build_retrieval_stats(
+            [
+                {
+                    "run_id": "run_x",
+                    "tool_name": "search_failure_memory",
+                    "contexts": ["fm_a: First. [tag]", "fm_b: Second. [tag]"],
+                    "retrieved_context_ids": ["fm_a", "fm_b"],
+                },
+                {
+                    "run_id": "run_x",
+                    "tool_name": "search_eval_cases",
+                    "contexts": ["ec_1: Eval case. [case]"],
+                    "retrieved_context_ids": ["fm_a", "fm_b"],
+                },
+            ]
+        )
+
+        self.assertEqual(stats["by_tool"]["search_failure_memory"]["sample_count"], 1)
+        self.assertEqual(stats["by_tool"]["search_eval_cases"]["sample_count"], 1)
+        self.assertEqual(
+            stats["cited_context_ids"],
+            {
+                "trace_count": 1,
+                "unique_cited_context_ids": ["fm_a", "fm_b"],
+                # 1 each — not 2 — despite appearing in both samples.
+                "cited_context_id_trace_counts": {"fm_a": 1, "fm_b": 1},
+                "cited_context_id_mentions": 2,
+            },
+        )
+
+    def test_build_retrieval_stats_includes_unused_search_tools(self) -> None:
+        stats = ragas_eval.build_retrieval_stats(
+            [
+                {
+                    "run_id": "run_1",
+                    "tool_name": "search_failure_memory",
+                    "contexts": ["fm_a: First memory. [tag]"],
+                    "retrieved_context_ids": ["fm_a"],
+                }
+            ]
+        )
+
+        self.assertEqual(
+            stats["by_tool"]["search_eval_cases"],
+            {"sample_count": 0, "retrieved_context_count": 0},
+        )
+
+    def test_report_from_json_payload_recomputes_missing_retrieval_stats(self) -> None:
+        report = ragas_eval.report_from_json_payload(
+            {
+                "samples": [
+                    {
+                        "run_id": "run_1",
+                        "tool_name": "search_failure_memory",
+                        "contexts": ["fm_a: First memory. [tag]"],
+                        "retrieved_context_ids": ["fm_a"],
+                    }
+                ],
+                "metric_means": {"faithfulness": 0.25},
+                "skipped": {
+                    "budget_exceeded": 0,
+                    "error": 1,
+                    "no_trace": 2,
+                    "no_context": 3,
+                },
+                "ground_truth_source": "none",
+                "ragas_mode": "real",
+            }
+        )
+
+        self.assertEqual(report.ragas_mode, "real")
+        self.assertEqual(report.skipped.error, 1)
+        self.assertEqual(
+            report.retrieval_stats["by_tool"]["search_failure_memory"][
+                "retrieved_context_count"
+            ],
+            1,
+        )
+
+    def test_write_report_renders_aggregate_retrieval_stats_only(self) -> None:
+        report = ragas_eval.RagasReport(
+            samples=[
+                {
+                    "run_id": "run_1",
+                    "tool_name": "search_failure_memory",
+                    "contexts": ["fm_early_terminated_001: Early stop. [tag]"],
+                    "retrieved_context_ids": ["fm_early_terminated_001"],
+                }
+            ],
+            metric_means={"faithfulness": 0.25},
+            skipped=ragas_eval.SkippedCounts(),
+            ragas_mode="real",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            _, md_path = ragas_eval.write_report(report, Path(tmp))
+            md = md_path.read_text(encoding="utf-8")
+
+        self.assertIn("## Retrieval evidence summary", md)
+        self.assertIn(
+            "Retrieved contexts are what the RAG tools returned; cited context ids",
+            md,
+        )
+        self.assertIn("| `search_failure_memory` | 1 | 1 |", md)
+        self.assertIn("| `search_eval_cases` | 0 | 0 |", md)
+        self.assertIn("| `fm_early_terminated_001` | 1 |", md)
+        self.assertIn("### Cited context ids", md)
+        self.assertIn("- Traces with a proposal: 1", md)
+        self.assertIn("- Unique cited context ids: `fm_early_terminated_001`", md)
+        self.assertIn(
+            "- Total cited-id references (deduped per trace): 1", md
+        )
+        self.assertNotIn("run_1", md)
+
+
 # ---------------------------------------------------------------------------
 # A6.1 — trace-loading precedence + discovery
 #
