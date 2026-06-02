@@ -39,6 +39,25 @@ python3 scripts/import_demo_fixture.py
 It reads `data/triage_notes.csv` (the human source of truth), writes the
 derived contract files, and materializes the selected rows from Hugging Face.
 
+`--triage-csv` is repeatable: pass it multiple times to materialize **one
+union fixture** from several CSVs. This is how additional non-golden runs
+(e.g. the eval-case seed candidates in `data/hitl_candidate_notes.csv`) become
+importable + visible in the frontend without growing the golden set:
+
+```bash
+python3 scripts/import_demo_fixture.py \
+  --triage-csv data/triage_notes.csv \
+  --triage-csv data/hitl_candidate_notes.csv
+```
+
+A `sample_id` that appears in more than one CSV is a hard error — this keeps
+the golden test set and any seed/memory set disjoint (no leakage). After
+materializing, the script also fails if any requested `sample_id` was not
+found in the dataset (`materialize_manifest.json → missing_sample_ids`), so a
+typo'd ID fails loudly instead of being silently dropped from `hf_dataset/`.
+`build_golden_jsonl.py` is unaffected: the golden set is still sourced only
+from `data/triage_notes.csv`.
+
 ### Triage CSV format
 
 `data/triage_notes.csv` is hand-authored after browsing
@@ -88,6 +107,11 @@ python3 scripts/import_demo_fixture.py --dry-run
 
 # Use a different triage CSV path:
 python3 scripts/import_demo_fixture.py --triage-csv path/to/other.csv
+
+# Merge multiple CSVs into one union fixture (repeatable flag):
+python3 scripts/import_demo_fixture.py \
+  --triage-csv data/triage_notes.csv \
+  --triage-csv data/hitl_candidate_notes.csv
 ```
 
 ## Source Dataset Structure

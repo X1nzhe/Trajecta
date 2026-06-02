@@ -1,0 +1,29 @@
+sample_id,category,outcome,failure_mode,failure_step,notes
+d59233d900d0c185c192981ecf468537b41c9aba7c3cede69b6e72f35c3c5563,google_flight,success,,,
+5d3f6701f6753d92eb96c58a78983a77bb0c0a5138721d03aea244c0be24a6a9,google_flight,success,,,
+1ec82bdc3cf7a04b325f161137006bcbecf7c70e0754d63088ed052dddafa134,google_flight,failed,wrong_result,2,"The agent provided the latest departure time for the outbound flight, but the task requires obtaining information about the return flight."
+2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714,google_flight,failed,wrong_result;missed_constraint,14,"The task require the lowest-priced flight; the search results page displays the cheapest option, but the agent did not select it—instead, they chose the best option."
+6216f69bfb42a97d29e1efc88a3548fc918e938869643205196b570cbd7ed097,amazon,success,,,
+a0fc59d012c4797d8f418fb4c1c6d28736931bc5c2f263aa59df287c1d4551d5,amazon,success,,,
+776ab0c0f268127ebd39a236a6f7b878cb76178e608fec73197768d301d096cf,amazon,success,,,
+d87adbc0d7ed0e7a72a1ed16f8f0c05568bd40007afc2631ab437812dac83eea,amazon,success,,,
+258ca520af5e5391bac0b3f8a2d06134cd9c1700d544f433c356b485a90dd9a3,amazon,failed,wrong_result,8,The agent ignored the warranty information on screenshot 8
+fef879b68afb2a1992a0d09a5f5896fd5d8757c632c43d3b8d284ed413f8a49b,github,success,,,
+06dd09b6c97fe2a1d51254dba35e162811aa76f5d09049546788fe2b85a5f29d,github,success,,,
+5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c,github,failed,inefficient_search,3,agent didn't use keywords to facilitate search even though found a correct anwser
+8a9be8f4ea379bd784bf390e3b70d246d81b6437a046620d9e666e9b501d3137,booking,success,,,
+8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4,booking,success,,,
+dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7,booking,failed,early_terminated,5,The agent believed it had completed the task due to hallucinations.
+daf6caf4b3a7760aea78f7f9a1072a40056ceb6c99717a750ec6b661d69ee503,arxiv,success,,,
+e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302,arxiv,failed,early_terminated,1,The agent didn't make any attempt
+ef4f37b2b2cb7320a917b137d7566d0a074177615bd81a888438c905f04b7242,arxiv,success,,,
+50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec,arxiv,failed,missed_constraint,3,The agent had typo and returned no results
+5f7f7c062c9411893896b6801a1c440d6e08421e501e339f0c7183e192de618c,huggingface,success,,,
+11574715b03c26d836a444abd08d34f959a0dbf5d4c81bd3cf3e78ad0cc8ab72,huggingface,success,,,
+7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17,huggingface,failed,early_terminated;wrong_result,6,"The agent found an empty HF repo, and finished work"
+498b7a084ba569c5879322e60333863c035c941c3cbaa4ccadbea9df7d998311,apple,success,,,
+e6c6c09f9be71d3b72dbc6f7368faed38f9b7ab7d94e9a998abddce58991a33d,apple,success,,,
+8fd3a362c8ee2738ffc2fc3a27436a3db710b672d10e7f751e56896c59e32db2,apple,failed,wrong_target,26,The query was about iPad instaed of iPad Pro
+0f0a8a29ac4d9b5cae96404409e112c663bd8f2868ffd3afdadc2456fd3f42b9,allrecipes,success,,,
+76d0f3549aaf144916d28bf2a85c66097e7a30b911629aaac7796d6a70050850,allrecipes,failed,early_terminated,10,"The agent gave up due to no filters "
+076c47b3f225bfe95e5df33aa3618902019e77187922155ec69e7c979e22fe2d,allrecipes,success,,,
