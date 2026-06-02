@@ -63,8 +63,8 @@ except ImportError:  # pragma: no cover - the fallback is exercised in local tes
 
 
 class EvalState(TypedDict):
-    run_id: str
-    user_intent: Literal["analyze_run", "analyze_step"]
+    trajectory_id: str
+    user_intent: Literal["analyze_trajectory", "analyze_step"]
     selected_step: int | None
     trajectory_digest: list[dict[str, Any]]
     messages: list[AnyMessage]
@@ -137,10 +137,10 @@ class NoPriorTraceError(RuntimeError):
 BUDGETED_TOOLS = {
     "get_step_detail",
     "search_failure_memory",
-    "search_eval_cases",
-    "find_similar_successful_run",
+    "search_failure_eval_cases",
+    "find_similar_successful_trajectory",
 }
-SEARCH_TOOLS = {"search_failure_memory", "search_eval_cases"}
+SEARCH_TOOLS = {"search_failure_memory", "search_failure_eval_cases"}
 TERMINAL_TOOL = "propose_eval_case"
 INITIAL_BUDGET = 8
 # Followup runs the same loop as the initial analyze; giving it the same
@@ -152,25 +152,25 @@ FOLLOWUP_BUDGET = 8
 _SENSITIVE_RESULT_KEYS = {"screenshot_bytes", "image_bytes", "image_data"}
 
 _TOOL_REGISTRY = {
-    "get_run": tools.get_run,
+    "get_trajectory": tools.get_trajectory,
     "get_step_detail": tools.get_step_detail,
     "search_failure_memory": tools.search_failure_memory,
-    "search_eval_cases": tools.search_eval_cases,
-    "find_similar_successful_run": tools.find_similar_successful_run,
+    "search_failure_eval_cases": tools.search_failure_eval_cases,
+    "find_similar_successful_trajectory": tools.find_similar_successful_trajectory,
     "propose_eval_case": tools.propose_eval_case,
 }
 
 
 def preprocess_node(state: GraphState) -> GraphState:
-    digest = preprocess.load_or_build_digest(state["run_id"])
+    digest = preprocess.load_or_build_digest(state["trajectory_id"])
     state["trajectory_digest"] = [step.model_dump(mode="json") for step in digest.steps]
     if not state["messages"]:
         state["messages"] = _initial_messages(state, followup=False)
     return state
 
 
-def analyze_run(
-    run_id: str,
+def analyze_trajectory(
+    trajectory_id: str,
     *,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
@@ -178,8 +178,8 @@ def analyze_run(
     source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> AgentExecutionResult:
     return _consume_stream(
-        stream_analyze_run(
-            run_id,
+        stream_analyze_trajectory(
+            trajectory_id,
             llm_client=llm_client,
             budget=budget,
             persist=persist,
@@ -188,8 +188,8 @@ def analyze_run(
     )
 
 
-def stream_analyze_run(
-    run_id: str,
+def stream_analyze_trajectory(
+    trajectory_id: str,
     *,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
@@ -202,7 +202,7 @@ def stream_analyze_run(
     entire trajectory_digest and decides which steps to deep-inspect.
     Failure attribution is the agent's responsibility, surfaced as
     ``EvalCase.failure_step``. New traces always carry
-    ``user_intent="analyze_run"`` and ``selected_step=None``; the
+    ``user_intent="analyze_trajectory"`` and ``selected_step=None``; the
     ``selected_step`` field is retained in the schema only for back-compat
     reading of older traces from disk.
 
@@ -211,8 +211,8 @@ def stream_analyze_run(
     """
 
     yield from stream_analyze(
-        run_id,
-        user_intent="analyze_run",
+        trajectory_id,
+        user_intent="analyze_trajectory",
         selected_step=None,
         llm_client=llm_client,
         budget=budget,
@@ -222,9 +222,9 @@ def stream_analyze_run(
 
 
 def analyze(
-    run_id: str,
+    trajectory_id: str,
     *,
-    user_intent: Literal["analyze_run", "analyze_step"],
+    user_intent: Literal["analyze_trajectory", "analyze_step"],
     selected_step: int | None,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
@@ -233,7 +233,7 @@ def analyze(
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_analyze(
-            run_id,
+            trajectory_id,
             user_intent=user_intent,
             selected_step=selected_step,
             llm_client=llm_client,
@@ -245,9 +245,9 @@ def analyze(
 
 
 def stream_analyze(
-    run_id: str,
+    trajectory_id: str,
     *,
-    user_intent: Literal["analyze_run", "analyze_step"],
+    user_intent: Literal["analyze_trajectory", "analyze_step"],
     selected_step: int | None,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
@@ -272,7 +272,7 @@ def stream_analyze(
     _vlm_model_env = os.environ.get("TRAJECTA_VLM_MODEL")
     trace_vlm_model = _vlm_model_env if (_vlm_model_env and _agent_api_key) else "mock"
     trace = AgentTrace(
-        run_id=run_id,
+        trajectory_id=trajectory_id,
         user_intent=user_intent,
         selected_step=selected_step,
         source=source,
@@ -285,7 +285,7 @@ def stream_analyze(
         vlm_model=trace_vlm_model,
     )
     state: GraphState = {
-        "run_id": run_id,
+        "trajectory_id": trajectory_id,
         "user_intent": user_intent,
         "selected_step": selected_step,
         "trajectory_digest": [],
@@ -323,9 +323,9 @@ def stream_analyze(
             # runs; on a cache hit the row appears already-done with a
             # different message so the user still sees "the digest existed"
             # instead of jumping straight to the first tool call.
-            cache_hit = not _needs_preprocess(run_id)
-            run = storage.load_run(run_id)
-            step_count = len(run.steps) if run else 0
+            cache_hit = not _needs_preprocess(trajectory_id)
+            trajectory = storage.load_trajectory(trajectory_id)
+            step_count = len(trajectory.steps) if trajectory else 0
             _append_event(
                 trace,
                 "phase",
@@ -362,11 +362,11 @@ def stream_analyze(
             final_trace.vlm_input_tokens = vlm_usage["input"]
             final_trace.vlm_output_tokens = vlm_usage["output"]
             if persist:
-                storage.save_trace(run_id, final_trace)
+                storage.save_trace(trajectory_id, final_trace)
     yield AgentStreamDone(result)
 
 
-def _needs_preprocess(run_id: str) -> bool:
+def _needs_preprocess(trajectory_id: str) -> bool:
     """Return True if the digest cache is missing or stale for the active VLM.
 
     Mirrors the freshness check inside ``preprocess.load_or_build_digest``
@@ -378,7 +378,7 @@ def _needs_preprocess(run_id: str) -> bool:
     from backend.app.llm import get_vlm_client
     from backend.app.preprocess import PREPROCESS_VERSION
 
-    cached = storage.load_digest(run_id)
+    cached = storage.load_digest(trajectory_id)
     if cached is None:
         return True
     client = get_vlm_client()
@@ -389,7 +389,7 @@ def _needs_preprocess(run_id: str) -> bool:
 
 
 def followup(
-    run_id: str,
+    trajectory_id: str,
     message: str,
     *,
     llm_client: AgentLLM | Any | None = None,
@@ -398,7 +398,7 @@ def followup(
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_followup(
-            run_id,
+            trajectory_id,
             message,
             llm_client=llm_client,
             budget=budget,
@@ -408,16 +408,16 @@ def followup(
 
 
 def stream_followup(
-    run_id: str,
+    trajectory_id: str,
     message: str,
     *,
     llm_client: AgentLLM | Any | None = None,
     budget: int = FOLLOWUP_BUDGET,
     persist: bool = True,
 ) -> Iterator[AgentStreamItem]:
-    trace = storage.load_trace(run_id)
+    trace = storage.load_trace(trajectory_id)
     if trace is None:
-        raise NoPriorTraceError(f"no prior trace for run_id: {run_id}")
+        raise NoPriorTraceError(f"no prior trace for trajectory_id: {trajectory_id}")
 
     turn = trace.turn_count
     start_seq = len(trace.events)
@@ -438,9 +438,9 @@ def stream_followup(
     # (not assign — earlier turns already contributed).
     with vlm_usage_scope() as vlm_usage:
         try:
-            digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
+            digest = storage.load_digest(trajectory_id) or preprocess.load_or_build_digest(trajectory_id)
             state = {
-                "run_id": run_id,
+                "trajectory_id": trajectory_id,
                 "user_intent": trace.user_intent,
                 "selected_step": trace.selected_step,
                 "trajectory_digest": [step.model_dump(mode="json") for step in digest.steps],
@@ -483,7 +483,7 @@ def stream_followup(
             final_trace.vlm_input_tokens += vlm_usage["input"]
             final_trace.vlm_output_tokens += vlm_usage["output"]
             if persist:
-                storage.save_trace(run_id, final_trace)
+                storage.save_trace(trajectory_id, final_trace)
     yield AgentStreamDone(result)
 
 
@@ -543,7 +543,7 @@ def _build_agent_delta(payload: Any, state: GraphState) -> AgentDelta | None:
     EVERY message touched by a node — including SystemMessage and
     HumanMessage that the node loads into state["messages"]. Without
     a type filter the system prompt and the initial HumanMessage
-    (which carries run_id + trajectory_digest) would leak verbatim to
+    (which carries trajectory_id + trajectory_digest) would leak verbatim to
     the wire. Restrict to AIMessageChunk so only LLM-generated tokens
     cross the boundary.
     """
@@ -817,21 +817,21 @@ def _execute_tool_node(state: GraphState) -> GraphState:
 
     dispatch_args = args
     if name == "search_failure_memory":
-        # Server-side leakage guard: force the current run_id as
-        # exclude_source_run_id regardless of what the LLM emitted (or didn't).
+        # Server-side leakage guard: force the current trajectory_id as
+        # exclude_source_trajectory_id regardless of what the LLM emitted (or didn't).
         # See docs/testing.md "Failure-memory retrieval leakage". The trace
         # event recorded upstream still reflects the LLM-emitted args; this
         # only mutates dispatch.
-        dispatch_args = {**args, "exclude_source_run_id": trace.run_id}
-    elif name == "search_eval_cases":
+        dispatch_args = {**args, "exclude_source_trajectory_id": trace.trajectory_id}
+    elif name == "search_failure_eval_cases":
         # Same leakage guard for prior EvalCases: an EvalCase derived from
         # the run currently under analysis carries that run's verdict, so
         # retrieving it would be direct answer leakage. Force the source-run
         # filter regardless of LLM-emitted args, mirroring search_failure_memory.
-        dispatch_args = {**args, "exclude_source_run_id": trace.run_id}
-    elif name == "find_similar_successful_run":
+        dispatch_args = {**args, "exclude_source_trajectory_id": trace.trajectory_id}
+    elif name == "find_similar_successful_trajectory":
         # Same leakage guard for the replay-and-diff retrieval path. The prompt
-        # instructs the agent to pass exclude_run_id=current_run_id, but the
+        # instructs the agent to pass exclude_trajectory_id=current_trajectory_id, but the
         # tool signature defaults it to None and there is no schema-level
         # requirement that the LLM include it. If the LLM forgets, a run that
         # is itself in the successful_trajectories collection (e.g. a
@@ -840,7 +840,7 @@ def _execute_tool_node(state: GraphState) -> GraphState:
         # would re-surface as "similar to itself" — direct leakage of the
         # success verdict. Force the injection here so the guarantee holds
         # structurally rather than by prompt-following compliance.
-        dispatch_args = {**args, "exclude_run_id": trace.run_id}
+        dispatch_args = {**args, "exclude_trajectory_id": trace.trajectory_id}
 
     try:
         result = _TOOL_REGISTRY[name](**dispatch_args)
@@ -1077,33 +1077,33 @@ class OfflineAgentMock:
         self._stage = 0
 
     def invoke(self, messages: list[AnyMessage]) -> AnyMessage:
-        run_id = self._state["run_id"]
+        trajectory_id = self._state["trajectory_id"]
         if self._stage == 0:
             self._stage += 1
-            return _ai_tool_call("get_run", {"run_id": run_id})
+            return _ai_tool_call("get_trajectory", {"trajectory_id": trajectory_id})
         if self._stage == 1:
             self._stage += 1
             step_index = self._selected_failure_step()
             return _ai_tool_call(
                 "get_step_detail",
-                {"run_id": run_id, "step_index": step_index, "image_detail": "high"},
+                {"trajectory_id": trajectory_id, "step_index": step_index, "image_detail": "high"},
             )
         if self._stage == 2:
             self._stage += 1
-            task = storage.load_run(run_id).task
+            task = storage.load_trajectory(trajectory_id).task
             return _ai_tool_call(
-                "find_similar_successful_run",
-                {"task": task, "top_k": 1, "exclude_run_id": run_id},
+                "find_similar_successful_trajectory",
+                {"task": task, "top_k": 1, "exclude_trajectory_id": trajectory_id},
             )
         if self._stage == 3:
-            successful = _last_tool_items(messages, "find_similar_successful_run")
+            successful = _last_tool_items(messages, "find_similar_successful_trajectory")
             self._stage += 1
             if successful:
-                return _ai_tool_call("get_run", {"run_id": successful[0]["run_id"]})
+                return _ai_tool_call("get_trajectory", {"trajectory_id": successful[0]["trajectory_id"]})
             return _ai_tool_call("search_failure_memory", {"query": "missed_constraint", "top_k": 1})
         if self._stage == 4:
             self._stage += 1
-            if _last_tool_items(messages, "find_similar_successful_run"):
+            if _last_tool_items(messages, "find_similar_successful_trajectory"):
                 return _ai_tool_call("search_failure_memory", {"query": "missed_constraint", "top_k": 1})
             return self._proposal_message(messages)
         self._stage += 1
@@ -1123,7 +1123,7 @@ class OfflineAgentMock:
         return int(first.get("index", 1)) if isinstance(first, dict) else 1
 
     def _proposal_message(self, messages: list[AnyMessage]) -> AnyMessage:
-        run_id = self._state["run_id"]
+        trajectory_id = self._state["trajectory_id"]
         failure_step = self._selected_failure_step()
         memory_items = _last_tool_items(messages, "search_failure_memory")
         retrieved_ids = [memory_items[0]["case_id"]] if memory_items else []
@@ -1131,7 +1131,7 @@ class OfflineAgentMock:
             {
                 "claim": f"Step {failure_step} was inspected as the failure region.",
                 "source": "step_detail_high",
-                "run_id": run_id,
+                "trajectory_id": trajectory_id,
                 "step_index": failure_step,
             }
         ]
@@ -1146,7 +1146,7 @@ class OfflineAgentMock:
         return _ai_tool_call(
             TERMINAL_TOOL,
             {
-                "run_id": run_id,
+                "trajectory_id": trajectory_id,
                 "failure_step": failure_step,
                 "failure_type": "missed_constraint",
                 "expected_behavior": "The agent should satisfy the user's stated constraint before finishing.",
@@ -1248,7 +1248,7 @@ def _initial_messages(state: GraphState, *, followup: bool) -> list[AnyMessage]:
         HumanMessage(
             content=json.dumps(
                 {
-                    "run_id": state["run_id"],
+                    "trajectory_id": state["trajectory_id"],
                     "user_intent": state["user_intent"],
                     "selected_step": state["selected_step"],
                     "trajectory_digest": _wrap_digest_for_prompt(
@@ -1279,7 +1279,7 @@ def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
         HumanMessage(
             content=json.dumps(
                 {
-                    "run_id": trace.run_id,
+                    "trajectory_id": trace.trajectory_id,
                     "user_intent": trace.user_intent,
                     "selected_step": trace.selected_step,
                 },
@@ -1426,21 +1426,21 @@ def _proposal_context_error(args: dict[str, Any], trace: AgentTrace) -> str | No
     requested = set(args.get("retrieved_context_ids") or [])
     missing = sorted(context_id for context_id in requested if context_id not in available)
     if missing:
-        # Common agent mistake: passing run_ids from find_similar_successful_run
+        # Common agent mistake: passing trajectory_ids from find_similar_successful_trajectory
         # into retrieved_context_ids. That tool's results aren't case_ids and
         # are explicitly excluded by docs/contracts.md L332. Detect this case
         # and tell the agent specifically what to drop on its retry — a
         # generic "not found" message often loops the same mistake.
-        run_ids_seen = _retrieved_run_ids(trace)
-        misused_run_ids = sorted(ctx for ctx in missing if ctx in run_ids_seen)
-        if misused_run_ids:
+        trajectory_ids_seen = _retrieved_trajectory_ids(trace)
+        misused_trajectory_ids = sorted(ctx for ctx in missing if ctx in trajectory_ids_seen)
+        if misused_trajectory_ids:
             return (
                 "retrieved_context_ids must contain only case_ids returned by "
-                "search_failure_memory or search_eval_cases. The following IDs "
-                "are run_ids from find_similar_successful_run and must be "
+                "search_failure_memory or search_failure_eval_cases. The following IDs "
+                "are trajectory_ids from find_similar_successful_trajectory and must be "
                 "omitted (similar-run comparisons are tracked via the "
                 "AgentTrace, not retrieved_context_ids): "
-                + ", ".join(misused_run_ids)
+                + ", ".join(misused_trajectory_ids)
             )
         return "retrieved_context_ids not found in prior retrieval tool_result: " + ", ".join(missing)
 
@@ -1486,25 +1486,25 @@ def _retrieved_case_ids(trace: AgentTrace) -> set[str]:
     return ids
 
 
-def _retrieved_run_ids(trace: AgentTrace) -> set[str]:
-    """Run_ids surfaced by find_similar_successful_run results.
+def _retrieved_trajectory_ids(trace: AgentTrace) -> set[str]:
+    """Run_ids surfaced by find_similar_successful_trajectory results.
 
-    Used to give the agent a pedagogical error when it confuses run_ids
-    (returned by find_similar_successful_run) with case_ids (the only
+    Used to give the agent a pedagogical error when it confuses trajectory_ids
+    (returned by find_similar_successful_trajectory) with case_ids (the only
     legal contents of retrieved_context_ids). NOT used to expand the set
-    of legal IDs — run_ids remain ineligible per docs/contracts.md L332.
+    of legal IDs — trajectory_ids remain ineligible per docs/contracts.md L332.
     """
 
     ids: set[str] = set()
     for event in trace.events:
-        if event.type != "tool_result" or event.name != "find_similar_successful_run":
+        if event.type != "tool_result" or event.name != "find_similar_successful_trajectory":
             continue
         items = (event.result or {}).get("items")
         if not isinstance(items, list):
             continue
         for item in items:
-            if isinstance(item, dict) and isinstance(item.get("run_id"), str):
-                ids.add(item["run_id"])
+            if isinstance(item, dict) and isinstance(item.get("trajectory_id"), str):
+                ids.add(item["trajectory_id"])
     return ids
 
 
@@ -1541,6 +1541,6 @@ def _last_tool_items(messages: list[AnyMessage], name: str) -> list[dict[str, An
             items = payload.get("items")
             if isinstance(items, list):
                 return [item for item in items if isinstance(item, dict)]
-            if "case_id" in payload or "run_id" in payload:
+            if "case_id" in payload or "trajectory_id" in payload:
                 return [payload]
     return []

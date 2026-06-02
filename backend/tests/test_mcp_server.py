@@ -1,4 +1,4 @@
-"""Phase 8 B1 + B2 — Trajecta MCP server surface + analyze_run invariants.
+"""Phase 8 B1 + B2 — Trajecta MCP server surface + analyze_trajectory invariants.
 
 Skipped entirely when fastmcp is not importable (e.g. a base env without the
 dep) so the rest of the suite stays green there. In the project ``trajecta``
@@ -24,12 +24,12 @@ from trajecta_mcp import server  # noqa: E402
 
 
 EXPECTED_TOOLS = {
-    "list_runs",
-    "get_run",
+    "list_trajectories",
+    "get_trajectory",
     "get_step_detail",
     "search_failure_memory",
-    "search_eval_cases",
-    "analyze_run",
+    "search_failure_eval_cases",
+    "analyze_trajectory",
 }
 
 # Mutating / admin surfaces that MUST NOT be reachable over MCP.
@@ -51,8 +51,8 @@ def _seed_failed_run() -> None:
     """Minimal data the OfflineAgentMock 5-stage script needs end-to-end."""
     rag._client_cache = None
     rag._embedding_cache = None
-    storage.save_run(sample_run("run_1", status="failed"))
-    storage.save_run(sample_run("success_run", status="success"))
+    storage.save_trajectory(sample_run("run_1", status="failed"))
+    storage.save_trajectory(sample_run("success_run", status="success"))
     rag.upsert_successful_trajectory(sample_run("success_run", status="success"))
     rag.upsert_failure_memory(
         FailureMemoryCase(
@@ -88,24 +88,24 @@ def test_excluded_tool_call_raises_method_not_found(name: str) -> None:
     assert "unknown tool" in str(exc.value).lower()
 
 
-def test_list_runs_tool_returns_metadata() -> None:
+def test_list_trajectories_tool_returns_metadata() -> None:
     _seed_failed_run()
-    runs = server.list_runs()
-    ids = {r["run_id"] for r in runs}
+    runs = server.list_trajectories()
+    ids = {r["trajectory_id"] for r in runs}
     assert {"run_1", "success_run"} <= ids
     # Metadata only — the heavy/untrusted steps array must NOT leak.
     first = runs[0]
     assert "steps" not in first
     assert isinstance(first["step_count"], int)
-    assert {"run_id", "task", "status", "step_count"} <= first.keys()
+    assert {"trajectory_id", "task", "status", "step_count"} <= first.keys()
 
 
-# --- B2: analyze_run composite invariants --------------------------------
+# --- B2: analyze_trajectory composite invariants --------------------------------
 
 
-def test_analyze_run_stamps_mcp_source_and_draft() -> None:
+def test_analyze_trajectory_stamps_mcp_source_and_draft() -> None:
     _seed_failed_run()
-    result = server.analyze_run("run_1")
+    result = server.analyze_trajectory("run_1")
 
     assert result["eval_case_draft"] is not None
     # HITL gate: the MCP surface can only ever return a draft.
@@ -118,10 +118,10 @@ def test_analyze_run_stamps_mcp_source_and_draft() -> None:
         assert forbidden not in blob
 
 
-def test_analyze_run_trace_parity_with_http_path() -> None:
+def test_analyze_trajectory_trace_parity_with_http_path() -> None:
     _seed_failed_run()
-    mcp_result = server.analyze_run("run_1")
-    ui = eval_agent_graph.analyze_run("run_1", source="ui")
+    mcp_result = server.analyze_trajectory("run_1")
+    ui = eval_agent_graph.analyze_trajectory("run_1", source="ui")
 
     mcp_trace = mcp_result["agent_trace"]
     # Differ only by source (+ timestamps); the substantive shape matches.
@@ -135,9 +135,9 @@ def test_analyze_run_trace_parity_with_http_path() -> None:
     )
 
 
-def test_analyze_run_budget_invariant_surfaces_terminated_by() -> None:
+def test_analyze_trajectory_budget_invariant_surfaces_terminated_by() -> None:
     _seed_failed_run()
-    result = server.analyze_run("run_1")
+    result = server.analyze_trajectory("run_1")
     # The per-turn budget applies across the MCP boundary exactly as on the
     # HTTP path; terminated_by is always present (propose_eval_case here).
     assert result["agent_trace"]["terminated_by"] in {

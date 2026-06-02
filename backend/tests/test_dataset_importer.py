@@ -85,7 +85,7 @@ class DatasetImporterTests(unittest.TestCase):
         self.assertEqual(action.raw, "unhandled()")
 
     def test_normalize_basic_trajectory_row(self) -> None:
-        run = dataset_importer.normalize_trajectory(raw_row(), run_id="run_1")
+        run = dataset_importer.normalize_trajectory(raw_row(), trajectory_id="run_1")
 
         self.assertEqual(run.task, "Find the checkout button.")
         self.assertEqual([step.metadata["source_step_key"] for step in run.steps], ["1", "2"])
@@ -98,12 +98,12 @@ class DatasetImporterTests(unittest.TestCase):
 
     def test_task_extraction_from_instruction_json(self) -> None:
         row = raw_row(instruction=json.dumps({"mid_level": "Use search", "goal": "Find result"}))
-        run = dataset_importer.normalize_trajectory(row, run_id="run_1")
+        run = dataset_importer.normalize_trajectory(row, trajectory_id="run_1")
 
         self.assertEqual(run.task, "Use search")
 
     def test_apply_status_overlay(self) -> None:
-        run = dataset_importer.normalize_trajectory(raw_row(), run_id="run_1")
+        run = dataset_importer.normalize_trajectory(raw_row(), trajectory_id="run_1")
         with tempfile.TemporaryDirectory() as tmpdir:
             overlay_path = Path(tmpdir) / "run_status_overlay.json"
             overlay_path.write_text(json.dumps({"run_1": "failed"}), encoding="utf-8")
@@ -112,9 +112,9 @@ class DatasetImporterTests(unittest.TestCase):
 
         self.assertEqual(runs[0].status, "failed")
 
-    def test_invalid_run_id_rejected(self) -> None:
+    def test_invalid_trajectory_id_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            dataset_importer.normalize_trajectory(raw_row(), run_id="../bad")
+            dataset_importer.normalize_trajectory(raw_row(), trajectory_id="../bad")
 
     def test_image_paths_null_mapping_does_not_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -127,17 +127,17 @@ class DatasetImporterTests(unittest.TestCase):
             try:
                 runs = dataset_importer.import_sample(source_dir)
                 assets = {
-                    run.run_id: dataset_importer.get_imported_screenshot_assets(run.run_id)
+                    run.trajectory_id: dataset_importer.get_imported_screenshot_assets(run.trajectory_id)
                     for run in runs
                 }
             finally:
                 dataset_importer._load_dataset_from_disk = original_loader
 
         self.assertEqual(len(runs), 5)
-        self.assertEqual([run.run_id for run in runs], [f"run_{i}" for i in range(5)])
-        for run_id in [f"run_{i}" for i in range(5)]:
-            self.assertEqual(assets[run_id]["screenshot_001.png"], b"first")
-            self.assertEqual(assets[run_id]["screenshot_002.png"], b"second")
+        self.assertEqual([run.trajectory_id for run in runs], [f"run_{i}" for i in range(5)])
+        for trajectory_id in [f"run_{i}" for i in range(5)]:
+            self.assertEqual(assets[trajectory_id]["screenshot_001.png"], b"first")
+            self.assertEqual(assets[trajectory_id]["screenshot_002.png"], b"second")
 
 
 if __name__ == "__main__":

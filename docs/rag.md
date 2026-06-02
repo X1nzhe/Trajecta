@@ -20,8 +20,7 @@ Chroma collection names in code: `failure_eval_cases` and
 `successful_trajectories` match the conceptual names above. The
 `failure_pattern_memory` concept is implemented under the stable name
 `failure_memory` — the same name as its SQLite table, seed file, and
-`search_failure_memory` tool — mirroring how `trajectory` is implemented as
-`run`.
+`search_failure_memory` tool.
 
 `failure_pattern_memory` (implementation collection: `failure_memory`) is
 rebuilt from `data/failure_memory/cases.jsonl` during `rag.hydrate_all()`, so
@@ -31,7 +30,7 @@ using a fresh `TRAJECTA_CHROMA_DIR`, because embeddings are not migrated
 between models.
 
 The Eval Agent reaches RAG only through tools: `search_failure_memory`,
-`search_eval_cases`, and `find_similar_successful_run`. There is no implicit
+`search_failure_eval_cases`, and `find_similar_successful_trajectory`. There is no implicit
 retrieval on every step; the agent decides when to retrieve and what query to
 use.
 
@@ -39,7 +38,7 @@ use.
 
 - `failure_pattern_memory` stores reusable failure patterns. **Read-only in v1**: the seed file `data/failure_memory/cases.jsonl` is the only write path; neither the UI nor the agent can add new failure pattern memories. Implementation collection name: `failure_memory`.
 - `failure_eval_cases` stores failure-shaped, human-validated EvalCases only. Success-shaped EvalCases are persisted in SQLite `eval_cases`, but they do not belong in this failure-precedent retrieval index.
-- `successful_trajectories` indexes trajectories that humans have validated as successful via `POST /api/eval-cases` (success-shape `EvalCase`). The collection starts **empty** after `Import Dataset` and grows only as users validate success verdicts. `find_similar_successful_run` uses it to pull a counter-example for step-level replay-and-diff. Imports never seed this collection directly (cold-start contract).
+- `successful_trajectories` indexes trajectories that humans have validated as successful via `POST /api/eval-cases` (success-shape `EvalCase`). The collection starts **empty** after `Import Dataset` and grows only as users validate success verdicts. `find_similar_successful_trajectory` uses it to pull a counter-example for step-level replay-and-diff. Imports never seed this collection directly (cold-start contract).
 - `step_summaries` is a v2 placeholder; not implemented in v1.
 - Store full metadata needed to reconstruct schema objects where required by the contract.
 - Serialize list fields when required by the Chroma client.
@@ -48,11 +47,11 @@ use.
 
 ## RAG Flow
 
-1. The user triggers analysis on a trajectory (legacy API wording: run) or step.
+1. The user triggers analysis on a trajectory or step.
 2. Trajectory Preprocessing builds or loads the trajectory digest.
 3. The Eval Agent reads the digest and decides whether retrieval is needed.
-4. The agent calls `search_failure_memory(query)` and/or `search_eval_cases(query)` with model-authored queries grounded in observed evidence.
-5. When useful, the agent calls `find_similar_successful_run(task, exclude_run_id=current_run_id)` to retrieve a successful trajectory counter-example, then `get_run(other_run_id)` to load its digest for step-level diffing. Comparison run IDs are not part of `EvalCase.retrieved_context_ids`; the comparison is traced through `AgentTrace`.
+4. The agent calls `search_failure_memory(query)` and/or `search_failure_eval_cases(query)` with model-authored queries grounded in observed evidence.
+5. When useful, the agent calls `find_similar_successful_trajectory(task, exclude_trajectory_id=current_trajectory_id)` to retrieve a successful trajectory counter-example, then `get_trajectory(other_trajectory_id)` to load its digest for step-level diffing. Comparison trajectory IDs are not part of `EvalCase.retrieved_context_ids`; the comparison is traced through `AgentTrace`.
 6. Retrieved results are returned as tool observations. The agent may retrieve multiple times with refined queries.
 7. The agent calls `propose_eval_case(...)` with structured evidence items and `retrieved_context_ids` populated from case IDs it actually used (failure-memory and eval-case IDs only).
 8. RAGAS evaluates whether the agent's analysis is faithful to retrieved context returned from tool calls.

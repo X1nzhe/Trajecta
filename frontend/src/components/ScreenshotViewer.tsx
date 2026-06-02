@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TrajectoryStep } from '../types/contracts';
 
 interface ScreenshotViewerProps {
-  runId: string;
+  trajectoryId: string;
   step: TrajectoryStep;
   totalSteps: number;
   detailsExpanded: boolean;
@@ -10,14 +10,14 @@ interface ScreenshotViewerProps {
   onNext: () => void;
 }
 
-export function ScreenshotViewer({ runId, step, totalSteps, detailsExpanded, onPrev, onNext }: ScreenshotViewerProps) {
+export function ScreenshotViewer({ trajectoryId, step, totalSteps, detailsExpanded, onPrev, onNext }: ScreenshotViewerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [failedScreenshotUrl, setFailedScreenshotUrl] = useState<string | null>(null);
   const [stageSize, setStageSize] = useState<{ width: number; height: number } | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const screenshotUrl = step.observation.screenshot 
-    ? `/api/runs/${runId}/screenshots/${step.observation.screenshot}`
+    ? `/api/trajectories/${trajectoryId}/screenshots/${step.observation.screenshot}`
     : null;
   const imageWidth = step.coordinate_validation.image_width;
   const imageHeight = step.coordinate_validation.image_height;

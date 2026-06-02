@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.app.coordinate_validator import validate_coordinates
-from backend.app.schemas import BBox, Coordinate, StepAction, StepObservation, StepResult, TrajectoryRun, TrajectoryStep
+from backend.app.schemas import BBox, Coordinate, StepAction, StepObservation, StepResult, Trajectory, TrajectoryStep
 
 
 VALID_RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
@@ -28,52 +28,52 @@ def _load_dataset_from_disk(source_dir: Path) -> Any:
     return load_from_disk(str(source_dir))
 
 
-def import_sample(source_dir: Path) -> list[TrajectoryRun]:
+def import_sample(source_dir: Path) -> list[Trajectory]:
     """Import a local Hugging Face Dataset saved with ``datasets.save_to_disk``.
 
-    Screenshot bytes are kept in a module-local cache keyed by run ID. API code
-    can call ``get_imported_screenshot_assets(run_id)`` immediately after this
+    Screenshot bytes are kept in a module-local cache keyed by trajectory ID. API code
+    can call ``get_imported_screenshot_assets(trajectory_id)`` immediately after this
     function returns, then persist the bytes through ``storage.save_screenshots``.
-    The public return contract stays a list of JSON-serializable TrajectoryRun
+    The public return contract stays a list of JSON-serializable Trajectory
     objects.
     """
 
     dataset = _load_dataset_from_disk(source_dir)
-    runs: list[TrajectoryRun] = []
+    trajectories: list[Trajectory] = []
     _LAST_SCREENSHOT_ASSETS.clear()
 
     for row_index, row in enumerate(dataset):
         raw = dict(row)
-        run_id = str(raw.get("sample_id") or "")
-        if not run_id:
+        trajectory_id = str(raw.get("sample_id") or "")
+        if not trajectory_id:
             raise ValueError(f"row {row_index}: missing sample_id")
-        _validate_run_id(run_id)
+        _validate_trajectory_id(trajectory_id)
 
-        run = normalize_trajectory(raw, run_id=run_id)
-        # docs/dataset_import.md "Cold-Start Behavior": every imported run
+        trajectory = normalize_trajectory(raw, trajectory_id=trajectory_id)
+        # docs/dataset_import.md "Cold-Start Behavior": every imported trajectory
         # lands at status="unknown" regardless of any raw status / outcome
         # field in the source row. The Eval Agent must derive its own
-        # verdict; pre-seeded labels would let the agent (or `get_run`)
+        # verdict; pre-seeded labels would let the agent (or `get_trajectory`)
         # copy the answer. normalize_trajectory still honors raw status
         # because ad-hoc scripts and tests rely on that path; the import
         # pipeline overrides it here.
-        run = run.model_copy(update={"status": "unknown"})
-        runs.append(run)
-        assets = _extract_screenshot_assets(raw, run)
+        trajectory = trajectory.model_copy(update={"status": "unknown"})
+        trajectories.append(trajectory)
+        assets = _extract_screenshot_assets(raw, trajectory)
         if assets:
-            _LAST_SCREENSHOT_ASSETS[run.run_id] = assets
+            _LAST_SCREENSHOT_ASSETS[trajectory.trajectory_id] = assets
 
     # apply_status_overlay() remains importable for ad-hoc scripts and
     # tests but is deliberately not called here.
-    return runs
+    return trajectories
 
 
-def get_imported_screenshot_assets(run_id: str) -> dict[str, bytes]:
-    return dict(_LAST_SCREENSHOT_ASSETS.get(run_id, {}))
+def get_imported_screenshot_assets(trajectory_id: str) -> dict[str, bytes]:
+    return dict(_LAST_SCREENSHOT_ASSETS.get(trajectory_id, {}))
 
 
-def normalize_trajectory(raw: dict[str, Any], run_id: str) -> TrajectoryRun:
-    _validate_run_id(run_id)
+def normalize_trajectory(raw: dict[str, Any], trajectory_id: str) -> Trajectory:
+    _validate_trajectory_id(trajectory_id)
     trajectory = _parse_trajectory(raw.get("trajectory"))
     task = _extract_task(raw.get("instruction"))
     step_keys = _sorted_step_keys(trajectory)
@@ -134,8 +134,8 @@ def normalize_trajectory(raw: dict[str, Any], run_id: str) -> TrajectoryRun:
             )
         )
 
-    return TrajectoryRun(
-        run_id=run_id,
+    return Trajectory(
+        trajectory_id=trajectory_id,
         task=task,
         status=_normalize_status(raw.get("status") or raw.get("outcome")),
         steps=steps,
@@ -154,25 +154,25 @@ def parse_action(raw_action: str | dict[str, Any] | Any) -> StepAction:
         return StepAction(type="unknown", raw=_json_text(raw_action))
 
 
-def apply_status_overlay(runs: list[TrajectoryRun], overlay_path: Path) -> list[TrajectoryRun]:
+def apply_status_overlay(trajectories: list[Trajectory], overlay_path: Path) -> list[Trajectory]:
     overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
     if not isinstance(overlay, dict):
         raise ValueError(f"status overlay must be a JSON object: {overlay_path}")
 
     normalized: dict[str, str] = {}
-    for run_id, status in overlay.items():
-        _validate_run_id(str(run_id))
+    for trajectory_id, status in overlay.items():
+        _validate_trajectory_id(str(trajectory_id))
         status_value = status.strip().lower() if isinstance(status, str) else ""
         if status_value not in VALID_STATUSES:
-            raise ValueError(f"invalid status for {run_id}: {status!r}")
-        normalized[str(run_id)] = status_value
+            raise ValueError(f"invalid status for {trajectory_id}: {status!r}")
+        normalized[str(trajectory_id)] = status_value
 
-    return [run.model_copy(update={"status": normalized[run.run_id]}) if run.run_id in normalized else run for run in runs]
+    return [trajectory.model_copy(update={"status": normalized[trajectory.trajectory_id]}) if trajectory.trajectory_id in normalized else trajectory for trajectory in trajectories]
 
 
-def _validate_run_id(run_id: str) -> None:
-    if not VALID_RUN_ID_RE.fullmatch(run_id):
-        raise ValueError(f"invalid run_id {run_id!r}; must match {VALID_RUN_ID_RE.pattern}")
+def _validate_trajectory_id(trajectory_id: str) -> None:
+    if not VALID_RUN_ID_RE.fullmatch(trajectory_id):
+        raise ValueError(f"invalid trajectory_id {trajectory_id!r}; must match {VALID_RUN_ID_RE.pattern}")
 
 
 def _parse_trajectory(value: Any) -> dict[str, Any]:
@@ -466,17 +466,17 @@ def _json_text(value: Any) -> str:
         return str(value)
 
 
-def _extract_screenshot_assets(raw: dict[str, Any], run: TrajectoryRun) -> dict[str, bytes]:
+def _extract_screenshot_assets(raw: dict[str, Any], trajectory: Trajectory) -> dict[str, bytes]:
     images = raw.get("images") or []
     if not isinstance(images, list) or not images:
         return {}
 
-    trajectory = _parse_trajectory(raw.get("trajectory"))
-    step_keys = _sorted_step_keys(trajectory)
+    raw_steps = _parse_trajectory(raw.get("trajectory"))
+    step_keys = _sorted_step_keys(raw_steps)
     refs = [
-        (trajectory[key].get("screenshot"), _screenshot_name(trajectory[key].get("screenshot")))
+        (raw_steps[key].get("screenshot"), _screenshot_name(raw_steps[key].get("screenshot")))
         for key in step_keys
-        if isinstance(trajectory[key], dict)
+        if isinstance(raw_steps[key], dict)
     ]
 
     raw_image_paths = raw.get("image_paths")
@@ -505,8 +505,8 @@ def _extract_screenshot_assets(raw: dict[str, Any], run: TrajectoryRun) -> dict[
             if image_bytes:
                 assets[filename] = image_bytes
 
-    run_screenshots = {step.observation.screenshot for step in run.steps if step.observation.screenshot}
-    return {name: data for name, data in assets.items() if name in run_screenshots}
+    trajectory_screenshots = {step.observation.screenshot for step in trajectory.steps if step.observation.screenshot}
+    return {name: data for name, data in assets.items() if name in trajectory_screenshots}
 
 
 def _normalize_image_bytes(value: Any) -> bytes | None:

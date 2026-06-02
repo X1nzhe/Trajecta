@@ -19,7 +19,7 @@ from backend.app.schemas import (
     StepAction,
     StepObservation,
     StepResult,
-    TrajectoryRun,
+    Trajectory,
     TrajectoryStep,
 )
 from backend.tests.test_storage import sample_run
@@ -60,7 +60,7 @@ def _proposal_args(
         {
             "claim": "Step 0 was inspected.",
             "source": "trajectory",
-            "run_id": "run_1",
+            "trajectory_id": "run_1",
             "step_index": 0,
         }
     ]
@@ -73,7 +73,7 @@ def _proposal_args(
             }
         )
     return {
-        "run_id": "run_1",
+        "trajectory_id": "run_1",
         "failure_step": 0,
         "failure_type": failure_type,
         "expected_behavior": "The agent should satisfy the task constraint.",
@@ -86,20 +86,20 @@ def _proposal_args(
 
 def _happy_script() -> list:
     return [
-        _tool_message("get_run", {"run_id": "run_1"}),
-        _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 0, "image_detail": "high"}),
+        _tool_message("get_trajectory", {"trajectory_id": "run_1"}),
+        _tool_message("get_step_detail", {"trajectory_id": "run_1", "step_index": 0, "image_detail": "high"}),
         _tool_message("search_failure_memory", {"query": "missed_constraint", "top_k": 1}),
         _tool_message("propose_eval_case", _proposal_args()),
     ]
 
 
-def _attach_tiny_png(run_id: str, filename: str = "screenshot_001.png") -> None:
+def _attach_tiny_png(trajectory_id: str, filename: str = "screenshot_001.png") -> None:
     from PIL import Image
     import io
 
     buf = io.BytesIO()
     Image.new("RGB", (1, 1), color=(255, 255, 255)).save(buf, format="PNG")
-    storage.save_screenshots(run_id, {filename: buf.getvalue()})
+    storage.save_screenshots(trajectory_id, {filename: buf.getvalue()})
 
 
 def _payload_has_forbidden_image_key(payload: object) -> bool:
@@ -133,8 +133,8 @@ class EvalAgentTests(unittest.TestCase):
         rag._client_cache = None
         rag._embedding_cache = None
 
-        storage.save_run(sample_run("run_1", status="failed"))
-        storage.save_run(sample_run("success_run", status="success"))
+        storage.save_trajectory(sample_run("run_1", status="failed"))
+        storage.save_trajectory(sample_run("success_run", status="success"))
         rag.upsert_successful_trajectory(sample_run("success_run", status="success"))
         rag.upsert_failure_memory(
             FailureMemoryCase(
@@ -157,7 +157,7 @@ class EvalAgentTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_happy_path_produces_valid_trace(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
 
         AgentTrace.model_validate(result.trace.model_dump(mode="json"))
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
@@ -166,7 +166,7 @@ class EvalAgentTests(unittest.TestCase):
         self.assertFalse(draft.human_validated)
 
     def test_trace_records_prompt_version_and_hash(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
         active = prompts.active_prompt_bundle()
 
         self.assertEqual(result.trace.prompt_version, active.version)
@@ -174,11 +174,11 @@ class EvalAgentTests(unittest.TestCase):
         self.assertIn(active.version, prompts.available_prompt_versions())
 
     def test_trace_source_defaults_to_ui(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
         self.assertEqual(result.trace.source, "ui")
 
     def test_trace_source_threads_explicit_value(self) -> None:
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1", llm_client=ScriptedLLM(_happy_script()), source="mcp"
         )
         self.assertEqual(result.trace.source, "mcp")
@@ -201,11 +201,11 @@ class EvalAgentTests(unittest.TestCase):
                 }
 
         script = [
-            UsageMessage("get_run", {"run_id": "run_1"}, input_tokens=120, output_tokens=18),
+            UsageMessage("get_trajectory", {"trajectory_id": "run_1"}, input_tokens=120, output_tokens=18),
             UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=240, output_tokens=64),
         ]
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
         self.assertEqual(result.trace.input_tokens, 360)
@@ -230,10 +230,10 @@ class EvalAgentTests(unittest.TestCase):
                 }
 
         analyze_script = [
-            UsageMessage("get_run", {"run_id": "run_1"}, input_tokens=100, output_tokens=10),
+            UsageMessage("get_trajectory", {"trajectory_id": "run_1"}, input_tokens=100, output_tokens=10),
             UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=200, output_tokens=20),
         ]
-        eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(analyze_script))
+        eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(analyze_script))
 
         followup_script = [
             UsageMessage("propose_eval_case", _proposal_args(retrieved_context_ids=[]), input_tokens=50, output_tokens=5),
@@ -261,14 +261,14 @@ class EvalAgentTests(unittest.TestCase):
         still validate with zeroed counters rather than crashing the loop.
         """
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
 
         self.assertEqual(result.trace.input_tokens, 0)
         self.assertEqual(result.trace.output_tokens, 0)
         self.assertGreaterEqual(result.trace.runtime_ms, 0)
 
     def test_trace_seq_is_strictly_monotonic(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
 
         seqs = [event.seq for event in result.trace.events]
         turns = [event.turn for event in result.trace.events]
@@ -276,7 +276,7 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(turns, sorted(turns))
 
     def test_stream_yields_events_before_done(self) -> None:
-        stream = eval_agent_graph.stream_analyze_run(
+        stream = eval_agent_graph.stream_analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM(_happy_script()),
             persist=False,
@@ -294,11 +294,11 @@ class EvalAgentTests(unittest.TestCase):
 
     def test_budget_exceeded_terminates_turn(self) -> None:
         script = [
-            _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 0, "image_detail": "high"})
+            _tool_message("get_step_detail", {"trajectory_id": "run_1", "step_index": 0, "image_detail": "high"})
             for _ in range(9)
         ]
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
         self.assertEqual(result.trace.terminated_by, "budget_exceeded")
         self.assertGreater(len(result.errors), 0)
@@ -306,14 +306,14 @@ class EvalAgentTests(unittest.TestCase):
 
     def test_budget_counts_only_budgeted_tools(self) -> None:
         script = [
-            _tool_message("get_run", {"run_id": "run_1"}),
-            _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 0, "image_detail": "high"}),
-            _tool_message("get_run", {"run_id": "run_1"}),
+            _tool_message("get_trajectory", {"trajectory_id": "run_1"}),
+            _tool_message("get_step_detail", {"trajectory_id": "run_1", "step_index": 0, "image_detail": "high"}),
+            _tool_message("get_trajectory", {"trajectory_id": "run_1"}),
             _tool_message("search_failure_memory", {"query": "missed_constraint", "top_k": 1}),
             _tool_message("propose_eval_case", _proposal_args()),
         ]
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
         self.assertEqual(result.trace.tool_call_count, 2)
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
@@ -321,11 +321,11 @@ class EvalAgentTests(unittest.TestCase):
     def test_propose_eval_case_is_terminal(self) -> None:
         script = [
             _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
-            _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 0, "image_detail": "high"}),
+            _tool_message("get_step_detail", {"trajectory_id": "run_1", "step_index": 0, "image_detail": "high"}),
         ]
         llm = ScriptedLLM(script)
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=llm)
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=llm)
 
         self.assertEqual(llm.invocations, 1)
         self.assertFalse(
@@ -337,7 +337,7 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
 
     def test_propose_eval_case_validation_error_terminates(self) -> None:
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM(
                 [_tool_message("propose_eval_case", _proposal_args(failure_type="INVALID-TYPE", retrieved_context_ids=[]))]
@@ -366,14 +366,14 @@ class EvalAgentTests(unittest.TestCase):
                 "tool_calls": [
                     {
                         "id": "call_bad_json",
-                        "function": {"name": "get_run", "arguments": "{"},
+                        "function": {"name": "get_trajectory", "arguments": "{"},
                     }
                 ]
             },
         )
         good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
 
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1", llm_client=ScriptedLLM([bad_message, good_message])
         )
 
@@ -403,7 +403,7 @@ class EvalAgentTests(unittest.TestCase):
         )
         good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
 
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1", llm_client=ScriptedLLM([bad_message, good_message])
         )
 
@@ -426,7 +426,7 @@ class EvalAgentTests(unittest.TestCase):
         plain_text = AIMessage(content="I think this run was successful but I'll stop here.")
         good_message = _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))
 
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1", llm_client=ScriptedLLM([plain_text, good_message])
         )
 
@@ -441,7 +441,7 @@ class EvalAgentTests(unittest.TestCase):
         )
 
     def test_retrieved_context_ids_must_appear_in_trace(self) -> None:
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM(
                 [_tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=["fm_nonexistent_999"]))]
@@ -451,18 +451,18 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.terminated_by, "error")
         self.assertIn("fm_nonexistent_999", " ".join(result.errors))
 
-    def test_retrieved_context_ids_rejects_similar_run_run_id_with_specific_error(self) -> None:
-        """A common agent mistake is quoting a run_id from
-        find_similar_successful_run in retrieved_context_ids. The validator
-        should still reject it (run_ids are not case_ids per
+    def test_retrieved_context_ids_rejects_similar_run_trajectory_id_with_specific_error(self) -> None:
+        """A common agent mistake is quoting a trajectory_id from
+        find_similar_successful_trajectory in retrieved_context_ids. The validator
+        should still reject it (trajectory_ids are not case_ids per
         docs/contracts.md L332), but produce a pedagogical error message
         so the next retry actually drops the bad ID instead of looping.
         """
 
         script = [
             _tool_message(
-                "find_similar_successful_run",
-                {"task": "find: answer to question", "top_k": 3, "exclude_run_id": "run_1"},
+                "find_similar_successful_trajectory",
+                {"task": "find: answer to question", "top_k": 3, "exclude_trajectory_id": "run_1"},
             ),
             _tool_message(
                 "propose_eval_case",
@@ -470,45 +470,45 @@ class EvalAgentTests(unittest.TestCase):
             ),
         ]
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
         self.assertEqual(result.trace.terminated_by, "error")
         joined = " ".join(result.errors)
         self.assertIn("success_run", joined)
-        # The specific error should call out the run_id confusion so the
+        # The specific error should call out the trajectory_id confusion so the
         # agent's retry knows what to drop.
-        self.assertIn("find_similar_successful_run", joined)
+        self.assertIn("find_similar_successful_trajectory", joined)
 
-    def test_find_similar_successful_run_injects_exclude_run_id(self) -> None:
+    def test_find_similar_successful_trajectory_injects_exclude_trajectory_id(self) -> None:
         """Server-side leakage guard for the replay-and-diff retrieval path.
 
-        The LLM may emit ``find_similar_successful_run`` without
-        ``exclude_run_id``. The dispatcher must force-inject the current
-        ``run_id`` regardless, to prevent the agent from "rediscovering" a
+        The LLM may emit ``find_similar_successful_trajectory`` without
+        ``exclude_trajectory_id``. The dispatcher must force-inject the current
+        ``trajectory_id`` regardless, to prevent the agent from "rediscovering" a
         golden-set sample that is itself in the ``successful_trajectories`` collection
         (e.g. a previously human-validated success EvalCase promoted there).
-        Symmetric to the ``search_failure_memory`` / ``exclude_source_run_id``
+        Symmetric to the ``search_failure_memory`` / ``exclude_source_trajectory_id``
         guard verified elsewhere.
         """
         captured: dict = {}
-        real = eval_agent_graph._TOOL_REGISTRY["find_similar_successful_run"]
+        real = eval_agent_graph._TOOL_REGISTRY["find_similar_successful_trajectory"]
 
         def spy(**kwargs):
             captured.update(kwargs)
             return []
 
         script = [
-            # LLM intentionally OMITS exclude_run_id from the args.
-            _tool_message("find_similar_successful_run", {"task": "any", "top_k": 3}),
+            # LLM intentionally OMITS exclude_trajectory_id from the args.
+            _tool_message("find_similar_successful_trajectory", {"task": "any", "top_k": 3}),
             _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
         ]
         with mock.patch.dict(
             eval_agent_graph._TOOL_REGISTRY,
-            {"find_similar_successful_run": spy},
+            {"find_similar_successful_trajectory": spy},
         ):
-            eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+            eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
-        self.assertEqual(captured.get("exclude_run_id"), "run_1")
+        self.assertEqual(captured.get("exclude_trajectory_id"), "run_1")
         # And the other args the LLM did emit must still pass through.
         self.assertEqual(captured.get("task"), "any")
         self.assertEqual(captured.get("top_k"), 3)
@@ -516,11 +516,11 @@ class EvalAgentTests(unittest.TestCase):
         # the patch on context exit); ``real`` referenced to silence lint.
         del real
 
-    def test_search_eval_cases_injects_exclude_source_run_id(self) -> None:
-        """Dispatcher auto-injects exclude_source_run_id=current_run_id.
+    def test_search_failure_eval_cases_injects_exclude_source_trajectory_id(self) -> None:
+        """Dispatcher auto-injects exclude_source_trajectory_id=current_trajectory_id.
 
         Mirrors the search_failure_memory guard. A validated EvalCase
-        whose source_run_id is the run currently under analysis carries
+        whose source_trajectory_id is the run currently under analysis carries
         that run's verdict — that IS direct answer leakage. The eval-mode
         short-circuit was previously a sledgehammer for this; we now do
         surgical exclusion at the chroma layer so the agent still gets
@@ -533,27 +533,27 @@ class EvalAgentTests(unittest.TestCase):
             return []
 
         script = [
-            # LLM omits exclude_source_run_id.
-            _tool_message("search_eval_cases", {"query": "any", "top_k": 3}),
+            # LLM omits exclude_source_trajectory_id.
+            _tool_message("search_failure_eval_cases", {"query": "any", "top_k": 3}),
             _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
         ]
         with mock.patch.dict(
             eval_agent_graph._TOOL_REGISTRY,
-            {"search_eval_cases": spy},
+            {"search_failure_eval_cases": spy},
         ):
-            eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+            eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
-        self.assertEqual(captured.get("exclude_source_run_id"), "run_1")
+        self.assertEqual(captured.get("exclude_source_trajectory_id"), "run_1")
         self.assertEqual(captured.get("query"), "any")
         self.assertEqual(captured.get("top_k"), 3)
 
     def test_nonterminal_tool_error_is_returned_to_model(self) -> None:
         script = [
-            _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 99, "image_detail": "high"}),
+            _tool_message("get_step_detail", {"trajectory_id": "run_1", "step_index": 99, "image_detail": "high"}),
             _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
         ]
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
         self.assertIsNotNone(result.eval_case_draft)
@@ -577,7 +577,7 @@ class EvalAgentTests(unittest.TestCase):
             }
         )
 
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM([_tool_message("propose_eval_case", args)]),
         )
@@ -605,7 +605,7 @@ class EvalAgentTests(unittest.TestCase):
             }
         )
 
-        result = eval_agent_graph.analyze_run(
+        result = eval_agent_graph.analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM([_tool_message("propose_eval_case", args)]),
         )
@@ -615,7 +615,7 @@ class EvalAgentTests(unittest.TestCase):
         self.assertIn("context_id", " ".join(result.errors))
 
     def test_trace_persisted_to_disk(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
 
         persisted = storage.load_trace("run_1")
         self.assertIsNotNone(persisted)
@@ -625,7 +625,7 @@ class EvalAgentTests(unittest.TestCase):
         events = []
 
         with self.assertRaisesRegex(RuntimeError, "llm crashed"):
-            for item in eval_agent_graph.stream_analyze_run("run_1", llm_client=RaisingLLM("llm crashed")):
+            for item in eval_agent_graph.stream_analyze_trajectory("run_1", llm_client=RaisingLLM("llm crashed")):
                 events.append(item)
 
         persisted = storage.load_trace("run_1")
@@ -638,16 +638,16 @@ class EvalAgentTests(unittest.TestCase):
 
     def test_new_traces_have_no_selected_step(self) -> None:
         # Per-step analyze was removed; new traces always carry
-        # user_intent="analyze_run" with selected_step=None. The schema
+        # user_intent="analyze_trajectory" with selected_step=None. The schema
         # still permits the int form for back-compat reading of older
         # persisted traces (see eval_agent_graph._make_initial_state).
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
 
-        self.assertEqual(result.trace.user_intent, "analyze_run")
+        self.assertEqual(result.trace.user_intent, "analyze_trajectory")
         self.assertIsNone(result.trace.selected_step)
 
     def test_followup_increments_turn(self) -> None:
-        initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        initial = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
         initial_event_count = len(initial.trace.events)
 
         result = eval_agent_graph.followup(
@@ -660,14 +660,14 @@ class EvalAgentTests(unittest.TestCase):
         self.assertTrue(result.trace.events[initial_event_count:])
         self.assertTrue(all(event.turn == 1 for event in result.trace.events[initial_event_count:]))
         # Followup preserves user_intent + selected_step from the initial
-        # analyze; both remain analyze_run / None.
-        self.assertEqual(result.trace.user_intent, "analyze_run")
+        # analyze; both remain analyze_trajectory / None.
+        self.assertEqual(result.trace.user_intent, "analyze_trajectory")
         self.assertIsNone(result.trace.selected_step)
 
     def test_followup_without_prior_trace_returns_409(self) -> None:
         client = TestClient(app)
 
-        response = client.post("/api/runs/run_1/followup", json={"message": "Check step 2"})
+        response = client.post("/api/trajectories/run_1/followup", json={"message": "Check step 2"})
 
         self.assertEqual(response.status_code, 409)
 
@@ -682,7 +682,7 @@ class EvalAgentTests(unittest.TestCase):
         clarification followups.
         """
 
-        initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        initial = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
         self.assertEqual(initial.trace.terminated_by, "propose_eval_case")
         self.assertIsNotNone(initial.eval_case_draft)
         initial_draft = initial.eval_case_draft
@@ -719,10 +719,10 @@ class EvalAgentTests(unittest.TestCase):
         # call must trigger budget_exceeded. Reading the constant rather
         # than hard-coding "9" keeps the test honest if FOLLOWUP_BUDGET
         # moves again.
-        initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        initial = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
         initial_events = [event.model_dump(mode="json") for event in initial.trace.events]
         script = [
-            _tool_message("get_step_detail", {"run_id": "run_1", "step_index": 1, "image_detail": "high"})
+            _tool_message("get_step_detail", {"trajectory_id": "run_1", "step_index": 1, "image_detail": "high"})
             for _ in range(eval_agent_graph.FOLLOWUP_BUDGET + 1)
         ]
 
@@ -735,7 +735,7 @@ class EvalAgentTests(unittest.TestCase):
         )
 
     def test_followup_graph_exception_persists_user_message_and_trace_error(self) -> None:
-        initial = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        initial = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
         initial_event_count = len(initial.trace.events)
         events = []
 
@@ -763,12 +763,12 @@ class EvalAgentTests(unittest.TestCase):
         old_state_graph = eval_agent_graph.StateGraph
         eval_agent_graph.StateGraph = None
         tool_calls = [
-            {"name": "get_run", "args": {"run_id": "run_1"}, "id": f"call_get_run_{index}"}
+            {"name": "get_trajectory", "args": {"trajectory_id": "run_1"}, "id": f"call_get_trajectory_{index}"}
             for index in range(40)
         ]
         try:
             with self.assertRaisesRegex(RuntimeError, "agent graph exceeded recursion limit"):
-                for _item in eval_agent_graph.stream_analyze_run(
+                for _item in eval_agent_graph.stream_analyze_trajectory(
                     "run_1",
                     llm_client=ScriptedLLM([AIMessage(content="", tool_calls=tool_calls)]),
                     budget=1,
@@ -779,24 +779,24 @@ class EvalAgentTests(unittest.TestCase):
 
         persisted = storage.load_trace("run_1")
         self.assertIsNotNone(persisted)
-        completed_get_run_results = [
-            event for event in persisted.events if event.type == "tool_result" and event.name == "get_run"
+        completed_get_trajectory_results = [
+            event for event in persisted.events if event.type == "tool_result" and event.name == "get_trajectory"
         ]
-        self.assertLess(len(completed_get_run_results), len(tool_calls))
+        self.assertLess(len(completed_get_trajectory_results), len(tool_calls))
         self.assertEqual(persisted.events[-1].type, "tool_error")
         self.assertEqual(persisted.events[-1].name, "graph_execution")
 
     def test_no_screenshot_bytes_in_trace(self) -> None:
         _attach_tiny_png("run_1")
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
 
         for event in result.trace.events:
             self.assertFalse(_payload_has_forbidden_image_key(event.args or {}))
             self.assertFalse(_payload_has_forbidden_image_key(event.result or {}))
 
     def test_offline_mock_agent_produces_valid_trace(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1")
+        result = eval_agent_graph.analyze_trajectory("run_1")
 
         AgentTrace.model_validate(result.trace.model_dump(mode="json"))
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
@@ -810,7 +810,7 @@ class EvalAgentTests(unittest.TestCase):
         """
 
         proposal_args = {
-            "run_id": "run_1",
+            "trajectory_id": "run_1",
             "failure_step": 0,
             "failure_type": "missed_constraint",
             "expected_behavior": "The agent should satisfy the constraint.",
@@ -819,7 +819,7 @@ class EvalAgentTests(unittest.TestCase):
                 {
                     "claim": "Step 0 was inspected at high detail.",
                     "source": "step_detail_high",
-                    "run_id": "run_1",
+                    "trajectory_id": "run_1",
                     "step_index": 0,
                     # Predictable seq: phase(preprocess)=0,
                     # tool_call(get_step_detail)=1, tool_result(get_step_detail)=2,
@@ -836,12 +836,12 @@ class EvalAgentTests(unittest.TestCase):
         script = [
             _tool_message(
                 "get_step_detail",
-                {"run_id": "run_1", "step_index": 0, "image_detail": "high"},
+                {"trajectory_id": "run_1", "step_index": 0, "image_detail": "high"},
             ),
             _tool_message("propose_eval_case", proposal_args),
         ]
 
-        result = eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(script))
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
 
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
         self.assertIsNotNone(result.eval_case_draft)
@@ -872,8 +872,8 @@ class EvalAgentTests(unittest.TestCase):
             )
             for i in range(30)
         ]
-        run = TrajectoryRun(run_id="run_big", task="Find a result", status="failed", steps=steps)
-        storage.save_run(run)
+        run = Trajectory(trajectory_id="run_big", task="Find a result", status="failed", steps=steps)
+        storage.save_trajectory(run)
         rag.upsert_failure_memory(
             FailureMemoryCase(
                 case_id="fm_missed_constraint_001",
@@ -882,7 +882,7 @@ class EvalAgentTests(unittest.TestCase):
             )
         )
 
-        result = eval_agent_graph.analyze_run("run_big")
+        result = eval_agent_graph.analyze_trajectory("run_big")
 
         step_detail_calls = sum(
             1
@@ -897,7 +897,7 @@ class EvalAgentTests(unittest.TestCase):
         persisted messages and does not invoke the preprocess node again.
         """
 
-        eval_agent_graph.analyze_run("run_1", llm_client=ScriptedLLM(_happy_script()))
+        eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
 
         with mock.patch.object(
             preprocess,
@@ -926,7 +926,7 @@ class EvalAgentTests(unittest.TestCase):
             )
         )
 
-        initial = eval_agent_graph.analyze_run(
+        initial = eval_agent_graph.analyze_trajectory(
             "run_1", llm_client=ScriptedLLM(_happy_script())
         )
         self.assertEqual(initial.eval_case_draft["failure_type"], "missed_constraint")
@@ -962,7 +962,7 @@ class EvalAgentTests(unittest.TestCase):
         """
 
         initial_args = _proposal_args(retrieved_context_ids=["fm_missed_constraint_001"])
-        initial = eval_agent_graph.analyze_run(
+        initial = eval_agent_graph.analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM(
                 [
@@ -1015,11 +1015,11 @@ class _CapturingLLM:
         return out
 
 
-def _run_with_text_fields(run_id: str = "run_spotlight_1") -> TrajectoryRun:
+def _run_with_text_fields(trajectory_id: str = "run_spotlight_1") -> Trajectory:
     """A run whose digest fields are populated so wrap markers are visible."""
 
-    return TrajectoryRun(
-        run_id=run_id,
+    return Trajectory(
+        trajectory_id=trajectory_id,
         task="Find a result",
         status="failed",
         steps=[
@@ -1071,7 +1071,7 @@ class SpotlightingWrapTests(unittest.TestCase):
         prompts.load_prompt_bundle.cache_clear()
         prompts.set_spotlight_token(None)
 
-        storage.save_run(_run_with_text_fields())
+        storage.save_trajectory(_run_with_text_fields())
         rag.upsert_failure_memory(
             FailureMemoryCase(
                 case_id="fm_missed_constraint_001",
@@ -1094,7 +1094,7 @@ class SpotlightingWrapTests(unittest.TestCase):
 
     def _propose_args(self) -> dict:
         return {
-            "run_id": "run_spotlight_1",
+            "trajectory_id": "run_spotlight_1",
             "failure_step": 0,
             "failure_type": "missed_constraint",
             "expected_behavior": "Agent should respect the constraint.",
@@ -1103,7 +1103,7 @@ class SpotlightingWrapTests(unittest.TestCase):
                 {
                     "claim": "Step 0 inspected.",
                     "source": "trajectory",
-                    "run_id": "run_spotlight_1",
+                    "trajectory_id": "run_spotlight_1",
                     "step_index": 0,
                 },
                 {
@@ -1122,7 +1122,7 @@ class SpotlightingWrapTests(unittest.TestCase):
             _tool_message("propose_eval_case", self._propose_args()),
         ]
         llm = _CapturingLLM(script)
-        eval_agent_graph.analyze_run("run_spotlight_1", llm_client=llm)
+        eval_agent_graph.analyze_trajectory("run_spotlight_1", llm_client=llm)
         return llm
 
     def test_on_wraps_digest_fields_in_initial_human_message(self) -> None:
@@ -1155,7 +1155,7 @@ class SpotlightingWrapTests(unittest.TestCase):
     def test_on_off_traces_differ_on_sha_and_flag(self) -> None:
         os.environ["TRAJECTA_SPOTLIGHTING"] = "off"
         prompts.load_prompt_bundle.cache_clear()
-        off_result = eval_agent_graph.analyze_run(
+        off_result = eval_agent_graph.analyze_trajectory(
             "run_spotlight_1",
             llm_client=ScriptedLLM(
                 [
@@ -1169,7 +1169,7 @@ class SpotlightingWrapTests(unittest.TestCase):
 
         os.environ["TRAJECTA_SPOTLIGHTING"] = "on"
         prompts.load_prompt_bundle.cache_clear()
-        on_result = eval_agent_graph.analyze_run(
+        on_result = eval_agent_graph.analyze_trajectory(
             "run_spotlight_1",
             llm_client=ScriptedLLM(
                 [
@@ -1198,13 +1198,13 @@ class SpotlightingWrapTests(unittest.TestCase):
         script = [
             _tool_message(
                 "get_step_detail",
-                {"run_id": "run_spotlight_1", "step_index": 0, "image_detail": "high"},
+                {"trajectory_id": "run_spotlight_1", "step_index": 0, "image_detail": "high"},
             ),
             _tool_message("search_failure_memory", {"query": "missed", "top_k": 1}),
             _tool_message("propose_eval_case", self._propose_args()),
         ]
         llm = _CapturingLLM(script)
-        eval_agent_graph.analyze_run("run_spotlight_1", llm_client=llm)
+        eval_agent_graph.analyze_trajectory("run_spotlight_1", llm_client=llm)
 
         # The second invocation includes the get_step_detail tool result
         # appended to the prior messages. Find it.

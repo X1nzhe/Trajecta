@@ -17,9 +17,9 @@ Implementation strategy:
 2. Run `scripts/import_demo_fixture.py` to materialize those rows under
    `data/raw/molmoweb_humanskills_sample/hf_dataset/`.
 3. At import time, `backend/app/dataset_importer.py` converts each selected
-   trajectory into Pydantic `TrajectoryRun` objects.
-4. The API handler persists each run + its screenshots into `data/trajecta.db`
-   (the `runs`, `steps`, and `screenshots` tables). There is no per-run
+   trajectory into Pydantic `Trajectory` objects.
+4. The API handler persists each trajectory + its screenshots into `data/trajecta.db`
+   (the `trajectories`, `steps`, and `screenshots` tables). There is no per-trajectory
    directory on disk; everything lives inside one SQLite file.
 
 ## Demo Fixture Workflow
@@ -75,7 +75,7 @@ e5677cbb1e5eea...,amazon,failed,too many steps,
 Rules:
 
 - `outcome` must be one of `success`, `failed`, `unknown`, or empty.
-- `sample_id` must match `^[A-Za-z0-9_.-]{1,128}$` (the Trajecta run ID pattern).
+- `sample_id` must match `^[A-Za-z0-9_.-]{1,128}$` (the Trajecta trajectory ID pattern).
 - Aim for ≥1 `success` per `category` so replay-and-diff has a target.
 - Rows with empty `outcome` are kept in the demo set but get no status
   overlay entry; they fall back to `unknown` downstream.
@@ -127,8 +127,8 @@ Raw row fields:
 
 | Field | Type | Import meaning |
 | --- | --- | --- |
-| `sample_id` | `string` | Stable trajectory identifier. Trajecta copies this to `TrajectoryRun.run_id` after validating the run ID pattern. |
-| `instruction` | `string` | JSON-encoded task instruction. Prefer `low_level` when present for `TrajectoryRun.task`; otherwise fall back to another readable instruction field. |
+| `sample_id` | `string` | Stable trajectory identifier. Trajecta copies this to `Trajectory.trajectory_id` after validating the trajectory ID pattern. |
+| `instruction` | `string` | JSON-encoded task instruction. Prefer `low_level` when present for `Trajectory.task`; otherwise fall back to another readable instruction field. |
 | `trajectory` | `string` | JSON-encoded dict keyed by step index. Each value contains the step screenshot reference, action, browser observation, and timestamp. |
 | `images` | `list[bytes]` / `list[Image]` | Source of truth for screenshot content. Do not store this field inside normalized JSON; write selected screenshots to disk. |
 | `image_paths` | `list[path]` or `null` | Optional screenshot filenames aligned with `images`. Observed materialized rows may have `null`, so importer logic must not require this field. |
@@ -313,7 +313,7 @@ Schema:
 
 ```json
 {
-  "<run_id>": "success" | "failed" | "unknown"
+  "<trajectory_id>": "success" | "failed" | "unknown"
 }
 ```
 
@@ -329,19 +329,19 @@ Rules:
 
 ## Cold-Start Behavior
 
-v1 deliberately **does not** pre-populate `TrajectoryRun.status` from any
+v1 deliberately **does not** pre-populate `Trajectory.status` from any
 source — not from the dataset row, not from `run_status_overlay.json`, not
 from `triage_notes.csv`. The reasoning:
 
 - The Eval Agent must reach its own verdict; pre-seeded status would let the
-  agent (or its tools, via `get_run`) copy the answer.
+  agent (or its tools, via `get_trajectory`) copy the answer.
 - The product story is "import 24 unanalyzed sessions → analyze with the
   Eval Agent → human validates → status appears". Pre-seeded badges break
   that demo arc.
 
 Concretely:
 
-- Every imported run lands at `status="unknown"` regardless of any raw
+- Every imported trajectory lands at `status="unknown"` regardless of any raw
   `status` / `outcome` field in the source row.
 - `POST /api/import/molmoweb-sample` does **not** seed any RAG collection.
   `successful_trajectories` starts empty.
@@ -350,46 +350,46 @@ Concretely:
   validated `EvalCase` (see [docs/contracts.md](contracts.md) "POST
   /api/eval-cases").
 - `successful_trajectories` grows only as humans validate success-shaped
-  EvalCases; `find_similar_successful_run` returns empty until at least one
+  EvalCases; `find_similar_successful_trajectory` returns empty until at least one
   success case has been validated.
 
 ## Re-Import Behavior
 
 `POST /api/import/molmoweb-sample` is **idempotent**:
 
-- For each imported run, `storage.save_run(run)` updates the `runs` row in
+- For each imported trajectory, `storage.save_trajectory(trajectory)` updates the `trajectories` row in
   place (task / source / status / metadata) and replaces only the associated
-  `steps` rows inside one transaction. The `runs` row itself is **not**
+  `steps` rows inside one transaction. The `trajectories` row itself is **not**
   deleted, so the cascading `screenshots` / `digests` / `traces` rows
   survive untouched.
-- The API handler then calls `storage.delete_digest(run_id)` separately
+- The API handler then calls `storage.delete_digest(trajectory_id)` separately
   because the upstream changed and the cached digest is now stale.
 - The existing `traces` row is preserved — the user's most recent analysis
-  is not destroyed by re-import (cascade-deleting it via save_run was the
+  is not destroyed by re-import (cascade-deleting it via save_trajectory was the
   bug Copilot caught on PR #1; the test
   ``test_save_run_preserves_trace_and_screenshots`` guards it).
-- ChromaDB rows in the `successful_trajectories` collection keyed by `run_id`
+- ChromaDB rows in the `successful_trajectories` collection keyed by `trajectory_id`
   are deleted on re-import. The imported trajectory returns to
   `status="unknown"` and must
   be human-validated again before it can serve as a replay-and-diff comparison
   target.
-- Screenshots are upserted by `(run_id, filename)` into the `screenshots`
+- Screenshots are upserted by `(trajectory_id, filename)` into the `screenshots`
   table; rows that exist in the DB but not in the new import are left in
   place (no orphan deletion in v1).
 
 ## Run ID
 
-`run_id` is the dataset's `sample_id`, copied through unchanged. Trajecta does not invent its own ID format. Because the value flows into DB primary keys and URLs (`/api/runs/{run_id}/...`), the importer rejects any `sample_id` that does not match `^[A-Za-z0-9_.-]{1,128}$` and fails the import early rather than silently sanitizing.
+`trajectory_id` is the dataset's `sample_id`, copied through unchanged. Trajecta does not invent its own ID format. Because the value flows into DB primary keys and URLs (`/api/trajectories/{trajectory_id}/...`), the importer rejects any `sample_id` that does not match `^[A-Za-z0-9_.-]{1,128}$` and fails the import early rather than silently sanitizing.
 
 ## Importer Surface
 
 `backend/app/dataset_importer.py` exposes:
 
 ```python
-def import_sample(source_dir: Path) -> list[TrajectoryRun]: ...
-def normalize_trajectory(raw: dict, run_id: str) -> TrajectoryRun: ...
+def import_sample(source_dir: Path) -> list[Trajectory]: ...
+def normalize_trajectory(raw: dict, trajectory_id: str) -> Trajectory: ...
 def parse_action(raw_action: str | dict) -> StepAction: ...
-def apply_status_overlay(runs: list[TrajectoryRun], overlay_path: Path) -> list[TrajectoryRun]: ...
+def apply_status_overlay(runs: list[Trajectory], overlay_path: Path) -> list[Trajectory]: ...
 ```
 
 `import_sample` is the entry point used by `POST /api/import/molmoweb-sample`: it walks `source_dir`, calls `normalize_trajectory` per sample, applies the status overlay, and returns the resulting runs. SQLite persistence and re-import cleanup are the API handler's responsibility. Dataset import does not create EvalCases and does not seed ChromaDB retrieval indexes; see the Index trigger rules in [docs/contracts.md](contracts.md#rag-collection-contracts).

@@ -10,7 +10,7 @@ The project description emphasizes the Eval Agent capability. LangGraph, ChromaD
 
 Trajectories vary in length (10–80 steps) and in failure mode. A human eval engineer does not analyze every step at full detail. They:
 
-1. Skim the run.
+1. Skim the trajectory.
 2. Form a hypothesis about where it likely failed.
 3. Zoom in on suspicious steps.
 4. Cross-reference similar past failures.
@@ -39,9 +39,9 @@ Two boundaries keep the design honest:
                           ↓
 ┌──────────────────────────────────────────────────────────┐
 │ Stage 2: ★ Eval Agent  (LangGraph tool-calling loop)
-│   Input:  trajectory_digest + user intent (Analyze Run / Step)
-│   Tools:  get_run, get_step_detail, find_similar_successful_run,
-│           search_failure_memory, search_eval_cases, propose_eval_case
+│   Input:  trajectory_digest + user intent (Analyze Trajectory / Step)
+│   Tools:  get_trajectory, get_step_detail, find_similar_successful_trajectory,
+│           search_failure_memory, search_failure_eval_cases, propose_eval_case
 │   Loop:   reason → call tool → observe → reason
 │   Stop:   agent calls propose_eval_case (terminal) OR
 │           tool-call budget reached
@@ -62,8 +62,8 @@ Tool design notes:
 
 - `propose_eval_case` is a **terminal tool**. The agent indicates "I have enough evidence" by calling it. The graph transitions to validation when this tool is invoked.
 - `get_step_detail` is the only multimodal tool. The agent is expected to call it sparingly (typically 1–4 times per run) on steps surfaced by the digest.
-- `find_similar_successful_run` is the replay-and-diff entry point. It returns successful runs of a similar task, excluding the current run when `exclude_run_id` is supplied; the agent then calls `get_run(other_run_id)` (free; not budgeted) to load the comparison digest and reasons about divergence. Calling `get_step_detail` on a step of the comparison run is allowed and counts against the budget normally.
-- `retrieved_context_ids` carries the case IDs returned by prior `search_*` calls, providing a traceable link from agent output back to retrieved evidence. Run IDs from `find_similar_successful_run` are **not** stored here; the comparison is traced through `AgentTrace` events.
+- `find_similar_successful_trajectory` is the replay-and-diff entry point. It returns successful runs of a similar task, excluding the current run when `exclude_trajectory_id` is supplied; the agent then calls `get_trajectory(other_trajectory_id)` (free; not budgeted) to load the comparison digest and reasons about divergence. Calling `get_step_detail` on a step of the comparison trajectory is allowed and counts against the budget normally.
+- `retrieved_context_ids` carries the case IDs returned by prior `search_*` calls, providing a traceable link from agent output back to retrieved evidence. Run IDs from `find_similar_successful_trajectory` are **not** stored here; the comparison is traced through `AgentTrace` events.
 
 ## LangGraph State
 
@@ -76,8 +76,8 @@ from langchain_core.messages import AnyMessage
 
 
 class EvalState(TypedDict):
-    run_id: str
-    user_intent: Literal["analyze_run", "analyze_step"]
+    trajectory_id: str
+    user_intent: Literal["analyze_trajectory", "analyze_step"]
     selected_step: Optional[int]
     trajectory_digest: List[Dict[str, Any]]
     messages: List[AnyMessage]           # agent reasoning + tool-call history
@@ -97,7 +97,7 @@ START
   → END
 ```
 
-The `preprocess` graph node is a thin wrapper around `preprocess.load_or_build_digest` — the same function that backs the standalone Pipeline Stage 1 and the `POST /api/runs/{run_id}/preprocess` endpoint. There is one implementation; the node, the endpoint, and the pipeline diagram refer to it.
+The `preprocess` graph node is a thin wrapper around `preprocess.load_or_build_digest` — the same function that backs the standalone Pipeline Stage 1 and the `POST /api/trajectories/{trajectory_id}/preprocess` endpoint. There is one implementation; the node, the endpoint, and the pipeline diagram refer to it.
 
 `agent_loop` is a `tools_condition` style cycle: the model produces a message, if it contains tool calls they execute and feed back into the model, otherwise the loop ends. Termination is triggered by either:
 
@@ -128,17 +128,17 @@ Hard rule: **any field in the final `EvalCase` that depends on visual text, targ
 
 The system prompt instructs the agent to:
 
-1. Call `get_run(run_id)` once at the start to load run metadata and the digest.
+1. Call `get_trajectory(trajectory_id)` once at the start to load trajectory metadata and the digest.
 2. Read the `trajectory_digest`, `user_intent`, and optional `selected_step`.
 3. Form an initial hypothesis about where the run likely failed.
-4. For `analyze_run`, call `get_step_detail` on the most suspicious steps (typically 1–4). Backtrack to earlier steps if the root cause appears upstream.
-5. For `analyze_step`, call `get_step_detail(run_id, selected_step)` first, inspect adjacent steps if needed, and still allow backtracking when evidence indicates the root cause is upstream.
-6. Call `find_similar_successful_run(task, exclude_run_id=current_run_id)` once a likely failure region is identified. If a comparable success run exists, call `get_run(other_run_id)` and diff the digests step-by-step; use `get_step_detail` on the comparison run only when the digest-level diff is ambiguous.
-7. Call `search_failure_memory` and/or `search_eval_cases` with queries grounded in observed evidence — including divergence patterns surfaced by replay-and-diff.
+4. For `analyze_trajectory`, call `get_step_detail` on the most suspicious steps (typically 1–4). Backtrack to earlier steps if the root cause appears upstream.
+5. For `analyze_step`, call `get_step_detail(trajectory_id, selected_step)` first, inspect adjacent steps if needed, and still allow backtracking when evidence indicates the root cause is upstream.
+6. Call `find_similar_successful_trajectory(task, exclude_trajectory_id=current_trajectory_id)` once a likely failure region is identified. If a comparable success run exists, call `get_trajectory(other_trajectory_id)` and diff the digests step-by-step; use `get_step_detail` on the comparison trajectory only when the digest-level diff is ambiguous.
+7. Call `search_failure_memory` and/or `search_failure_eval_cases` with queries grounded in observed evidence — including divergence patterns surfaced by replay-and-diff.
 8. When evidence is sufficient, call `propose_eval_case`. Two valid call shapes (the EvalCase schema enforces XOR — half-populated drafts raise):
    - **Failure verdict**: pass all five failure fields (`failure_step`, `failure_type`, `expected_behavior`, `actual_behavior`, `regression_rule`) plus `evidence` and `retrieved_context_ids`.
-   - **Success verdict** ("no failure found"): omit all five failure fields; pass only `evidence` and `retrieved_context_ids`. The case_id is generated in the `ec_{run_id}_success` namespace and a second success case for the same run returns 409 on validation.
-9. Never invent evidence. If a screenshot, coordinate, or successful comparison run is missing, include an `EvidenceItem` with `source="unavailable"` and a claim that states what was unavailable.
+   - **Success verdict** ("no failure found"): omit all five failure fields; pass only `evidence` and `retrieved_context_ids`. The case_id is generated in the `ec_{trajectory_id}_success` namespace and a second success case for the same run returns 409 on validation.
+9. Never invent evidence. If a screenshot, coordinate, or successful comparison trajectory is missing, include an `EvidenceItem` with `source="unavailable"` and a claim that states what was unavailable.
 
 The agent is constrained by a **per-turn** tool-call budget to bound cost and latency:
 
@@ -147,19 +147,19 @@ The agent is constrained by a **per-turn** tool-call budget to bound cost and la
 
 Budget accounting:
 
-- Counts: `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `find_similar_successful_run`.
-- Does not count: `get_run`, `propose_eval_case`.
-- `get_run` is free even when called on a comparison run returned by `find_similar_successful_run`, but any `get_step_detail` call against that comparison run counts normally.
+- Counts: `get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`, `find_similar_successful_trajectory`.
+- Does not count: `get_trajectory`, `propose_eval_case`.
+- `get_trajectory` is free even when called on a comparison trajectory returned by `find_similar_successful_trajectory`, but any `get_step_detail` call against that comparison trajectory counts normally.
 - The budget resets at the start of each turn. Exceeding the per-turn budget terminates **only that turn** with `terminated_by="budget_exceeded"`; the user may still send another follow-up. `AgentTrace.tool_call_count` keeps incrementing across turns so the total cost remains visible.
 - The comparator semantic is `tool_call_count_for_this_turn < budget`: an in-flight tool call is allowed when the pre-call count is strictly less than the budget. The Nth budgeted call is permitted; the (N+1)th is rejected.
 
 ## Follow-up Mode
 
-After the initial analyze has produced a trace, the user may ask follow-up questions via `POST /api/runs/{run_id}/followup`. This is a second-and-onward turn over the same trace; it is **not** a fresh agent run.
+After the initial analyze has produced a trace, the user may ask follow-up questions via `POST /api/trajectories/{trajectory_id}/followup`. This is a second-and-onward turn over the same trace; it is **not** a fresh agent run.
 
 ### Lifecycle
 
-1. The handler loads the persisted trace via `storage.load_trace(run_id)`. If absent (no `traces` row for this `run_id`), returns `409` — follow-up has no meaning before an analyze.
+1. The handler loads the persisted trace via `storage.load_trace(trajectory_id)`. If absent (no `traces` row for this `trajectory_id`), returns `409` — follow-up has no meaning before an analyze.
 2. The handler appends one `AgentTraceEvent(type="user_message", message=..., turn=prior_turn_count)` with the next `seq`.
 3. The handler resumes the `agent_loop` node with the existing `messages` (LangGraph state-continuation), reset per-turn budget counter, and the new user message attached as the latest entry.
 4. The loop runs the standard `reason → call tool → observe → reason` cycle, appending new events with the same `turn` value.
@@ -167,7 +167,7 @@ After the initial analyze has produced a trace, the user may ask follow-up quest
    - Agent calls `propose_eval_case` → the new draft **replaces** the previous draft in the response. `terminated_by="propose_eval_case"`. `AgentTrace.turn_count` increments.
    - Per-turn budget exhausted → `terminated_by="budget_exceeded"`. The user may follow up again.
    - Terminal tool validation error → `terminated_by="error"`. The user may follow up again to correct.
-6. The updated trace is written back via `storage.save_trace(run_id, trace)`, replacing the previous `traces` row inside one transaction.
+6. The updated trace is written back via `storage.save_trace(trajectory_id, trace)`, replacing the previous `traces` row inside one transaction.
 
 ### Prompt context
 
@@ -196,10 +196,10 @@ Errors are populated for budget exhaustion and terminal-tool errors. "Ending the
 Tests must not depend on a live LLM. When no usable LLM credentials are
 configured, `eval_agent_graph.py` should use a deterministic mock agent:
 
-1. Call `get_run(run_id)`.
-2. For `analyze_step`, call `get_step_detail(run_id, selected_step)`.
-3. For `analyze_run`, call `get_step_detail` on the first failed step in the digest, or step 0 if no failed step is present.
-4. Call `find_similar_successful_run(task, top_k=1, exclude_run_id=current_run_id)`. If the result is non-empty, call `get_run(result[0]["run_id"])` to exercise the comparison path. If empty, skip silently.
+1. Call `get_trajectory(trajectory_id)`.
+2. For `analyze_step`, call `get_step_detail(trajectory_id, selected_step)`.
+3. For `analyze_trajectory`, call `get_step_detail` on the first failed step in the digest, or step 0 if no failed step is present.
+4. Call `find_similar_successful_trajectory(task, top_k=1, exclude_trajectory_id=current_trajectory_id)`. If the result is non-empty, call `get_trajectory(result[0]["trajectory_id"])` to exercise the comparison path. If empty, skip silently.
 5. Call `search_failure_memory("missed_constraint", top_k=1)`.
 6. Call `propose_eval_case(...)` using the returned first case ID as `retrieved_context_ids[0]`.
 
@@ -226,10 +226,10 @@ observability layer.
 
 Persistence and consumers:
 
-- Persisted as the `traces` row keyed by `run_id`, written by `storage.save_trace`. Overwritten on each `/analyze` (fresh trace) and on each `/followup` (in-place update with appended events). Older traces are not retained in v1.
-- Returned in full on `POST /api/runs/{run_id}/analyze` and `POST /api/runs/{run_id}/followup`.
+- Persisted as the `traces` row keyed by `trajectory_id`, written by `storage.save_trace`. Overwritten on each `/analyze` (fresh trace) and on each `/followup` (in-place update with appended events). Older traces are not retained in v1.
+- Returned in full on `POST /api/trajectories/{trajectory_id}/analyze` and `POST /api/trajectories/{trajectory_id}/followup`.
 - Rendered by the frontend `EvalAgentPanel` as a chat-style timeline (`user_message`, `agent_message`, `tool_call` / `tool_result` summaries), grouped by `turn`. See [docs/frontend.md](frontend.md).
-- Read by `ragas_eval.py`. The latest `propose_eval_case` tool-call args provide the RAGAS `answer` ([docs/testing.md](testing.md)). All `tool_result` events whose `name` is `search_failure_memory` or `search_eval_cases` — **across all turns of the trace** — provide the retrieved contexts. RAGAS must not re-run retrieval.
+- Read by `ragas_eval.py`. The latest `propose_eval_case` tool-call args provide the RAGAS `answer` ([docs/testing.md](testing.md)). All `tool_result` events whose `name` is `search_failure_memory` or `search_failure_eval_cases` — **across all turns of the trace** — provide the retrieved contexts. RAGAS must not re-run retrieval.
 - New traces stamp `prompt_version` and `prompt_sha256` from the active prompt bundle under `prompts/eval_agent/`. Follow-ups reuse the trace's prompt version so a resumed analysis stays reproducible.
 - High-detail `get_step_detail` tool results stamp `vlm_prompt_version` and `vlm_prompt_sha256` from `prompts/vlm_high_detail/`, so the generated visual evidence is reproducible too.
 
@@ -258,7 +258,7 @@ The agent prompt is laid out with the stable prefix first — system prompt, the
 ## MCP Exposure
 
 MCP exposure shipped in Phase 8 B1, after the Gemini judge agreement path. The
-entire `agent_loop` described above should be reachable via the `analyze_run`
+entire `agent_loop` described above should be reachable via the `analyze_trajectory`
 tool in `trajecta_mcp/server.py` (shipped in Phase 8 B1). External coding agents (Claude
 Code, Cursor) would invoke the full LangGraph cycle as a single MCP call rather
 than orchestrating individual tools across the MCP boundary. Per-turn budget,
@@ -268,8 +268,8 @@ unchanged across MCP invocations; the only observable difference is
 
 `trajecta_mcp/server.py` is a thin transport adapter built on the standalone
 `fastmcp` package — it does not duplicate any logic in this file. Tools
-are registered via `@mcp.tool()` decorators; the `analyze_run` tool
-delegates directly to `eval_agent_graph.analyze_run(..., source="mcp")`.
+are registered via `@mcp.tool()` decorators; the `analyze_trajectory` tool
+delegates directly to `eval_agent_graph.analyze_trajectory(..., source="mcp")`.
 See [docs/mcp.md](mcp.md) for the tool surface, the include/exclude
 rationale, and the rationale for exposing the loop as a composite rather
 than as raw tools.
@@ -292,7 +292,7 @@ description: Use when a browser-agent trajectory has a suspected or labeled fail
 # Create Eval Case
 
 ## Inputs
-- run_id
+- trajectory_id
 - optional failure_step
 - optional human_note
 

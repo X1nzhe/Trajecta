@@ -6,10 +6,10 @@ MCP shipped in **Phase 8 B1**; it was lower priority than the
 LLM-judge agreement path. The B1.5 live-client smoke is accepted from the
 operator's MCP Inspector test.
 
-`trajecta_mcp/server.py` exposes six tools (`list_runs`, `get_run`,
-`get_step_detail`, `search_failure_memory`, `search_eval_cases`,
-`analyze_run`); persistence and destructive operations are deliberately
-excluded. The load-bearing tool is `analyze_run`, a **composite** that wraps the
+`trajecta_mcp/server.py` exposes six tools (`list_trajectories`, `get_trajectory`,
+`get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`,
+`analyze_trajectory`); persistence and destructive operations are deliberately
+excluded. The load-bearing tool is `analyze_trajectory`, a **composite** that wraps the
 entire LangGraph Eval Agent loop as a single MCP call — not a transport wrapper
 around individual tools.
 
@@ -40,8 +40,8 @@ least-privilege artefact in [docs/security_governance.md](security_governance.md
 
 - Implement Trajectory Preprocessing (`preprocess.py`) per [docs/preprocessing.md](preprocessing.md): build the `trajectory_digest` with low-detail VLM hints, parsed actions, and coordinate validation
 - Implement ChromaDB RAG (`failure_pattern_memory`, `failure_eval_cases`, and `successful_trajectories`; `failure_pattern_memory` is implemented as the `failure_memory` collection)
-- Implement the LangGraph tool-calling Eval Agent with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and the terminal `propose_eval_case` tool
-- Convert the agent loop's final `messages` into an `AgentTrace` and persist via `storage.save_trace(run_id, trace)` (writes the `traces` SQLite row, overwritten each analyze; originally written as `data/runs/{run_id}/last_trace.json` pre-SQLite refactor)
+- Implement the LangGraph tool-calling Eval Agent with `get_trajectory`, `get_step_detail`, `find_similar_successful_trajectory`, `search_failure_memory`, `search_failure_eval_cases`, and the terminal `propose_eval_case` tool
+- Convert the agent loop's final `messages` into an `AgentTrace` and persist via `storage.save_trace(trajectory_id, trace)` (writes the `traces` SQLite row, overwritten each analyze; originally written as `data/runs/{trajectory_id}/last_trace.json` pre-SQLite refactor)
 
 ### Phase 4 - Done
 
@@ -59,8 +59,8 @@ least-privilege artefact in [docs/security_governance.md](security_governance.md
 ### Phase 6 - Done
 
 - Add Eval Agent panel as a chat-style timeline (renders trace events grouped by turn)
-- Wire Analyze Run / Analyze Step as the only fresh-trace entrypoints
-- Implement `POST /api/runs/{run_id}/followup` endpoint and the chat input + prompt chips that drive it (~+1-1.5 days vs. button-only design)
+- Wire Analyze Trajectory / Analyze Step as the only fresh-trace entrypoints
+- Implement `POST /api/trajectories/{trajectory_id}/followup` endpoint and the chat input + prompt chips that drive it (~+1-1.5 days vs. button-only design)
 - Termination badge, View Draft / Mark validated / Export eval case flow
 - Visual-only thumbs feedback (not wired)
 - Footer dataset/run summary
@@ -97,7 +97,7 @@ Operating spec: [docs/phase8_s18_alignment.md](phase8_s18_alignment.md).
 - `docs/failure_analysis.md` — 2–3 cases + one-line trade-off
 
 **8.B — MCP + Component Story** (lower priority than 8.A judge work)
-- `trajecta_mcp/server.py` — shipped six-tool server, `analyze_run` composite, deliberate exclusions
+- `trajecta_mcp/server.py` — shipped six-tool server, `analyze_trajectory` composite, deliberate exclusions
 - `docs/mcp.md` — design source of truth
 - `docs/security_governance.md` — completed security/governance mechanisms framed separately from the (now shipped) MCP work
 - B6 Spotlighting hardening (shipped) — `spotlight_wrap()` delimiting utility, anti-injection preamble in the system prompt, and wrapping of untrusted trajectory text in the digest + `get_step_detail`. Unit-tested but deliberately **unmeasured**; a formal injection benchmark (`injection_resistance_rate` ablation) is a possible future security-evaluation phase, not Phase 8 work.
@@ -158,11 +158,11 @@ are actually done:
 
 - Built **Trajecta**, an AI-native Eval Agent for browser-agent trajectory evaluation that converts raw trajectories into human-reviewable regression eval cases. Filled the missing layer between browser-control MCP servers (browser-use, Browserbase) and trajectory datasets (MolmoWeb-HumanSkills, WebArena) — a remote callable agent that diagnoses failures with retrieval-grounded evidence.
 - Designed and implemented a **LangGraph tool-calling agent** with multi-turn follow-up: the agent autonomously decides which trajectory steps to deep-dive, when to retrieve failure memory, and when to terminate via a typed `propose_eval_case` tool — users can ask follow-up questions that resume the same trace under a smaller per-turn budget, with the agent free to revise the draft.
-- Shipped a lower-priority **MCP composite** exposing the entire LangGraph Eval Agent as a single `analyze_run` tool, verified through MCP Inspector. The design keeps external coding agents on one remote call that internally orchestrates RAG retrieval, coarse-to-fine VLM inspection, and structured `EvalCase` proposal — while persistence and validation remain HITL-gated outside the MCP boundary.
+- Shipped a lower-priority **MCP composite** exposing the entire LangGraph Eval Agent as a single `analyze_trajectory` tool, verified through MCP Inspector. The design keeps external coding agents on one remote call that internally orchestrates RAG retrieval, coarse-to-fine VLM inspection, and structured `EvalCase` proposal — while persistence and validation remain HITL-gated outside the MCP boundary.
 - Reduced visual-token cost ~80 % via a **coarse-to-fine VLM strategy**: Trajectory Preprocessing calls a low-detail VLM (~85 tokens/image) on every step to build a digest, while high-detail VLM is invoked on demand by the agent only for steps it flags as suspicious. Measured the savings end-to-end against the naive all-steps-high-detail baseline.
 - Built **ChromaDB-backed RAG** over failure memory and prior eval cases, with agent-authored queries and traceable `retrieved_context_ids` linking each generated case back to its supporting evidence.
 - Designed and implemented an **LLM-judge eval harness** wired as an `agent_eval` post-step, scoring generated eval case drafts as `acceptable_eval_case` over a 35-case golden set with env-configured Gemini-compatible and OpenAI-compatible judges; reported Cohen's κ between the two LLM judges, with disagreement analysis when κ < 0.6 rather than relaxing the judge contract.
-- Shipped a **Spotlighting prompt input validation** defense (Hines et al. MSR 2024) against indirect prompt injection in browser-trajectory text — per-run random delimiter tokens wrap untrusted digest fields and `get_step_detail` output, paired with an anti-injection preamble in the system prompt and an env toggle (`TRAJECTA_SPOTLIGHTING`). Framed honestly as unit-tested but unmeasured hardening; a formal `injection_resistance_rate` benchmark is left to a future security-evaluation phase.
+- Shipped a **Spotlighting prompt input validation** defense (Hines et al. MSR 2024) against indirect prompt injection in browser-trajectory text — per-trajectory random delimiter tokens wrap untrusted digest fields and `get_step_detail` output, paired with an anti-injection preamble in the system prompt and an env toggle (`TRAJECTA_SPOTLIGHTING`). Framed honestly as unit-tested but unmeasured hardening; a formal `injection_resistance_rate` benchmark is left to a future security-evaluation phase.
 - Ran a **prompt-iteration experiment** (v1 → v5) on a real-LLM 31-sample evaluation, logging metric deltas per round and surfacing negative-result rounds; best headline prompt reached 80.6 % binary accuracy, while the v5 failure-sensitive prompt reached 100 % failure recall at about $0.030/run.
 - Evaluated retrieval-grounded analysis with real **RAGAS faithfulness** over persisted agent traces.
 - Built a **React replay UI** for screenshot-based trajectory inspection, coordinate validation, agent reasoning visualisation, and eval case export.

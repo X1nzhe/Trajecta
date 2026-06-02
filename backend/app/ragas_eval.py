@@ -5,23 +5,23 @@ Run as: ``python -m backend.app.ragas_eval``.
 Reads every persisted ``AgentTrace``, keeps the ones that terminated
 via ``propose_eval_case``, and builds RAGAS faithfulness samples from
 the actual RAG tool calls recorded in the trace. Retrieval is **not**
-re-run: the trace's ``search_failure_memory`` / ``search_eval_cases``
+re-run: the trace's ``search_failure_memory`` / ``search_failure_eval_cases``
 tool-call queries and tool-result items are the evidence pool (see
 ``docs/testing.md`` and ``docs/eval_agent.md`` Observability).
 
 ## Trace sources (Phase 8 A6.1)
 
 Trajecta has two on-disk locations that may carry persisted traces.
-``collect_samples`` reads both in this precedence order **per run_id**:
+``collect_samples`` reads both in this precedence order **per trajectory_id**:
 
-1. ``--trace-dir <path>/<run_id>.json`` — the per-sample dumps produced
+1. ``--trace-dir <path>/<trajectory_id>.json`` — the per-sample dumps produced
    by ``python -m backend.app.agent_eval --trace-dir …`` (Phase 8 A2).
    Explicit trace dirs bind A6 to the same formal eval artefact set.
 2. The SQLite ``traces`` table — populated by the UI/API
-   ``analyze_run`` flow and accessed via ``storage.load_trace``.
+   ``analyze_trajectory`` flow and accessed via ``storage.load_trace``.
 
-The run-id set graded is the **union** of run_ids visible in
-``storage.list_runs()`` and any ``*.json`` files under the supplied
+The run-id set graded is the **union** of trajectory_ids visible in
+``storage.list_trajectories()`` and any ``*.json`` files under the supplied
 trace dir. The pre-storage-refactor ``data/runs/<id>/last_trace.json``
 path is no longer read — that layout was retired by the storage
 migration in Phase 6.
@@ -59,7 +59,7 @@ from backend.app import storage
 from backend.app.schemas import AgentTrace, AgentTraceEvent
 
 
-SEARCH_TOOL_ORDER = ("search_failure_memory", "search_eval_cases")
+SEARCH_TOOL_ORDER = ("search_failure_memory", "search_failure_eval_cases")
 SEARCH_TOOL_NAMES = set(SEARCH_TOOL_ORDER)
 TERMINAL_TOOL = "propose_eval_case"
 GROUND_TRUTH_SOURCE_NONE = "none"
@@ -67,7 +67,7 @@ GROUND_TRUTH_SOURCE_NONE = "none"
 
 @dataclass
 class RagasSample:
-    run_id: str
+    trajectory_id: str
     question: str
     answer: str
     contexts: list[str]
@@ -137,7 +137,7 @@ def build_retrieval_stats(samples: list[dict[str, Any]]) -> dict[str, Any]:
     * ``cited_context_ids`` — the subset the final ``propose_eval_case``
       *referenced*. These are trace-level (the same list rides on every RAG
       sample of a trace and is not tool-specific), so they are deduped per
-      ``run_id`` before aggregating — never summed per-sample or charged to a
+      ``trajectory_id`` before aggregating — never summed per-sample or charged to a
       single tool.
     """
 
@@ -182,11 +182,11 @@ def build_retrieval_stats(samples: list[dict[str, Any]]) -> dict[str, Any]:
         tool_stats["sample_count"] += 1
         tool_stats["retrieved_context_count"] += len(contexts)
 
-        raw_run_id = sample.get("run_id")
-        run_id = raw_run_id if isinstance(raw_run_id, str) and raw_run_id else ""
+        raw_trajectory_id = sample.get("trajectory_id")
+        trajectory_id = raw_trajectory_id if isinstance(raw_trajectory_id, str) and raw_trajectory_id else ""
         # Group cited ids per trace so the proposal's list is counted once,
         # regardless of how many RAG samples the trace produced.
-        cited_by_run.setdefault(run_id, set()).update(cited_context_ids)
+        cited_by_run.setdefault(trajectory_id, set()).update(cited_context_ids)
 
         for context in contexts:
             context_id = _context_id_from_context_text(context)
@@ -287,7 +287,7 @@ def _latest_proposal(trace: AgentTrace) -> AgentTraceEvent | None:
 
 
 def _context_text_from_item(item: dict[str, Any]) -> str:
-    case_id = item.get("case_id") or item.get("run_id") or ""
+    case_id = item.get("case_id") or item.get("trajectory_id") or ""
     summary = item.get("summary") or item.get("task") or ""
     tags = item.get("tags") or []
     tag_str = ",".join(tags) if isinstance(tags, list) else ""
@@ -325,8 +325,8 @@ def _iter_rag_tool_samples(trace: AgentTrace) -> list[tuple[str, str, list[str]]
     return samples
 
 
-def load_trace_for_run_id(
-    run_id: str,
+def load_trace_for_trajectory_id(
+    trajectory_id: str,
     *,
     trace_dir: Path | None = None,
 ) -> AgentTrace | None:
@@ -334,43 +334,43 @@ def load_trace_for_run_id(
 
     Precedence (per ``docs/phase8_s18_alignment.md`` A6.1):
 
-      1. ``trace_dir/<run_id>.json`` — the per-sample dump produced
+      1. ``trace_dir/<trajectory_id>.json`` — the per-sample dump produced
          by ``agent_eval --trace-dir`` when a trace dir is supplied.
-      2. ``storage.load_trace(run_id)`` — the SQLite ``traces`` row
-         that ``analyze_run`` writes.
+      2. ``storage.load_trace(trajectory_id)`` — the SQLite ``traces`` row
+         that ``analyze_trajectory`` writes.
 
     Returns ``None`` when neither source carries a trace. Raises
     ``ValidationError`` only when the trace-dir file exists but does not
     parse — the caller is expected to count those as ``error`` skips.
     """
     if trace_dir is not None:
-        path = trace_dir / f"{run_id}.json"
+        path = trace_dir / f"{trajectory_id}.json"
         if path.exists():
             return AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
-    return storage.load_trace(run_id)
+    return storage.load_trace(trajectory_id)
 
 
-def _discover_run_ids(*, trace_dir: Path | None) -> list[str]:
-    """Enumerate every run_id with a persisted trace worth grading.
+def _discover_trajectory_ids(*, trace_dir: Path | None) -> list[str]:
+    """Enumerate every trajectory_id with a persisted trace worth grading.
 
     The discovery set is the **union** of SQLite-resident runs and any
     ``*.json`` files under the supplied trace dir. Returning a sorted
     list keeps the eval deterministic across invocations and across
     operating systems with different `iterdir` ordering.
     """
-    run_ids: set[str] = set()
+    trajectory_ids: set[str] = set()
     try:
-        run_ids.update(run.run_id for run in storage.list_runs())
+        trajectory_ids.update(trajectory.trajectory_id for trajectory in storage.list_trajectories())
     except Exception:
-        # storage.list_runs hits the SQLite DB. A missing data dir or
+        # storage.list_trajectories hits the SQLite DB. A missing data dir or
         # a fresh checkout is a valid no-op — the eval still runs over
         # the trace-dir fallback if one was supplied.
         pass
     if trace_dir is not None and trace_dir.is_dir():
         for path in trace_dir.glob("*.json"):
             if path.is_file():
-                run_ids.add(path.stem)
-    return sorted(run_ids)
+                trajectory_ids.add(path.stem)
+    return sorted(trajectory_ids)
 
 
 def collect_samples(
@@ -381,7 +381,7 @@ def collect_samples(
 ) -> tuple[list[RagasSample], SkippedCounts]:
     """Collect RAGAS samples from persisted traces.
 
-    See the module docstring (§ Trace sources) for the per-run_id
+    See the module docstring (§ Trace sources) for the per-trajectory_id
     precedence rule. ``data_root`` is retained for CLI compatibility but
     no longer contributes a ground-truth label: the formal A6 metric is
     no-ground-truth faithfulness over retrieved contexts.
@@ -393,16 +393,16 @@ def collect_samples(
         (or via the budget guardrail), failed validation, or had no
         terminal-tool args.
       * ``no_trace`` — neither SQLite nor the trace dir held a trace
-        for that run_id.
+        for that trajectory_id.
       * ``no_context`` — a terminal trace had no usable RAG tool result
         contexts for faithfulness scoring.
     """
     samples: list[RagasSample] = []
     skipped = SkippedCounts()
 
-    for run_id in _discover_run_ids(trace_dir=trace_dir):
+    for trajectory_id in _discover_trajectory_ids(trace_dir=trace_dir):
         try:
-            trace = load_trace_for_run_id(run_id, trace_dir=trace_dir)
+            trace = load_trace_for_trajectory_id(trajectory_id, trace_dir=trace_dir)
         except ValidationError:
             skipped.error += 1
             continue
@@ -443,7 +443,7 @@ def collect_samples(
                 continue
             samples.append(
                 RagasSample(
-                    run_id=trace.run_id,
+                    trajectory_id=trace.trajectory_id,
                     question=query,
                     answer=answer,
                     contexts=contexts,
@@ -574,7 +574,7 @@ def build_report(
     report.ground_truth_source = _resolve_ground_truth_source(samples)
     report.samples = [
         {
-            "run_id": s.run_id,
+            "trajectory_id": s.trajectory_id,
             "question": s.question,
             "answer": s.answer,
             "contexts": s.contexts,
@@ -743,7 +743,7 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     lines.append("")
     lines.append(
         "Trace source precedence (Phase 8 A6.1): explicit `--trace-dir` "
-        "Phase 8 A2 dumps first at `<trace_dir>/<run_id>.json`; on miss, "
+        "Phase 8 A2 dumps first at `<trace_dir>/<trajectory_id>.json`; on miss, "
         "fall back to the SQLite `traces` table (`storage.load_trace`). "
         "The run-id discovery "
         "set is the union of SQLite-resident runs and `<trace_dir>/*.json` "
@@ -751,7 +751,7 @@ def write_report(report: RagasReport, output_dir: Path) -> tuple[Path, Path]:
     )
     lines.append(
         "Each RAGAS sample corresponds to one recorded `search_failure_memory` "
-        "or `search_eval_cases` tool call: `question` is the tool query, "
+        "or `search_failure_eval_cases` tool call: `question` is the tool query, "
         "`contexts` are that tool result's items, and `answer` is the final "
         "`propose_eval_case` actual_behavior plus evidence claims."
     )
@@ -774,7 +774,7 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Optional Phase 8 A2 trace-dump directory "
             "(eval/runs/<stamp>/traces/). When supplied, this source is "
-            "preferred over SQLite per run_id so A6 binds to the selected "
+            "preferred over SQLite per trajectory_id so A6 binds to the selected "
             "agent_eval artefacts."
         ),
     )

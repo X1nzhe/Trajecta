@@ -12,7 +12,7 @@ Use this README as the presentation entry point:
 
 1. **Problem** - browser-control agents and trajectory datasets exist, but teams still need a repeatable way to diagnose recorded failures and turn them into regression eval cases.
 2. **System architecture** - walk through the diagram below: imported trajectories, preprocessing, RAG, tool-calling Eval Agent, UI, MCP, and eval harness.
-3. **UI demo** - import the bundled MolmoWeb sample, select a run, replay screenshots/actions, click `Analyze Run`, inspect the trace, validate/export the draft.
+3. **UI demo** - import the bundled MolmoWeb sample, select a run, replay screenshots/actions, click `Analyze Trajectory`, inspect the trace, validate/export the draft.
 4. **MCP demo** - show Trajecta as a remote callable composite tool through MCP Inspector or a coding-agent client.
 5. **Experiments** - show the golden set, v1 to v5 prompt iteration, dual LLM judge agreement, RAGAS result, VLM cost savings, and pytest status.
 6. **Boundaries** - v1 closes on trajectory evaluation only: no live browser control, no recorder middleware, no reviewer UI, no security benchmark, no v2 backlog work.
@@ -22,11 +22,11 @@ Use this README as the presentation entry point:
 ```mermaid
 flowchart LR
   Dataset["MolmoWeb-HumanSkills sample fixtures"] --> Importer["Dataset importer"]
-  Importer --> SQLite[("SQLite data/trajecta.db<br/>runs = all trajectories<br/>eval_cases = success + failure<br/>steps, screenshots, digests, traces")]
+  Importer --> SQLite[("SQLite data/trajecta.db<br/>trajectories = imported records<br/>eval_cases = success + failure<br/>steps, screenshots, digests, traces")]
   FailureSeed["failure_pattern_memory seed<br/>data/failure_memory/cases.jsonl"] --> SQLite
   SQLite --> Preprocess["Trajectory preprocessing<br/>parse actions<br/>validate coordinates<br/>low-detail VLM digest"]
   Preprocess --> Agent["LangGraph Eval Agent"]
-  SQLite --> Tools["Typed tools<br/>get_run<br/>get_step_detail<br/>find_similar_successful_run<br/>search_failure_memory<br/>search_eval_cases<br/>propose_eval_case"]
+  SQLite --> Tools["Typed tools<br/>get_trajectory<br/>get_step_detail<br/>find_similar_successful_trajectory<br/>search_failure_memory<br/>search_failure_eval_cases<br/>propose_eval_case"]
   Chroma[("ChromaDB data/chroma<br/>failure_pattern_memory<br/>failure_eval_cases<br/>successful_trajectories")] --> Tools
   Tools --> Agent
   Agent --> Draft["EvalCase draft<br/>human_validated=false"]
@@ -44,8 +44,7 @@ flowchart LR
 Core contracts live in [docs/contracts.md](docs/contracts.md). Behavior docs live in [docs/preprocessing.md](docs/preprocessing.md), [docs/eval_agent.md](docs/eval_agent.md), [docs/rag.md](docs/rag.md), [docs/api.md](docs/api.md), and [docs/architecture.md](docs/architecture.md).
 
 Terminology note: `trajectory` is the canonical product term. Current public
-API/tool names such as `run`, `run_id`, `/api/runs`, and `get_run` remain
-legacy-compatible names for trajectories until a later migration.
+API/tool names are now fully canonical (`trajectory_id`, `/api/trajectories`, `get_trajectory`, `trajectories` table). The word `run` survives only as `eval/runs/<timestamp>/`, one evaluation execution — not a trajectory.
 
 ## Quick Start
 
@@ -68,9 +67,9 @@ npm run dev
 Open the Vite URL, then:
 
 1. Click `Import Dataset` to load the bundled `data/raw/molmoweb_humanskills_sample/` fixture runs.
-2. Select a run from the left panel.
+2. Select a trajectory from the left panel.
 3. Replay screenshots, actions, observations, and coordinate validation.
-4. Click `Analyze Run` or `Analyze Selected Step`.
+4. Click `Analyze Trajectory` or `Analyze Selected Step`.
 5. Review the Eval Agent trace, retrieved evidence, termination badge, and eval case draft.
 6. Mark the reviewed draft validated, then export `eval_case.json`.
 
@@ -174,7 +173,7 @@ python -m backend.app.agent_eval \
   --trace-dir eval/runs/2026-05-30T03-54-45Z/traces
 ```
 
-Existing `{run_id}.json` traces are reused and not billed again. The prompt version must match the trace metadata; mismatches fail fast to avoid mixing outputs from different prompt versions.
+Existing `{trajectory_id}.json` traces are reused and not billed again. The prompt version must match the trace metadata; mismatches fail fast to avoid mixing outputs from different prompt versions.
 
 ### Prompt Iteration
 
@@ -267,9 +266,9 @@ npx @modelcontextprotocol/inspector python trajecta_mcp/server.py
 Manual acceptance:
 
 1. Connect succeeds.
-2. Tools tab lists exactly six tools: `list_runs`, `get_run`, `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `analyze_run`.
-3. `list_runs` returns imported Trajecta runs.
-4. `analyze_run` returns an `eval_case_draft` and an `agent_trace`.
+2. Tools tab lists exactly six tools: `list_trajectories`, `get_trajectory`, `get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`, `analyze_trajectory`.
+3. `list_trajectories` returns imported Trajecta runs.
+4. `analyze_trajectory` returns an `eval_case_draft` and an `agent_trace`.
 5. The returned trace has `agent_trace.source == "mcp"`.
 6. Excluded mutation/admin tools are absent.
 
@@ -293,9 +292,9 @@ Demo conversation:
 
 ```text
 You: List my Trajecta runs.
-Client: <calls trajecta.list_runs(), picks a failed sample>
+Client: <calls trajecta.list_trajectories(), picks a failed sample>
 You: Why did this booking run fail?
-Client: <calls trajecta.analyze_run(run_id)>
+Client: <calls trajecta.analyze_trajectory(trajectory_id)>
         <Trajecta runs digest -> step inspection -> RAG retrieval -> propose_eval_case>
         <returns EvalCase draft + AgentTrace>
 You: <open the Trajecta UI to validate the draft>
@@ -308,7 +307,7 @@ The MCP surface deliberately excludes `save_validated_eval_case`, `delete_*`, `i
 ```json
 {
   "case_id": "ec_run_001_step_3",
-  "source_run_id": "run_001",
+  "source_trajectory_id": "run_001",
   "task": "Find a hotel under $200 with free parking.",
   "failure_step": 3,
   "failure_type": "missed_constraint",
@@ -318,7 +317,7 @@ The MCP surface deliberately excludes `save_validated_eval_case`, `delete_*`, `i
     {
       "claim": "Step 3 selected a hotel result.",
       "source": "step_detail_high",
-      "run_id": "run_001",
+      "trajectory_id": "run_001",
       "step_index": 3,
       "trace_event_seq": 4,
       "context_id": null
@@ -326,7 +325,7 @@ The MCP surface deliberately excludes `save_validated_eval_case`, `delete_*`, `i
     {
       "claim": "No inspected step verified free parking before selection.",
       "source": "trajectory",
-      "run_id": "run_001",
+      "trajectory_id": "run_001",
       "step_index": null,
       "trace_event_seq": null,
       "context_id": null
@@ -334,7 +333,7 @@ The MCP surface deliberately excludes `save_validated_eval_case`, `delete_*`, `i
     {
       "claim": "Failure memory fm_missed_constraint_001 describes agents selecting an item before checking a required constraint.",
       "source": "failure_memory",
-      "run_id": null,
+      "trajectory_id": null,
       "step_index": null,
       "trace_event_seq": 6,
       "context_id": "fm_missed_constraint_001"

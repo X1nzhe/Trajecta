@@ -42,12 +42,12 @@ def drain_ndjson(response) -> tuple[list[dict], dict]:
     return events, terminal
 
 
-def _write_real_png(run_id: str, filename: str = "screenshot_001.png") -> None:
+def _write_real_png(trajectory_id: str, filename: str = "screenshot_001.png") -> None:
     from PIL import Image
 
     buf = io.BytesIO()
     Image.new("RGB", (1, 1), color=(255, 255, 255)).save(buf, format="PNG")
-    storage.save_screenshots(run_id, {filename: buf.getvalue()})
+    storage.save_screenshots(trajectory_id, {filename: buf.getvalue()})
 
 
 class _ScriptedLLM:
@@ -71,7 +71,7 @@ def _tool_message(name: str, args: dict) -> object:
 
 def _proposal_args(
     *,
-    run_id: str = "run_api",
+    trajectory_id: str = "run_api",
     failure_type: str = "missed_constraint",
     retrieved_context_ids: list[str] | None = None,
 ) -> dict:
@@ -82,7 +82,7 @@ def _proposal_args(
         {
             "claim": "Step 0 was inspected.",
             "source": "trajectory",
-            "run_id": run_id,
+            "trajectory_id": trajectory_id,
             "step_index": 0,
         }
     ]
@@ -95,7 +95,7 @@ def _proposal_args(
             }
         )
     return {
-        "run_id": run_id,
+        "trajectory_id": trajectory_id,
         "failure_step": 0,
         "failure_type": failure_type,
         "expected_behavior": "The agent should satisfy the task constraint.",
@@ -129,7 +129,7 @@ class ApiTests(unittest.TestCase):
         os.environ.pop("TRAJECTA_AGENT_MODEL", None)
         os.environ.pop("TRAJECTA_VLM_MODEL", None)
         rag._client_cache = None
-        storage.save_run(sample_run("run_api"))
+        storage.save_trajectory(sample_run("run_api"))
         storage.save_screenshots("run_api", {"screenshot_001.png": b"not-a-real-png"})
         self.client = TestClient(app)
 
@@ -157,19 +157,34 @@ class ApiTests(unittest.TestCase):
             os.environ["TRAJECTA_VLM_MODEL"] = self.previous_vlm_model
         self.tmp.cleanup()
 
-    def test_get_runs(self) -> None:
-        response = self.client.get("/api/runs")
+    def test_get_trajectories(self) -> None:
+        response = self.client.get("/api/trajectories")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()[0]["run_id"], "run_api")
+        self.assertEqual(response.json()[0]["trajectory_id"], "run_api")
 
-    def test_get_run(self) -> None:
-        response = self.client.get("/api/runs/run_api")
+    def test_get_trajectory(self) -> None:
+        response = self.client.get("/api/trajectories/run_api")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["task"], "Find a result")
 
-    def test_get_run_attaches_persisted_trace_when_present(self) -> None:
+    def test_legacy_run_routes_are_removed(self) -> None:
+        """Clean-break migration: the legacy ``/api/runs/*`` surface and the old
+        ``/api/eval-cases/search`` path are fully removed (no redirect/alias),
+        so FastAPI returns 404. The replacement routes serve instead."""
+        for path in ("/api/runs", "/api/runs/run_api", "/api/runs/run_api/digest"):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 404)
+        self.assertEqual(
+            self.client.get("/api/eval-cases/search", params={"q": "x"}).status_code, 404
+        )
+        # The renamed failure-eval-case search route serves in its place.
+        self.assertEqual(
+            self.client.get("/api/failure-eval-cases/search", params={"q": "x"}).status_code, 200
+        )
+
+    def test_get_trajectory_attaches_persisted_trace_when_present(self) -> None:
         """A previously-analyzed run must return its persisted AgentTrace on
         GET so the UI can rehydrate the chat after a page reload. Without
         this, page refresh appeared to "lose" the agent conversation even
@@ -177,43 +192,43 @@ class ApiTests(unittest.TestCase):
         """
 
         _write_real_png("run_api")
-        analyze_response = self.client.post("/api/runs/run_api/analyze")
+        analyze_response = self.client.post("/api/trajectories/run_api/analyze")
         drain_ndjson(analyze_response)
 
-        response = self.client.get("/api/runs/run_api")
+        response = self.client.get("/api/trajectories/run_api")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertIn("last_trace", payload)
-        self.assertEqual(payload["last_trace"]["run_id"], "run_api")
+        self.assertEqual(payload["last_trace"]["trajectory_id"], "run_api")
         self.assertGreater(len(payload["last_trace"]["events"]), 0)
 
-    def test_get_run_omits_last_trace_when_no_analysis_yet(self) -> None:
-        response = self.client.get("/api/runs/run_api")
+    def test_get_trajectory_omits_last_trace_when_no_analysis_yet(self) -> None:
+        response = self.client.get("/api/trajectories/run_api")
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("last_trace", response.json())
 
     def test_get_step(self) -> None:
-        response = self.client.get("/api/runs/run_api/steps/0")
+        response = self.client.get("/api/trajectories/run_api/steps/0")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["index"], 0)
 
     def test_get_step_detail_accepts_image_detail_query(self) -> None:
-        response = self.client.get("/api/runs/run_api/steps/0/detail", params={"image_detail": "low"})
+        response = self.client.get("/api/trajectories/run_api/steps/0/detail", params={"image_detail": "low"})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["image_detail"], "low")
 
     def test_get_step_detail_missing_step_returns_404(self) -> None:
-        response = self.client.get("/api/runs/run_api/steps/99/detail")
+        response = self.client.get("/api/trajectories/run_api/steps/99/detail")
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["detail"], "step not found")
 
     def test_get_step_detail_invalid_image_detail_returns_422(self) -> None:
-        response = self.client.get("/api/runs/run_api/steps/0/detail", params={"image_detail": "medium"})
+        response = self.client.get("/api/trajectories/run_api/steps/0/detail", params={"image_detail": "medium"})
 
         self.assertEqual(response.status_code, 422)
 
@@ -228,7 +243,7 @@ class ApiTests(unittest.TestCase):
 
         prompts.set_spotlight_token(None)  # state outside an agent run
         with mock.patch.dict(os.environ, {"TRAJECTA_SPOTLIGHTING": "on"}):
-            response = self.client.get("/api/runs/run_api/steps/0/detail")
+            response = self.client.get("/api/trajectories/run_api/steps/0/detail")
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
@@ -237,33 +252,33 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(body["action"]["raw"], "wait()")
 
     def test_screenshot_path_traversal_rejected(self) -> None:
-        response = self.client.get("/api/runs/run_api/screenshots/%2E%2E/trajectory.json")
+        response = self.client.get("/api/trajectories/run_api/screenshots/%2E%2E/trajectory.json")
 
         self.assertEqual(response.status_code, 404)
 
     def test_screenshot_missing_returns_404(self) -> None:
-        response = self.client.get("/api/runs/run_api/screenshots/nonexistent.png")
+        response = self.client.get("/api/trajectories/run_api/screenshots/nonexistent.png")
 
         self.assertEqual(response.status_code, 404)
 
     def test_screenshot_endpoint_returns_fixture_image(self) -> None:
         _write_real_png("run_api")
 
-        response = self.client.get("/api/runs/run_api/screenshots/screenshot_001.png")
+        response = self.client.get("/api/trajectories/run_api/screenshots/screenshot_001.png")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["content-type"], "image/png")
         self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
 
     def test_post_eval_case_rejects_unvalidated(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api").model_copy(update={"human_validated": False})
+        case = sample_eval_case("ec_run_api_step_0", source_trajectory_id="run_api").model_copy(update={"human_validated": False})
 
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
 
         self.assertEqual(response.status_code, 422)
 
     def test_duplicate_eval_case_returns_409(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api")
+        case = sample_eval_case("ec_run_api_step_0", source_trajectory_id="run_api")
 
         first = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
         second = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
@@ -272,14 +287,14 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(second.status_code, 409)
 
     def test_post_eval_case_upserts_into_rag(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api")
+        case = sample_eval_case("ec_run_api_step_0", source_trajectory_id="run_api")
 
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
         self.assertEqual(response.status_code, 200)
 
-        # Search goes tools.search_eval_cases → rag.query_failure_eval_cases against
+        # Search goes tools.search_failure_eval_cases → rag.query_failure_eval_cases against
         # the live ChromaDB collection populated by the POST handler.
-        search = self.client.get("/api/eval-cases/search", params={"q": "early terminated", "top_k": 5})
+        search = self.client.get("/api/failure-eval-cases/search", params={"q": "early terminated", "top_k": 5})
         self.assertEqual(search.status_code, 200)
         ids = [item["case_id"] for item in search.json()]
         self.assertIn("ec_run_api_step_0", ids)
@@ -291,35 +306,35 @@ class ApiTests(unittest.TestCase):
 
         from backend.tests.test_storage import sample_eval_case as case_factory
 
-        case = case_factory("ec_run_api_step_0", source_run_id="run_api")
-        self.assertEqual(storage.load_run("run_api").status, "unknown")
+        case = case_factory("ec_run_api_step_0", source_trajectory_id="run_api")
+        self.assertEqual(storage.load_trajectory("run_api").status, "unknown")
 
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(storage.load_run("run_api").status, "failed")
+        self.assertEqual(storage.load_trajectory("run_api").status, "failed")
 
     def test_post_success_eval_case_flips_status_and_seeds_rag(self) -> None:
         """Validating a success-shape EvalCase must flip the run to
         'success' AND upsert it into the successful_trajectories collection so
-        find_similar_successful_run starts returning matches.
+        find_similar_successful_trajectory starts returning matches.
         """
 
         from backend.tests.test_storage import sample_success_eval_case
 
-        case = sample_success_eval_case("ec_run_api_success", source_run_id="run_api")
+        case = sample_success_eval_case("ec_run_api_success", source_trajectory_id="run_api")
 
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(storage.load_run("run_api").status, "success")
-        results = tools.find_similar_successful_run("Find a result", top_k=3)
-        self.assertIn("run_api", [r["run_id"] for r in results])
+        self.assertEqual(storage.load_trajectory("run_api").status, "success")
+        results = tools.find_similar_successful_trajectory("Find a result", top_k=3)
+        self.assertIn("run_api", [r["trajectory_id"] for r in results])
 
     def test_post_eval_case_unknown_source_run_returns_404(self) -> None:
         from backend.tests.test_storage import sample_eval_case as case_factory
 
-        case = case_factory("ec_ghost_step_0", source_run_id="ghost_run")
+        case = case_factory("ec_ghost_step_0", source_trajectory_id="ghost_run")
 
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
 
@@ -328,7 +343,7 @@ class ApiTests(unittest.TestCase):
     def test_failure_validation_evicts_prior_success_rag_entry(self) -> None:
         """If a run was previously validated as success (and indexed into
         successful_trajectories), a subsequent failure validation must remove the
-        stale row so find_similar_successful_run no longer returns it.
+        stale row so find_similar_successful_trajectory no longer returns it.
         """
 
         from backend.tests.test_storage import (
@@ -336,17 +351,17 @@ class ApiTests(unittest.TestCase):
             sample_success_eval_case,
         )
 
-        success_case = sample_success_eval_case("ec_run_api_success", source_run_id="run_api")
+        success_case = sample_success_eval_case("ec_run_api_success", source_trajectory_id="run_api")
         first = self.client.post("/api/eval-cases", json=success_case.model_dump(mode="json"))
         self.assertEqual(first.status_code, 200)
-        self.assertIn("run_api", [r["run_id"] for r in tools.find_similar_successful_run("Find a result", top_k=3)])
+        self.assertIn("run_api", [r["trajectory_id"] for r in tools.find_similar_successful_trajectory("Find a result", top_k=3)])
 
-        failure_case = failure_factory("ec_run_api_step_0", source_run_id="run_api")
+        failure_case = failure_factory("ec_run_api_step_0", source_trajectory_id="run_api")
         second = self.client.post("/api/eval-cases", json=failure_case.model_dump(mode="json"))
         self.assertEqual(second.status_code, 200)
 
-        self.assertEqual(storage.load_run("run_api").status, "failed")
-        self.assertEqual(tools.find_similar_successful_run("Find a result", top_k=3), [])
+        self.assertEqual(storage.load_trajectory("run_api").status, "failed")
+        self.assertEqual(tools.find_similar_successful_trajectory("Find a result", top_k=3), [])
 
     def test_import_handler_starts_cold(self) -> None:
         """v1 cold-start contract (docs/dataset_import.md): imported runs
@@ -378,12 +393,12 @@ class ApiTests(unittest.TestCase):
 
         # Even though the raw row had status="success", the importer
         # overrides it to "unknown" per the cold-start contract.
-        self.assertEqual(response.json()["runs"][0]["status"], "unknown")
-        self.assertEqual(storage.load_run("imported_success").status, "unknown")
+        self.assertEqual(response.json()["trajectories"][0]["status"], "unknown")
+        self.assertEqual(storage.load_trajectory("imported_success").status, "unknown")
 
         # No RAG seeding from import — the successful_trajectories collection is
         # empty until a human validates a success EvalCase.
-        results = tools.find_similar_successful_run("Find the checkout button.", top_k=3)
+        results = tools.find_similar_successful_trajectory("Find the checkout button.", top_k=3)
         self.assertEqual(results, [])
 
     def test_analyze_returns_ndjson_events_before_done(self) -> None:
@@ -393,7 +408,7 @@ class ApiTests(unittest.TestCase):
         Image.new("RGB", (1, 1), color=(255, 255, 255)).save(png, format="PNG")
         storage.save_screenshots("run_api", {"screenshot_001.png": png.getvalue()})
 
-        response = self.client.post("/api/runs/run_api/analyze")
+        response = self.client.post("/api/trajectories/run_api/analyze")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("application/x-ndjson", response.headers["content-type"])
@@ -403,11 +418,11 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(terminal["type"], "done")
         self.assertEqual(events[0]["seq"], 0)
 
-    def test_list_runs_returns_at_least_5(self) -> None:
+    def test_list_trajectories_returns_at_least_5(self) -> None:
         for i in range(5):
-            storage.save_run(sample_run(f"run_seed_{i}"))
+            storage.save_trajectory(sample_run(f"run_seed_{i}"))
 
-        response = self.client.get("/api/runs")
+        response = self.client.get("/api/trajectories")
 
         self.assertEqual(response.status_code, 200)
         self.assertGreaterEqual(len(response.json()), 5)
@@ -422,7 +437,7 @@ class ApiTests(unittest.TestCase):
             )
         )
 
-        response = self.client.post("/api/runs/run_api/analyze")
+        response = self.client.post("/api/trajectories/run_api/analyze")
 
         events, terminal = drain_ndjson(response)
         self.assertEqual(terminal["type"], "done")
@@ -443,7 +458,7 @@ class ApiTests(unittest.TestCase):
             )
         )
 
-        response = self.client.post("/api/runs/run_api/analyze")
+        response = self.client.post("/api/trajectories/run_api/analyze")
         events, _ = drain_ndjson(response)
 
         seqs = [event["seq"] for event in events]
@@ -459,20 +474,20 @@ class ApiTests(unittest.TestCase):
             )
         )
         # Seed a trace so we exercise the 422 path, not the 409 path.
-        seed = self.client.post("/api/runs/run_api/analyze")
+        seed = self.client.post("/api/trajectories/run_api/analyze")
         drain_ndjson(seed)
 
         self.assertEqual(
-            self.client.post("/api/runs/run_api/followup", json={}).status_code,
+            self.client.post("/api/trajectories/run_api/followup", json={}).status_code,
             422,
         )
         self.assertEqual(
-            self.client.post("/api/runs/run_api/followup", json={"message": ""}).status_code,
+            self.client.post("/api/trajectories/run_api/followup", json={"message": ""}).status_code,
             422,
         )
         self.assertEqual(
             self.client.post(
-                "/api/runs/run_api/followup",
+                "/api/trajectories/run_api/followup",
                 json={"message": "x" * 2001},
             ).status_code,
             422,
@@ -487,12 +502,12 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
-        initial = self.client.post("/api/runs/run_api/analyze")
+        initial = self.client.post("/api/trajectories/run_api/analyze")
         drain_ndjson(initial)
         self.assertEqual(initial.status_code, 200)
 
         response = self.client.post(
-            "/api/runs/run_api/followup", json={"message": "Anything else?"}
+            "/api/trajectories/run_api/followup", json={"message": "Anything else?"}
         )
 
         events, _ = drain_ndjson(response)
@@ -510,7 +525,7 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
-        initial = self.client.post("/api/runs/run_api/analyze")
+        initial = self.client.post("/api/trajectories/run_api/analyze")
         drain_ndjson(initial)
 
         prior = storage.load_trace("run_api")
@@ -518,7 +533,7 @@ class ApiTests(unittest.TestCase):
         prior_max_seq = max(event.seq for event in prior.events)
 
         response = self.client.post(
-            "/api/runs/run_api/followup", json={"message": "Anything else?"}
+            "/api/trajectories/run_api/followup", json={"message": "Anything else?"}
         )
         events, _ = drain_ndjson(response)
 
@@ -542,7 +557,7 @@ class ApiTests(unittest.TestCase):
             )
         )
 
-        initial_resp = self.client.post("/api/runs/run_api/analyze")
+        initial_resp = self.client.post("/api/trajectories/run_api/analyze")
         _, initial_terminal = drain_ndjson(initial_resp)
         initial_draft = initial_terminal["eval_case_draft"]
         self.assertIsNotNone(initial_draft)
@@ -565,7 +580,7 @@ class ApiTests(unittest.TestCase):
             _patched_default_llm(followup_script),
         ):
             response = self.client.post(
-                "/api/runs/run_api/followup", json={"message": "Revise"}
+                "/api/trajectories/run_api/followup", json={"message": "Revise"}
             )
 
         _, terminal = drain_ndjson(response)
@@ -586,14 +601,14 @@ class ApiTests(unittest.TestCase):
         # Per-step analyze was removed; the deprecated /steps/{i}/analyze
         # endpoint now ignores step_index and routes to the same full-run
         # analyze path. New traces always carry selected_step=None.
-        initial = self.client.post("/api/runs/run_api/steps/0/analyze")
+        initial = self.client.post("/api/trajectories/run_api/steps/0/analyze")
         drain_ndjson(initial)
 
-        followup = self.client.post("/api/runs/run_api/followup", json={"message": "Check again"})
+        followup = self.client.post("/api/trajectories/run_api/followup", json={"message": "Check again"})
         drain_ndjson(followup)
 
         trace = storage.load_trace("run_api")
-        self.assertEqual(trace.user_intent, "analyze_run")
+        self.assertEqual(trace.user_intent, "analyze_trajectory")
         self.assertIsNone(trace.selected_step)
 
     def test_followup_budget_is_FOLLOWUP_BUDGET_via_api(self) -> None:
@@ -605,14 +620,14 @@ class ApiTests(unittest.TestCase):
                 summary="Constraint missed.",
             )
         )
-        initial = self.client.post("/api/runs/run_api/analyze")
+        initial = self.client.post("/api/trajectories/run_api/analyze")
         drain_ndjson(initial)
 
         # One past the limit must trip budget_exceeded.
         followup_script = [
             _tool_message(
                 "get_step_detail",
-                {"run_id": "run_api", "step_index": 1, "image_detail": "high"},
+                {"trajectory_id": "run_api", "step_index": 1, "image_detail": "high"},
             )
             for _ in range(eval_agent_graph.FOLLOWUP_BUDGET + 1)
         ]
@@ -622,7 +637,7 @@ class ApiTests(unittest.TestCase):
             _patched_default_llm(followup_script),
         ):
             response = self.client.post(
-                "/api/runs/run_api/followup", json={"message": "Spend more tools"}
+                "/api/trajectories/run_api/followup", json={"message": "Spend more tools"}
             )
 
         _, terminal = drain_ndjson(response)
@@ -651,11 +666,11 @@ class ApiTests(unittest.TestCase):
             FailureMemoryCase.model_validate(item)
 
     def test_eval_cases_search_endpoint_returns_schema_valid_results(self) -> None:
-        case = sample_eval_case("ec_run_api_step_0", source_run_id="run_api")
+        case = sample_eval_case("ec_run_api_step_0", source_trajectory_id="run_api")
         self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
 
         response = self.client.get(
-            "/api/eval-cases/search", params={"q": "early terminated", "top_k": 3}
+            "/api/failure-eval-cases/search", params={"q": "early terminated", "top_k": 3}
         )
 
         self.assertEqual(response.status_code, 200)

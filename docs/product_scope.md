@@ -30,8 +30,8 @@ The project must clearly demonstrate:
 1. User selects an imported browser-agent trajectory run.
 2. UI shows step-by-step screenshots and actions.
 3. Backend runs Trajectory Preprocessing on the run and produces a trajectory digest.
-4. User clicks `Analyze Run` or `Analyze Step`.
-5. The Eval Agent autonomously decides which steps to deep-dive (via `get_step_detail`), pulls a similar successful trajectory for the same task and diffs against it (via `find_similar_successful_run` + `get_run`), retrieves similar failures from ChromaDB (via `search_failure_memory` / `search_eval_cases`), and terminates by calling `propose_eval_case`.
+4. User clicks `Analyze Trajectory` or `Analyze Step`.
+5. The Eval Agent autonomously decides which steps to deep-dive (via `get_step_detail`), pulls a similar successful trajectory for the same task and diffs against it (via `find_similar_successful_trajectory` + `get_trajectory`), retrieves similar failures from ChromaDB (via `search_failure_memory` / `search_failure_eval_cases`), and terminates by calling `propose_eval_case`.
 6. UI renders the agent's tool-call trace, retrieved cases, and the proposed eval case draft as a chat-style timeline.
 7. User may ask follow-up questions in the chat input ("why did you flag step 5?", "find similar failures"); the agent resumes the same trace with a smaller per-turn budget and may revise the draft.
 8. User confirms or edits the failure label and marks the draft validated.
@@ -44,14 +44,14 @@ The project must clearly demonstrate:
 - Normalize raw trajectory data into the Trajecta JSON schema
 - Visual trajectory replay UI
 - Screenshot viewer with coordinate overlay rendered only when validated
-- Trajectory Preprocessing pipeline producing a per-run trajectory digest (see [docs/preprocessing.md](preprocessing.md))
-- LangGraph **tool-calling Eval Agent** with `get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, and a terminal `propose_eval_case` tool
+- Trajectory Preprocessing pipeline producing a per-trajectory trajectory digest (see [docs/preprocessing.md](preprocessing.md))
+- LangGraph **tool-calling Eval Agent** with `get_trajectory`, `get_step_detail`, `find_similar_successful_trajectory`, `search_failure_memory`, `search_failure_eval_cases`, and a terminal `propose_eval_case` tool
 - Replay-and-diff: agent retrieves a similar human-validated successful trajectory for the same task and reasons over step-level divergence
-- Multi-turn follow-up: after the initial analyze, the user may ask follow-up questions via `POST /api/runs/{run_id}/followup`. The agent resumes the same trace, may revise the eval case draft, and is bounded by a per-turn tool-call budget
+- Multi-turn follow-up: after the initial analyze, the user may ask follow-up questions via `POST /api/trajectories/{trajectory_id}/followup`. The agent resumes the same trace, may revise the eval case draft, and is bounded by a per-turn tool-call budget
 - Tool-call budget enforcement (default 8 per turn, applied independently to the initial analyze and to each follow-up) bounding cost and latency
 - ChromaDB-backed RAG over failure pattern memory, failure EvalCases, and successful trajectories
 - Multi-resolution VLM (low-detail for preprocessing, high-detail on demand)
-- Per-run agent trace persisted as the `traces` row keyed by `run_id` in `data/trajecta.db`
+- Per-run agent trace persisted as the `traces` row keyed by `trajectory_id` in `data/trajecta.db`
 - Human-reviewable eval case draft and export flow with structured evidence references
 - Basic pytest test suite
 - Minimal no-ground-truth RAGAS faithfulness script over recorded RAG tool queries; stub fallback is for offline development only

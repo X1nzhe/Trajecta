@@ -55,7 +55,7 @@ If a future subdirectory contains its own `AGENTS.md`, follow that nearest file 
 
 ## LLM / VLM Configuration
 The backend has two model-selection environment variables that gate the real-vs-mock split. Both default to deterministic mocks when unset, so tests + cold-start demos run without network. See [README.md](README.md) "Configuration" for the full env-var table.
-- `OPENAI_API_KEY` + `TRAJECTA_AGENT_MODEL` → tool-calling Eval Agent uses `ChatOpenAI(...).bind_tools([...])`. Without both, `OfflineAgentMock` runs a fixed 5-stage script (`get_run` → `get_step_detail` → `find_similar_successful_run` → `search_failure_memory` → `propose_eval_case`).
+- `OPENAI_API_KEY` + `TRAJECTA_AGENT_MODEL` → tool-calling Eval Agent uses `ChatOpenAI(...).bind_tools([...])`. Without both, `OfflineAgentMock` runs a fixed 5-stage script (`get_trajectory` → `get_step_detail` → `find_similar_successful_trajectory` → `search_failure_memory` → `propose_eval_case`).
 - `OPENAI_API_KEY` + `TRAJECTA_VLM_MODEL` → Trajectory Preprocessing + `get_step_detail` use `RealVLMClient` against the OpenAI Chat Completions API with `image_url` content. Without both, `MockVLMClient` returns deterministic hash-derived summaries.
 - `TRAJECTA_PROMPT_VERSION` selects a committed prompt bundle under `prompts/eval_agent/` and defaults to `v1_minimal`. New traces and eval reports record `prompt_version` and `prompt_sha256`.
 - `TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION` selects a committed high-detail VLM prompt under `prompts/vlm_high_detail/` and defaults to `v1_task_context`. High-detail `get_step_detail` results and eval reports record version + hash.

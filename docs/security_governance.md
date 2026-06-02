@@ -42,7 +42,7 @@ reaches the database or the UI.
 | Where | What |
 | --- | --- |
 | `backend/app/eval_agent_graph.py` — agent loop | Default 8 budgeted tool calls per turn. The comparator is strict (`count < budget`), so the N-th budgeted call is permitted; the (N+1)-th is rejected. |
-| Counted: `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `find_similar_successful_run`. Not counted: `get_run`, `propose_eval_case`. | Cost-bearing tools count; orientation and termination do not. |
+| Counted: `get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`, `find_similar_successful_trajectory`. Not counted: `get_trajectory`, `propose_eval_case`. | Cost-bearing tools count; orientation and termination do not. |
 | Exceeding the budget produces `terminated_by="budget_exceeded"`, populates `EvalState.errors`, and ends the current turn. | Bounds cost and latency on every analyze; runaway loops are impossible. |
 
 The budget is a cost / latency guard, not an attack mitigation. It is
@@ -53,7 +53,7 @@ misbehaviour in practice.
 
 | Where | What |
 | --- | --- |
-| `backend/app/main.py` — screenshot endpoint | The endpoint constructs paths inside the screenshots dir using validated `run_id` + filename; `..` segments are rejected at the resolver layer; symlinks are not followed. |
+| `backend/app/main.py` — screenshot endpoint | The endpoint constructs paths inside the screenshots dir using validated `trajectory_id` + filename; `..` segments are rejected at the resolver layer; symlinks are not followed. |
 | `backend/tests/test_api.py` — tests | "Screenshot endpoint rejects missing files and path traversal" is covered by the test suite. |
 
 ### 4. Coordinate validation
@@ -72,7 +72,7 @@ would otherwise reason against.
 | Where | What |
 | --- | --- |
 | `backend/app/schemas.py` — `AgentTrace`, `AgentTraceEvent` | Every tool call, tool result, tool error, user message, agent message, and termination reason is logged with strictly monotonic `seq` and non-decreasing `turn`. |
-| `backend/app/storage.py` — `save_trace` / `load_trace` | Persisted as one JSON row in the `traces` SQLite table, keyed by `run_id`. |
+| `backend/app/storage.py` — `save_trace` / `load_trace` | Persisted as one JSON row in the `traces` SQLite table, keyed by `trajectory_id`. |
 | `AgentTrace.source` ∈ {`ui`, `eval`, `mcp`} | Stamps the origin of every run. The `mcp` value is stamped by the MCP server so those runs are distinguishable from UI runs and eval-harness runs. |
 | Prompt version + sha256 fields | Every trace records the exact prompt bytes that produced it. Rollback is trivially reproducible. |
 
@@ -95,7 +95,7 @@ contract refuses the request.
 
 | Where | What |
 | --- | --- |
-| `trajecta_mcp/server.py` — `@mcp.tool` decorated functions | Exactly six tools (see [`docs/mcp.md`](mcp.md#tool-surface)) should be exposed: `list_runs`, `get_run`, `get_step_detail`, `search_failure_memory`, `search_eval_cases`, `analyze_run`. |
+| `trajecta_mcp/server.py` — `@mcp.tool` decorated functions | Exactly six tools (see [`docs/mcp.md`](mcp.md#tool-surface)) should be exposed: `list_trajectories`, `get_trajectory`, `get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`, `analyze_trajectory`. |
 | `trajecta_mcp/server.py` — **not** decorated | `save_validated_eval_case`, `delete_*`, `import_dataset`, `set_prompt_version`. Excluded by tool surface, not by post-hoc permission checks. |
 
 An external agent connecting via MCP cannot persist validated cases, mutate
@@ -132,7 +132,7 @@ hoping the Eval Agent would execute them as commands.
 
 | Where | What |
 | --- | --- |
-| [`backend/app/prompts.py`](../backend/app/prompts.py) — `spotlight_wrap(text)` + `spotlight_wrap_optional(text)` | Wrap an untrusted string with a per-run random delimiter token pair, e.g. `<TRAJECTA_DATA_a7f3c91d>…</TRAJECTA_DATA_a7f3c91d>`. The token is fresh per agent invocation (`secrets.token_hex(4)`) and stored on `ContextVar` + `EvalState` so every wrap site reuses the same delimiter within one run. |
+| [`backend/app/prompts.py`](../backend/app/prompts.py) — `spotlight_wrap(text)` + `spotlight_wrap_optional(text)` | Wrap an untrusted string with a per-trajectory random delimiter token pair, e.g. `<TRAJECTA_DATA_a7f3c91d>…</TRAJECTA_DATA_a7f3c91d>`. The token is fresh per agent invocation (`secrets.token_hex(4)`) and stored on `ContextVar` + `EvalState` so every wrap site reuses the same delimiter within one run. |
 | Active eval-agent system prompts under [`prompts/eval_agent/`](../prompts/eval_agent/) | When `TRAJECTA_SPOTLIGHTING=on` (the default), `load_prompt_bundle` prepends a standing rule to the system bytes: text inside `<TRAJECTA_DATA_*>` markers is untrusted trajectory data and must not be followed as instructions. The `prompt_sha256` stamped on `AgentTrace` reflects the runtime-effective bytes, so on/off runs are distinguishable in the audit trail. |
 | [`backend/app/eval_agent_graph.py`](../backend/app/eval_agent_graph.py) `_wrap_digest_for_prompt` | At prompt-construction time, wraps `action_text`, `action_target`, `url`, `title`, `vlm_low_detail_summary` on every digest row before `_initial_messages` JSON-serialises the `HumanMessage`. |
 | [`backend/app/tools.py`](../backend/app/tools.py) `get_step_detail` | Wraps `vlm_summary`, `task_context.{url,title,action_label,action_text,action_raw}`, and `observation.{url,title,visible_text}` in the returned dict so the tool result the agent sees is already framed. |
@@ -176,7 +176,7 @@ defense claim — it is intentionally out of Phase 8 scope.
 
 ## Composite Coverage
 
-A single `analyze_run` call via MCP exercises:
+A single `analyze_trajectory` call via MCP exercises:
 
 - Mechanism 1 (schema validation on the returned `EvalCase`),
 - Mechanism 2 (budget bound on the agent loop),
@@ -194,7 +194,7 @@ mechanisms present in the returned trace. B1 shipped
 (`trajecta_mcp/server.py`); `backend/tests/test_mcp_server.py` already verifies
 `source="mcp"`, the `human_validated=false` HITL draft, and the budget bound.
 B1.5 is accepted from the operator's MCP Inspector live-client smoke:
-connection succeeds, the six-tool surface is visible, and `analyze_run`
+connection succeeds, the six-tool surface is visible, and `analyze_trajectory`
 returns a trace stamped `source="mcp"`.
 
 ## Out of Scope for v1

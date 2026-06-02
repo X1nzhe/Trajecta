@@ -35,7 +35,7 @@ SELECTED_RUN_IDS = [
 
 
 SECTION_RE = re.compile(
-    r"<section><h2>(?P<run_id>[^<]+)</h2>"
+    r"<section><h2>(?P<trajectory_id>[^<]+)</h2>"
     r'<p class="task">(?P<task>.*?)</p>.*?'
     r'<details class="trajectory-json"><summary>Full trajectory JSON</summary>'
     r"<pre>(?P<trajectory>.*?)</pre>",
@@ -61,10 +61,10 @@ def load_gallery_sections(index_path: Path) -> dict[str, dict[str, Any]]:
     text = index_path.read_text(encoding="utf-8")
     sections: dict[str, dict[str, Any]] = {}
     for match in SECTION_RE.finditer(text):
-        run_id = html.unescape(match.group("run_id")).strip()
+        trajectory_id = html.unescape(match.group("trajectory_id")).strip()
         task = html.unescape(match.group("task")).strip()
         trajectory_text = html.unescape(match.group("trajectory"))
-        sections[run_id] = {
+        sections[trajectory_id] = {
             "task": task,
             "trajectory": json.loads(trajectory_text),
         }
@@ -170,14 +170,14 @@ def coord_validation(action: dict[str, Any], image_width: Any, image_height: Any
 
 
 def build_run(
-    run_id: str,
+    trajectory_id: str,
     section: dict[str, Any],
     overlay: dict[str, str],
     triage: dict[str, dict[str, str]],
     gallery_dir: Path,
     output_dir: Path,
 ) -> dict[str, Any]:
-    run_dir = output_dir / run_id
+    run_dir = output_dir / trajectory_id
     screenshot_dir = run_dir / "screenshots"
     screenshot_dir.mkdir(parents=True, exist_ok=True)
 
@@ -192,7 +192,7 @@ def build_run(
 
         screenshot = raw_step.get("screenshot")
         if screenshot:
-            source = gallery_dir / run_id / Path(str(screenshot)).name
+            source = gallery_dir / trajectory_id / Path(str(screenshot)).name
             if source.exists():
                 shutil.copy2(source, screenshot_dir / Path(str(screenshot)).name)
 
@@ -222,12 +222,12 @@ def build_run(
             }
         )
 
-    triage_row = triage.get(run_id, {})
+    triage_row = triage.get(trajectory_id, {})
     return {
-        "run_id": run_id,
+        "trajectory_id": trajectory_id,
         "task": section["task"],
         "source": "allenai/MolmoWeb-HumanSkills",
-        "status": overlay.get(run_id, "unknown"),
+        "status": overlay.get(trajectory_id, "unknown"),
         "steps": steps,
         "metadata": {
             "category": triage_row.get("category") or None,
@@ -258,12 +258,12 @@ def main() -> int:
     triage = read_triage(args.triage_csv)
     overlay = json.loads(args.status_overlay.read_text(encoding="utf-8"))
 
-    for run_id in SELECTED_RUN_IDS:
-        if run_id not in sections:
-            raise KeyError(f"{run_id} not found in {args.gallery_dir / 'index.html'}")
-        run = build_run(run_id, sections[run_id], overlay, triage, args.gallery_dir, args.output_dir)
-        write_json(args.output_dir / run_id / "trajectory.json", run)
-        print(f"wrote {run_id}: {len(run['steps'])} steps, status={run['status']}")
+    for trajectory_id in SELECTED_RUN_IDS:
+        if trajectory_id not in sections:
+            raise KeyError(f"{trajectory_id} not found in {args.gallery_dir / 'index.html'}")
+        run = build_run(trajectory_id, sections[trajectory_id], overlay, triage, args.gallery_dir, args.output_dir)
+        write_json(args.output_dir / trajectory_id / "trajectory.json", run)
+        print(f"wrote {trajectory_id}: {len(run['steps'])} steps, status={run['status']}")
 
     return 0
 

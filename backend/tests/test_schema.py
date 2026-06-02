@@ -4,14 +4,14 @@ import unittest
 
 from pydantic import ValidationError
 
-from backend.app.schemas import AgentTrace, EvalCase, StepAction, TrajectoryRun
+from backend.app.schemas import AgentTrace, EvalCase, StepAction, Trajectory
 
 
 class SchemaContractTests(unittest.TestCase):
     def test_minimal_trajectory_run_validates(self) -> None:
-        run = TrajectoryRun.model_validate(
+        run = Trajectory.model_validate(
             {
-                "run_id": "fixture_run",
+                "trajectory_id": "fixture_run",
                 "task": "navigate: find an example result",
                 "steps": [
                     {
@@ -23,13 +23,13 @@ class SchemaContractTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(run.run_id, "fixture_run")
+        self.assertEqual(run.trajectory_id, "fixture_run")
         self.assertEqual(run.steps[0].action.type, "click")
         self.assertEqual(run.steps[0].result.status, "unknown")
 
-    def test_rejects_missing_run_id(self) -> None:
+    def test_rejects_missing_trajectory_id(self) -> None:
         with self.assertRaises(ValidationError):
-            TrajectoryRun.model_validate(
+            Trajectory.model_validate(
                 {
                     "task": "navigate: missing run id",
                     "steps": [
@@ -51,7 +51,7 @@ class SchemaContractTests(unittest.TestCase):
             EvalCase.model_validate(
                 {
                     "case_id": "ec_fixture_step_0",
-                    "source_run_id": "fixture_run",
+                    "source_trajectory_id": "fixture_run",
                     "task": "navigate: find an example result",
                     "failure_step": 0,
                     "failure_type": "Invalid Label",
@@ -63,7 +63,7 @@ class SchemaContractTests(unittest.TestCase):
             )
 
     def test_agent_trace_schema_has_no_errors_field_or_property(self) -> None:
-        trace = AgentTrace(run_id="fixture_run", user_intent="analyze_run")
+        trace = AgentTrace(trajectory_id="fixture_run", user_intent="analyze_trajectory")
 
         self.assertNotIn("errors", trace.model_dump(mode="json"))
         self.assertFalse(hasattr(trace, "errors"))

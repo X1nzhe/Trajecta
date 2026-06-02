@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from backend.app import ragas_eval
-from backend.app.schemas import AgentTrace, AgentTraceEvent, TrajectoryRun
+from backend.app.schemas import AgentTrace, AgentTraceEvent, Trajectory
 
 
 def _proposal_event(seq: int = 0) -> AgentTraceEvent:
@@ -24,7 +24,7 @@ def _proposal_event(seq: int = 0) -> AgentTraceEvent:
                 {
                     "claim": "Step 0 ended before the task was complete.",
                     "source": "trajectory",
-                    "run_id": "run_1",
+                    "trajectory_id": "run_1",
                     "step_index": 0,
                 }
             ],
@@ -60,7 +60,7 @@ def _rag_result_event(seq: int = 1, *, case_id: str = "fm_early_terminated_001")
 
 def _trace(
     *,
-    run_id: str = "run_1",
+    trajectory_id: str = "run_1",
     terminated_by: str = "propose_eval_case",
     events: list[AgentTraceEvent] | None = None,
 ) -> AgentTrace:
@@ -68,8 +68,8 @@ def _trace(
     if events is None:
         events = [_rag_call_event(0), _rag_result_event(1), _proposal_event(2)]
     return AgentTrace(
-        run_id=run_id,
-        user_intent="analyze_run",
+        trajectory_id=trajectory_id,
+        user_intent="analyze_trajectory",
         terminated_by=terminated_by,
         events=events,
         model="mock",
@@ -79,15 +79,15 @@ def _trace(
     )
 
 
-def _fake_run(run_id: str) -> TrajectoryRun:
-    """Stand-in for ``storage.list_runs`` results — only ``run_id`` is
+def _fake_run(trajectory_id: str) -> Trajectory:
+    """Stand-in for ``storage.list_trajectories`` results — only ``trajectory_id`` is
     read by the loader's discovery set."""
-    return TrajectoryRun(run_id=run_id, task="t", steps=[])
+    return Trajectory(trajectory_id=trajectory_id, task="t", steps=[])
 
 
 def _sample() -> ragas_eval.RagasSample:
     return ragas_eval.RagasSample(
-        run_id="run_1",
+        trajectory_id="run_1",
         question="why did it stop early?",
         answer="The agent stopped early.\n\nStep 0 ended before the task was complete.",
         contexts=["fm_early_terminated_001: early stop [termination]"],
@@ -102,8 +102,8 @@ def _sample() -> ragas_eval.RagasSample:
 class RagasEvalTests(unittest.TestCase):
     def test_ragas_answer_from_trace_rejects_non_terminal_trace(self) -> None:
         trace = AgentTrace(
-            run_id="run_1",
-            user_intent="analyze_run",
+            trajectory_id="run_1",
+            user_intent="analyze_trajectory",
             terminated_by="budget_exceeded",
             events=[_proposal_event()],
         )
@@ -133,7 +133,7 @@ class RetrievalStatsTests(unittest.TestCase):
         stats = ragas_eval.build_retrieval_stats(
             [
                 {
-                    "run_id": "run_1",
+                    "trajectory_id": "run_1",
                     "tool_name": "search_failure_memory",
                     "contexts": [
                         "fm_a: First memory. [tag]",
@@ -142,13 +142,13 @@ class RetrievalStatsTests(unittest.TestCase):
                     "retrieved_context_ids": ["fm_a", "fm_c"],
                 },
                 {
-                    "run_id": "run_2",
-                    "tool_name": "search_eval_cases",
+                    "trajectory_id": "run_2",
+                    "tool_name": "search_failure_eval_cases",
                     "contexts": ["ec_1: Eval case. [case]"],
                     "retrieved_context_ids": [],
                 },
                 {
-                    "run_id": "run_3",
+                    "trajectory_id": "run_3",
                     "tool_name": "search_failure_memory",
                     "contexts": ["fm_a: Repeated memory. [tag]"],
                     "retrieved_context_ids": ["fm_a"],
@@ -162,7 +162,7 @@ class RetrievalStatsTests(unittest.TestCase):
             {"sample_count": 2, "retrieved_context_count": 3},
         )
         self.assertEqual(
-            stats["by_tool"]["search_eval_cases"],
+            stats["by_tool"]["search_failure_eval_cases"],
             {"sample_count": 1, "retrieved_context_count": 1},
         )
 
@@ -189,14 +189,14 @@ class RetrievalStatsTests(unittest.TestCase):
         stats = ragas_eval.build_retrieval_stats(
             [
                 {
-                    "run_id": "run_x",
+                    "trajectory_id": "run_x",
                     "tool_name": "search_failure_memory",
                     "contexts": ["fm_a: First. [tag]", "fm_b: Second. [tag]"],
                     "retrieved_context_ids": ["fm_a", "fm_b"],
                 },
                 {
-                    "run_id": "run_x",
-                    "tool_name": "search_eval_cases",
+                    "trajectory_id": "run_x",
+                    "tool_name": "search_failure_eval_cases",
                     "contexts": ["ec_1: Eval case. [case]"],
                     "retrieved_context_ids": ["fm_a", "fm_b"],
                 },
@@ -204,7 +204,7 @@ class RetrievalStatsTests(unittest.TestCase):
         )
 
         self.assertEqual(stats["by_tool"]["search_failure_memory"]["sample_count"], 1)
-        self.assertEqual(stats["by_tool"]["search_eval_cases"]["sample_count"], 1)
+        self.assertEqual(stats["by_tool"]["search_failure_eval_cases"]["sample_count"], 1)
         self.assertEqual(
             stats["cited_context_ids"],
             {
@@ -220,7 +220,7 @@ class RetrievalStatsTests(unittest.TestCase):
         stats = ragas_eval.build_retrieval_stats(
             [
                 {
-                    "run_id": "run_1",
+                    "trajectory_id": "run_1",
                     "tool_name": "search_failure_memory",
                     "contexts": ["fm_a: First memory. [tag]"],
                     "retrieved_context_ids": ["fm_a"],
@@ -229,7 +229,7 @@ class RetrievalStatsTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            stats["by_tool"]["search_eval_cases"],
+            stats["by_tool"]["search_failure_eval_cases"],
             {"sample_count": 0, "retrieved_context_count": 0},
         )
 
@@ -238,7 +238,7 @@ class RetrievalStatsTests(unittest.TestCase):
             {
                 "samples": [
                     {
-                        "run_id": "run_1",
+                        "trajectory_id": "run_1",
                         "tool_name": "search_failure_memory",
                         "contexts": ["fm_a: First memory. [tag]"],
                         "retrieved_context_ids": ["fm_a"],
@@ -269,7 +269,7 @@ class RetrievalStatsTests(unittest.TestCase):
         report = ragas_eval.RagasReport(
             samples=[
                 {
-                    "run_id": "run_1",
+                    "trajectory_id": "run_1",
                     "tool_name": "search_failure_memory",
                     "contexts": ["fm_early_terminated_001: Early stop. [tag]"],
                     "retrieved_context_ids": ["fm_early_terminated_001"],
@@ -290,7 +290,7 @@ class RetrievalStatsTests(unittest.TestCase):
             md,
         )
         self.assertIn("| `search_failure_memory` | 1 | 1 |", md)
-        self.assertIn("| `search_eval_cases` | 0 | 0 |", md)
+        self.assertIn("| `search_failure_eval_cases` | 0 | 0 |", md)
         self.assertIn("| `fm_early_terminated_001` | 1 |", md)
         self.assertIn("### Cited context ids", md)
         self.assertIn("- Traces with a proposal: 1", md)
@@ -310,27 +310,27 @@ class RetrievalStatsTests(unittest.TestCase):
 
 
 class TraceLoadingPrecedenceTests(unittest.TestCase):
-    """One run_id → which source wins?"""
+    """One trajectory_id → which source wins?"""
 
-    def test_load_trace_for_run_id_returns_sqlite_trace_when_present(self) -> None:
+    def test_load_trace_for_trajectory_id_returns_sqlite_trace_when_present(self) -> None:
         """Without ``--trace-dir``, SQLite remains the source."""
-        sqlite_trace = _trace(run_id="run_x")
+        sqlite_trace = _trace(trajectory_id="run_x")
         with mock.patch(
             "backend.app.ragas_eval.storage.load_trace",
             return_value=sqlite_trace,
         ) as mock_load:
-            result = ragas_eval.load_trace_for_run_id("run_x")
+            result = ragas_eval.load_trace_for_trajectory_id("run_x")
         self.assertIs(result, sqlite_trace)
         mock_load.assert_called_once_with("run_x")
 
-    def test_load_trace_for_run_id_falls_back_to_trace_dir_when_sqlite_missing(
+    def test_load_trace_for_trajectory_id_falls_back_to_trace_dir_when_sqlite_missing(
         self,
     ) -> None:
         """``--trace-dir`` is the Phase 8 A2 dump source. When it has a
-        file for the run_id, that file must be honoured."""
+        file for the trajectory_id, that file must be honoured."""
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
-            dumped = _trace(run_id="run_x")
+            dumped = _trace(trajectory_id="run_x")
             (trace_dir / "run_x.json").write_text(
                 dumped.model_dump_json(indent=2), encoding="utf-8"
             )
@@ -338,19 +338,19 @@ class TraceLoadingPrecedenceTests(unittest.TestCase):
                 "backend.app.ragas_eval.storage.load_trace",
                 return_value=None,
             ):
-                result = ragas_eval.load_trace_for_run_id(
+                result = ragas_eval.load_trace_for_trajectory_id(
                     "run_x", trace_dir=trace_dir
                 )
         self.assertIsNotNone(result)
-        self.assertEqual(result.run_id, "run_x")
+        self.assertEqual(result.trajectory_id, "run_x")
         self.assertEqual(result.terminated_by, "propose_eval_case")
 
-    def test_load_trace_for_run_id_prefers_trace_dir_over_sqlite(self) -> None:
-        """Sanity: when both sources carry a trace for the same run_id,
+    def test_load_trace_for_trajectory_id_prefers_trace_dir_over_sqlite(self) -> None:
+        """Sanity: when both sources carry a trace for the same trajectory_id,
         the explicit trace-dir dump wins. Formal A6 should stay bound to
         the selected agent_eval artefact set."""
-        sqlite_trace = _trace(run_id="run_x")
-        dumped = _trace(run_id="run_x", terminated_by="budget_exceeded", events=[])
+        sqlite_trace = _trace(trajectory_id="run_x")
+        dumped = _trace(trajectory_id="run_x", terminated_by="budget_exceeded", events=[])
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
             (trace_dir / "run_x.json").write_text(
@@ -360,13 +360,13 @@ class TraceLoadingPrecedenceTests(unittest.TestCase):
                 "backend.app.ragas_eval.storage.load_trace",
                 return_value=sqlite_trace,
             ):
-                result = ragas_eval.load_trace_for_run_id(
+                result = ragas_eval.load_trace_for_trajectory_id(
                     "run_x", trace_dir=trace_dir
                 )
         self.assertIsNot(result, sqlite_trace)
         self.assertEqual(result.terminated_by, "budget_exceeded")
 
-    def test_load_trace_for_run_id_returns_none_when_neither_source_has_one(
+    def test_load_trace_for_trajectory_id_returns_none_when_neither_source_has_one(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -375,10 +375,10 @@ class TraceLoadingPrecedenceTests(unittest.TestCase):
                 "backend.app.ragas_eval.storage.load_trace", return_value=None
             ):
                 self.assertIsNone(
-                    ragas_eval.load_trace_for_run_id("run_missing", trace_dir=trace_dir)
+                    ragas_eval.load_trace_for_trajectory_id("run_missing", trace_dir=trace_dir)
                 )
                 self.assertIsNone(
-                    ragas_eval.load_trace_for_run_id("run_missing")
+                    ragas_eval.load_trace_for_trajectory_id("run_missing")
                 )
 
 
@@ -386,40 +386,40 @@ class DiscoverRunIdsTests(unittest.TestCase):
     """The discovery set is the union of SQLite-resident runs and
     trace-dir filenames. Both sides must contribute."""
 
-    def test_discover_run_ids_unions_sqlite_and_trace_dir(self) -> None:
+    def test_discover_trajectory_ids_unions_sqlite_and_trace_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
             (trace_dir / "run_dump_only.json").write_text("{}", encoding="utf-8")
             with mock.patch(
-                "backend.app.ragas_eval.storage.list_runs",
+                "backend.app.ragas_eval.storage.list_trajectories",
                 return_value=[_fake_run("run_sqlite_only"), _fake_run("run_both")],
             ):
                 # Add the second run as both SQLite-resident AND
                 # trace-dir-resident so we can verify de-dup.
                 (trace_dir / "run_both.json").write_text("{}", encoding="utf-8")
-                ids = ragas_eval._discover_run_ids(trace_dir=trace_dir)
+                ids = ragas_eval._discover_trajectory_ids(trace_dir=trace_dir)
         self.assertEqual(ids, ["run_both", "run_dump_only", "run_sqlite_only"])
 
-    def test_discover_run_ids_sqlite_only_when_no_trace_dir(self) -> None:
+    def test_discover_trajectory_ids_sqlite_only_when_no_trace_dir(self) -> None:
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_a"), _fake_run("run_b")],
         ):
             self.assertEqual(
-                ragas_eval._discover_run_ids(trace_dir=None), ["run_a", "run_b"]
+                ragas_eval._discover_trajectory_ids(trace_dir=None), ["run_a", "run_b"]
             )
 
-    def test_discover_run_ids_tolerates_storage_error(self) -> None:
+    def test_discover_trajectory_ids_tolerates_storage_error(self) -> None:
         """A fresh checkout without a populated SQLite DB should not
         abort the eval — the trace-dir fallback still has work to do."""
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
             (trace_dir / "run_dump.json").write_text("{}", encoding="utf-8")
             with mock.patch(
-                "backend.app.ragas_eval.storage.list_runs",
+                "backend.app.ragas_eval.storage.list_trajectories",
                 side_effect=RuntimeError("no DB"),
             ):
-                ids = ragas_eval._discover_run_ids(trace_dir=trace_dir)
+                ids = ragas_eval._discover_trajectory_ids(trace_dir=trace_dir)
         self.assertEqual(ids, ["run_dump"])
 
 
@@ -427,9 +427,9 @@ class CollectSamplesA61Tests(unittest.TestCase):
     """End-to-end: trace source precedence + skipped-count buckets."""
 
     def test_collect_samples_sqlite_trace_yields_one_sample(self) -> None:
-        sqlite_trace = _trace(run_id="run_sqlite")
+        sqlite_trace = _trace(trajectory_id="run_sqlite")
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_sqlite")],
         ):
             with mock.patch(
@@ -438,7 +438,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
             ):
                 samples, skipped = ragas_eval.collect_samples()
         self.assertEqual(len(samples), 1)
-        self.assertEqual(samples[0].run_id, "run_sqlite")
+        self.assertEqual(samples[0].trajectory_id, "run_sqlite")
         self.assertEqual(samples[0].question, "why did it stop early?")
         self.assertEqual(samples[0].tool_query, "why did it stop early?")
         self.assertEqual(samples[0].tool_name, "search_failure_memory")
@@ -457,14 +457,14 @@ class CollectSamplesA61Tests(unittest.TestCase):
         does. A6.1's primary win — the agent_eval flow's dumps are
         finally readable by RAGAS without round-tripping through the
         SQLite ``traces`` table."""
-        dumped = _trace(run_id="run_dumped")
+        dumped = _trace(trajectory_id="run_dumped")
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
             (trace_dir / "run_dumped.json").write_text(
                 dumped.model_dump_json(indent=2), encoding="utf-8"
             )
             with mock.patch(
-                "backend.app.ragas_eval.storage.list_runs", return_value=[]
+                "backend.app.ragas_eval.storage.list_trajectories", return_value=[]
             ):
                 with mock.patch(
                     "backend.app.ragas_eval.storage.load_trace", return_value=None
@@ -473,12 +473,12 @@ class CollectSamplesA61Tests(unittest.TestCase):
                         trace_dir=trace_dir
                     )
         self.assertEqual(len(samples), 1)
-        self.assertEqual(samples[0].run_id, "run_dumped")
+        self.assertEqual(samples[0].trajectory_id, "run_dumped")
         self.assertEqual(skipped.no_trace, 0)
 
     def test_collect_samples_uses_matching_rag_tool_result_contexts(self) -> None:
         trace = _trace(
-            run_id="run_rag",
+            trajectory_id="run_rag",
             events=[
                 _rag_call_event(0, query="first query"),
                 _rag_result_event(1, case_id="fm_first"),
@@ -501,7 +501,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
             ],
         )
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_rag")],
         ):
             with mock.patch(
@@ -518,12 +518,12 @@ class CollectSamplesA61Tests(unittest.TestCase):
     def test_collect_samples_skips_no_trace_when_neither_source_has_one(
         self,
     ) -> None:
-        """A run that lives in storage.list_runs but lacks a trace row
+        """A run that lives in storage.list_trajectories but lacks a trace row
         (e.g. import-only, never analyzed) must increment
         ``no_trace`` — not silently disappear or be misfiled as
         ``error``."""
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_no_trace")],
         ):
             with mock.patch(
@@ -537,10 +537,10 @@ class CollectSamplesA61Tests(unittest.TestCase):
 
     def test_collect_samples_counts_budget_exceeded_trace(self) -> None:
         be_trace = _trace(
-            run_id="run_be", terminated_by="budget_exceeded", events=[]
+            trajectory_id="run_be", terminated_by="budget_exceeded", events=[]
         )
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_be")],
         ):
             with mock.patch(
@@ -555,7 +555,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
 
     def test_collect_samples_counts_no_context_tool_call(self) -> None:
         trace = _trace(
-            run_id="run_empty_context",
+            trajectory_id="run_empty_context",
             events=[
                 _rag_call_event(0),
                 AgentTraceEvent(
@@ -568,7 +568,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
             ],
         )
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_empty_context")],
         ):
             with mock.patch(
@@ -580,14 +580,14 @@ class CollectSamplesA61Tests(unittest.TestCase):
         self.assertEqual(skipped.no_context, 1)
 
     def test_collect_samples_limit_caps_valid_samples(self) -> None:
-        trace_a = _trace(run_id="run_a")
-        trace_b = _trace(run_id="run_b")
+        trace_a = _trace(trajectory_id="run_a")
+        trace_b = _trace(trajectory_id="run_b")
 
-        def fake_load_trace(run_id: str):
-            return {"run_a": trace_a, "run_b": trace_b}[run_id]
+        def fake_load_trace(trajectory_id: str):
+            return {"run_a": trace_a, "run_b": trace_b}[trajectory_id]
 
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_a"), _fake_run("run_b")],
         ):
             with mock.patch(
@@ -596,21 +596,21 @@ class CollectSamplesA61Tests(unittest.TestCase):
             ):
                 samples, skipped = ragas_eval.collect_samples(limit=1)
         self.assertEqual(len(samples), 1)
-        self.assertEqual(samples[0].run_id, "run_a")
+        self.assertEqual(samples[0].trajectory_id, "run_a")
         self.assertEqual(skipped.no_context, 0)
 
     def test_collect_samples_limit_does_not_truncate_skipped_counts(self) -> None:
-        trace_a = _trace(run_id="run_a")
+        trace_a = _trace(trajectory_id="run_a")
         trace_b = _trace(
-            run_id="run_b",
+            trajectory_id="run_b",
             events=[_rag_call_event(0), _proposal_event(1)],
         )
 
-        def fake_load_trace(run_id: str):
-            return {"run_a": trace_a, "run_b": trace_b}[run_id]
+        def fake_load_trace(trajectory_id: str):
+            return {"run_a": trace_a, "run_b": trace_b}[trajectory_id]
 
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_a"), _fake_run("run_b")],
         ):
             with mock.patch(
@@ -619,7 +619,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
             ):
                 samples, skipped = ragas_eval.collect_samples(limit=1)
         self.assertEqual(len(samples), 1)
-        self.assertEqual(samples[0].run_id, "run_a")
+        self.assertEqual(samples[0].trajectory_id, "run_a")
         self.assertEqual(skipped.no_context, 1)
 
     def test_collect_samples_counts_malformed_trace_dir_file_as_error(self) -> None:
@@ -632,7 +632,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
                 json.dumps({"not": "a trace"}), encoding="utf-8"
             )
             with mock.patch(
-                "backend.app.ragas_eval.storage.list_runs", return_value=[]
+                "backend.app.ragas_eval.storage.list_trajectories", return_value=[]
             ):
                 with mock.patch(
                     "backend.app.ragas_eval.storage.load_trace", return_value=None
@@ -650,9 +650,9 @@ class CollectSamplesA61Tests(unittest.TestCase):
         """A trace whose terminated_by isn't propose_eval_case or
         budget_exceeded counts as error — RAGAS needs the terminal
         tool args to extract the answer text."""
-        error_trace = _trace(run_id="run_err", terminated_by="error", events=[])
+        error_trace = _trace(trajectory_id="run_err", terminated_by="error", events=[])
         with mock.patch(
-            "backend.app.ragas_eval.storage.list_runs",
+            "backend.app.ragas_eval.storage.list_trajectories",
             return_value=[_fake_run("run_err")],
         ):
             with mock.patch(
@@ -666,19 +666,19 @@ class CollectSamplesA61Tests(unittest.TestCase):
         produced in the same RAGAS report. A6.1 explicitly supports
         operators who have both UI-driven analyzes and a bulk
         agent_eval dump on disk."""
-        sqlite_trace = _trace(run_id="run_a")
-        dumped_trace = _trace(run_id="run_b")
+        sqlite_trace = _trace(trajectory_id="run_a")
+        dumped_trace = _trace(trajectory_id="run_b")
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp)
             (trace_dir / "run_b.json").write_text(
                 dumped_trace.model_dump_json(indent=2), encoding="utf-8"
             )
 
-            def fake_load_trace(run_id: str):
-                return sqlite_trace if run_id == "run_a" else None
+            def fake_load_trace(trajectory_id: str):
+                return sqlite_trace if trajectory_id == "run_a" else None
 
             with mock.patch(
-                "backend.app.ragas_eval.storage.list_runs",
+                "backend.app.ragas_eval.storage.list_trajectories",
                 return_value=[_fake_run("run_a")],
             ):
                 with mock.patch(
@@ -688,7 +688,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
                     samples, skipped = ragas_eval.collect_samples(
                         trace_dir=trace_dir
                     )
-        self.assertEqual({s.run_id for s in samples}, {"run_a", "run_b"})
+        self.assertEqual({s.trajectory_id for s in samples}, {"run_a", "run_b"})
         self.assertEqual(skipped.no_trace, 0)
 
     def test_collect_samples_ignores_legacy_data_runs_layout(self) -> None:
@@ -701,11 +701,11 @@ class CollectSamplesA61Tests(unittest.TestCase):
             legacy = data_root / "runs" / "run_legacy"
             legacy.mkdir(parents=True)
             (legacy / "last_trace.json").write_text(
-                _trace(run_id="run_legacy").model_dump_json(indent=2),
+                _trace(trajectory_id="run_legacy").model_dump_json(indent=2),
                 encoding="utf-8",
             )
             with mock.patch(
-                "backend.app.ragas_eval.storage.list_runs", return_value=[]
+                "backend.app.ragas_eval.storage.list_trajectories", return_value=[]
             ):
                 with mock.patch(
                     "backend.app.ragas_eval.storage.load_trace", return_value=None
@@ -720,7 +720,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
     def test_collect_samples_ignores_ground_truth_fixture_for_a6(self) -> None:
         """A6 is no-ground-truth faithfulness, so disk fixtures must not
         turn the report back into answer-correctness or self-grading."""
-        sqlite_trace = _trace(run_id="run_gt")
+        sqlite_trace = _trace(trajectory_id="run_gt")
         with tempfile.TemporaryDirectory() as tmp:
             data_root = Path(tmp)
             gt_dir = data_root / "runs" / "run_gt"
@@ -729,7 +729,7 @@ class CollectSamplesA61Tests(unittest.TestCase):
                 json.dumps({"failure_type": "missed_constraint"}), encoding="utf-8"
             )
             with mock.patch(
-                "backend.app.ragas_eval.storage.list_runs",
+                "backend.app.ragas_eval.storage.list_trajectories",
                 return_value=[_fake_run("run_gt")],
             ):
                 with mock.patch(

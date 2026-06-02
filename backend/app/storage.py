@@ -4,7 +4,7 @@ Public function signatures are stable across the v1 filesystem → SQLite cutove
 only the implementation changed. Two behavioral notes:
 
 - ``screenshot_path`` and ``screenshots_dir`` were removed. Screenshots live
-  inside the database as BLOBs; ``load_screenshot(run_id, filename)`` returns
+  inside the database as BLOBs; ``load_screenshot(trajectory_id, filename)`` returns
   ``bytes | None`` and is the only access path. Callers that previously read
   files from disk now read bytes from the DB.
 - ``data_dir()`` still resolves ``TRAJECTA_DATA_DIR`` and is exported because
@@ -26,7 +26,7 @@ from backend.app.schemas import (
     EvalCase,
     FailureMemoryCase,
     TrajectoryDigest,
-    TrajectoryRun,
+    Trajectory,
     TrajectoryStep,
 )
 
@@ -50,21 +50,21 @@ def _safe_id(value: str, *, kind: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Runs + Steps
+# Trajectories + Steps
 # ---------------------------------------------------------------------------
 
 
-def _run_to_orm(run: TrajectoryRun) -> tuple[models.Run, list[models.Step]]:
-    run_row = models.Run(
-        run_id=run.run_id,
-        task=run.task,
-        source=run.source,
-        status=run.status,
-        run_metadata=dict(run.metadata),
+def _trajectory_to_orm(trajectory: Trajectory) -> tuple[models.Trajectory, list[models.Step]]:
+    trajectory_row = models.Trajectory(
+        trajectory_id=trajectory.trajectory_id,
+        task=trajectory.task,
+        source=trajectory.source,
+        status=trajectory.status,
+        trajectory_metadata=dict(trajectory.metadata),
     )
     step_rows = [
         models.Step(
-            run_id=run.run_id,
+            trajectory_id=trajectory.trajectory_id,
             step_index=step.index,
             timestamp=step.timestamp,
             observation_json=step.observation.model_dump(mode="json"),
@@ -73,18 +73,18 @@ def _run_to_orm(run: TrajectoryRun) -> tuple[models.Run, list[models.Step]]:
             coordinate_validation_json=step.coordinate_validation.model_dump(mode="json"),
             step_metadata=dict(step.metadata),
         )
-        for step in run.steps
+        for step in trajectory.steps
     ]
-    return run_row, step_rows
+    return trajectory_row, step_rows
 
 
-def _orm_to_run(run_row: models.Run) -> TrajectoryRun:
-    return TrajectoryRun(
-        run_id=run_row.run_id,
-        task=run_row.task,
-        source=run_row.source,
-        status=run_row.status,
-        metadata=dict(run_row.run_metadata or {}),
+def _orm_to_trajectory(trajectory_row: models.Trajectory) -> Trajectory:
+    return Trajectory(
+        trajectory_id=trajectory_row.trajectory_id,
+        task=trajectory_row.task,
+        source=trajectory_row.source,
+        status=trajectory_row.status,
+        metadata=dict(trajectory_row.trajectory_metadata or {}),
         steps=[
             TrajectoryStep.model_validate(
                 {
@@ -97,59 +97,59 @@ def _orm_to_run(run_row: models.Run) -> TrajectoryRun:
                     "metadata": dict(step.step_metadata or {}),
                 }
             )
-            for step in run_row.steps
+            for step in trajectory_row.steps
         ],
     )
 
 
-def save_run(run: TrajectoryRun) -> None:
-    validated = TrajectoryRun.model_validate(run)
-    _safe_id(validated.run_id, kind="run_id")
+def save_trajectory(trajectory: Trajectory) -> None:
+    validated = Trajectory.model_validate(trajectory)
+    _safe_id(validated.trajectory_id, kind="trajectory_id")
     with db.session_scope() as session:
-        existing = session.get(models.Run, validated.run_id)
-        run_row, step_rows = _run_to_orm(validated)
+        existing = session.get(models.Trajectory, validated.trajectory_id)
+        trajectory_row, step_rows = _trajectory_to_orm(validated)
         if existing is not None:
-            # Update in place + replace only Step rows. Deleting the Run row
+            # Update in place + replace only Step rows. Deleting the Trajectory row
             # would cascade into screenshots/digest/trace and silently wipe
             # the user's prior analysis (docs/dataset_import.md "Re-Import
             # Behavior" promises traces survive re-import).
-            existing.task = run_row.task
-            existing.source = run_row.source
-            existing.status = run_row.status
-            existing.run_metadata = run_row.run_metadata
+            existing.task = trajectory_row.task
+            existing.source = trajectory_row.source
+            existing.status = trajectory_row.status
+            existing.trajectory_metadata = trajectory_row.trajectory_metadata
             existing.steps.clear()  # delete-orphan flushes the old Step rows
             session.flush()
             existing.steps.extend(step_rows)
         else:
-            run_row.steps = step_rows
-            session.add(run_row)
+            trajectory_row.steps = step_rows
+            session.add(trajectory_row)
 
 
-def load_run(run_id: str) -> TrajectoryRun:
+def load_trajectory(trajectory_id: str) -> Trajectory:
     try:
-        _safe_id(run_id, kind="run_id")
+        _safe_id(trajectory_id, kind="trajectory_id")
     except ValueError as exc:
-        raise FileNotFoundError(f"unknown run_id: {run_id}") from exc
+        raise FileNotFoundError(f"unknown trajectory_id: {trajectory_id}") from exc
     with db.session_scope() as session:
-        row = session.get(models.Run, run_id)
+        row = session.get(models.Trajectory, trajectory_id)
         if row is None:
-            raise FileNotFoundError(f"unknown run_id: {run_id}")
-        return _orm_to_run(row)
+            raise FileNotFoundError(f"unknown trajectory_id: {trajectory_id}")
+        return _orm_to_trajectory(row)
 
 
-def list_runs() -> list[TrajectoryRun]:
+def list_trajectories() -> list[Trajectory]:
     with db.session_scope() as session:
-        stmt = select(models.Run).order_by(models.Run.run_id)
-        return [_orm_to_run(row) for row in session.scalars(stmt).all()]
+        stmt = select(models.Trajectory).order_by(models.Trajectory.trajectory_id)
+        return [_orm_to_trajectory(row) for row in session.scalars(stmt).all()]
 
 
-def run_exists(run_id: str) -> bool:
+def trajectory_exists(trajectory_id: str) -> bool:
     try:
-        _safe_id(run_id, kind="run_id")
+        _safe_id(trajectory_id, kind="trajectory_id")
     except ValueError:
         return False
     with db.session_scope() as session:
-        return session.get(models.Run, run_id) is not None
+        return session.get(models.Trajectory, trajectory_id) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -157,20 +157,20 @@ def run_exists(run_id: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def save_screenshots(run_id: str, screenshots: Mapping[str, bytes]) -> None:
-    _safe_id(run_id, kind="run_id")
+def save_screenshots(trajectory_id: str, screenshots: Mapping[str, bytes]) -> None:
+    _safe_id(trajectory_id, kind="trajectory_id")
     if not screenshots:
         return
     with db.session_scope() as session:
-        if session.get(models.Run, run_id) is None:
-            raise FileNotFoundError(f"cannot attach screenshots; unknown run_id: {run_id}")
+        if session.get(models.Trajectory, trajectory_id) is None:
+            raise FileNotFoundError(f"cannot attach screenshots; unknown trajectory_id: {trajectory_id}")
         for filename, data in screenshots.items():
             _safe_id(filename, kind="screenshot_filename")
-            existing = session.get(models.Screenshot, (run_id, filename))
+            existing = session.get(models.Screenshot, (trajectory_id, filename))
             if existing is None:
                 session.add(
                     models.Screenshot(
-                        run_id=run_id,
+                        trajectory_id=trajectory_id,
                         filename=filename,
                         content_type=_infer_content_type(filename),
                         data=data,
@@ -181,39 +181,39 @@ def save_screenshots(run_id: str, screenshots: Mapping[str, bytes]) -> None:
                 existing.content_type = _infer_content_type(filename)
 
 
-def load_screenshot(run_id: str, filename: str) -> bytes | None:
-    result = load_screenshot_with_meta(run_id, filename)
+def load_screenshot(trajectory_id: str, filename: str) -> bytes | None:
+    result = load_screenshot_with_meta(trajectory_id, filename)
     return result[0] if result is not None else None
 
 
-def screenshot_content_type(run_id: str, filename: str) -> str | None:
-    result = load_screenshot_with_meta(run_id, filename)
+def screenshot_content_type(trajectory_id: str, filename: str) -> str | None:
+    result = load_screenshot_with_meta(trajectory_id, filename)
     return result[1] if result is not None else None
 
 
-def load_screenshot_with_meta(run_id: str, filename: str) -> tuple[bytes, str] | None:
+def load_screenshot_with_meta(trajectory_id: str, filename: str) -> tuple[bytes, str] | None:
     """Single-query screenshot fetch. Returns ``(data, content_type)`` or ``None``."""
 
     try:
-        _safe_id(run_id, kind="run_id")
+        _safe_id(trajectory_id, kind="trajectory_id")
         _safe_id(filename, kind="screenshot_filename")
     except ValueError:
         return None
     with db.session_scope() as session:
-        row = session.get(models.Screenshot, (run_id, filename))
+        row = session.get(models.Screenshot, (trajectory_id, filename))
         if row is None:
             return None
         return row.data, row.content_type
 
 
-def screenshot_exists(run_id: str, filename: str) -> bool:
+def screenshot_exists(trajectory_id: str, filename: str) -> bool:
     try:
-        _safe_id(run_id, kind="run_id")
+        _safe_id(trajectory_id, kind="trajectory_id")
         _safe_id(filename, kind="screenshot_filename")
     except ValueError:
         return False
     with db.session_scope() as session:
-        return session.get(models.Screenshot, (run_id, filename)) is not None
+        return session.get(models.Screenshot, (trajectory_id, filename)) is not None
 
 
 def _infer_content_type(filename: str) -> str:
@@ -234,41 +234,41 @@ def _infer_content_type(filename: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def load_digest(run_id: str) -> TrajectoryDigest | None:
+def load_digest(trajectory_id: str) -> TrajectoryDigest | None:
     try:
-        _safe_id(run_id, kind="run_id")
+        _safe_id(trajectory_id, kind="trajectory_id")
     except ValueError:
         return None
     with db.session_scope() as session:
-        row = session.get(models.Digest, run_id)
+        row = session.get(models.Digest, trajectory_id)
         if row is None:
             return None
         return TrajectoryDigest.model_validate(row.payload_json)
 
 
-def save_digest(run_id: str, digest: TrajectoryDigest) -> None:
+def save_digest(trajectory_id: str, digest: TrajectoryDigest) -> None:
     validated = TrajectoryDigest.model_validate(digest)
-    if validated.run_id != run_id:
-        raise ValueError(f"digest.run_id {validated.run_id!r} does not match run_id argument {run_id!r}")
-    _safe_id(run_id, kind="run_id")
+    if validated.trajectory_id != trajectory_id:
+        raise ValueError(f"digest.trajectory_id {validated.trajectory_id!r} does not match trajectory_id argument {trajectory_id!r}")
+    _safe_id(trajectory_id, kind="trajectory_id")
     with db.session_scope() as session:
-        if session.get(models.Run, run_id) is None:
-            raise FileNotFoundError(f"cannot attach digest; unknown run_id: {run_id}")
-        existing = session.get(models.Digest, run_id)
+        if session.get(models.Trajectory, trajectory_id) is None:
+            raise FileNotFoundError(f"cannot attach digest; unknown trajectory_id: {trajectory_id}")
+        existing = session.get(models.Digest, trajectory_id)
         payload = validated.model_dump(mode="json")
         if existing is None:
-            session.add(models.Digest(run_id=run_id, payload_json=payload))
+            session.add(models.Digest(trajectory_id=trajectory_id, payload_json=payload))
         else:
             existing.payload_json = payload
 
 
-def delete_digest(run_id: str) -> None:
+def delete_digest(trajectory_id: str) -> None:
     try:
-        _safe_id(run_id, kind="run_id")
+        _safe_id(trajectory_id, kind="trajectory_id")
     except ValueError:
         return
     with db.session_scope() as session:
-        existing = session.get(models.Digest, run_id)
+        existing = session.get(models.Digest, trajectory_id)
         if existing is not None:
             session.delete(existing)
 
@@ -278,30 +278,30 @@ def delete_digest(run_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def load_trace(run_id: str) -> AgentTrace | None:
+def load_trace(trajectory_id: str) -> AgentTrace | None:
     try:
-        _safe_id(run_id, kind="run_id")
+        _safe_id(trajectory_id, kind="trajectory_id")
     except ValueError:
         return None
     with db.session_scope() as session:
-        row = session.get(models.Trace, run_id)
+        row = session.get(models.Trace, trajectory_id)
         if row is None:
             return None
         return AgentTrace.model_validate(row.payload_json)
 
 
-def save_trace(run_id: str, trace: AgentTrace) -> None:
+def save_trace(trajectory_id: str, trace: AgentTrace) -> None:
     validated = AgentTrace.model_validate(trace)
-    if validated.run_id != run_id:
-        raise ValueError(f"trace.run_id {validated.run_id!r} does not match run_id argument {run_id!r}")
-    _safe_id(run_id, kind="run_id")
+    if validated.trajectory_id != trajectory_id:
+        raise ValueError(f"trace.trajectory_id {validated.trajectory_id!r} does not match trajectory_id argument {trajectory_id!r}")
+    _safe_id(trajectory_id, kind="trajectory_id")
     with db.session_scope() as session:
-        if session.get(models.Run, run_id) is None:
-            raise FileNotFoundError(f"cannot attach trace; unknown run_id: {run_id}")
-        existing = session.get(models.Trace, run_id)
+        if session.get(models.Trajectory, trajectory_id) is None:
+            raise FileNotFoundError(f"cannot attach trace; unknown trajectory_id: {trajectory_id}")
+        existing = session.get(models.Trace, trajectory_id)
         payload = validated.model_dump(mode="json")
         if existing is None:
-            session.add(models.Trace(run_id=run_id, payload_json=payload))
+            session.add(models.Trace(trajectory_id=trajectory_id, payload_json=payload))
         else:
             existing.payload_json = payload
 
@@ -320,7 +320,7 @@ def save_eval_case(case: EvalCase) -> None:
         session.add(
             models.EvalCaseRow(
                 case_id=validated.case_id,
-                source_run_id=validated.source_run_id,
+                source_trajectory_id=validated.source_trajectory_id,
                 payload_json=validated.model_dump(mode="json"),
                 human_validated=validated.human_validated,
             )

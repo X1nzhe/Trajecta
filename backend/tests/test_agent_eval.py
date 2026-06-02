@@ -18,7 +18,7 @@ class AgentEvalHarnessTests(unittest.TestCase):
     def test_filter_golden_set_removes_failure_memory_source_overlap(self) -> None:
         golden = [
             agent_eval.GoldenSample(
-                run_id="run_overlap",
+                trajectory_id="run_overlap",
                 category="site",
                 outcome="failed",
                 failure_types=["missed_constraint"],
@@ -26,7 +26,7 @@ class AgentEvalHarnessTests(unittest.TestCase):
                 notes="",
             ),
             agent_eval.GoldenSample(
-                run_id="run_clean",
+                trajectory_id="run_clean",
                 category="site",
                 outcome="success",
                 failure_types=[],
@@ -37,21 +37,21 @@ class AgentEvalHarnessTests(unittest.TestCase):
 
         filtered, summary = agent_eval.filter_golden_set_for_failure_memory_overlap(
             golden,
-            failure_memory_source_run_ids={"run_overlap"},
+            failure_memory_source_trajectory_ids={"run_overlap"},
         )
 
-        self.assertEqual([sample.run_id for sample in filtered], ["run_clean"])
+        self.assertEqual([sample.trajectory_id for sample in filtered], ["run_clean"])
         self.assertEqual(summary.original_n, 2)
         self.assertEqual(summary.evaluated_n, 1)
         self.assertEqual(summary.failure_memory_overlap_n, 1)
-        self.assertEqual(summary.failure_memory_overlap_run_ids, ["run_overlap"])
+        self.assertEqual(summary.failure_memory_overlap_trajectory_ids, ["run_overlap"])
 
     def test_report_records_failure_memory_overlap_filter_count(self) -> None:
         summary = agent_eval.GoldenSetFilterSummary(
             original_n=5,
             evaluated_n=3,
             failure_memory_overlap_n=2,
-            failure_memory_overlap_run_ids=["run_a", "run_b"],
+            failure_memory_overlap_trajectory_ids=["run_a", "run_b"],
         )
         report = agent_eval.build_report(
             [],
@@ -75,13 +75,13 @@ class AgentEvalHarnessTests(unittest.TestCase):
         and that the success/failed counts feed the majority class correctly."""
         golden = [
             agent_eval.GoldenSample(
-                run_id=f"success_{i}", category="x", outcome="success",
+                trajectory_id=f"success_{i}", category="x", outcome="success",
                 failure_types=[], failure_step=None, notes="",
             )
             for i in range(5)
         ] + [
             agent_eval.GoldenSample(
-                run_id=f"failed_{i}", category="x", outcome="failed",
+                trajectory_id=f"failed_{i}", category="x", outcome="failed",
                 failure_types=["early_terminated"], failure_step=2, notes="",
             )
             for i in range(3)
@@ -146,7 +146,7 @@ class TraceDumpTests(unittest.TestCase):
     """Phase 8 A2 — per-sample trace dump path used by the judge (A3) and
     the real RAGAS run (A6)."""
 
-    def _make_trace(self, run_id: str) -> AgentTrace:
+    def _make_trace(self, trajectory_id: str) -> AgentTrace:
         """A minimal AgentTrace shaped enough that judge.py would consume it.
 
         The trace carries a propose_eval_case tool_call so the
@@ -162,7 +162,7 @@ class TraceDumpTests(unittest.TestCase):
                 type="tool_call",
                 name="propose_eval_case",
                 args={
-                    "run_id": run_id,
+                    "trajectory_id": trajectory_id,
                     "failure_step": 3,
                     "failure_type": "missed_constraint",
                     "expected_behavior": "satisfy constraint",
@@ -171,7 +171,7 @@ class TraceDumpTests(unittest.TestCase):
                         {
                             "claim": "step 3 inspected",
                             "source": "step_detail_high",
-                            "run_id": run_id,
+                            "trajectory_id": trajectory_id,
                             "step_index": 3,
                         }
                     ],
@@ -181,8 +181,8 @@ class TraceDumpTests(unittest.TestCase):
             ),
         ]
         return AgentTrace(
-            run_id=run_id,
-            user_intent="analyze_run",
+            trajectory_id=trajectory_id,
+            user_intent="analyze_trajectory",
             selected_step=None,
             tool_call_count=1,
             turn_count=1,
@@ -194,8 +194,8 @@ class TraceDumpTests(unittest.TestCase):
             vlm_model="mock",
         )
 
-    def test_dump_trace_writes_run_id_named_file(self) -> None:
-        """_dump_trace creates {trace_dir}/{run_id}.json with the
+    def test_dump_trace_writes_trajectory_id_named_file(self) -> None:
+        """_dump_trace creates {trace_dir}/{trajectory_id}.json with the
         round-trippable AgentTrace payload."""
         trace = self._make_trace("run_abc")
         with tempfile.TemporaryDirectory() as tmp:
@@ -206,7 +206,7 @@ class TraceDumpTests(unittest.TestCase):
             self.assertEqual(out, trace_dir / "run_abc.json")
             payload = json.loads(out.read_text(encoding="utf-8"))
             # AgentTrace round-trips through model_dump_json.
-            self.assertEqual(payload["run_id"], "run_abc")
+            self.assertEqual(payload["trajectory_id"], "run_abc")
             self.assertEqual(payload["terminated_by"], "propose_eval_case")
             # Evidence chain is preserved (the field A3 judge reads from).
             propose_args = next(
@@ -255,7 +255,7 @@ class TraceDumpTests(unittest.TestCase):
         wiring without depending on a real LLM — uses a stub
         ``_run_agent`` so the test stays deterministic."""
         sample = agent_eval.GoldenSample(
-            run_id="run_dump_a",
+            trajectory_id="run_dump_a",
             category="x",
             outcome="success",
             failure_types=[],
@@ -264,7 +264,7 @@ class TraceDumpTests(unittest.TestCase):
         )
         trace = self._make_trace("run_dump_a")
 
-        # Stub storage.load_run so the sample is "importable" without a real
+        # Stub storage.load_trajectory so the sample is "importable" without a real
         # SQLite row.
         class _FakeRun:
             steps = [None] * 5
@@ -272,7 +272,7 @@ class TraceDumpTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             trace_dir = Path(tmp) / "traces"
             with (
-                patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+                patch("backend.app.agent_eval.storage.load_trajectory", return_value=_FakeRun()),
                 patch("backend.app.agent_eval._run_agent", return_value=trace),
             ):
                 graded, skipped = agent_eval.collect_graded_samples(
@@ -288,7 +288,7 @@ class TraceDumpTests(unittest.TestCase):
         """The opt-out path: ``trace_dir=None`` produces no files (mock
         mode default)."""
         sample = agent_eval.GoldenSample(
-            run_id="run_no_dump",
+            trajectory_id="run_no_dump",
             category="x",
             outcome="success",
             failure_types=[],
@@ -303,7 +303,7 @@ class TraceDumpTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             # No trace dir is created or populated when trace_dir=None.
             with (
-                patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+                patch("backend.app.agent_eval.storage.load_trajectory", return_value=_FakeRun()),
                 patch("backend.app.agent_eval._run_agent", return_value=trace),
             ):
                 graded, _ = agent_eval.collect_graded_samples(
@@ -318,7 +318,7 @@ class TraceDumpTests(unittest.TestCase):
     def test_collect_graded_samples_retries_retryable_error(self) -> None:
         """429 / transient API errors are retried at the sample level."""
         sample = agent_eval.GoldenSample(
-            run_id="run_retry",
+            trajectory_id="run_retry",
             category="x",
             outcome="success",
             failure_types=[],
@@ -333,7 +333,7 @@ class TraceDumpTests(unittest.TestCase):
         delays: list[float] = []
         run_agent = MagicMock(side_effect=[RuntimeError("429 rate limit"), trace])
         with (
-            patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+            patch("backend.app.agent_eval.storage.load_trajectory", return_value=_FakeRun()),
             patch("backend.app.agent_eval._run_agent", run_agent),
         ):
             graded, skipped = agent_eval.collect_graded_samples(
@@ -353,7 +353,7 @@ class TraceDumpTests(unittest.TestCase):
     def test_collect_graded_samples_does_not_retry_non_retryable_error(self) -> None:
         """Non-transient failures keep the old behavior: mark agent_error and continue."""
         sample = agent_eval.GoldenSample(
-            run_id="run_non_retry",
+            trajectory_id="run_non_retry",
             category="x",
             outcome="success",
             failure_types=[],
@@ -366,7 +366,7 @@ class TraceDumpTests(unittest.TestCase):
 
         run_agent = MagicMock(side_effect=ValueError("bad eval case schema"))
         with (
-            patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+            patch("backend.app.agent_eval.storage.load_trajectory", return_value=_FakeRun()),
             patch("backend.app.agent_eval._run_agent", run_agent),
         ):
             graded, skipped = agent_eval.collect_graded_samples(
@@ -383,9 +383,9 @@ class TraceDumpTests(unittest.TestCase):
         self.assertEqual(run_agent.call_count, 1)
 
     def test_collect_graded_samples_resumes_existing_trace(self) -> None:
-        """Existing trace_dir/{run_id}.json is graded without calling the agent."""
+        """Existing trace_dir/{trajectory_id}.json is graded without calling the agent."""
         sample = agent_eval.GoldenSample(
-            run_id="run_resume",
+            trajectory_id="run_resume",
             category="x",
             outcome="success",
             failure_types=[],
@@ -411,7 +411,7 @@ class TraceDumpTests(unittest.TestCase):
                     os.environ,
                     {"TRAJECTA_PROMPT_VERSION": "v5_constraint_verification"},
                 ),
-                patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+                patch("backend.app.agent_eval.storage.load_trajectory", return_value=_FakeRun()),
                 patch("backend.app.agent_eval._run_agent", run_agent),
             ):
                 graded, skipped = agent_eval.collect_graded_samples(
@@ -428,7 +428,7 @@ class TraceDumpTests(unittest.TestCase):
     def test_collect_graded_samples_rejects_prompt_mismatched_trace(self) -> None:
         """Resume refuses traces from another TRAJECTA_PROMPT_VERSION."""
         sample = agent_eval.GoldenSample(
-            run_id="run_prompt_mismatch",
+            trajectory_id="run_prompt_mismatch",
             category="x",
             outcome="success",
             failure_types=[],
@@ -450,7 +450,7 @@ class TraceDumpTests(unittest.TestCase):
             run_agent = MagicMock()
             with (
                 patch.dict(os.environ, {"TRAJECTA_PROMPT_VERSION": "v3_balanced_rubric"}),
-                patch("backend.app.agent_eval.storage.load_run", return_value=_FakeRun()),
+                patch("backend.app.agent_eval.storage.load_trajectory", return_value=_FakeRun()),
                 patch("backend.app.agent_eval._run_agent", run_agent),
             ):
                 with self.assertRaises(ValueError):
@@ -479,10 +479,10 @@ def _make_judge_result(
     slot: str = "A",
     model: str = "judge-a",
     prompt_version: str = "v_test",
-    run_id: str = "run_x",
+    trajectory_id: str = "run_x",
 ) -> StandaloneJudgeResult:
     """A minimal StandaloneJudgeResult used by tests that mock
-    ``run_standalone_judge`` — only ``graded_run_ids`` / ``skipped`` are
+    ``run_standalone_judge`` — only ``graded_trajectory_ids`` / ``skipped`` are
     actually read by the post-step's stderr summary."""
     from eval.judge import JudgeCaseReport, JudgeReport
 
@@ -492,7 +492,7 @@ def _make_judge_result(
         prompt_sha256="0" * 64,
         cases=[
             JudgeCaseReport(
-                run_id=run_id, verdict="acceptable", rationale="ok", assertions=[]
+                trajectory_id=trajectory_id, verdict="acceptable", rationale="ok", assertions=[]
             )
         ],
     )
@@ -500,7 +500,7 @@ def _make_judge_result(
         report=report,
         json_path=Path("/tmp/judge_report.json"),
         md_path=Path("/tmp/judge_report.md"),
-        graded_run_ids=[run_id],
+        graded_trajectory_ids=[trajectory_id],
         skipped={},
     )
 
@@ -556,20 +556,20 @@ class RunJudgePostStepTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
-        self.run_id = "run_x"
+        self.trajectory_id = "run_x"
         # Minimal agent_report.json — the standalone runner only reads
-        # samples[].run_id from it.
+        # samples[].trajectory_id from it.
         self.report_path = self.tmp / "agent_report.json"
         self.report_path.write_text(
-            json.dumps({"samples": [{"run_id": self.run_id}]}),
+            json.dumps({"samples": [{"trajectory_id": self.trajectory_id}]}),
             encoding="utf-8",
         )
         # Trace dump matching the report's sole sample.
         self.trace_dir = self.tmp / "traces"
         self.trace_dir.mkdir()
         trace = AgentTrace(
-            run_id=self.run_id,
-            user_intent="analyze_run",
+            trajectory_id=self.trajectory_id,
+            user_intent="analyze_trajectory",
             selected_step=None,
             tool_call_count=1,
             turn_count=1,
@@ -581,7 +581,7 @@ class RunJudgePostStepTests(unittest.TestCase):
                     type="tool_call",
                     name="propose_eval_case",
                     args={
-                        "run_id": self.run_id,
+                        "trajectory_id": self.trajectory_id,
                         "failure_step": 3,
                         "failure_type": "missed_constraint",
                         "expected_behavior": "x",
@@ -597,15 +597,15 @@ class RunJudgePostStepTests(unittest.TestCase):
             prompt_sha256="0" * 64,
             vlm_model="mock",
         )
-        (self.trace_dir / f"{self.run_id}.json").write_text(
+        (self.trace_dir / f"{self.trajectory_id}.json").write_text(
             trace.model_dump_json(indent=2), encoding="utf-8"
         )
-        # Golden JSONL covering the run_id.
+        # Golden JSONL covering the trajectory_id.
         self.golden_path = self.tmp / "golden.jsonl"
         self.golden_path.write_text(
             json.dumps(
                 {
-                    "input": {"run_id": self.run_id, "intent": "analyze_run"},
+                    "input": {"trajectory_id": self.trajectory_id, "intent": "analyze_trajectory"},
                     "expected_facts": [
                         {"field": "outcome", "op": "eq", "value": "failed"},
                         {
@@ -883,14 +883,14 @@ class RunJudgePostStepTests(unittest.TestCase):
         )
 
     def test_agreement_mismatch_returns_1_without_writing_report(self) -> None:
-        """If both slots run but grade different run_ids, κ is invalid.
+        """If both slots run but grade different trajectory_ids, κ is invalid.
         The post-step should surface that as a judge failure instead of
         silently writing a misleading agreement report."""
 
         def fake_runner(*, config: JudgeConfig, **kwargs):
             if config.slot == "A":
-                return _make_judge_result(slot="A", model="a", run_id="run_x")
-            return _make_judge_result(slot="B", model="b", run_id="run_y")
+                return _make_judge_result(slot="A", model="a", trajectory_id="run_x")
+            return _make_judge_result(slot="B", model="b", trajectory_id="run_y")
 
         stderr = io.StringIO()
         with (

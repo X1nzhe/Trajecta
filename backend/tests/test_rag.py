@@ -31,22 +31,22 @@ def _sample_failure_memory(
         summary=summary,
         fix_hint=fix_hint,
         tags=tags or ["constraint", "filter"],
-        source_run_id=None,
+        source_trajectory_id=None,
     )
 
 
 def _sample_eval_case(case_id: str = "ec_run_42_step_3", human_validated: bool = True) -> EvalCase:
     return EvalCase(
         case_id=case_id,
-        source_run_id="run_42",
+        source_trajectory_id="run_42",
         task="Filter results under twenty dollars",
         failure_step=3,
         failure_type="missed_constraint",
         expected_behavior="apply price filter then click first result",
         actual_behavior="clicked first result with no filter applied",
         evidence=[
-            EvidenceItem(claim="price filter input untouched", source="trajectory_digest", run_id="run_42", step_index=2),
-            EvidenceItem(claim="result page lists items above twenty", source="step_detail_high", run_id="run_42", step_index=3),
+            EvidenceItem(claim="price filter input untouched", source="trajectory_digest", trajectory_id="run_42", step_index=2),
+            EvidenceItem(claim="result page lists items above twenty", source="step_detail_high", trajectory_id="run_42", step_index=3),
         ],
         regression_rule="Always apply price constraint before navigating to results.",
         retrieved_context_ids=["fm_missed_constraint_001"],
@@ -116,10 +116,10 @@ class FailureMemoryTests(RagPerTestEnv):
 
         self.assertEqual(sorted(result.tags), ["constraint", "filter", "price"])
 
-    def test_failure_memory_excludes_source_run_id(self) -> None:
-        """Retrieval leakage guard. A case whose source_run_id matches
-        exclude_source_run_id is filtered out at the ChromaDB ``where`` level;
-        unrelated cases still come back, and cases with no source_run_id are
+    def test_failure_memory_excludes_source_trajectory_id(self) -> None:
+        """Retrieval leakage guard. A case whose source_trajectory_id matches
+        exclude_source_trajectory_id is filtered out at the ChromaDB ``where`` level;
+        unrelated cases still come back, and cases with no source_trajectory_id are
         not filtered."""
         leaky = FailureMemoryCase(
             case_id="fm_test_001",
@@ -127,7 +127,7 @@ class FailureMemoryTests(RagPerTestEnv):
             summary="leaky case authored from run_leak",
             fix_hint="x",
             tags=["t"],
-            source_run_id="run_leak",
+            source_trajectory_id="run_leak",
         )
         unrelated = FailureMemoryCase(
             case_id="fm_test_002",
@@ -135,7 +135,7 @@ class FailureMemoryTests(RagPerTestEnv):
             summary="unrelated case authored from run_other",
             fix_hint="x",
             tags=["t"],
-            source_run_id="run_other",
+            source_trajectory_id="run_other",
         )
         anonymous = FailureMemoryCase(
             case_id="fm_test_003",
@@ -143,7 +143,7 @@ class FailureMemoryTests(RagPerTestEnv):
             summary="anonymous case with no source run",
             fix_hint="x",
             tags=["t"],
-            source_run_id=None,
+            source_trajectory_id=None,
         )
         rag.upsert_failure_memory(leaky)
         rag.upsert_failure_memory(unrelated)
@@ -158,7 +158,7 @@ class FailureMemoryTests(RagPerTestEnv):
 
         # With exclusion of run_leak → leaky is filtered; the other two remain.
         filtered = rag.query_failure_memory(
-            "case", top_k=10, exclude_source_run_id="run_leak"
+            "case", top_k=10, exclude_source_trajectory_id="run_leak"
         )
         filtered_ids = {r.case_id for r in filtered}
         self.assertNotIn("fm_test_001", filtered_ids)
@@ -219,14 +219,14 @@ class EvalCaseTests(RagPerTestEnv):
 
         Mirrors the leakage guard from query_failure_memory: rerunning
         the agent on run_X must not surface an EvalCase whose
-        source_run_id == "run_X". The chroma-side filter has to compose
+        source_trajectory_id == "run_X". The chroma-side filter has to compose
         with only_validated rather than overwrite it.
         """
         validated_self = _sample_eval_case(case_id="ec_self", human_validated=True)
         validated_other = _sample_eval_case(case_id="ec_other", human_validated=True)
-        # Force the second case onto a different source_run_id so the
+        # Force the second case onto a different source_trajectory_id so the
         # exclude filter has something to discriminate.
-        validated_other = validated_other.model_copy(update={"source_run_id": "run_other"})
+        validated_other = validated_other.model_copy(update={"source_trajectory_id": "run_other"})
 
         class FakeCollection:
             def __init__(self) -> None:
@@ -249,14 +249,14 @@ class EvalCaseTests(RagPerTestEnv):
         fake_collection = FakeCollection()
         with mock.patch("backend.app.rag.failure_eval_cases_collection", return_value=fake_collection):
             results = rag.query_failure_eval_cases(
-                "x", top_k=5, exclude_source_run_id=validated_self.source_run_id
+                "x", top_k=5, exclude_source_trajectory_id=validated_self.source_trajectory_id
             )
 
         self.assertEqual(
             fake_collection.query_kwargs["where"],
             {"$and": [
                 {"human_validated": True},
-                {"source_run_id": {"$ne": validated_self.source_run_id}},
+                {"source_trajectory_id": {"$ne": validated_self.source_trajectory_id}},
             ]},
         )
         self.assertEqual([case.case_id for case in results], ["ec_other"])
@@ -271,13 +271,13 @@ class SuccessfulTrajectoriesTests(RagPerTestEnv):
 
         self.assertEqual(rag.successful_trajectories_collection().count(), 0)
 
-    def test_successful_trajectories_exclude_run_id_filters_self(self) -> None:
+    def test_successful_trajectories_exclude_trajectory_id_filters_self(self) -> None:
         rag.upsert_successful_trajectory(sample_run("run_a", status="success"))
         rag.upsert_successful_trajectory(sample_run("run_b", status="success"))
 
-        results = rag.query_similar_successful_trajectories("Find a result", top_k=3, exclude_run_id="run_a")
+        results = rag.query_similar_successful_trajectories("Find a result", top_k=3, exclude_trajectory_id="run_a")
 
-        ids = [r["run_id"] for r in results]
+        ids = [r["trajectory_id"] for r in results]
         self.assertNotIn("run_a", ids)
         self.assertIn("run_b", ids)
 
@@ -288,7 +288,7 @@ class SuccessfulTrajectoriesTests(RagPerTestEnv):
         rag.delete_successful_trajectory("run_a")
 
         self.assertEqual(rag.successful_trajectories_collection().count(), 1)
-        ids = [r["run_id"] for r in rag.query_similar_successful_trajectories("Find a result", top_k=5)]
+        ids = [r["trajectory_id"] for r in rag.query_similar_successful_trajectories("Find a result", top_k=5)]
         self.assertNotIn("run_a", ids)
 
 
@@ -299,7 +299,7 @@ class ToolReturnShapeTests(RagPerTestEnv):
         results = tools.search_failure_memory("constraint", top_k=3)
 
         self.assertGreaterEqual(len(results), 1)
-        allowed = {"case_id", "failure_type", "summary", "fix_hint", "tags", "source_run_id"}
+        allowed = {"case_id", "failure_type", "summary", "fix_hint", "tags", "source_trajectory_id"}
         for item in results:
             self.assertEqual(set(item.keys()), allowed)
             self.assertNotIn("score", item)
@@ -315,7 +315,7 @@ class HydrationTests(RagPerTestEnv):
             json.dumps(_sample_failure_memory().model_dump(mode="json")) + "\n",
             encoding="utf-8",
         )
-        storage.save_run(sample_run("ok_run", status="success"))
+        storage.save_trajectory(sample_run("ok_run", status="success"))
         storage.save_eval_case(_sample_eval_case())
 
         rag.hydrate_all()
@@ -375,13 +375,13 @@ class HydrationTests(RagPerTestEnv):
         failure_case = _sample_eval_case(case_id="ec_failure_1")
         success_case = EvalCase(
             case_id="ec_success_1",
-            source_run_id="run_success",
+            source_trajectory_id="run_success",
             task="Filter results under twenty dollars",
             evidence=[
                 EvidenceItem(
                     claim="task completed: filter applied and correct result clicked",
                     source="trajectory_digest",
-                    run_id="run_success",
+                    trajectory_id="run_success",
                     step_index=3,
                 ),
             ],
@@ -401,13 +401,13 @@ class HydrationTests(RagPerTestEnv):
     def test_upsert_failure_eval_case_refuses_success_shape(self) -> None:
         success_case = EvalCase(
             case_id="ec_success_2",
-            source_run_id="run_success",
+            source_trajectory_id="run_success",
             task="Filter results under twenty dollars",
             evidence=[
                 EvidenceItem(
                     claim="task completed successfully",
                     source="trajectory_digest",
-                    run_id="run_success",
+                    trajectory_id="run_success",
                     step_index=1,
                 ),
             ],
@@ -523,8 +523,8 @@ class SeedFailureMemoryFileTests(unittest.TestCase):
 
 
 class RankingAndTopKTests(RagPerTestEnv):
-    def test_find_similar_successful_run_same_task_outranks_cross_task(self) -> None:
-        """docs/testing.md: find_similar_successful_run returns higher
+    def test_find_similar_successful_trajectory_same_task_outranks_cross_task(self) -> None:
+        """docs/testing.md: find_similar_successful_trajectory returns higher
         similarity for same-task runs than for cross-task runs.
         """
 
@@ -541,11 +541,11 @@ class RankingAndTopKTests(RagPerTestEnv):
             "Filter results under twenty dollars", top_k=2
         )
 
-        run_ids = [r["run_id"] for r in results]
-        self.assertIn("run_same", run_ids)
+        trajectory_ids = [r["trajectory_id"] for r in results]
+        self.assertIn("run_same", trajectory_ids)
         # Same-task run must appear before cross-task run when both are present.
-        if "run_cross" in run_ids:
-            self.assertLess(run_ids.index("run_same"), run_ids.index("run_cross"))
+        if "run_cross" in trajectory_ids:
+            self.assertLess(trajectory_ids.index("run_same"), trajectory_ids.index("run_cross"))
 
     def test_top_k_length_respected(self) -> None:
         """docs/testing.md: top_k length is respected."""

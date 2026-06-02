@@ -185,7 +185,7 @@ def test_success_shape_rejects_failure_facts() -> None:
     with pytest.raises(ValueError, match="success-shape"):
         GoldenCase.model_validate(
             {
-                "input": {"run_id": "abc"},
+                "input": {"trajectory_id": "abc"},
                 "expected_facts": [
                     {"field": "outcome", "op": "eq", "value": "success"},
                     {
@@ -208,7 +208,7 @@ def test_failed_shape_requires_failure_type_fact() -> None:
     with pytest.raises(ValueError, match="failed-shape"):
         GoldenCase.model_validate(
             {
-                "input": {"run_id": "abc"},
+                "input": {"trajectory_id": "abc"},
                 "expected_facts": [
                     {"field": "outcome", "op": "eq", "value": "failed"}
                 ],
@@ -224,7 +224,7 @@ def test_outcome_fact_round_trips_through_jsonl() -> None:
     """Serialise + deserialise preserves the discriminated union."""
     case = GoldenCase.model_validate(
         {
-            "input": {"run_id": "abc"},
+            "input": {"trajectory_id": "abc"},
             "expected_facts": [
                 {"field": "outcome", "op": "eq", "value": "success"}
             ],

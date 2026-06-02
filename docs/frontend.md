@@ -8,7 +8,7 @@ Layout:
 Left:   Run list
 Center: Screenshot replay + step timeline + step detail tabs
 Right:  Eval Agent controls + observation summary + trace timeline + eval case draft
-Footer: dataset and run count summary
+Footer: dataset and trajectory count summary
 ```
 
 ## Positioning
@@ -35,17 +35,17 @@ generic observability platform
 
 A thin top bar. The only interactive element is one button:
 
-- **`Import Dataset`** — calls `POST /api/import/molmoweb-sample`, which imports the bundled `data/raw/molmoweb_humanskills_sample/` fixtures (idempotent — see [docs/dataset_import.md](dataset_import.md#re-import-behavior)). Disable while in flight; on success, refresh `RunList`. Tooltip: "Imports the bundled MolmoWeb-HumanSkills sample. Status badges appear after Eval Agent analysis + human validation." Dataset upload from the browser is a v2 feature; v1 always reads from the bundled fixture path.
+- **`Import Dataset`** — calls `POST /api/import/molmoweb-sample`, which imports the bundled `data/raw/molmoweb_humanskills_sample/` fixtures (idempotent — see [docs/dataset_import.md](dataset_import.md#re-import-behavior)). Disable while in flight; on success, refresh `TrajectoryList`. Tooltip: "Imports the bundled MolmoWeb-HumanSkills sample. Status badges appear after Eval Agent analysis + human validation." Dataset upload from the browser is a v2 feature; v1 always reads from the bundled fixture path.
 
-### `RunList.tsx`
+### `TrajectoryList.tsx`
 
-- List runs from `GET /api/runs`.
-- Show run status badge: `Failed`, `Success`, `Unanalyzed`. The `unknown` storage value maps to the `Unanalyzed` badge (amber) — cold-start runs have no verdict until a human validates an `EvalCase`.
+- List trajectories from `GET /api/trajectories`.
+- Show trajectory status badge: `Failed`, `Success`, `Unanalyzed`. The `unknown` storage value maps to the `Unanalyzed` badge (amber) — cold-start trajectories have no verdict until a human validates an `EvalCase`.
 - Show task text, date, step count, comment count.
-- Run ID rendered truncated on the card (e.g. first 8 + last 4 characters); the full `run_id` is shown in a tooltip on hover so the user can copy it.
-- Click loads the run and resets the center and right panels.
+- Run ID rendered truncated on the card (e.g. first 8 + last 4 characters); the full `trajectory_id` is shown in a tooltip on hover so the user can copy it.
+- Click loads the trajectory and resets the center and right panels.
 - Search box filters by `task` substring; status filter chips (All / Failed / Success / Unanalyzed).
-- After a successful `POST /api/eval-cases`, the panel re-fetches `/api/runs` so the badge flips immediately (`onEvalCaseValidated` callback wired from `App.tsx`).
+- After a successful `POST /api/eval-cases`, the panel re-fetches `/api/trajectories` so the badge flips immediately (`onEvalCaseValidated` callback wired from `App.tsx`).
 
 ### `StepTimeline.tsx`
 
@@ -56,7 +56,7 @@ A thin top bar. The only interactive element is one button:
 
 ### `ScreenshotViewer.tsx`
 
-- Show selected step screenshot via `/api/runs/{run_id}/screenshots/{filename}` or an API-provided URL.
+- Show selected step screenshot via `/api/trajectories/{trajectory_id}/screenshots/{filename}` or an API-provided URL.
 - Draw coordinate marker **only if** coordinate validation is `validated`.
 - Draw bbox **only when** bbox exists, the screenshot is available, and bbox bounds are validated against screenshot dimensions.
 - Playback controls (prev / play / next) iterate over the trajectory's steps.
@@ -85,12 +85,12 @@ surface: latest conclusion first, trace available below for audit.
   - `propose_eval_case` → neutral / success color.
   - `budget_exceeded` → grey.
   - `error` → red, with the latest `tool_error` message shown on hover.
-- A `New Chat` action that calls `/analyze` again with the same `user_intent` (re-runs from scratch — discards the existing trace after a confirm prompt).
+- A `New Chat` action that calls `/analyze` again with the same `user_intent` (re-trajectories from scratch — discards the existing trace after a confirm prompt).
 
 **Primary action buttons** (above the chat history, always visible)
 
-- `Analyze this run` → `POST /api/runs/{run_id}/analyze`.
-- `Analyze this step` → `POST /api/runs/{run_id}/steps/{step_index}/analyze`. Disabled until a step is selected.
+- `Analyze this trajectory` → `POST /api/trajectories/{trajectory_id}/analyze`.
+- `Analyze this step` → `POST /api/trajectories/{trajectory_id}/steps/{step_index}/analyze`. Disabled until a step is selected.
 
 These are the **only** buttons that can start a fresh trace. All other interactions go through the chat input.
 
@@ -116,10 +116,10 @@ Six clickable chips that **prefill** the chat input (user can still edit before 
 
 | Chip label | Prefill text |
 | --- | --- |
-| Suggest failure label | `Suggest the failure label for this run.` |
+| Suggest failure label | `Suggest the failure label for this trajectory.` |
 | Generate eval case | `Generate the eval case draft.` |
 | Find similar failures | `Find similar failure cases from memory.` |
-| Compare with another run | `Compare this run with a similar successful run.` |
+| Compare with another trajectory | `Compare this trajectory with a similar successful trajectory.` |
 | Inspect this step | `Inspect step {selected_step} in detail.` (disabled when no step selected) |
 | Explain your reasoning | `Explain why you flagged the failure step.` |
 
@@ -128,8 +128,8 @@ The chip labels and prefill texts are UI strings, not contract values; the agent
 **Chat input**
 
 - Single-line text input with a send button. Enter submits; Shift-Enter adds a newline.
-- Disabled until the run has at least one trace turn (i.e., user must click `Analyze this run` or `Analyze this step` first). Show a hint: "Run an analysis first to start a conversation."
-- On send, calls `POST /api/runs/{run_id}/followup` with `{message}`. Appends the user message to the chat history optimistically; replaces / extends the history with the returned trace events on response.
+- Disabled until the trajectory has at least one trace turn (i.e., user must click `Analyze this trajectory` or `Analyze this step` first). Show a hint: "Run an analysis first to start a conversation."
+- On send, calls `POST /api/trajectories/{trajectory_id}/followup` with `{message}`. Appends the user message to the chat history optimistically; replaces / extends the history with the returned trace events on response.
 - Max 2000 characters (matches the API contract).
 
 **Feedback affordance** (visual only in v1)
@@ -147,7 +147,7 @@ not create a second analysis path.
 - Show a concise natural-language summary from the latest terminal `propose_eval_case` arguments: `actual_behavior` first, then `expected_behavior` when useful.
 - Show `Findings` as `EvalCase.evidence[*].claim`, grouped by `EvidenceItem.source` where useful.
 - Show `Suggested Failure Label` from `EvalCase.failure_type`. Do **not** show a model confidence score; if a grounding signal is needed, derive it from evidence structure in a later version.
-- Show `Visual Evidence` thumbnails only for evidence items with `run_id` and `step_index` whose source is `trajectory`, `step_detail_high`, or `successful_run`, and where the referenced step has an available screenshot. Clicking a thumbnail selects that step in the center panel.
+- Show `Visual Evidence` thumbnails only for evidence items with `trajectory_id` and `step_index` whose source is `trajectory`, `step_detail_high`, or `successful_trajectory`, and where the referenced step has an available screenshot. Clicking a thumbnail selects that step in the center panel.
 - Show retrieved context chips for evidence items with `context_id`; clicking opens the matching tool result card in the trace.
 - Show unavailable evidence items (`source="unavailable"`) as muted warnings, not as factual proof.
 - If the latest turn ended with `budget_exceeded` or `error`, keep any prior summary visible but mark it as stale relative to the latest turn.
@@ -168,7 +168,7 @@ not create a second analysis path.
 Project-level summary row at the bottom of the page:
 
 - Dataset name (e.g., `MolmoWeb-HumanSkills`).
-- Imported run count + breakdown by status (e.g., `24 runs · 0 failed · 0 success · 24 unanalyzed` immediately after a cold-start import).
+- Imported trajectory count + breakdown by status (e.g., `24 trajectories · 0 failed · 0 success · 24 unanalyzed` immediately after a cold-start import).
 - Latest import timestamp if available.
 
 Do not show fake database / schema version labels — Trajecta's storage is the local SQLite file plus ChromaDB; surfacing a schema version is misleading in v1.
@@ -178,17 +178,17 @@ Do not show fake database / schema version labels — Trajecta's storage is the 
 Single-page app with **URL search params**, no router library. Two params:
 
 ```text
-?run={run_id}             ← selects a run
-?run={run_id}&step={i}    ← also selects a step (0-based index)
+?trajectory={trajectory_id}             ← selects a trajectory
+?trajectory={trajectory_id}&step={i}    ← also selects a step (0-based index)
 ```
 
 Rules:
 
-- On mount, parse `window.location.search` with `URLSearchParams`. Hydrate `selectedRun` / `selectedStep` from it.
-- On selection change, write back with `history.pushState({}, "", "?run=" + id + ...)` so the URL stays in sync.
+- On mount, parse `window.location.search` with `URLSearchParams`. Hydrate `selectedTrajectory` / `selectedStep` from it.
+- On selection change, write back with `history.pushState({}, "", "?trajectory=" + id + ...)` so the URL stays in sync.
 - Listen to `popstate` so browser back/forward re-applies the URL to component state.
-- An unknown `run_id` in the URL renders the empty middle/right panels and shows a "Run not found" inline notice.
-- The home URL (`/` with no params) shows the run list with no run selected. Refreshing on any valid URL must restore the exact same view.
+- An unknown `trajectory_id` in the URL renders the empty middle/right panels and shows a "Run not found" inline notice.
+- The home URL (`/` with no params) shows the trajectory list with no trajectory selected. Refreshing on any valid URL must restore the exact same view.
 
 Do not add React Router or any routing library for v1 — search params + `history.pushState` covers the requirement in ~50 lines.
 
@@ -199,8 +199,8 @@ Do not add React Router or any routing library for v1 — search params + `histo
 The frontend reads with the standard `fetch` + `ReadableStream` API — no library:
 
 ```typescript
-async function streamAnalyze(runId: string, onEvent: (e: AgentTraceEvent) => void) {
-  const res = await fetch(`/api/runs/${runId}/analyze`, { method: "POST" });
+async function streamAnalyze(trajectoryId: string, onEvent: (e: AgentTraceEvent) => void) {
+  const res = await fetch(`/api/trajectories/${trajectoryId}/analyze`, { method: "POST" });
   if (!res.body) throw new Error("no body");
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -228,13 +228,13 @@ UX rules:
 - When the terminal `done` line arrives, reconcile the local trace against `done.agent_trace` (the canonical full state). In practice this should match what was streamed, but the reconciliation step protects against dropped events.
 - While the stream is open, the chat input's send button is disabled and the typing indicator is shown.
 - On `error` (or fetch-level failure), show an inline error in the chat history and re-enable the input; the user can retry by sending a new follow-up.
-- On user navigation away from the run mid-stream, abort the fetch with an `AbortController` and discard the in-flight events.
+- On user navigation away from the trajectory mid-stream, abort the fetch with an `AbortController` and discard the in-flight events.
 
 The same `streamAnalyze` shape is used for `/followup` and the two step-scoped analyze endpoints — only the URL changes. Centralize this helper in `frontend/src/api/stream.ts` and let `EvalAgentPanel` call it.
 
 ## State Rules
 
-- A run's trace lifecycle: `none` → `fresh` (first analyze) → `extended` (one or more follow-ups). The `EvalAgentPanel` infers state from `AgentTrace.turn_count`.
-- Switching the selected run discards in-flight chat input but does not delete the persisted `traces` row. Re-opening the run reloads the persisted trace from `GET /api/runs/{run_id}` (or the dedicated trace endpoint, whichever is wired up).
+- A trajectory's trace lifecycle: `none` → `fresh` (first analyze) → `extended` (one or more follow-ups). The `EvalAgentPanel` infers state from `AgentTrace.turn_count`.
+- Switching the selected trajectory discards in-flight chat input but does not delete the persisted `traces` row. Re-opening the trajectory reloads the persisted trace from `GET /api/trajectories/{trajectory_id}` (or the dedicated trace endpoint, whichever is wired up).
 - Concurrent follow-ups are not supported in v1 — disable the send button while a request is in flight.
 - Draft state is **client-only** until the user clicks `Export`. Page refresh = lose unsaved draft edits.

@@ -14,7 +14,7 @@ from backend.app.schemas import (
     StepDigest,
     StepObservation,
     TrajectoryDigest,
-    TrajectoryRun,
+    Trajectory,
     TrajectoryStep,
 )
 
@@ -22,12 +22,12 @@ from backend.app.schemas import (
 PREPROCESS_VERSION = "v2"
 
 
-def build_digest(run: TrajectoryRun, *, client: VLMClient | None = None) -> TrajectoryDigest:
-    """Build a fresh ``TrajectoryDigest`` from a validated ``TrajectoryRun``."""
+def build_digest(trajectory: Trajectory, *, client: VLMClient | None = None) -> TrajectoryDigest:
+    """Build a fresh ``TrajectoryDigest`` from a validated ``Trajectory``."""
 
-    validated = TrajectoryRun.model_validate(run)
+    validated = Trajectory.model_validate(trajectory)
     if not validated.steps:
-        raise ValueError(f"cannot preprocess run {validated.run_id!r}: no steps")
+        raise ValueError(f"cannot preprocess trajectory {validated.trajectory_id!r}: no steps")
 
     vlm = client if client is not None else get_vlm_client()
 
@@ -36,11 +36,11 @@ def build_digest(run: TrajectoryRun, *, client: VLMClient | None = None) -> Traj
     # is a no-op against the recorder, so the bucket stays at 0.
     with vlm_usage_scope() as vlm_usage:
         step_digests: list[StepDigest] = [
-            _build_step_digest(validated.run_id, step, vlm) for step in validated.steps
+            _build_step_digest(validated.trajectory_id, step, vlm) for step in validated.steps
         ]
 
     return TrajectoryDigest(
-        run_id=validated.run_id,
+        trajectory_id=validated.trajectory_id,
         task=validated.task,
         step_count=len(step_digests),
         steps=step_digests,
@@ -51,13 +51,13 @@ def build_digest(run: TrajectoryRun, *, client: VLMClient | None = None) -> Traj
     )
 
 
-def load_or_build_digest(run_id: str) -> TrajectoryDigest:
+def load_or_build_digest(trajectory_id: str) -> TrajectoryDigest:
     """Return the cached digest if it matches the active client; rebuild otherwise."""
 
-    run = storage.load_run(run_id)
+    trajectory = storage.load_trajectory(trajectory_id)
     client = get_vlm_client()
 
-    cached = storage.load_digest(run_id)
+    cached = storage.load_digest(trajectory_id)
     if (
         cached is not None
         and cached.preprocess_version == PREPROCESS_VERSION
@@ -65,14 +65,14 @@ def load_or_build_digest(run_id: str) -> TrajectoryDigest:
     ):
         return cached
 
-    digest = build_digest(run, client=client)
-    storage.save_digest(run_id, digest)
+    digest = build_digest(trajectory, client=client)
+    storage.save_digest(trajectory_id, digest)
     return digest
 
 
-def _build_step_digest(run_id: str, step: TrajectoryStep, client: VLMClient) -> StepDigest:
+def _build_step_digest(trajectory_id: str, step: TrajectoryStep, client: VLMClient) -> StepDigest:
     observation = step.observation
-    screenshot_bytes = _load_screenshot_bytes(run_id, observation.screenshot)
+    screenshot_bytes = _load_screenshot_bytes(trajectory_id, observation.screenshot)
     has_screenshot = screenshot_bytes is not None
 
     raw_width = _coerce_int(step.metadata.get("image_width"))
@@ -108,10 +108,10 @@ def _build_step_digest(run_id: str, step: TrajectoryStep, client: VLMClient) -> 
     )
 
 
-def _load_screenshot_bytes(run_id: str, filename: str | None) -> bytes | None:
+def _load_screenshot_bytes(trajectory_id: str, filename: str | None) -> bytes | None:
     if not filename:
         return None
-    return storage.load_screenshot(run_id, filename)
+    return storage.load_screenshot(trajectory_id, filename)
 
 
 def _has_source_text(observation: StepObservation) -> bool:

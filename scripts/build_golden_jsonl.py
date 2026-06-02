@@ -86,13 +86,13 @@ def build_row(row: dict[str, str]) -> dict[str, Any]:
     written, so any rule violation raises here rather than producing a
     silently-malformed JSONL file.
     """
-    run_id = (row.get("sample_id") or "").strip()
+    trajectory_id = (row.get("sample_id") or "").strip()
     category = (row.get("category") or "").strip().lower()
     outcome = (row.get("outcome") or "").strip().lower()
     failure_types = _parse_failure_types(row.get("failure_mode") or "")
     failure_step = _parse_failure_step(row.get("failure_step") or "")
 
-    if not run_id:
+    if not trajectory_id:
         raise ValueError(f"row missing sample_id: {row!r}")
     if not category:
         raise ValueError(f"row missing category: {row!r}")
@@ -143,7 +143,7 @@ def build_row(row: dict[str, str]) -> dict[str, Any]:
         tags = [category, *failure_types]
 
     payload = {
-        "input": {"run_id": run_id, "intent": "analyze_run"},
+        "input": {"trajectory_id": trajectory_id, "intent": "analyze_trajectory"},
         "expected_facts": expected_facts,
         "forbidden_facts": forbidden_facts,
         "tags": tags,

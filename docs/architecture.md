@@ -64,11 +64,11 @@ Trajecta does not control a live browser in v1. It does not include CDP, Playwri
 ```mermaid
 flowchart LR
   Dataset["MolmoWeb-HumanSkills sample fixtures"] --> Importer["Dataset importer"]
-  Importer --> SQLite[("SQLite data/trajecta.db<br/>runs = all trajectories<br/>eval_cases = success + failure<br/>steps, screenshots, digests, traces")]
+  Importer --> SQLite[("SQLite data/trajecta.db<br/>trajectories = imported records<br/>eval_cases = success + failure<br/>steps, screenshots, digests, traces")]
   FailureSeed["failure_pattern_memory seed<br/>data/failure_memory/cases.jsonl"] --> SQLite
   SQLite --> Preprocess["Trajectory preprocessing<br/>parse actions<br/>coordinate validation<br/>low-detail VLM digest"]
   Preprocess --> Agent["LangGraph Eval Agent"]
-  SQLite --> Tools["Typed tools<br/>get_run<br/>get_step_detail<br/>find_similar_successful_run<br/>search_failure_memory<br/>search_eval_cases<br/>propose_eval_case"]
+  SQLite --> Tools["Typed tools<br/>get_trajectory<br/>get_step_detail<br/>find_similar_successful_trajectory<br/>search_failure_memory<br/>search_failure_eval_cases<br/>propose_eval_case"]
   Chroma[("ChromaDB data/chroma<br/>failure_pattern_memory<br/>failure_eval_cases<br/>successful_trajectories")] --> Tools
   Tools --> Agent
   Agent --> Draft["EvalCase draft"]
@@ -88,8 +88,7 @@ not a product feature; it is the project-quality measurement layer used for
 the presentation.
 
 Terminology note: `trajectory` is the canonical term. Current public API/tool
-names such as `run`, `run_id`, `/api/runs`, and `get_run` remain
-legacy-compatible names for trajectories until a later migration.
+names are now fully canonical (`trajectory_id`, `/api/trajectories`, `get_trajectory`, `trajectories` table). The word `run` survives only as `eval/runs/<timestamp>/`, one evaluation execution — not a trajectory.
 
 ## Repository Structure
 
@@ -128,7 +127,7 @@ trajecta/
     src/
       App.tsx
       components/
-        RunList.tsx
+        TrajectoryList.tsx
         StepTimeline.tsx
         ScreenshotViewer.tsx
         StepDetailPanel.tsx
@@ -139,7 +138,7 @@ trajecta/
     raw/
       molmoweb_humanskills_sample/
         run_status_overlay.json
-    trajecta.db                          # SQLite: runs (all trajectories),
+    trajecta.db                          # SQLite: trajectories,
                                          # eval_cases (success + failure),
                                          # steps, screenshots (BLOB),
                                          # digests, traces, failure_memory
@@ -164,7 +163,7 @@ directory and one `failure_memory/cases.jsonl` seed.
 Module responsibilities:
 
 - `db.py`: SQLite engine + `session_scope()` context manager; honors `TRAJECTA_DATA_DIR`.
-- `models.py`: SQLAlchemy declarative ORM (Run, Step, Screenshot, Digest, Trace, EvalCaseRow, FailureMemoryRow).
+- `models.py`: SQLAlchemy declarative ORM (Trajectory, Step, Screenshot, Digest, Trace, EvalCaseRow, FailureMemoryRow).
 - `storage.py`: Pydantic ↔ ORM translation; public signatures stable across the filesystem → SQLite cutover. Each function opens its own session_scope.
 - `ids.py`: generate stable eval-case IDs and check collisions through storage.
 - `llm.py`: centralize LLM/VLM client creation, provider configuration, and deterministic offline mocks. Takes screenshot **bytes** (not paths) so the BLOB-backed storage layer flows through unchanged.

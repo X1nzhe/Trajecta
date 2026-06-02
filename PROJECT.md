@@ -38,7 +38,7 @@ B1.5 live-client smoke was verified with MCP Inspector.
 | Component | How Trajecta uses it | Anchor doc |
 | --- | --- | --- |
 | **RAG** | ChromaDB over three collections (`failure_memory`, `failure_eval_cases`, `successful_trajectories`). Agent-authored queries; every retrieved case ID surfaces in `retrieved_context_ids` so claims trace back to evidence. | [docs/rag.md](docs/rag.md) |
-| **Tools** | LangGraph tool-calling agent with six typed tools (`get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, `propose_eval_case`). Per-turn budget bounds cost; terminal tool enforces schema. | [docs/eval_agent.md](docs/eval_agent.md) |
+| **Tools** | LangGraph tool-calling agent with six typed tools (`get_trajectory`, `get_step_detail`, `find_similar_successful_trajectory`, `search_failure_memory`, `search_failure_eval_cases`, `propose_eval_case`). Per-turn budget bounds cost; terminal tool enforces schema. | [docs/eval_agent.md](docs/eval_agent.md) |
 | **Security / Governance** | Schema validation, tool-call budget, path-traversal protection, coordinate validation, `AgentTrace` audit log, HITL persistence gate, prompt-version + sha256 traceability, and Spotlighting prompt input validation against indirect prompt injection in trajectory text. | [docs/security_governance.md](docs/security_governance.md) |
 
 **Not claimed**: Multi-agent (Trajecta is one Eval Agent plus a human validator;
@@ -57,7 +57,7 @@ Agent-Eval-Refine) publish recorded runs.
 What is missing is a remote callable agent that takes a recorded
 trajectory, diagnoses its failure mode with retrieval-grounded evidence,
 and produces a regression-eval-case draft. Trajecta fills that gap. The
-MCP composite tool `analyze_run` (see [docs/mcp.md](docs/mcp.md)) is the
+MCP composite tool `analyze_trajectory` (see [docs/mcp.md](docs/mcp.md)) is the
 lower-priority remote interface to this missing layer, shipped in Phase 8 B1.
 
 ## Core User Flow
@@ -65,7 +65,7 @@ lower-priority remote interface to this missing layer, shipped in Phase 8 B1.
 1. User selects an imported browser-agent trajectory run.
 2. UI shows step-by-step screenshots and actions.
 3. Backend runs Trajectory Preprocessing on the run and produces a trajectory digest.
-4. User clicks `Analyze Run` or `Analyze Step`.
+4. User clicks `Analyze Trajectory` or `Analyze Step`.
 5. The Eval Agent autonomously calls tools: deep-dive on suspicious steps, retrieve similar failures from ChromaDB, and propose an eval case via a terminal tool.
 6. UI shows the agent's reasoning trace, retrieved cases, and the proposed eval case draft.
 7. User confirms or edits the failure label.
@@ -84,7 +84,7 @@ lower-priority remote interface to this missing layer, shipped in Phase 8 B1.
 - Imported sample trajectory runs from `allenai/MolmoWeb-HumanSkills` (≥5 runs).
 - Normalized Trajecta JSON backed by Pydantic schemas.
 - Screenshot replay UI with validated coordinate overlays.
-- Trajectory Preprocessing pipeline producing a per-run trajectory digest. See [docs/preprocessing.md](docs/preprocessing.md).
+- Trajectory Preprocessing pipeline producing a per-trajectory trajectory digest. See [docs/preprocessing.md](docs/preprocessing.md).
 - LangGraph **tool-calling Eval Agent** that autonomously inspects suspicious steps, retrieves similar failures, and proposes an eval case via a terminal tool.
 - ChromaDB-backed failure-memory and eval-case retrieval.
 - Per-run agent trace (the `traces` SQLite row in `data/trajecta.db`, accessed via `storage.load_trace` / `storage.save_trace`) consumed by the API, frontend, and RAGAS.
@@ -110,7 +110,7 @@ These are the load-bearing decisions for v1. Each is justified by task character
 7. **The MCP server exposes the agent as a composite, not as raw tools.**
    MCP was lower priority than the Phase 8 judge. As shipped,
    `trajecta_mcp/server.py` exposes the entire LangGraph loop as a single
-   `analyze_run` tool plus five read-only / cost-bounded tools. Splitting the
+   `analyze_trajectory` tool plus five read-only / cost-bounded tools. Splitting the
    loop across the MCP boundary would break the per-turn budget contract and
    produce disjoint traces that RAGAS and the Phase 8 judge cannot score. See
    [docs/mcp.md](docs/mcp.md) "Why expose the whole agent rather than individual
@@ -127,7 +127,7 @@ These are the load-bearing decisions for v1. Each is justified by task character
    We considered framing the failure-memory mirror as cross-session memory.
    Decision: do not. `failure_memory/cases.jsonl` is a curated RAG knowledge
    base, and validated `EvalCase` rows function as lightweight human-curated
-   case memory retrievable via `search_eval_cases`. Calling this "Memory as a
+   case memory retrievable via `search_failure_eval_cases`. Calling this "Memory as a
    component" would overstate what is shipped; honesty matters more than
    component count when we already have four.
 10. **No Langfuse / Inspect AI in v1.**
@@ -178,7 +178,7 @@ Phase 8 ships:
   `docs/failure_analysis.md` with 2–3 case studies and the quality /
   latency / cost trade-off.
 - **8.B — MCP + Component story.** Lower-priority `trajecta_mcp/server.py`
-  (shipped) with six tools including the `analyze_run` composite;
+  (shipped) with six tools including the `analyze_trajectory` composite;
   [docs/mcp.md](docs/mcp.md);
   [docs/security_governance.md](docs/security_governance.md) framing the
   existing governance mechanisms as one cohesive component, plus the shipped
@@ -206,7 +206,7 @@ considered done.
 | [docs/eval_agent.md](docs/eval_agent.md) | LangGraph Eval Agent behavior, loop design, observability, and optional Skill-wrapper notes not included in V1. |
 | [docs/prompt_versioning.md](docs/prompt_versioning.md) | Prompt version registry, traceability, rollback, and failure-memory refresh rules. |
 | [docs/rag.md](docs/rag.md) | ChromaDB RAG retrieval strategy. |
-| [docs/mcp.md](docs/mcp.md) | MCP server design (shipped Phase 8 B1): tool surface, `analyze_run` composite semantics, client config, demo script. |
+| [docs/mcp.md](docs/mcp.md) | MCP server design (shipped Phase 8 B1): tool surface, `analyze_trajectory` composite semantics, client config, demo script. |
 | [docs/security_governance.md](docs/security_governance.md) | Security / Governance component story, including the shipped Phase 8 B6 Spotlighting defense against indirect prompt injection. |
 | [docs/api.md](docs/api.md) | FastAPI implementation notes for endpoint contracts. |
 | [docs/frontend.md](docs/frontend.md) | React UI layout, components, and product copy. |

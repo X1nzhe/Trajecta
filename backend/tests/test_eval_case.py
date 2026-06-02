@@ -38,7 +38,7 @@ class EvalCaseContractTests(unittest.TestCase):
         rag._client_cache = None
         rag._embedding_cache = None
 
-        storage.save_run(sample_run("run_1", status="failed"))
+        storage.save_trajectory(sample_run("run_1", status="failed"))
         rag.upsert_failure_memory(
             FailureMemoryCase(
                 case_id="fm_missed_constraint_001",
@@ -61,16 +61,16 @@ class EvalCaseContractTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_agent_eval_case_draft_validates_against_contract(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1")
+        result = eval_agent_graph.analyze_trajectory("run_1")
 
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
         self.assertIsNotNone(result.eval_case_draft)
         case = EvalCase.model_validate(result.eval_case_draft)
         self.assertFalse(case.human_validated)
-        self.assertEqual(case.source_run_id, "run_1")
+        self.assertEqual(case.source_trajectory_id, "run_1")
 
     def test_eval_case_draft_evidence_rows_validate(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1")
+        result = eval_agent_graph.analyze_trajectory("run_1")
 
         draft = result.eval_case_draft
         self.assertIsNotNone(draft)
@@ -81,7 +81,7 @@ class EvalCaseContractTests(unittest.TestCase):
             self.assertTrue(item.claim)
 
     def test_exported_eval_case_validates_against_contract(self) -> None:
-        result = eval_agent_graph.analyze_run("run_1")
+        result = eval_agent_graph.analyze_trajectory("run_1")
         draft = dict(result.eval_case_draft)
         draft["human_validated"] = True
 

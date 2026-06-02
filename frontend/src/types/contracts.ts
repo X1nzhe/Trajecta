@@ -51,8 +51,8 @@ export interface TrajectoryStep {
   metadata: Record<string, unknown>;
 }
 
-export interface TrajectoryRun {
-  run_id: string;
+export interface Trajectory {
+  trajectory_id: string;
   task: string;
   source: string;
   status: "success" | "failed" | "unknown";
@@ -74,7 +74,7 @@ export interface StepDigest {
 }
 
 export interface TrajectoryDigest {
-  run_id: string;
+  trajectory_id: string;
   task: string;
   step_count: number;
   steps: StepDigest[];
@@ -92,13 +92,13 @@ export interface FailureMemoryCase {
   summary: string;
   fix_hint?: string;
   tags: string[];
-  source_run_id?: string;
+  source_trajectory_id?: string;
 }
 
 export interface EvidenceItem {
   claim: string;
-  source: "trajectory" | "trajectory_digest" | "step_detail_high" | "step_detail_low" | "failure_memory" | "eval_case" | "successful_run" | "unavailable";
-  run_id?: string;
+  source: "trajectory" | "trajectory_digest" | "step_detail_high" | "step_detail_low" | "failure_memory" | "eval_case" | "successful_trajectory" | "unavailable";
+  trajectory_id?: string;
   step_index?: number;
   trace_event_seq?: number;
   context_id?: string;
@@ -106,7 +106,7 @@ export interface EvidenceItem {
 
 export interface EvalCase {
   case_id: string;
-  source_run_id: string;
+  source_trajectory_id: string;
   task: string;
   // Failure-shape fields. Either all five are present (failure case) or all
   // five are null (success case). The backend model_validator enforces the
@@ -133,15 +133,15 @@ export interface AgentTraceEvent {
 }
 
 export interface AgentTrace {
-  run_id: string;
-  user_intent: "analyze_run" | "analyze_step";
+  trajectory_id: string;
+  user_intent: "analyze_trajectory" | "analyze_step";
   selected_step?: number;
   tool_call_count: number;
   turn_count: number;
   terminated_by: "propose_eval_case" | "budget_exceeded" | "error";
   events: AgentTraceEvent[];
   // Run origin: "ui" (HTTP analyze), "eval" (agent_eval harness), or
-  // "mcp" (MCP analyze_run composite). Optional on the wire; old traces
+  // "mcp" (MCP analyze_trajectory composite). Optional on the wire; old traces
   // deserialize without it.
   source?: "ui" | "eval" | "mcp";
   // Phase 8 B6 Spotlighting state at trace start (anti-injection preamble

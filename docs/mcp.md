@@ -26,12 +26,12 @@ produced by other agents.
 
 | Tool | Backend delegate | Side effects |
 | --- | --- | --- |
-| `list_runs` | `storage.list_runs` | None (read-only). |
-| `get_run` | `storage.load_run` + cached digest | None. |
+| `list_trajectories` | `storage.list_trajectories` | None (read-only). |
+| `get_trajectory` | `storage.load_trajectory` + cached digest | None. |
 | `get_step_detail` | existing in-process tool | One high-detail VLM call; cost-bearing; logged in `AgentTrace`. |
 | `search_failure_memory` | `rag.search_failure_memory` | None (read-only ChromaDB query). |
-| `search_eval_cases` | `rag.search_eval_cases` | None; defaults to `human_validated=true`. |
-| `analyze_run` | `eval_agent_graph.analyze_run` (composite) | Spawns one full Eval Agent run; cost-bearing; trace persisted to SQLite `traces` table with `source="mcp"`. |
+| `search_failure_eval_cases` | `rag.search_failure_eval_cases` | None; defaults to `human_validated=true`. |
+| `analyze_trajectory` | `eval_agent_graph.analyze_trajectory` (composite) | Spawns one full Eval Agent run; cost-bearing; trace persisted to SQLite `traces` table with `source="mcp"`. |
 
 ### Tools intentionally **not** exposed
 
@@ -47,24 +47,24 @@ not register these names — not by post-hoc permission checks. Phase 8
 B4 (`docs/security_governance.md`) cites this surface as the primary
 least-privilege mechanism.
 
-## `analyze_run` as a Composite Tool
+## `analyze_trajectory` as a Composite Tool
 
-`analyze_run` is the load-bearing tool in this MCP server. It does not
+`analyze_trajectory` is the load-bearing tool in this MCP server. It does not
 forward to a single backend function; it exposes the entire LangGraph
 Eval Agent loop as one MCP call.
 
 ```text
 MCP client (Claude Code, Cursor)
-    │ call analyze_run(run_id)
+    │ call analyze_trajectory(trajectory_id)
     ▼
 trajecta_mcp/server.py
     │ delegates in-process
     ▼
-eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
+eval_agent_graph.analyze_trajectory(trajectory_id, persist=True, source="mcp")
     │ preprocess (low-detail VLM per step, fixed for-loop)
     │ agent loop:
     │   reason → get_step_detail / search_failure_memory /
-    │            search_eval_cases / find_similar_successful_run → reason
+    │            search_failure_eval_cases / find_similar_successful_trajectory → reason
     │ propose_eval_case (terminal)
     ▼
 EvalCase draft (human_validated=False) + AgentTrace
@@ -86,7 +86,7 @@ MCP client receives one JSON payload
 - **`human_validated=false`.** The returned `EvalCase` is a draft. There
   is no MCP-side path to set it true; that requires the Trajecta UI.
 - **Trace shape parity.** A trace produced via MCP equals a trace
-  produced via `POST /api/runs/{id}/analyze` modulo the `source` field
+  produced via `POST /api/trajectories/{id}/analyze` modulo the `source` field
   and timestamps. The same `tool_call_count`, `terminated_by`,
   `eval_case_draft`, and event sequence are present.
 
@@ -104,7 +104,7 @@ reasons:
    `AgentTrace` with monotonic `seq` and `turn`. Splitting orchestration
    across two agents would produce two disjoint traces with no shared
    reasoning chain — neither RAGAS nor Phase 8's judge can score that.
-3. **Component composition.** A single `analyze_run` MCP call exercises
+3. **Component composition.** A single `analyze_trajectory` MCP call exercises
    RAG (failure memory + eval cases retrieval), Tools (the six in-process
    tools), Security/Governance (budget + audit + HITL gate), and the
    Eval Agent itself simultaneously. That composition is the artefact
@@ -134,7 +134,7 @@ SDK package. The script form is unambiguous.
 Alternative: `fastmcp run trajecta_mcp/server.py:mcp` if FastMCP CLI is installed
 globally. Both produce identical stdio-transport behaviour.
 
-Restart the client. `list_runs`, `analyze_run`, and the four other tools
+Restart the client. `list_trajectories`, `analyze_trajectory`, and the four other tools
 should appear under the `trajecta` namespace.
 
 ## MCP Inspector Smoke Test
@@ -150,11 +150,11 @@ npx @modelcontextprotocol/inspector python trajecta_mcp/server.py
 Manual acceptance criteria:
 
 1. The Inspector connects to the stdio server.
-2. The Tools tab lists exactly six tools: `list_runs`, `get_run`,
-   `get_step_detail`, `search_failure_memory`, `search_eval_cases`,
-   `analyze_run`.
-3. `list_runs` returns imported Trajecta runs.
-4. `analyze_run` returns an `eval_case_draft` and an `agent_trace`.
+2. The Tools tab lists exactly six tools: `list_trajectories`, `get_trajectory`,
+   `get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`,
+   `analyze_trajectory`.
+3. `list_trajectories` returns imported Trajecta runs.
+4. `analyze_trajectory` returns an `eval_case_draft` and an `agent_trace`.
 5. The returned trace has `agent_trace.source == "mcp"`.
 6. Mutation and admin tools are absent: `save_validated_eval_case`,
    `delete_*`, `import_dataset`, and `set_prompt_version`.
@@ -171,9 +171,9 @@ Connection" mirrors the user-facing version.
 1. Operator pre-imports MolmoWeb sample runs into Trajecta storage
    (one-time setup).
 2. In Claude Code, user asks: *"List my Trajecta runs."*
-3. Claude Code calls `trajecta.list_runs()`. It picks a failed sample.
+3. Claude Code calls `trajecta.list_trajectories()`. It picks a failed sample.
 4. User asks: *"Why did this booking run fail?"*
-5. Claude Code calls `trajecta.analyze_run(run_id)`.
+5. Claude Code calls `trajecta.analyze_trajectory(trajectory_id)`.
 6. Trajecta runs the Eval Agent end-to-end:
    - Preprocess builds the trajectory digest.
    - Agent loop deep-inspects suspicious steps via `get_step_detail`.
@@ -215,23 +215,23 @@ from backend.app import eval_agent_graph, storage, tools
 mcp = FastMCP("Trajecta")
 
 @mcp.tool
-def list_runs() -> list[dict]:
+def list_trajectories() -> list[dict]:
     """List imported trajectory runs (metadata only — no steps array)."""
     return [
-        {"run_id": r.run_id, "task": r.task, "source": r.source,
+        {"trajectory_id": r.trajectory_id, "task": r.task, "source": r.source,
          "status": r.status, "step_count": len(r.steps), "metadata": r.metadata}
-        for r in storage.list_runs()
+        for r in storage.list_trajectories()
     ]
 
 @mcp.tool
-def analyze_run(run_id: str) -> dict:
+def analyze_trajectory(trajectory_id: str) -> dict:
     """Run the full LangGraph Eval Agent on a trajectory (full-run only).
 
     Returns an EvalCase draft (human_validated=False) plus the full
     AgentTrace with source="mcp" stamped. There is no per-step mode — the
-    backend analyze_run analyses the whole trajectory.
+    backend analyze_trajectory analyses the whole trajectory.
     """
-    result = eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
+    result = eval_agent_graph.analyze_trajectory(trajectory_id, persist=True, source="mcp")
     return {
         "eval_case_draft": result.eval_case_draft,
         # AgentTrace events are byte-sanitised at append time, so the dump
@@ -239,8 +239,8 @@ def analyze_run(run_id: str) -> dict:
         "agent_trace": result.trace.model_dump(mode="json"),
     }
 
-# (Four more @mcp.tool delegates for get_run, get_step_detail,
-#  search_failure_memory, search_eval_cases.)
+# (Four more @mcp.tool delegates for get_trajectory, get_step_detail,
+#  search_failure_memory, search_failure_eval_cases.)
 
 if __name__ == "__main__":
     mcp.run()
@@ -263,13 +263,13 @@ if __name__ == "__main__":
 ### What we still write by hand
 
 - **Backend delegation** — each tool function calls the existing
-  in-process backend function (`storage.list_runs`,
-  `eval_agent_graph.analyze_run`, etc.). No logic is duplicated.
-- **Payload sanitisation** — `analyze_run` strips screenshot bytes from
+  in-process backend function (`storage.list_trajectories`,
+  `eval_agent_graph.analyze_trajectory`, etc.). No logic is duplicated.
+- **Payload sanitisation** — `analyze_trajectory` strips screenshot bytes from
   the returned trace (FastMCP serialises the dict as JSON; we don't want
   base64-encoded PNGs on the wire).
-- **Trace stamping** — `analyze_run` passes `source="mcp"` through to
-  `eval_agent_graph.analyze_run` so the persisted trace records the
+- **Trace stamping** — `analyze_trajectory` passes `source="mcp"` through to
+  `eval_agent_graph.analyze_trajectory` so the persisted trace records the
   MCP origin for audit (see
   [docs/security_governance.md](security_governance.md) § Mechanism 5).
 
@@ -297,4 +297,4 @@ not part of this design doc).
 
 The two layers are complementary. A coding agent using both can drive a
 browser via browser-use MCP, record the trajectory, and then call
-Trajecta MCP `analyze_run` to diagnose any failure.
+Trajecta MCP `analyze_trajectory` to diagnose any failure.

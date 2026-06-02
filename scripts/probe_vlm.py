@@ -8,7 +8,7 @@ exception logged on failure).
 
 Usage:
     python scripts/probe_vlm.py
-    python scripts/probe_vlm.py --run-id <run_id>     # specific run
+    python scripts/probe_vlm.py --trajectory-id <trajectory_id>     # specific run
     python scripts/probe_vlm.py --filename screenshot_005.png
 
 The script honors .env (auto-loaded) and respects the same TRAJECTA_*
@@ -39,36 +39,36 @@ from backend.app import db, llm, storage  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--run-id", default=None)
+    parser.add_argument("--trajectory-id", dest="trajectory_id", default=None)
     parser.add_argument("--filename", default=None)
     args = parser.parse_args()
 
     db.init_schema()
-    runs = storage.list_runs()
+    runs = storage.list_trajectories()
     if not runs:
         print("no runs in data/trajecta.db — Import Dataset first", file=sys.stderr)
         return 1
 
-    target_run = None
+    target_trajectory = None
     target_screenshot = None
-    if args.run_id:
+    if args.trajectory_id:
         for run in runs:
-            if run.run_id == args.run_id:
-                target_run = run
+            if run.trajectory_id == args.trajectory_id:
+                target_trajectory = run
                 break
-        if target_run is None:
-            print(f"run not found: {args.run_id}", file=sys.stderr)
+        if target_trajectory is None:
+            print(f"run not found: {args.trajectory_id}", file=sys.stderr)
             return 1
     else:
-        target_run = runs[0]
+        target_trajectory = runs[0]
 
-    for step in target_run.steps:
+    for step in target_trajectory.steps:
         name = step.observation.screenshot
         if not name:
             continue
         if args.filename and name != args.filename:
             continue
-        bytes_ = storage.load_screenshot(target_run.run_id, name)
+        bytes_ = storage.load_screenshot(target_trajectory.trajectory_id, name)
         if bytes_:
             target_screenshot = (step, name, bytes_)
             break
@@ -78,7 +78,7 @@ def main() -> int:
         return 1
 
     step, name, image_bytes = target_screenshot
-    print(f"run_id     : {target_run.run_id}")
+    print(f"trajectory_id     : {target_trajectory.trajectory_id}")
     print(f"step.index : {step.index}")
     print(f"screenshot : {name}  ({len(image_bytes):,} bytes)")
     print()

@@ -57,71 +57,71 @@ def _not_found(message: str) -> HTTPException:
     return HTTPException(status_code=404, detail=message)
 
 
-@app.get("/api/runs")
-def list_runs() -> list[dict]:
-    return [run.model_dump(mode="json") for run in storage.list_runs()]
+@app.get("/api/trajectories")
+def list_trajectories() -> list[dict]:
+    return [trajectory.model_dump(mode="json") for trajectory in storage.list_trajectories()]
 
 
-@app.get("/api/runs/{run_id}")
-def get_run(run_id: str) -> dict:
-    """Run detail for the UI.
+@app.get("/api/trajectories/{trajectory_id}")
+def get_trajectory(trajectory_id: str) -> dict:
+    """Trajectory detail for the UI.
 
-    Wraps ``tools.get_run`` (which returns run + cached digest, the
+    Wraps ``tools.get_trajectory`` (which returns trajectory + cached digest, the
     payload the agent sees) and additionally attaches ``last_trace`` so
     a page reload restores the prior conversation with the Eval Agent.
     The trace is the persisted record from ``storage.save_trace`` — same
-    SQLite row the followup endpoint reads. ``tools.get_run`` itself
+    SQLite row the followup endpoint reads. ``tools.get_trajectory`` itself
     must not gain a trace field: that tool feeds the agent, and giving
     the agent its own history back would create a circular reference.
     """
 
     try:
-        payload = tools.get_run(run_id)
+        payload = tools.get_trajectory(trajectory_id)
     except FileNotFoundError as exc:
-        raise _not_found("run not found") from exc
+        raise _not_found("trajectory not found") from exc
 
-    # tools.get_run already attaches the cached digest under `digest`
+    # tools.get_trajectory already attaches the cached digest under `digest`
     # (full Pydantic dump including vlm_input_tokens / vlm_output_tokens
     # once the digest is rebuilt with the updated schema). last_trace is
     # the extra UI-only field we layer on top here.
-    trace = storage.load_trace(run_id)
+    trace = storage.load_trace(trajectory_id)
     if trace is not None:
         payload["last_trace"] = trace.model_dump(mode="json")
     return payload
 
 
-@app.get("/api/runs/{run_id}/digest")
-def get_digest(run_id: str) -> dict:
-    if not storage.run_exists(run_id):
-        raise _not_found("run not found")
-    digest = storage.load_digest(run_id)
+@app.get("/api/trajectories/{trajectory_id}/digest")
+def get_digest(trajectory_id: str) -> dict:
+    if not storage.trajectory_exists(trajectory_id):
+        raise _not_found("trajectory not found")
+    digest = storage.load_digest(trajectory_id)
     if digest is None:
         raise _not_found("digest not found")
     return digest.model_dump(mode="json")
 
 
-@app.get("/api/runs/{run_id}/steps/{step_index}")
-def get_step(run_id: str, step_index: int) -> dict:
+@app.get("/api/trajectories/{trajectory_id}/steps/{step_index}")
+def get_step(trajectory_id: str, step_index: int) -> dict:
     try:
-        run = storage.load_run(run_id)
+        trajectory = storage.load_trajectory(trajectory_id)
     except FileNotFoundError as exc:
-        raise _not_found("run not found") from exc
+        raise _not_found("trajectory not found") from exc
 
-    for step in run.steps:
+    for step in trajectory.steps:
         if step.index == step_index:
             return step.model_dump(mode="json")
     raise _not_found("step not found")
 
 
-@app.get("/api/runs/{run_id}/steps/{step_index}/detail")
+@app.get("/api/trajectories/{trajectory_id}/steps/{step_index}/detail")
 def get_step_detail(
-    run_id: str,
+    trajectory_id: str,
     step_index: int,
     image_detail: Literal["low", "high"] = Query("high"),
 ) -> dict:
-    if not storage.run_exists(run_id):
-        raise _not_found("run not found")
-    result = tools.get_step_detail(run_id, step_index, image_detail=image_detail)
+    if not storage.trajectory_exists(trajectory_id):
+        raise _not_found("trajectory not found")
+    result = tools.get_step_detail(trajectory_id, step_index, image_detail=image_detail)
     tool_error = result.get("tool_error") if isinstance(result, dict) else None
     if tool_error:
         if "step_index" in tool_error and "not found" in tool_error:
@@ -130,11 +130,11 @@ def get_step_detail(
     return result
 
 
-@app.get("/api/runs/{run_id}/screenshots/{filename:path}")
-def get_screenshot(run_id: str, filename: str) -> Response:
-    if not storage.run_exists(run_id):
-        raise _not_found("run not found")
-    loaded = storage.load_screenshot_with_meta(run_id, filename)
+@app.get("/api/trajectories/{trajectory_id}/screenshots/{filename:path}")
+def get_screenshot(trajectory_id: str, filename: str) -> Response:
+    if not storage.trajectory_exists(trajectory_id):
+        raise _not_found("trajectory not found")
+    loaded = storage.load_screenshot_with_meta(trajectory_id, filename)
     if loaded is None:
         raise _not_found("screenshot not found")
     data, media_type = loaded
@@ -156,26 +156,26 @@ def import_molmoweb_sample(request: ImportRequest | None = None) -> dict:
         raise _not_found(f"source dataset not found: {source_dir}")
 
     try:
-        runs = dataset_importer.import_sample(source_dir)
+        trajectories = dataset_importer.import_sample(source_dir)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    for run in runs:
-        storage.save_run(run)
-        storage.delete_digest(run.run_id)
-        assets = dataset_importer.get_imported_screenshot_assets(run.run_id)
+    for trajectory in trajectories:
+        storage.save_trajectory(trajectory)
+        storage.delete_digest(trajectory.trajectory_id)
+        assets = dataset_importer.get_imported_screenshot_assets(trajectory.trajectory_id)
         if assets:
-            storage.save_screenshots(run.run_id, assets)
-        # Re-import drop rule: a run that previously had a human-validated
+            storage.save_screenshots(trajectory.trajectory_id, assets)
+        # Re-import drop rule: a trajectory that previously had a human-validated
         # eval case (and therefore a successful_trajectories row) loses that
         # row on re-import because the trajectory is now considered re-imported
         # and unanalyzed. The successful_trajectories collection only fills
         # again when the user re-validates the new analysis.
-        rag.delete_successful_trajectory(run.run_id)
+        rag.delete_successful_trajectory(trajectory.trajectory_id)
 
-    return {"imported_count": len(runs), "runs": [run.model_dump(mode="json") for run in runs]}
+    return {"imported_count": len(trajectories), "trajectories": [trajectory.model_dump(mode="json") for trajectory in trajectories]}
 
 
 @app.post("/api/eval-cases")
@@ -183,30 +183,30 @@ def create_eval_case(case: EvalCase) -> dict:
     if not case.human_validated:
         raise HTTPException(status_code=422, detail="POST /api/eval-cases requires human_validated=true")
     try:
-        run = storage.load_run(case.source_run_id)
+        trajectory = storage.load_trajectory(case.source_trajectory_id)
     except FileNotFoundError as exc:
-        raise _not_found(f"source run not found: {case.source_run_id}") from exc
+        raise _not_found(f"source trajectory not found: {case.source_trajectory_id}") from exc
 
     try:
         storage.save_eval_case(case)
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    # Flip run.status on validation. Success cases are also indexed into
-    # successful_trajectories so find_similar_successful_run can use them;
+    # Flip trajectory.status on validation. Success cases are also indexed into
+    # successful_trajectories so find_similar_successful_trajectory can use them;
     # failure cases land in the failure_eval_cases collection.
     new_status = "success" if case.is_success else "failed"
-    updated_run = run.model_copy(update={"status": new_status})
-    storage.save_run(updated_run)
+    updated_trajectory = trajectory.model_copy(update={"status": new_status})
+    storage.save_trajectory(updated_trajectory)
 
     if case.is_success:
-        rag.upsert_successful_trajectory(updated_run)
+        rag.upsert_successful_trajectory(updated_trajectory)
     else:
-        # A run can only sit in one of the two RAG collections at a time.
-        # If a previous success-shape case had indexed this run into
-        # successful_trajectories, evict it now so find_similar_successful_run
+        # A trajectory can only sit in one of the two RAG collections at a time.
+        # If a previous success-shape case had indexed this trajectory into
+        # successful_trajectories, evict it now so find_similar_successful_trajectory
         # does not keep returning a now-failed comparator. Idempotent.
-        rag.delete_successful_trajectory(case.source_run_id)
+        rag.delete_successful_trajectory(case.source_trajectory_id)
         rag.upsert_failure_eval_case(case)
     return case.model_dump(mode="json")
 
@@ -221,24 +221,24 @@ def search_failure_memory(q: str = Query(...), top_k: int = 3) -> list[dict]:
     return tools.search_failure_memory(q, top_k=top_k)
 
 
-@app.get("/api/eval-cases/search")
-def search_eval_cases(q: str = Query(...), top_k: int = 3, only_validated: bool = True) -> list[dict]:
-    return tools.search_eval_cases(q, top_k=top_k, only_validated=only_validated)
+@app.get("/api/failure-eval-cases/search")
+def search_failure_eval_cases(q: str = Query(...), top_k: int = 3, only_validated: bool = True) -> list[dict]:
+    return tools.search_failure_eval_cases(q, top_k=top_k, only_validated=only_validated)
 
 
-@app.post("/api/runs/{run_id}/preprocess")
-def preprocess_run(run_id: str) -> dict:
-    if not storage.run_exists(run_id):
-        raise _not_found("run not found")
+@app.post("/api/trajectories/{trajectory_id}/preprocess")
+def preprocess_trajectory(trajectory_id: str) -> dict:
+    if not storage.trajectory_exists(trajectory_id):
+        raise _not_found("trajectory not found")
     try:
-        digest = preprocess.load_or_build_digest(run_id)
+        digest = preprocess.load_or_build_digest(trajectory_id)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return digest.model_dump(mode="json")
 
 
-@app.post("/api/runs/{run_id}/analyze")
-def analyze_run(run_id: str) -> StreamingResponse:
+@app.post("/api/trajectories/{trajectory_id}/analyze")
+def analyze_trajectory(trajectory_id: str) -> StreamingResponse:
     """Analyze the full trajectory.
 
     The agent always works against the entire trajectory_digest; there is
@@ -247,31 +247,31 @@ def analyze_run(run_id: str) -> StreamingResponse:
     is the agent's responsibility, surfaced as ``EvalCase.failure_step``.
     """
 
-    if not storage.run_exists(run_id):
-        raise _not_found("run not found")
-    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
+    if not storage.trajectory_exists(trajectory_id):
+        raise _not_found("trajectory not found")
+    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_trajectory(trajectory_id))
 
 
-@app.post("/api/runs/{run_id}/steps/{step_index}/analyze", deprecated=True)
-def analyze_step(run_id: str, step_index: int) -> StreamingResponse:
+@app.post("/api/trajectories/{trajectory_id}/steps/{step_index}/analyze", deprecated=True)
+def analyze_step(trajectory_id: str, step_index: int) -> StreamingResponse:
     """Deprecated. The ``step_index`` is ignored — the agent now always
     analyzes the full trajectory. Retained as a 200-returning shim so
-    older clients do not break; new code must call POST /api/runs/{id}/analyze.
+    older clients do not break; new code must call POST /api/trajectories/{id}/analyze.
     """
 
     del step_index  # ignored; agent always analyzes the full trajectory
-    if not storage.run_exists(run_id):
-        raise _not_found("run not found")
-    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_run(run_id))
+    if not storage.trajectory_exists(trajectory_id):
+        raise _not_found("trajectory not found")
+    return _stream_agent_result(lambda: eval_agent_graph.stream_analyze_trajectory(trajectory_id))
 
 
-@app.post("/api/runs/{run_id}/followup")
-def followup(run_id: str, request: FollowupRequest) -> StreamingResponse:
-    if not storage.run_exists(run_id):
-        raise _not_found("run not found")
-    if storage.load_trace(run_id) is None:
+@app.post("/api/trajectories/{trajectory_id}/followup")
+def followup(trajectory_id: str, request: FollowupRequest) -> StreamingResponse:
+    if not storage.trajectory_exists(trajectory_id):
+        raise _not_found("trajectory not found")
+    if storage.load_trace(trajectory_id) is None:
         raise HTTPException(status_code=409, detail="follow-up requires an existing analysis trace")
-    return _stream_agent_result(lambda: eval_agent_graph.stream_followup(run_id, request.message))
+    return _stream_agent_result(lambda: eval_agent_graph.stream_followup(trajectory_id, request.message))
 
 
 def _stream_agent_result(factory) -> StreamingResponse:

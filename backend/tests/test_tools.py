@@ -25,8 +25,8 @@ def _tiny_png_bytes() -> bytes:
     return buf.getvalue()
 
 
-def _attach_screenshot(run_id: str, filename: str = "screenshot_001.png") -> None:
-    storage.save_screenshots(run_id, {filename: _tiny_png_bytes()})
+def _attach_screenshot(trajectory_id: str, filename: str = "screenshot_001.png") -> None:
+    storage.save_screenshots(trajectory_id, {filename: _tiny_png_bytes()})
 
 
 class ToolsTests(unittest.TestCase):
@@ -57,10 +57,10 @@ class ToolsTests(unittest.TestCase):
                 self.previous_vlm_high_detail_prompt_version
             )
 
-    def test_get_run_returns_run_with_attached_digest(self) -> None:
-        storage.save_run(sample_run())
+    def test_get_trajectory_returns_run_with_attached_digest(self) -> None:
+        storage.save_trajectory(sample_run())
         digest = TrajectoryDigest(
-            run_id="run_1",
+            trajectory_id="run_1",
             task="Find a result",
             step_count=1,
             steps=[
@@ -77,42 +77,42 @@ class ToolsTests(unittest.TestCase):
         )
         storage.save_digest("run_1", digest)
 
-        result = tools.get_run("run_1")
+        result = tools.get_trajectory("run_1")
 
-        self.assertEqual(result["run_id"], "run_1")
+        self.assertEqual(result["trajectory_id"], "run_1")
         self.assertIn("digest", result)
         validated = TrajectoryDigest.model_validate(result["digest"])
-        self.assertEqual(validated.run_id, "run_1")
+        self.assertEqual(validated.trajectory_id, "run_1")
         self.assertEqual(validated.step_count, 1)
 
-    def test_get_run_masks_status_in_eval_mode(self) -> None:
+    def test_get_trajectory_masks_status_in_eval_mode(self) -> None:
         """TRAJECTA_EVAL_MODE=1 forces run.status="unknown" on the returned payload.
 
         main.py:198 flips run.status to "success" / "failed" when a human
         validates an EvalCase. Without masking, an agent re-evaluating a
         previously-validated run would read the human's verdict straight
-        off ``get_run`` and have nothing to derive. Per-step result.status
+        off ``get_trajectory`` and have nothing to derive. Per-step result.status
         is left alone — MolmoWeb source has no task-level assertions and
         the validation flip does not touch step rows.
         """
-        storage.save_run(sample_run(status="failed"))
+        storage.save_trajectory(sample_run(status="failed"))
 
         with mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
-            result = tools.get_run("run_1")
+            result = tools.get_trajectory("run_1")
 
         self.assertEqual(result["status"], "unknown")
         # Sanity: non-status fields still come through.
-        self.assertEqual(result["run_id"], "run_1")
+        self.assertEqual(result["trajectory_id"], "run_1")
         self.assertEqual(result["task"], "Find a result")
 
-    def test_get_run_keeps_status_outside_eval_mode(self) -> None:
+    def test_get_trajectory_keeps_status_outside_eval_mode(self) -> None:
         """Product path must return the real persisted status — the UI
         deep-links from a run row to its verdict via this field."""
-        storage.save_run(sample_run(status="failed"))
+        storage.save_trajectory(sample_run(status="failed"))
 
         env_without_eval = {k: v for k, v in os.environ.items() if k != "TRAJECTA_EVAL_MODE"}
         with mock.patch.dict(os.environ, env_without_eval, clear=True):
-            result = tools.get_run("run_1")
+            result = tools.get_trajectory("run_1")
 
         self.assertEqual(result["status"], "failed")
 
@@ -125,15 +125,15 @@ class ToolsTests(unittest.TestCase):
         self.assertEqual(len(active.sha256), 64)
 
     def test_propose_eval_case_generates_valid_draft(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         draft = tools.propose_eval_case(
-            run_id="run_1",
+            trajectory_id="run_1",
             failure_step=0,
             failure_type="early_terminated",
             expected_behavior="The agent should finish the task.",
             actual_behavior="The agent stopped before finishing.",
-            evidence=[{"claim": "Step 0 stopped.", "source": "trajectory", "run_id": "run_1", "step_index": 0}],
+            evidence=[{"claim": "Step 0 stopped.", "source": "trajectory", "trajectory_id": "run_1", "step_index": 0}],
             regression_rule="Do not stop before task evidence is visible.",
             retrieved_context_ids=["fm_early_terminated_001"],
         )
@@ -163,30 +163,30 @@ class ToolsTests(unittest.TestCase):
         with mock.patch("backend.app.tools.rag.query_failure_memory", return_value=[seeded]) as spy:
             results = tools.search_failure_memory("constraint", top_k=5)
 
-        spy.assert_called_once_with("constraint", top_k=5, exclude_source_run_id=None)
+        spy.assert_called_once_with("constraint", top_k=5, exclude_source_trajectory_id=None)
         self.assertEqual(results[0]["case_id"], "fm_missed_constraint_001")
         # Return shape is JSON-mode dict (not Pydantic instance).
         self.assertIsInstance(results[0], dict)
 
-    def test_search_failure_memory_passes_exclude_source_run_id(self) -> None:
-        """Leakage guard: tools.search_failure_memory forwards exclude_source_run_id
+    def test_search_failure_memory_passes_exclude_source_trajectory_id(self) -> None:
+        """Leakage guard: tools.search_failure_memory forwards exclude_source_trajectory_id
         verbatim to rag.query_failure_memory. Verifies the wire-through; the
         ChromaDB-side filtering itself is covered in test_rag.py."""
         with mock.patch(
             "backend.app.tools.rag.query_failure_memory", return_value=[]
         ) as spy:
-            tools.search_failure_memory("anything", top_k=3, exclude_source_run_id="run_42")
+            tools.search_failure_memory("anything", top_k=3, exclude_source_trajectory_id="run_42")
 
         spy.assert_called_once_with(
-            "anything", top_k=3, exclude_source_run_id="run_42"
+            "anything", top_k=3, exclude_source_trajectory_id="run_42"
         )
 
-    def test_search_failure_memory_redacts_source_run_id_in_eval_mode(self) -> None:
-        """TRAJECTA_EVAL_MODE=1 strips source_run_id from returned cases.
+    def test_search_failure_memory_redacts_source_trajectory_id_in_eval_mode(self) -> None:
+        """TRAJECTA_EVAL_MODE=1 strips source_trajectory_id from returned cases.
 
         Cold-start eval state: failure_memory is seeded from cases.jsonl
-        whose source_run_ids point to runs in the golden eval set. The
-        agent must not be able to pivot via get_run(source_run_id) to
+        whose source_trajectory_ids point to runs in the golden eval set. The
+        agent must not be able to pivot via get_trajectory(source_trajectory_id) to
         look up the human exemplar for a given failure pattern.
         """
         seeded = FailureMemoryCase(
@@ -194,69 +194,69 @@ class ToolsTests(unittest.TestCase):
             failure_type="missed_constraint",
             summary="The agent ignored a user constraint.",
             tags=["constraint"],
-            source_run_id="some_other_run",
+            source_trajectory_id="some_other_run",
         )
         with mock.patch("backend.app.tools.rag.query_failure_memory", return_value=[seeded]), \
              mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
             results = tools.search_failure_memory("constraint", top_k=1)
 
         self.assertEqual(results[0]["case_id"], "fm_missed_constraint_001")
-        self.assertNotIn("source_run_id", results[0])
+        self.assertNotIn("source_trajectory_id", results[0])
         # Non-sensitive fields must survive.
         self.assertEqual(results[0]["failure_type"], "missed_constraint")
         self.assertEqual(results[0]["summary"], "The agent ignored a user constraint.")
 
-    def test_find_similar_successful_run_runs_normally_in_eval_mode(self) -> None:
+    def test_find_similar_successful_trajectory_runs_normally_in_eval_mode(self) -> None:
         """Eval mode does NOT short-circuit this tool.
 
-        The returned run_ids are task-similar success comparators for
+        The returned trajectory_ids are task-similar success comparators for
         replay-and-diff, not labeled answers for the run under analysis.
-        The exclude_run_id auto-injection handles the only real leak
+        The exclude_trajectory_id auto-injection handles the only real leak
         (a run being returned as similar to itself). Killing the tool
         would also kill a legitimate reasoning channel; see eval/runs
         analysis from 2026-05-28.
         """
-        canned = [{"run_id": "success_run", "task": "t", "status": "success", "step_count": 3}]
+        canned = [{"trajectory_id": "success_run", "task": "t", "status": "success", "step_count": 3}]
         with mock.patch(
             "backend.app.tools.rag.query_similar_successful_trajectories", return_value=canned
         ) as spy, mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
-            results = tools.find_similar_successful_run("t", top_k=3)
+            results = tools.find_similar_successful_trajectory("t", top_k=3)
 
         self.assertEqual(results, canned)
         spy.assert_called_once()
 
-    def test_search_eval_cases_filters_by_exclude_source_run_id_in_eval_mode(self) -> None:
+    def test_search_failure_eval_cases_filters_by_exclude_source_trajectory_id_in_eval_mode(self) -> None:
         """Eval mode does NOT short-circuit; instead it relies on the
-        dispatcher's auto-injection of exclude_source_run_id=current_run_id.
+        dispatcher's auto-injection of exclude_source_trajectory_id=current_trajectory_id.
 
-        An EvalCase whose source_run_id equals the run under analysis
+        An EvalCase whose source_trajectory_id equals the run under analysis
         carries that run's verdict — that IS direct answer leakage. But
         cases derived from OTHER runs are legitimate precedent the agent
         should be able to retrieve.
         """
         seeded = EvalCase(
             case_id="ec_run_other_step_0",
-            source_run_id="run_other",
+            source_trajectory_id="run_other",
             task="t",
             failure_step=0,
             failure_type="early_terminated",
             expected_behavior="e",
             actual_behavior="a",
-            evidence=[EvidenceItem(claim="c", source="trajectory", run_id="run_other", step_index=0)],
+            evidence=[EvidenceItem(claim="c", source="trajectory", trajectory_id="run_other", step_index=0)],
             regression_rule="r",
             human_validated=True,
         )
         with mock.patch(
             "backend.app.tools.rag.query_failure_eval_cases", return_value=[seeded]
         ) as spy, mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
-            results = tools.search_eval_cases("t", top_k=3, exclude_source_run_id="run_1")
+            results = tools.search_failure_eval_cases("t", top_k=3, exclude_source_trajectory_id="run_1")
 
         # Tool no longer short-circuits — it forwards to rag and returns
         # what rag returns. The filter itself is verified in test_rag.py.
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["case_id"], "ec_run_other_step_0")
         spy.assert_called_once_with(
-            "t", top_k=3, only_validated=True, exclude_source_run_id="run_1"
+            "t", top_k=3, only_validated=True, exclude_source_trajectory_id="run_1"
         )
 
     def test_propose_eval_case_schema_enforces_failure_type_enum(self) -> None:
@@ -301,25 +301,25 @@ class ToolsTests(unittest.TestCase):
         to the agent loop as a recoverable tool error so the agent retries
         with a vocab-compliant value.
         """
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
         with self.assertRaises(ValueError) as ctx:
             tools.propose_eval_case(
-                run_id="run_1",
+                trajectory_id="run_1",
                 failure_step=0,
                 failure_type="wrong_destination",  # off-vocab
                 expected_behavior="The agent should finish the task.",
                 actual_behavior="The agent stopped before finishing.",
-                evidence=[{"claim": "c", "source": "trajectory", "run_id": "run_1", "step_index": 0}],
+                evidence=[{"claim": "c", "source": "trajectory", "trajectory_id": "run_1", "step_index": 0}],
                 regression_rule="r",
                 retrieved_context_ids=[],
             )
         self.assertIn("wrong_destination", str(ctx.exception))
         self.assertIn("v1 vocabulary", str(ctx.exception))
 
-    def test_search_failure_memory_keeps_source_run_id_outside_eval_mode(self) -> None:
-        """Without TRAJECTA_EVAL_MODE, source_run_id stays on the payload.
+    def test_search_failure_memory_keeps_source_trajectory_id_outside_eval_mode(self) -> None:
+        """Without TRAJECTA_EVAL_MODE, source_trajectory_id stays on the payload.
 
-        Product path (UI, API) needs source_run_id to deep-link from a
+        Product path (UI, API) needs source_trajectory_id to deep-link from a
         case to its origin run. Redaction must be eval-only.
         """
         seeded = FailureMemoryCase(
@@ -327,52 +327,52 @@ class ToolsTests(unittest.TestCase):
             failure_type="wrong_target",
             summary="The agent acted on the wrong target.",
             tags=[],
-            source_run_id="exemplar_run",
+            source_trajectory_id="exemplar_run",
         )
         with mock.patch("backend.app.tools.rag.query_failure_memory", return_value=[seeded]), \
              mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("TRAJECTA_EVAL_MODE", None)
             results = tools.search_failure_memory("x", top_k=1)
 
-        self.assertEqual(results[0]["source_run_id"], "exemplar_run")
+        self.assertEqual(results[0]["source_trajectory_id"], "exemplar_run")
 
-    def test_find_similar_successful_run_delegates_to_rag(self) -> None:
-        canned = [{"run_id": "success_run", "task": "Find a result", "status": "success", "step_count": 3}]
+    def test_find_similar_successful_trajectory_delegates_to_rag(self) -> None:
+        canned = [{"trajectory_id": "success_run", "task": "Find a result", "status": "success", "step_count": 3}]
         with mock.patch("backend.app.tools.rag.query_similar_successful_trajectories", return_value=canned) as spy:
-            results = tools.find_similar_successful_run("Find a result", top_k=3)
+            results = tools.find_similar_successful_trajectory("Find a result", top_k=3)
 
-        spy.assert_called_once_with("Find a result", top_k=3, exclude_run_id=None)
-        self.assertEqual([r["run_id"] for r in results], ["success_run"])
+        spy.assert_called_once_with("Find a result", top_k=3, exclude_trajectory_id=None)
+        self.assertEqual([r["trajectory_id"] for r in results], ["success_run"])
         self.assertEqual(results[0]["status"], "success")
 
-    def test_search_eval_cases_delegates_to_rag(self) -> None:
+    def test_search_failure_eval_cases_delegates_to_rag(self) -> None:
         seeded = EvalCase(
             case_id="ec_run_1_step_0",
-            source_run_id="run_1",
+            source_trajectory_id="run_1",
             task="Find a result",
             failure_step=0,
             failure_type="early_terminated",
             expected_behavior="The agent should finish the task.",
             actual_behavior="The agent stopped before finishing.",
-            evidence=[EvidenceItem(claim="Step 0 stopped.", source="trajectory", run_id="run_1", step_index=0)],
+            evidence=[EvidenceItem(claim="Step 0 stopped.", source="trajectory", trajectory_id="run_1", step_index=0)],
             regression_rule="Do not stop before task evidence is visible.",
             human_validated=True,
         )
         with mock.patch("backend.app.tools.rag.query_failure_eval_cases", return_value=[seeded]) as spy:
-            results = tools.search_eval_cases("early terminated", top_k=4, only_validated=True)
+            results = tools.search_failure_eval_cases("early terminated", top_k=4, only_validated=True)
 
         spy.assert_called_once_with(
-            "early terminated", top_k=4, only_validated=True, exclude_source_run_id=None
+            "early terminated", top_k=4, only_validated=True, exclude_source_trajectory_id=None
         )
         self.assertEqual(results[0]["case_id"], "ec_run_1_step_0")
         self.assertIsInstance(results[0], dict)
 
     def test_get_step_detail_returns_valid_shape(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         result = tools.get_step_detail("run_1", step_index=0, image_detail="high")
 
-        self.assertIn("run_id", result)
+        self.assertIn("trajectory_id", result)
         self.assertIn("step_index", result)
         self.assertIn("has_screenshot", result)
         self.assertIn("image_detail", result)
@@ -392,7 +392,7 @@ class ToolsTests(unittest.TestCase):
         self.assertEqual(result["task_context"]["task"], "Find a result")
 
     def test_get_step_detail_low_detail_mode(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
         _attach_screenshot("run_1")
 
         result = tools.get_step_detail("run_1", step_index=0, image_detail="low")
@@ -411,7 +411,7 @@ class ToolsTests(unittest.TestCase):
         path — it returns unwrapped fields without raising. The agent path
         wraps separately at the tool-result seam in eval_agent_graph.
         """
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
         _attach_screenshot("run_1")
         prompts.set_spotlight_token(None)
 
@@ -423,7 +423,7 @@ class ToolsTests(unittest.TestCase):
         self.assertEqual(result["action"]["raw"], "wait()")
 
     def test_get_step_detail_passes_task_context_to_high_detail_vlm(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
         _attach_screenshot("run_1")
         captured: dict = {}
 
@@ -450,7 +450,7 @@ class ToolsTests(unittest.TestCase):
         self.assertEqual(captured["action_raw"], "wait()")
 
     def test_get_step_detail_high_detail_with_screenshot(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
         _attach_screenshot("run_1")
 
         result = tools.get_step_detail("run_1", step_index=0, image_detail="high")
@@ -464,7 +464,7 @@ class ToolsTests(unittest.TestCase):
         self.assertEqual(result["vlm_prompt_sha256"], active.sha256)
 
     def test_get_step_detail_invalid_step_index_returns_tool_error(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         result = tools.get_step_detail("run_1", step_index=99)
 
@@ -478,7 +478,7 @@ class ToolsTests(unittest.TestCase):
         self.assertIn("tool_error", result)
 
     def test_get_step_detail_no_screenshot_bytes_in_result(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         result = tools.get_step_detail("run_1", step_index=0)
 
@@ -488,61 +488,61 @@ class ToolsTests(unittest.TestCase):
         self.assertFalse(result["observation"]["screenshot"].startswith("/"))
 
     def test_get_step_detail_screenshot_url_format(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
         _attach_screenshot("run_1")
 
         result = tools.get_step_detail("run_1", step_index=0)
 
         self.assertEqual(
             result["screenshot_url"],
-            "/api/runs/run_1/screenshots/screenshot_001.png",
+            "/api/trajectories/run_1/screenshots/screenshot_001.png",
         )
 
-    def test_get_run_with_comparison_run_id(self) -> None:
-        """docs/testing.md: get_run accepts a comparison run_id distinct from
+    def test_get_trajectory_with_comparison_trajectory_id(self) -> None:
+        """docs/testing.md: get_trajectory accepts a comparison trajectory_id distinct from
         the run currently under analysis.
         """
 
-        storage.save_run(sample_run("run_a"))
-        storage.save_run(sample_run("run_b"))
+        storage.save_trajectory(sample_run("run_a"))
+        storage.save_trajectory(sample_run("run_b"))
 
-        result_a = tools.get_run("run_a")
-        result_b = tools.get_run("run_b")
+        result_a = tools.get_trajectory("run_a")
+        result_b = tools.get_trajectory("run_b")
 
-        self.assertEqual(result_a["run_id"], "run_a")
-        self.assertEqual(result_b["run_id"], "run_b")
+        self.assertEqual(result_a["trajectory_id"], "run_a")
+        self.assertEqual(result_b["trajectory_id"], "run_b")
 
-    def test_find_similar_successful_run_filters_status_and_excludes_self(self) -> None:
-        """docs/testing.md: find_similar_successful_run returns only runs with
-        status=='success' and excludes the queried run_id.
+    def test_find_similar_successful_trajectory_filters_status_and_excludes_self(self) -> None:
+        """docs/testing.md: find_similar_successful_trajectory returns only runs with
+        status=='success' and excludes the queried trajectory_id.
         """
 
         self_run = sample_run("run_a", status="success")
         success_run = sample_run("run_c", status="success")
         failed_run = sample_run("run_b", status="failed")
-        storage.save_run(self_run)
-        storage.save_run(success_run)
-        storage.save_run(failed_run)
+        storage.save_trajectory(self_run)
+        storage.save_trajectory(success_run)
+        storage.save_trajectory(failed_run)
         rag.upsert_successful_trajectory(self_run)
         rag.upsert_successful_trajectory(success_run)
 
-        results = tools.find_similar_successful_run(
-            "Find a result", top_k=5, exclude_run_id="run_a"
+        results = tools.find_similar_successful_trajectory(
+            "Find a result", top_k=5, exclude_trajectory_id="run_a"
         )
 
         self.assertGreater(len(results), 0)
-        run_ids = [r["run_id"] for r in results]
-        self.assertNotIn("run_a", run_ids)  # self exclusion
-        self.assertNotIn("run_b", run_ids)  # status filter
-        self.assertIn("run_c", run_ids)
+        trajectory_ids = [r["trajectory_id"] for r in results]
+        self.assertNotIn("run_a", trajectory_ids)  # self exclusion
+        self.assertNotIn("run_b", trajectory_ids)  # status filter
+        self.assertIn("run_c", trajectory_ids)
         self.assertTrue(all(r["status"] == "success" for r in results))
 
-    def test_find_similar_successful_run_empty_when_no_success_run_indexed(self) -> None:
-        """docs/testing.md: find_similar_successful_run returns an empty list
+    def test_find_similar_successful_trajectory_empty_when_no_success_run_indexed(self) -> None:
+        """docs/testing.md: find_similar_successful_trajectory returns an empty list
         when no successful run is indexed for the task.
         """
 
-        results = tools.find_similar_successful_run("Find a result", top_k=3)
+        results = tools.find_similar_successful_trajectory("Find a result", top_k=3)
 
         self.assertEqual(results, [])
 
@@ -554,16 +554,16 @@ class ToolsTests(unittest.TestCase):
 
         from pydantic import ValidationError
 
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         with self.assertRaises(ValidationError):
             tools.propose_eval_case(
-                run_id="run_1",
+                trajectory_id="run_1",
                 failure_step=0,
                 failure_type="early_terminated",
                 expected_behavior="x",
                 # actual_behavior and regression_rule deliberately missing
-                evidence=[{"claim": "c", "source": "trajectory", "run_id": "run_1"}],
+                evidence=[{"claim": "c", "source": "trajectory", "trajectory_id": "run_1"}],
                 retrieved_context_ids=[],
             )
 
@@ -572,11 +572,11 @@ class ToolsTests(unittest.TestCase):
         success-shape EvalCase draft using the success case_id namespace.
         """
 
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         draft = tools.propose_eval_case(
-            run_id="run_1",
-            evidence=[{"claim": "Step 0 reached the expected page.", "source": "trajectory", "run_id": "run_1", "step_index": 0}],
+            trajectory_id="run_1",
+            evidence=[{"claim": "Step 0 reached the expected page.", "source": "trajectory", "trajectory_id": "run_1", "step_index": 0}],
             retrieved_context_ids=[],
         )
 
@@ -593,11 +593,11 @@ class ToolsTests(unittest.TestCase):
         the trace event carries) but are NOT persisted into the EvalCase.
         """
 
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         draft = tools.propose_eval_case(
-            run_id="run_1",
-            evidence=[{"claim": "Step 0 reached the expected page.", "source": "trajectory", "run_id": "run_1", "step_index": 0}],
+            trajectory_id="run_1",
+            evidence=[{"claim": "Step 0 reached the expected page.", "source": "trajectory", "trajectory_id": "run_1", "step_index": 0}],
             retrieved_context_ids=[],
             suggested_followups=[
                 {"label": "Inspect step 0", "message": "Inspect step 0 in detail."},
@@ -610,12 +610,12 @@ class ToolsTests(unittest.TestCase):
         self.assertEqual(draft["suggested_followups"][0]["label"], "Inspect step 0")
 
     def test_propose_eval_case_rejects_too_many_followups(self) -> None:
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         with self.assertRaises(ValueError):
             tools.propose_eval_case(
-                run_id="run_1",
-                evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
+                trajectory_id="run_1",
+                evidence=[{"claim": "x", "source": "trajectory", "trajectory_id": "run_1"}],
                 retrieved_context_ids=[],
                 suggested_followups=[
                     {"label": f"chip {i}", "message": f"msg {i}"} for i in range(5)
@@ -630,11 +630,11 @@ class ToolsTests(unittest.TestCase):
         usable. Truncate silently; the verdict still lands.
         """
 
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         draft = tools.propose_eval_case(
-            run_id="run_1",
-            evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
+            trajectory_id="run_1",
+            evidence=[{"claim": "x", "source": "trajectory", "trajectory_id": "run_1"}],
             retrieved_context_ids=[],
             suggested_followups=[
                 {"label": "x" * 41, "message": "ok"},
@@ -655,11 +655,11 @@ class ToolsTests(unittest.TestCase):
         come through.
         """
 
-        storage.save_run(sample_run())
+        storage.save_trajectory(sample_run())
 
         draft = tools.propose_eval_case(
-            run_id="run_1",
-            evidence=[{"claim": "x", "source": "trajectory", "run_id": "run_1"}],
+            trajectory_id="run_1",
+            evidence=[{"claim": "x", "source": "trajectory", "trajectory_id": "run_1"}],
             retrieved_context_ids=[],
             suggested_followups=[
                 "not a dict",  # type: ignore[list-item]

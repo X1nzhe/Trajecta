@@ -1,9 +1,9 @@
 // frontend/src/components/actionPalette.ts
 // Shared colors for action types — used by StepTimeline (ribbon) and
-// RunList (mini-trajectory). One source of truth so the color of e.g.
+// TrajectoryList (mini-trajectory). One source of truth so the color of e.g.
 // "click" is identical in both surfaces.
 
-import type { StepAction, TrajectoryRun } from '../types/contracts';
+import type { StepAction, Trajectory } from '../types/contracts';
 
 export const ACTION_COLOR: Record<StepAction['type'], string> = {
   click:    '#2563eb', // blue-600
@@ -25,8 +25,8 @@ export const ACTION_BG_CLASS: Record<StepAction['type'], string> = {
   unknown:  'bg-red-500',
 };
 
-// Used by both the run-card mini-trajectory and the main StepTimeline.
-// Returns one color per step in run.steps order.
-export function actionColors(run: TrajectoryRun): string[] {
-  return run.steps.map((step) => ACTION_COLOR[step.action.type] ?? ACTION_COLOR.unknown);
+// Used by both the trajectory-card mini-trajectory and the main StepTimeline.
+// Returns one color per step in trajectory.steps order.
+export function actionColors(trajectory: Trajectory): string[] {
+  return trajectory.steps.map((step) => ACTION_COLOR[step.action.type] ?? ACTION_COLOR.unknown);
 }

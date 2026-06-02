@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type ReactElement, type ReactNode, type SetStateAction } from 'react';
 import remarkGfm from 'remark-gfm';
 import { Streamdown } from 'streamdown';
-import { createEvalCase, fetchRunDigest } from '../api/client';
+import { createEvalCase, fetchTrajectoryDigest } from '../api/client';
 import { streamAgentRequest, type AgentDelta } from '../api/stream';
 import modelPricingConfig from '../../../config/model_pricing.json';
 
@@ -12,10 +12,10 @@ interface StreamingMessage {
   turn: number;
   text: string;
 }
-import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryDigest, TrajectoryRun } from '../types/contracts';
+import type { AgentTrace, AgentTraceEvent, EvalCase, EvidenceItem, TrajectoryDigest, Trajectory } from '../types/contracts';
 
 interface EvalAgentPanelProps {
-  run: TrajectoryRun | null;
+  trajectory: Trajectory | null;
   digest?: TrajectoryDigest | null;
   selectedStepIndex: number | null;
   trace: AgentTrace | null;
@@ -28,7 +28,7 @@ interface EvalAgentPanelProps {
 
 
 export function EvalAgentPanel({
-  run,
+  trajectory,
   digest,
   selectedStepIndex,
   trace,
@@ -90,13 +90,13 @@ export function EvalAgentPanel({
     setExpandedEvents(new Set());
     setVerdictModalOpen(false);
     // Run switch: collapse iff a draft is already on the table from the
-    // server (page reload landed on a previously-analyzed run).
+    // server (page reload landed on a previously-analyzed trajectory).
     setTraceCollapsed(Boolean(evalCaseDraft));
     setExpandedFollowupRuns(new Set());
     setStreamingText(new Map());
     wasInFlight.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [run?.run_id]);
+  }, [trajectory?.trajectory_id]);
 
   useEffect(() => {
     // Auto-collapse the moment streaming ends with a draft on the table.
@@ -109,7 +109,7 @@ export function EvalAgentPanel({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const runAnalysis = async () => {
-    if (!run || inFlight) return;
+    if (!trajectory || inFlight) return;
 
     const controller = new AbortController();
     abortRef.current?.abort();
@@ -120,10 +120,10 @@ export function EvalAgentPanel({
     setVerdictModalOpen(false);
     setStreamingText(new Map());
     onDraftChange(null);
-    onTraceChange(emptyTrace(run.run_id));
+    onTraceChange(emptyTrace(trajectory.trajectory_id));
 
     try {
-      const done = await streamAgentRequest(`/api/runs/${run.run_id}/analyze`, {
+      const done = await streamAgentRequest(`/api/trajectories/${trajectory.trajectory_id}/analyze`, {
         signal: controller.signal,
         onEvent: (event) => {
           // The full agent_message event supersedes any streaming
@@ -133,7 +133,7 @@ export function EvalAgentPanel({
           if (event.type === 'agent_message') {
             setStreamingText((current) => dropFinalizedStream(current, event.message ?? ''));
           }
-          onTraceChange(appendEvent(run.run_id, event));
+          onTraceChange(appendEvent(trajectory.trajectory_id, event));
         },
         onDelta: (delta) => setStreamingText((current) => appendDelta(current, delta)),
       });
@@ -149,7 +149,7 @@ export function EvalAgentPanel({
   };
 
   const sendFollowup = async () => {
-    if (!run || !trace || inFlight) return;
+    if (!trajectory || !trace || inFlight) return;
     const message = input.trim();
     if (!message) return;
 
@@ -162,7 +162,7 @@ export function EvalAgentPanel({
     setInput('');
 
     try {
-      const done = await streamAgentRequest(`/api/runs/${run.run_id}/followup`, {
+      const done = await streamAgentRequest(`/api/trajectories/${trajectory.trajectory_id}/followup`, {
         body: { message },
         signal: controller.signal,
         onEvent: (event) => {
@@ -170,7 +170,7 @@ export function EvalAgentPanel({
           if (event.type === 'agent_message') {
             setStreamingText((current) => dropFinalizedStream(current, event.message ?? ''));
           }
-          onTraceChange(appendEvent(run.run_id, event));
+          onTraceChange(appendEvent(trajectory.trajectory_id, event));
         },
         onDelta: (delta) => setStreamingText((current) => appendDelta(current, delta)),
       });
@@ -187,7 +187,7 @@ export function EvalAgentPanel({
   };
 
   const rerunLatest = () => {
-    if (!run || inFlight) return;
+    if (!trajectory || inFlight) return;
     const shouldRerun = window.confirm('Start a fresh analysis for this trajectory? The current trace view will be replaced.');
     if (!shouldRerun) return;
     runAnalysis();
@@ -215,7 +215,7 @@ export function EvalAgentPanel({
     () => trace?.events.filter((event) => event.turn > 0) ?? [],
     [trace],
   );
-  const inputDisabled = !run || !hasTrace || inFlight;
+  const inputDisabled = !trajectory || !hasTrace || inFlight;
   // Initial analyze = stream is in flight AND no draft has been produced
   // yet. The "while-streaming, show the timeline live" behavior is now
   // covered by the !evalCaseDraft branch of the pre-verdict TraceHistory
@@ -254,13 +254,13 @@ export function EvalAgentPanel({
       expandedEvents={expandedEvents}
       onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
       onSelectStep={onSelectStep}
-      runId={run?.run_id ?? null}
+      trajectoryId={trajectory?.trajectory_id ?? null}
     />
   ) : null;
 
   const verdictNode: ReactNode = evalCaseDraft ? (
     <VerdictBlock
-      run={run}
+      trajectory={trajectory}
       trace={trace}
       draft={evalCaseDraft}
       onSelectStep={onSelectStep}
@@ -303,7 +303,7 @@ export function EvalAgentPanel({
         <AnalyzeButton
           hasTrace={hasTrace}
           inFlight={inFlight}
-          disabled={!run}
+          disabled={!trajectory}
           trace={trace}
           onAnalyze={runAnalysis}
           onReanalyze={rerunLatest}
@@ -337,7 +337,7 @@ export function EvalAgentPanel({
             expandedEvents={expandedEvents}
             onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
             onSelectStep={onSelectStep}
-            runId={run?.run_id ?? null}
+            trajectoryId={trajectory?.trajectory_id ?? null}
           />
         )}
 
@@ -374,7 +374,7 @@ export function EvalAgentPanel({
           expandedEvents={expandedEvents}
           onToggleEvent={(seq) => setExpandedEvents((current) => toggleSet(current, seq))}
           onSelectStep={onSelectStep}
-          runId={run?.run_id ?? null}
+          trajectoryId={trajectory?.trajectory_id ?? null}
           expandedRuns={expandedFollowupRuns}
           onToggleRun={(seq) => setExpandedFollowupRuns((current) => toggleSet(current, seq))}
           verdictBlock={
@@ -589,7 +589,7 @@ function AnalyzeButton({
 }
 
 function VerdictBlock({
-  run,
+  trajectory,
   trace,
   draft,
   onSelectStep,
@@ -602,7 +602,7 @@ function VerdictBlock({
   initialTurnRuntimeMs,
   traceHistoryNode,
 }: {
-  run: TrajectoryRun | null;
+  trajectory: Trajectory | null;
   trace: AgentTrace | null;
   draft: EvalCase;
   onSelectStep: (index: number) => void;
@@ -623,7 +623,7 @@ function VerdictBlock({
   return (
     <>
       <ObservationSummaryPanel
-        run={run}
+        trajectory={trajectory}
         trace={trace}
         draft={draft}
         onSelectStep={onSelectStep}
@@ -680,7 +680,7 @@ function DraftRowButton({ draft, onOpen }: { draft: EvalCase; onOpen: () => void
 }
 
 function ObservationSummaryPanel({
-  run,
+  trajectory,
   trace,
   draft,
   onSelectStep,
@@ -692,7 +692,7 @@ function ObservationSummaryPanel({
   initialTurnRuntimeMs,
   traceHistoryNode,
 }: {
-  run: TrajectoryRun | null;
+  trajectory: Trajectory | null;
   trace: AgentTrace | null;
   draft: EvalCase | null;
   onSelectStep: (index: number) => void;
@@ -807,7 +807,7 @@ function ObservationSummaryPanel({
             <button
               onClick={onCompareSimilar}
               className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-hairline)] bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 hover:border-slate-400 hover:text-slate-950"
-              title="Ask the agent to compare this trajectory with a similar successful run"
+              title="Ask the agent to compare this trajectory with a similar successful trajectory"
             >
               Compare similar
             </button>
@@ -875,10 +875,10 @@ function ObservationSummaryPanel({
           <div className="mt-2 flex flex-wrap gap-2">
             {visualEvidence.map((item, index) => {
               const step = typeof item.step_index === 'number'
-                ? run?.steps.find((c) => c.index === item.step_index)
+                ? trajectory?.steps.find((c) => c.index === item.step_index)
                 : null;
               const screenshot = step?.observation.screenshot;
-              if (!run || !step || !screenshot) return null;
+              if (!trajectory || !step || !screenshot) return null;
               return (
                 <button
                   key={`${item.claim}-${index}`}
@@ -887,7 +887,7 @@ function ObservationSummaryPanel({
                   title={item.claim}
                 >
                   <img
-                    src={`/api/runs/${run.run_id}/screenshots/${screenshot}`}
+                    src={`/api/trajectories/${trajectory.trajectory_id}/screenshots/${screenshot}`}
                     alt={`Evidence step ${step.index}`}
                     className="h-full w-full object-cover"
                   />
@@ -982,7 +982,7 @@ function FollowupTimeline({
   expandedEvents,
   onToggleEvent,
   onSelectStep,
-  runId,
+  trajectoryId,
   expandedRuns,
   onToggleRun,
   verdictBlock,
@@ -996,7 +996,7 @@ function FollowupTimeline({
   expandedEvents: Set<number>;
   onToggleEvent: (seq: number) => void;
   onSelectStep: (index: number) => void;
-  runId: string | null;
+  trajectoryId: string | null;
   expandedRuns: Set<number>;
   onToggleRun: (firstSeq: number) => void;
   // The verdict trio (Analysis Result + draft editor) follows whichever
@@ -1068,7 +1068,7 @@ function FollowupTimeline({
               expandedEvents={expandedEvents}
               onToggleEvent={onToggleEvent}
               onSelectStep={onSelectStep}
-              runId={runId}
+              trajectoryId={trajectoryId}
             />
           );
         } else {
@@ -1092,7 +1092,7 @@ function FollowupTimeline({
                   expandedEvents={expandedEvents}
                   onToggleEvent={onToggleEvent}
                   onSelectStep={onSelectStep}
-                  runId={runId}
+                  trajectoryId={trajectoryId}
                 />
               )}
             </>
@@ -1166,7 +1166,7 @@ function TraceHistory({
   expandedEvents,
   onToggleEvent,
   onSelectStep,
-  runId,
+  trajectoryId,
 }: {
   events: AgentTraceEvent[];
   pendingUserMessage: string | null;
@@ -1175,7 +1175,7 @@ function TraceHistory({
   expandedEvents: Set<number>;
   onToggleEvent: (seq: number) => void;
   onSelectStep: (index: number) => void;
-  runId: string | null;
+  trajectoryId: string | null;
 }) {
   const rows = traceRows(events);
   // Render nothing when there is nothing to show. The empty right column
@@ -1194,7 +1194,7 @@ function TraceHistory({
           expanded={expandedEvents.has(row.event.seq)}
           onToggle={() => onToggleEvent(row.event.seq)}
           onSelectStep={onSelectStep}
-          runId={runId}
+          trajectoryId={trajectoryId}
         />
       ))}
       {pendingUserMessage && <MessageBubble align="right" message={pendingUserMessage} muted />}
@@ -1250,20 +1250,20 @@ function TraceRow({
   expanded,
   onToggle,
   onSelectStep,
-  runId,
+  trajectoryId,
 }: {
   row: TraceRowModel;
   expanded: boolean;
   onToggle: () => void;
   onSelectStep: (index: number) => void;
-  runId: string | null;
+  trajectoryId: string | null;
 }) {
   const event = row.event;
   if (event.type === 'phase') return (
     <PhaseRow
       event={event}
       done={Boolean(row.phaseDone)}
-      runId={runId}
+      trajectoryId={trajectoryId}
       expanded={expanded}
       onToggle={onToggle}
     />
@@ -1311,11 +1311,11 @@ function TraceRow({
 // human-readable title so the underlying tool name (snake_case
 // identifier) doesn't leak into the UI as a banner.
 const TOOL_FRIENDLY_NAME: Record<string, string> = {
-  get_run: 'Trajectory metadata lookup',
+  get_trajectory: 'Trajectory metadata lookup',
   get_step_detail: 'Step detail inspection',
   search_failure_memory: 'Failure patterns retrieval',
-  search_eval_cases: 'Failure precedent retrieval',
-  find_similar_successful_run: 'Similar successful trajectories retrieval',
+  search_failure_eval_cases: 'Failure precedent retrieval',
+  find_similar_successful_trajectory: 'Similar successful trajectories retrieval',
   propose_eval_case: 'Verdict proposal',
 };
 
@@ -1357,7 +1357,7 @@ function ToolDetailBody({
   const a = args ?? {};
   const r = result ?? {};
   switch (name) {
-    case 'get_run': {
+    case 'get_trajectory': {
       const steps = Array.isArray(r.steps) ? (r.steps as unknown[]).length : null;
       return (
         <DetailTable>
@@ -1391,7 +1391,7 @@ function ToolDetailBody({
       );
     }
     case 'search_failure_memory':
-    case 'search_eval_cases': {
+    case 'search_failure_eval_cases': {
       const query = typeof a.query === 'string' ? a.query : null;
       const items = Array.isArray(r.items) ? (r.items as Array<Record<string, unknown>>) : [];
       return (
@@ -1423,7 +1423,7 @@ function ToolDetailBody({
         </DetailTable>
       );
     }
-    case 'find_similar_successful_run': {
+    case 'find_similar_successful_trajectory': {
       const task = typeof a.task === 'string' ? a.task : null;
       const items = Array.isArray(r.items) ? (r.items as Array<Record<string, unknown>>) : [];
       return (
@@ -1438,11 +1438,11 @@ function ToolDetailBody({
             <DetailRow label="Trajectories" stacked>
               <ul className="space-y-1">
                 {items.map((item, index) => {
-                  const runId = typeof item.run_id === 'string' ? item.run_id : `match_${index}`;
+                  const trajectoryId = typeof item.trajectory_id === 'string' ? item.trajectory_id : `match_${index}`;
                   const itemTask = typeof item.task === 'string' ? item.task : null;
                   return (
-                    <li key={runId} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
-                      <code className="min-w-0 break-all font-mono text-slate-600" title={runId}>{shortRunId(runId)}</code>
+                    <li key={trajectoryId} className="min-w-0 overflow-hidden rounded border border-slate-200 bg-white px-2 py-1 text-[10px] leading-4">
+                      <code className="min-w-0 break-all font-mono text-slate-600" title={trajectoryId}>{shortTrajectoryId(trajectoryId)}</code>
                       {itemTask && <div className="mt-0.5 break-words text-slate-500">{itemTask}</div>}
                     </li>
                   );
@@ -1535,11 +1535,11 @@ function ToolGlyph({ name }: { name: string }) {
   // Minimal, monochrome SVG glyphs. Could be replaced with an icon
   // library later; deliberately not pulling lucide-react for one panel.
   const map: Record<string, ReactElement> = {
-    get_run: <path d="M4 6h16M4 12h16M4 18h10" strokeWidth="1.8" strokeLinecap="round" />,
+    get_trajectory: <path d="M4 6h16M4 12h16M4 18h10" strokeWidth="1.8" strokeLinecap="round" />,
     get_step_detail: <path d="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm9 16-4.35-4.35" strokeWidth="1.8" strokeLinecap="round" />,
-    find_similar_successful_run: <path d="M4 12h6m4 0h6m-10-6 4 6-4 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />,
+    find_similar_successful_trajectory: <path d="M4 12h6m4 0h6m-10-6 4 6-4 6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />,
     search_failure_memory: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" strokeWidth="1.8" strokeLinecap="round" />,
-    search_eval_cases: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z M10 7v7M7 10h7" strokeWidth="1.8" strokeLinecap="round" />,
+    search_failure_eval_cases: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z M10 7v7M7 10h7" strokeWidth="1.8" strokeLinecap="round" />,
     propose_eval_case: <path d="M5 12l5 5L20 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />,
   };
   return (
@@ -1552,13 +1552,13 @@ function ToolGlyph({ name }: { name: string }) {
 function PhaseRow({
   event,
   done,
-  runId,
+  trajectoryId,
   expanded,
   onToggle,
 }: {
   event: AgentTraceEvent;
   done: boolean;
-  runId: string | null;
+  trajectoryId: string | null;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -1568,16 +1568,16 @@ function PhaseRow({
   const [digest, setDigest] = useState<TrajectoryDigest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canExpand = done && Boolean(runId);
+  const canExpand = done && Boolean(trajectoryId);
 
   useEffect(() => {
-    if (!expanded || !canExpand || digest || loading || error || !runId) return;
+    if (!expanded || !canExpand || digest || loading || error || !trajectoryId) return;
     setLoading(true);
-    fetchRunDigest(runId)
+    fetchTrajectoryDigest(trajectoryId)
       .then((data) => setDigest(data))
       .catch((err) => setError(errorMessage(err)))
       .finally(() => setLoading(false));
-  }, [canExpand, digest, error, expanded, loading, runId]);
+  }, [canExpand, digest, error, expanded, loading, trajectoryId]);
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50">
@@ -1671,17 +1671,17 @@ function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, 
   const stepIndex = typeof args.step_index === 'number' ? args.step_index : null;
   const query = typeof args.query === 'string' ? args.query : null;
   const task = typeof args.task === 'string' ? args.task : null;
-  const runId = typeof args.run_id === 'string' ? args.run_id : null;
+  const trajectoryId = typeof args.trajectory_id === 'string' ? args.trajectory_id : null;
   const itemCount = Array.isArray(result?.items) ? (result!.items as unknown[]).length : null;
 
   switch (event.name) {
-    case 'get_run':
-      return runId ? `Loaded trajectory metadata for ${shortRunId(runId)}` : 'Loaded trajectory metadata';
+    case 'get_trajectory':
+      return trajectoryId ? `Loaded trajectory metadata for ${shortTrajectoryId(trajectoryId)}` : 'Loaded trajectory metadata';
     case 'get_step_detail':
       return stepIndex !== null
         ? `Inspected step ${stepIndex}`
         : 'Inspected a step';
-    case 'find_similar_successful_run':
+    case 'find_similar_successful_trajectory':
       if (itemCount === 0) return 'Looked for similar successful trajectories — none yet';
       if (itemCount !== null) return `Found ${itemCount} similar successful ${itemCount === 1 ? 'trajectory' : 'trajectories'}`;
       return task ? `Searching for similar successful trajectories to: ${shorten(task, 60)}` : 'Searching for similar successful trajectories';
@@ -1689,7 +1689,7 @@ function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, 
       if (itemCount !== null && query) return `Retrieved failure patterns for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
       if (query) return `Retrieving failure patterns for "${shorten(query, 60)}"`;
       return 'Retrieving failure patterns';
-    case 'search_eval_cases':
+    case 'search_failure_eval_cases':
       if (itemCount !== null && query) return `Retrieved verified verdicts for "${shorten(query, 60)}" — ${itemCount} match${itemCount === 1 ? '' : 'es'}`;
       if (query) return `Retrieving verified verdicts for "${shorten(query, 60)}"`;
       return 'Retrieving verified verdicts';
@@ -1705,14 +1705,14 @@ function friendlyToolDescription(event: AgentTraceEvent, result: Record<string, 
   }
 }
 
-function shortRunId(runId: string) {
-  return runId.length > 12 ? `${runId.slice(0, 8)}…` : runId;
+function shortTrajectoryId(trajectoryId: string) {
+  return trajectoryId.length > 12 ? `${trajectoryId.slice(0, 8)}…` : trajectoryId;
 }
 
 function MessageBubble({ align, message, muted = false }: { align: 'left' | 'right'; message: string; muted?: boolean }) {
   const empty = !message;
   // overflow-wrap:anywhere lets unbreakable tokens (long hashes like
-  // ec_<64-char>, run_ids, URLs) wrap mid-token instead of pushing
+  // ec_<64-char>, trajectory_ids, URLs) wrap mid-token instead of pushing
   // past the container width.
   //
   // Agent (left) messages: no bubble chrome — typography matches the
@@ -2101,9 +2101,9 @@ function DraftPanelBody({
             <span className="mr-1 text-[9px] uppercase tracking-wider text-slate-400">case</span>
             {shortenCaseId(localDraft.case_id)}
           </span>
-          <span title={localDraft.source_run_id} className="break-all">
+          <span title={localDraft.source_trajectory_id} className="break-all">
             <span className="mr-1 text-[9px] uppercase tracking-wider text-slate-400">trajectory</span>
-            {shortRunId(localDraft.source_run_id)}
+            {shortTrajectoryId(localDraft.source_trajectory_id)}
           </span>
         </div>
 
@@ -2747,7 +2747,7 @@ function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
     },
     {
       glyph: '≈',
-      label: 'Compare with a successful run',
+      label: 'Compare with a successful trajectory',
       text: 'Compare this trajectory with a similar successful trajectory.',
     },
     {
@@ -2796,10 +2796,10 @@ function promptChips(selectedStepIndex: number | null): ChipTemplate[] {
   ];
 }
 
-function emptyTrace(runId: string): AgentTrace {
+function emptyTrace(trajectoryId: string): AgentTrace {
   return {
-    run_id: runId,
-    user_intent: 'analyze_run',
+    trajectory_id: trajectoryId,
+    user_intent: 'analyze_trajectory',
     selected_step: undefined,
     tool_call_count: 0,
     turn_count: 1,
@@ -2812,9 +2812,9 @@ function emptyTrace(runId: string): AgentTrace {
   };
 }
 
-function appendEvent(runId: string, event: AgentTraceEvent) {
+function appendEvent(trajectoryId: string, event: AgentTraceEvent) {
   return (current: AgentTrace | null): AgentTrace => {
-    const base = current ?? emptyTrace(runId);
+    const base = current ?? emptyTrace(trajectoryId);
     if (base.events.some((item) => item.seq === event.seq)) return base;
     return { ...base, events: [...base.events, event] };
   };
@@ -2862,7 +2862,7 @@ function dropFinalizedStream(
 function isVisualEvidence(item: EvidenceItem) {
   return (
     typeof item.step_index === 'number' &&
-    ['trajectory', 'step_detail_high', 'successful_run'].includes(item.source)
+    ['trajectory', 'step_detail_high', 'successful_trajectory'].includes(item.source)
   );
 }
 

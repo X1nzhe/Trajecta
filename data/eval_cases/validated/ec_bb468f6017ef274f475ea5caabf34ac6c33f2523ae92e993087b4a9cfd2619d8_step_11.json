@@ -1,6 +1,6 @@
 {
   "case_id": "ec_bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8_step_11",
-  "source_run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+  "source_trajectory_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
   "task": "navigate: Search for round-trip flights from San Francisco to Singapore, departing on April 15, 2025, and returning on April 22, 2025, while ensuring the flights do not exceed two layovers.",
   "failure_step": 11,
   "failure_type": "early_terminated",
@@ -10,7 +10,7 @@
     {
       "claim": "The source task explicitly requires round-trip flights from San Francisco to Singapore with no more than two layovers.",
       "source": "trajectory",
-      "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+      "trajectory_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
       "step_index": null,
       "trace_event_seq": null,
       "context_id": null
@@ -18,7 +18,7 @@
     {
       "claim": "Step 11 is an exit message rather than an action that verifies or filters layovers.",
       "source": "trajectory",
-      "run_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
+      "trajectory_id": "bb468f6017ef274f475ea5caabf34ac6c33f2523ae92e993087b4a9cfd2619d8",
       "step_index": 11,
       "trace_event_seq": null,
       "context_id": null
@@ -26,7 +26,7 @@
     {
       "claim": "Failure memory case fm_early_terminated_001 describes this premature-exit pattern.",
       "source": "failure_memory",
-      "run_id": null,
+      "trajectory_id": null,
       "step_index": null,
       "trace_event_seq": 4,
       "context_id": "fm_early_terminated_001"

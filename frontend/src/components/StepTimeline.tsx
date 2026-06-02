@@ -8,17 +8,17 @@
 // Drop-in replacement — same props.
 
 import { useRef } from 'react';
-import type { TrajectoryRun } from '../types/contracts';
+import type { Trajectory } from '../types/contracts';
 import { ACTION_COLOR } from './actionPalette';
 
 interface StepTimelineProps {
-  run: TrajectoryRun;
+  trajectory: Trajectory;
   selectedStepIndex: number;
   inspectedSteps?: Set<number>;
   onSelectStep: (index: number) => void;
 }
 
-export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(), onSelectStep }: StepTimelineProps) {
+export function StepTimeline({ trajectory, selectedStepIndex, inspectedSteps = new Set(), onSelectStep }: StepTimelineProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Translate vertical wheel to horizontal scroll on the step rail.
@@ -46,14 +46,14 @@ export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(
     <div className="border-b border-[color:var(--color-hairline)] bg-white px-4 py-3">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-500">
-          Trajectory · {run.steps.length} {run.steps.length === 1 ? 'step' : 'steps'}
+          Trajectory · {trajectory.steps.length} {trajectory.steps.length === 1 ? 'step' : 'steps'}
         </div>
         <div className="font-mono text-[11px] text-slate-500">
           step{' '}
           <span className="font-semibold text-slate-900 tabular-nums">
             {pad2(selectedStepIndex)}
           </span>{' '}
-          / <span className="tabular-nums">{pad2(run.steps.length)}</span>
+          / <span className="tabular-nums">{pad2(trajectory.steps.length)}</span>
         </div>
       </div>
 
@@ -62,7 +62,7 @@ export function StepTimeline({ run, selectedStepIndex, inspectedSteps = new Set(
         onWheel={handleWheel}
         className="scrollbar-thin flex items-stretch gap-1 overflow-x-auto pb-1.5"
       >
-        {run.steps.map((step, i) => {
+        {trajectory.steps.map((step, i) => {
           const idx = step.index ?? i + 1;
           const isSelected = selectedStepIndex === idx;
           const isFailure = step.result.status === 'failed';
