@@ -1314,7 +1314,7 @@ const TOOL_FRIENDLY_NAME: Record<string, string> = {
   get_run: 'Trajectory metadata lookup',
   get_step_detail: 'Step detail inspection',
   search_failure_memory: 'Failure patterns retrieval',
-  search_eval_cases: 'Verified verdict retrieval',
+  search_eval_cases: 'Failure precedent retrieval',
   find_similar_successful_run: 'Similar successful trajectories retrieval',
   propose_eval_case: 'Verdict proposal',
 };

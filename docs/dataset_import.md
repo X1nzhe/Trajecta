@@ -344,8 +344,7 @@ Concretely:
 - Every imported run lands at `status="unknown"` regardless of any raw
   `status` / `outcome` field in the source row.
 - `POST /api/import/molmoweb-sample` does **not** seed any RAG collection.
-  `successful_trajectories` starts empty (legacy implementation name:
-  `successful_runs`).
+  `successful_trajectories` starts empty.
 - The frontend renders `status="unknown"` as the badge **Unanalyzed**.
 - Status flips to `"success"` or `"failed"` only when a human posts a
   validated `EvalCase` (see [docs/contracts.md](contracts.md) "POST
@@ -369,9 +368,9 @@ Concretely:
   is not destroyed by re-import (cascade-deleting it via save_run was the
   bug Copilot caught on PR #1; the test
   ``test_save_run_preserves_trace_and_screenshots`` guards it).
-- ChromaDB rows in the conceptual `successful_trajectories` collection
-  (legacy implementation name: `successful_runs`) keyed by `run_id` are deleted
-  on re-import. The imported trajectory returns to `status="unknown"` and must
+- ChromaDB rows in the `successful_trajectories` collection keyed by `run_id`
+  are deleted on re-import. The imported trajectory returns to
+  `status="unknown"` and must
   be human-validated again before it can serve as a replay-and-diff comparison
   target.
 - Screenshots are upserted by `(run_id, filename)` into the `screenshots`

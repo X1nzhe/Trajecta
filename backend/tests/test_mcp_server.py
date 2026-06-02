@@ -53,7 +53,7 @@ def _seed_failed_run() -> None:
     rag._embedding_cache = None
     storage.save_run(sample_run("run_1", status="failed"))
     storage.save_run(sample_run("success_run", status="success"))
-    rag.upsert_successful_run(sample_run("success_run", status="success"))
+    rag.upsert_successful_trajectory(sample_run("success_run", status="success"))
     rag.upsert_failure_memory(
         FailureMemoryCase(
             case_id="fm_missed_constraint_001",

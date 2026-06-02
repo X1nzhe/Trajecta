@@ -365,7 +365,7 @@ Behavior rules:
 - `save_run`, `save_trace`, `save_digest`, `save_eval_case` write inside a transaction (`session_scope`); commit on clean exit, rollback on exception. `save_run` updates the existing `runs` row in place and replaces only the child `steps` rows — this is deliberate so the cascading `screenshots` / `digests` / `traces` rows survive a re-import.
 - `list_runs` issues one `SELECT * FROM runs ORDER BY run_id`; the `Run.steps` relationship uses `lazy="selectin"`, so all step rows are pulled in a single follow-up `SELECT ... WHERE run_id IN (...)` rather than per-row. Two queries total regardless of run count.
 - `load_failure_memory` reads `data/failure_memory/cases.jsonl` as source of truth, validates every row, raises on duplicate `case_id`, then refreshes the `failure_memory` DB table from the file on each call. The JSONL stays editable by hand; the DB is just a queryable mirror.
-- `save_eval_case` inserts into the `eval_cases` table and refuses duplicate `case_id` (raises; the API layer surfaces this as 409). It must also call into `rag.upsert_eval_case(case)` so ChromaDB stays in sync; see "Index trigger" rules below.
+- `save_eval_case` inserts into the `eval_cases` table and refuses duplicate `case_id` (raises; the API layer surfaces this as 409). It writes **only** SQLite and does not touch ChromaDB; RAG sync is the caller's responsibility — `POST /api/eval-cases` routes by shape (`rag.upsert_successful_trajectory` for success cases, `rag.upsert_failure_eval_case` for failure cases) and `rag.hydrate_all` rebuilds the collections on startup. See the "Index trigger" rules below.
 - Eval-case drafts (`human_validated=false`) are **not** persisted in v1. The draft survives only in the API response and in the trace's `propose_eval_case` tool-call args. Refreshing the page = lose the draft = re-analyze.
 - `run_exists` is used by `ids.make_eval_case_id` for collision checks; it must be cheap (a single primary-key lookup against `runs`).
 - `load_screenshot(run_id, filename) -> bytes | None` is the only way to read screenshot bytes (there is no path-on-disk anymore). VLM callers pass the bytes directly to `llm.summarize_*`.
@@ -442,16 +442,16 @@ def get_step_detail(
 def search_failure_memory(query: str, top_k: int = 3) -> list[dict]:
     """Retrieve hand-written failure_pattern_memory records.
 
-    Current implementation name: failure_memory collection.
+    Implementation collection name: `failure_memory`.
     """
 
 
 def search_eval_cases(query: str, top_k: int = 3, only_validated: bool = True) -> list[dict]:
     """Retrieve prior human-validated failure_eval_case records.
 
-    Current implementation collection name: `eval_cases`. Success-shaped
-    EvalCases are stored in SQLite but do not belong in this failure-case
-    retrieval index.
+    Indexed in the `failure_eval_cases` collection. Success-shaped EvalCases
+    are stored in SQLite (table `eval_cases`) but do not belong in this
+    failure-case retrieval index.
     """
 
 
@@ -581,8 +581,8 @@ handler:
 3. Calls `storage.save_eval_case(case)` — inserts into the `eval_cases` SQLite table (raises 409 if `case_id` already exists).
 4. Flips the source run's `status`: `"failed"` for a failure case, `"success"` for a success case, and persists via `storage.save_run` (in-place update; trace and screenshots are preserved per the storage contract).
 5. Routes the RAG write:
-   - Failure case → `rag.upsert_eval_case(case)` into the conceptual `failure_eval_cases` collection (current implementation name: `eval_cases`).
-   - Success case → `rag.upsert_successful_run(updated_run)` into the conceptual `successful_trajectories` collection (current implementation name: `successful_runs`) so `find_similar_successful_run` starts returning it.
+   - Failure case → `rag.upsert_failure_eval_case(case)` into the `failure_eval_cases` collection.
+   - Success case → `rag.upsert_successful_trajectory(updated_run)` into the `successful_trajectories` collection so `find_similar_successful_run` starts returning it.
 6. Returns the persisted `EvalCase`.
 
 Drafts (`human_validated=false`) returned by `POST /api/runs/{run_id}/analyze`
@@ -628,11 +628,13 @@ Indexing model:
   `failure_eval_cases`.
 - All `upsert` operations are idempotent: re-indexing the same `case_id` / `run_id` overwrites the existing row.
 
-Current implementation names are still `failure_memory`, `eval_cases`, and
-`successful_runs`. Those names are legacy aliases for the conceptual
-collections below until the code migration renames the constants.
+Implementation collection names track these concepts: `failure_eval_cases` and
+`successful_trajectories` match the names below. The `failure_pattern_memory`
+concept is implemented under the stable name `failure_memory` (shared with its
+SQLite table, seed file, and `search_failure_memory` tool), mirroring how the
+`trajectory` concept is implemented as `run`.
 
-### `failure_pattern_memory` (legacy implementation: `failure_memory`)
+### `failure_pattern_memory` (implementation collection: `failure_memory`)
 
 Metadata:
 
@@ -665,7 +667,7 @@ Index trigger:
 - FastAPI startup: read `cases.jsonl`, validate every row, and upsert into the collection. If the collection already contains the same `case_id`, the row is overwritten (idempotent restart).
 - v1 has no API endpoint to add new failure pattern memories; the file is the source of truth.
 
-### `failure_eval_cases` (legacy implementation: `eval_cases`)
+### `failure_eval_cases`
 
 Metadata must preserve a complete `EvalCase`. The embedded document text may use
 a retrieval-optimized subset.
@@ -685,7 +687,7 @@ Index trigger:
 - FastAPI startup: rebuild the collection from persisted human-validated
   failure EvalCases if empty, for crash recovery.
 
-### `successful_trajectories` (legacy implementation: `successful_runs`)
+### `successful_trajectories`
 
 Indexes trajectories whose success was human-validated through a
 `success_eval_case`, so the agent can pull a counter-example for

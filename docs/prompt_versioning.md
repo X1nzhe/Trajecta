@@ -122,7 +122,7 @@ into `eval/agent_report.{json,md}` and timestamped reports under
 Failure memory source of truth remains
 `data/failure_memory/cases.jsonl`. On startup or manual eval, `rag.hydrate_all`
 rebuilds the ChromaDB `failure_pattern_memory` collection from that file
-(legacy implementation name: `failure_memory`), so removed or renamed memory
+(implementation collection: `failure_memory`), so removed or renamed memory
 cases do not leave stale vectors behind.
 
 SQLite rows are also rebuilt from `cases.jsonl` by `storage.load_failure_memory`.

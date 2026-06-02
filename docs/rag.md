@@ -16,11 +16,14 @@ Canonical conceptual collection names:
 - `successful_trajectories`: trajectories whose success was human-validated by
   a success-shaped EvalCase, used for replay-and-diff.
 
-Current code still uses the legacy Chroma collection names `failure_memory`,
-`eval_cases`, and `successful_runs`. Treat them as implementation aliases for
-the conceptual collections above until the code constants are migrated.
+Chroma collection names in code: `failure_eval_cases` and
+`successful_trajectories` match the conceptual names above. The
+`failure_pattern_memory` concept is implemented under the stable name
+`failure_memory` — the same name as its SQLite table, seed file, and
+`search_failure_memory` tool — mirroring how `trajectory` is implemented as
+`run`.
 
-`failure_pattern_memory` (legacy implementation name: `failure_memory`) is
+`failure_pattern_memory` (implementation collection: `failure_memory`) is
 rebuilt from `data/failure_memory/cases.jsonl` during `rag.hydrate_all()`, so
 removed or renamed seed cases do not leave stale Chroma vectors behind.
 Changing `TRAJECTA_EMBEDDING_MODEL` still requires clearing `data/chroma/` or
@@ -34,9 +37,9 @@ use.
 
 ## Write/Read Strategy
 
-- `failure_pattern_memory` stores reusable failure patterns. **Read-only in v1**: the seed file `data/failure_memory/cases.jsonl` is the only write path; neither the UI nor the agent can add new failure pattern memories. Legacy implementation name: `failure_memory`.
-- `failure_eval_cases` stores failure-shaped, human-validated EvalCases only. Success-shaped EvalCases are persisted in SQLite `eval_cases`, but they do not belong in this failure-precedent retrieval index. Legacy implementation name: `eval_cases`.
-- `successful_trajectories` indexes trajectories that humans have validated as successful via `POST /api/eval-cases` (success-shape `EvalCase`). The collection starts **empty** after `Import Dataset` and grows only as users validate success verdicts. `find_similar_successful_run` uses it to pull a counter-example for step-level replay-and-diff. Imports never seed this collection directly (cold-start contract). Legacy implementation name: `successful_runs`.
+- `failure_pattern_memory` stores reusable failure patterns. **Read-only in v1**: the seed file `data/failure_memory/cases.jsonl` is the only write path; neither the UI nor the agent can add new failure pattern memories. Implementation collection name: `failure_memory`.
+- `failure_eval_cases` stores failure-shaped, human-validated EvalCases only. Success-shaped EvalCases are persisted in SQLite `eval_cases`, but they do not belong in this failure-precedent retrieval index.
+- `successful_trajectories` indexes trajectories that humans have validated as successful via `POST /api/eval-cases` (success-shape `EvalCase`). The collection starts **empty** after `Import Dataset` and grows only as users validate success verdicts. `find_similar_successful_run` uses it to pull a counter-example for step-level replay-and-diff. Imports never seed this collection directly (cold-start contract).
 - `step_summaries` is a v2 placeholder; not implemented in v1.
 - Store full metadata needed to reconstruct schema objects where required by the contract.
 - Serialize list fields when required by the Chroma client.

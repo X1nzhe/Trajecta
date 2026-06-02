@@ -277,7 +277,7 @@ class ApiTests(unittest.TestCase):
         response = self.client.post("/api/eval-cases", json=case.model_dump(mode="json"))
         self.assertEqual(response.status_code, 200)
 
-        # Search goes tools.search_eval_cases → rag.query_eval_cases against
+        # Search goes tools.search_eval_cases → rag.query_failure_eval_cases against
         # the live ChromaDB collection populated by the POST handler.
         search = self.client.get("/api/eval-cases/search", params={"q": "early terminated", "top_k": 5})
         self.assertEqual(search.status_code, 200)
@@ -301,7 +301,7 @@ class ApiTests(unittest.TestCase):
 
     def test_post_success_eval_case_flips_status_and_seeds_rag(self) -> None:
         """Validating a success-shape EvalCase must flip the run to
-        'success' AND upsert it into the successful_runs collection so
+        'success' AND upsert it into the successful_trajectories collection so
         find_similar_successful_run starts returning matches.
         """
 
@@ -327,7 +327,7 @@ class ApiTests(unittest.TestCase):
 
     def test_failure_validation_evicts_prior_success_rag_entry(self) -> None:
         """If a run was previously validated as success (and indexed into
-        successful_runs), a subsequent failure validation must remove the
+        successful_trajectories), a subsequent failure validation must remove the
         stale row so find_similar_successful_run no longer returns it.
         """
 
@@ -360,7 +360,7 @@ class ApiTests(unittest.TestCase):
         source_dir.mkdir(parents=True)
         # Even passing a raw success status: the importer no longer applies
         # the run_status_overlay, and the API handler no longer upserts
-        # successful_runs at import time. The raw status flows through the
+        # successful_trajectories at import time. The raw status flows through the
         # importer (normalize_trajectory honors it), but the handler does
         # not seed RAG from it.
         success_row = raw_row(sample_id="imported_success", status="success")
@@ -381,7 +381,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.json()["runs"][0]["status"], "unknown")
         self.assertEqual(storage.load_run("imported_success").status, "unknown")
 
-        # No RAG seeding from import — the successful_runs collection is
+        # No RAG seeding from import — the successful_trajectories collection is
         # empty until a human validates a success EvalCase.
         results = tools.find_similar_successful_run("Find the checkout button.", top_k=3)
         self.assertEqual(results, [])

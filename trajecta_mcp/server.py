@@ -85,7 +85,7 @@ def search_failure_memory(query: str, top_k: int = 3) -> list[dict[str, Any]]:
 
 @mcp.tool
 def search_eval_cases(query: str, top_k: int = 3) -> list[dict[str, Any]]:
-    """Retrieve prior human-validated EvalCase records similar to the query."""
+    """Retrieve prior human-validated failure EvalCase records (failure precedents) similar to the query."""
     return tools.search_eval_cases(query, top_k=top_k, only_validated=True)
 
 

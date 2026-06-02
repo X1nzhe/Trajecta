@@ -444,7 +444,7 @@ tests/test_rag.py
 - failure memory seed contains at least 5 cases including missed_constraint
 - search_failure_memory returns missed_constraint case for constraint query
 - search_eval_cases defaults to human_validated=true failure EvalCases
-- successful_trajectories (legacy collection name: successful_runs) only indexes trajectories with human-validated `status=="success"`
+- successful_trajectories only indexes trajectories with human-validated `status=="success"`
 - find_similar_successful_run returns higher similarity for same-task runs than for cross-task runs
 - top_k length is respected
 

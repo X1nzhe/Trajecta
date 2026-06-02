@@ -1883,9 +1883,10 @@ def main(argv: list[str] | None = None) -> int:
         file=sys.stderr,
     )
     # FastAPI lifespan (which calls rag.hydrate_all on startup) does NOT run
-    # under ``python -m``. Without this, the failure_memory / eval_cases /
-    # successful_runs Chroma collections are empty, and search_* tools come back
-    # with nothing — the agent has no RAG context and the eval is degenerate.
+    # under ``python -m``. Without this, the failure_memory / failure_eval_cases
+    # / successful_trajectories Chroma collections are empty, and search_* tools
+    # come back with nothing — the agent has no RAG context and the eval is
+    # degenerate.
     rag.hydrate_all()
     print("Hydrated ChromaDB collections from disk.", file=sys.stderr)
 

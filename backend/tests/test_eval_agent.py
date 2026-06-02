@@ -135,7 +135,7 @@ class EvalAgentTests(unittest.TestCase):
 
         storage.save_run(sample_run("run_1", status="failed"))
         storage.save_run(sample_run("success_run", status="success"))
-        rag.upsert_successful_run(sample_run("success_run", status="success"))
+        rag.upsert_successful_trajectory(sample_run("success_run", status="success"))
         rag.upsert_failure_memory(
             FailureMemoryCase(
                 case_id="fm_missed_constraint_001",
@@ -485,7 +485,7 @@ class EvalAgentTests(unittest.TestCase):
         The LLM may emit ``find_similar_successful_run`` without
         ``exclude_run_id``. The dispatcher must force-inject the current
         ``run_id`` regardless, to prevent the agent from "rediscovering" a
-        golden-set sample that is itself in the ``successful_runs`` collection
+        golden-set sample that is itself in the ``successful_trajectories`` collection
         (e.g. a previously human-validated success EvalCase promoted there).
         Symmetric to the ``search_failure_memory`` / ``exclude_source_run_id``
         guard verified elsewhere.

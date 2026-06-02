@@ -37,7 +37,7 @@ B1.5 live-client smoke was verified with MCP Inspector.
 
 | Component | How Trajecta uses it | Anchor doc |
 | --- | --- | --- |
-| **RAG** | ChromaDB over three collections (`failure_memory`, `eval_cases`, `successful_runs`). Agent-authored queries; every retrieved case ID surfaces in `retrieved_context_ids` so claims trace back to evidence. | [docs/rag.md](docs/rag.md) |
+| **RAG** | ChromaDB over three collections (`failure_memory`, `failure_eval_cases`, `successful_trajectories`). Agent-authored queries; every retrieved case ID surfaces in `retrieved_context_ids` so claims trace back to evidence. | [docs/rag.md](docs/rag.md) |
 | **Tools** | LangGraph tool-calling agent with six typed tools (`get_run`, `get_step_detail`, `find_similar_successful_run`, `search_failure_memory`, `search_eval_cases`, `propose_eval_case`). Per-turn budget bounds cost; terminal tool enforces schema. | [docs/eval_agent.md](docs/eval_agent.md) |
 | **Security / Governance** | Schema validation, tool-call budget, path-traversal protection, coordinate validation, `AgentTrace` audit log, HITL persistence gate, prompt-version + sha256 traceability, and Spotlighting prompt input validation against indirect prompt injection in trajectory text. | [docs/security_governance.md](docs/security_governance.md) |
 

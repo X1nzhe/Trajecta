@@ -34,8 +34,9 @@ logger = logging.getLogger(__name__)
 
 
 # Fields stripped from tool return payloads when TRAJECTA_EVAL_MODE is set.
-# In cold-start eval (eval_cases and successful_runs collections empty;
-# failure_memory seeded from data/failure_memory/cases.jsonl), the only
+# In cold-start eval (failure_eval_cases and successful_trajectories
+# collections empty; failure_memory seeded from
+# data/failure_memory/cases.jsonl), the only
 # residual leak surface is `source_run_id` on FailureMemoryCase: each seed
 # case points to a run in data/triage_notes.csv. exclude_source_run_id is
 # already injected server-side (eval_agent_graph._execute_tool_node) to
@@ -173,7 +174,7 @@ def find_similar_successful_run(
     # "should have happened". ``exclude_run_id`` (auto-injected by the
     # agent loop dispatcher to ``trace.run_id``) blocks the only real
     # leak: a run being returned as similar to itself.
-    return rag.query_similar_successful_runs(
+    return rag.query_similar_successful_trajectories(
         task,
         top_k=top_k,
         exclude_run_id=exclude_run_id,
@@ -335,10 +336,13 @@ def search_eval_cases(
     only_validated: bool = True,
     exclude_source_run_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Retrieve prior human-validated EvalCase records similar to the query.
+    """Retrieve prior human-validated failure EvalCase records similar to the
+    query (failure precedents from the ``failure_eval_cases`` collection).
 
     Use this to find precedent — has the agent seen a similar failure on
-    another run before, and if so, what regression rule was authored? With
+    another run before, and if so, what regression rule was authored? Only
+    failure-shaped EvalCases are indexed here; success verdicts live in
+    ``successful_trajectories`` (see ``find_similar_successful_run``). With
     ``only_validated=True`` (default), only cases that survived human review
     are returned. The ``case_id`` of any case you rely on must appear in
     EvalCase.retrieved_context_ids.
@@ -350,7 +354,7 @@ def search_eval_cases(
     eval scripts, REST API) can opt in or out.
     """
 
-    cases = rag.query_eval_cases(
+    cases = rag.query_failure_eval_cases(
         query,
         top_k=top_k,
         only_validated=only_validated,

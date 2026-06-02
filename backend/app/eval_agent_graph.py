@@ -834,8 +834,9 @@ def _execute_tool_node(state: GraphState) -> GraphState:
         # instructs the agent to pass exclude_run_id=current_run_id, but the
         # tool signature defaults it to None and there is no schema-level
         # requirement that the LLM include it. If the LLM forgets, a run that
-        # is itself in the successful_runs collection (e.g. a golden-set sample
-        # whose human_validated success EvalCase was previously promoted)
+        # is itself in the successful_trajectories collection (e.g. a
+        # golden-set sample whose human_validated success EvalCase was
+        # previously promoted)
         # would re-surface as "similar to itself" — direct leakage of the
         # success verdict. Force the injection here so the guarantee holds
         # structurally rather than by prompt-following compliance.

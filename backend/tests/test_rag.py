@@ -171,15 +171,15 @@ class EvalCaseTests(RagPerTestEnv):
         draft = _sample_eval_case(human_validated=False)
 
         with self.assertRaises(ValueError):
-            rag.upsert_eval_case(draft)
+            rag.upsert_failure_eval_case(draft)
 
-        self.assertEqual(rag.eval_cases_collection().count(), 0)
+        self.assertEqual(rag.failure_eval_cases_collection().count(), 0)
 
     def test_eval_cases_query_reconstructs_full_evidence(self) -> None:
         case = _sample_eval_case()
-        rag.upsert_eval_case(case)
+        rag.upsert_failure_eval_case(case)
 
-        results = rag.query_eval_cases(case.task, top_k=3)
+        results = rag.query_failure_eval_cases(case.task, top_k=3)
 
         self.assertEqual(len(results), 1)
         reconstructed = results[0]
@@ -208,8 +208,8 @@ class EvalCaseTests(RagPerTestEnv):
                 }
 
         fake_collection = FakeCollection()
-        with mock.patch("backend.app.rag.eval_cases_collection", return_value=fake_collection):
-            results = rag.query_eval_cases("price filter", top_k=5)
+        with mock.patch("backend.app.rag.failure_eval_cases_collection", return_value=fake_collection):
+            results = rag.query_failure_eval_cases("price filter", top_k=5)
 
         self.assertEqual(fake_collection.query_kwargs["where"], {"human_validated": True})
         self.assertEqual([case.case_id for case in results], ["ec_valid"])
@@ -247,8 +247,8 @@ class EvalCaseTests(RagPerTestEnv):
                 }
 
         fake_collection = FakeCollection()
-        with mock.patch("backend.app.rag.eval_cases_collection", return_value=fake_collection):
-            results = rag.query_eval_cases(
+        with mock.patch("backend.app.rag.failure_eval_cases_collection", return_value=fake_collection):
+            results = rag.query_failure_eval_cases(
                 "x", top_k=5, exclude_source_run_id=validated_self.source_run_id
             )
 
@@ -262,33 +262,33 @@ class EvalCaseTests(RagPerTestEnv):
         self.assertEqual([case.case_id for case in results], ["ec_other"])
 
 
-class SuccessfulRunsTests(RagPerTestEnv):
-    def test_successful_runs_upsert_refuses_non_success_status(self) -> None:
+class SuccessfulTrajectoriesTests(RagPerTestEnv):
+    def test_successful_trajectories_upsert_refuses_non_success_status(self) -> None:
         run = sample_run("flaky_run", status="failed")
 
         with self.assertRaises(ValueError):
-            rag.upsert_successful_run(run)
+            rag.upsert_successful_trajectory(run)
 
-        self.assertEqual(rag.successful_runs_collection().count(), 0)
+        self.assertEqual(rag.successful_trajectories_collection().count(), 0)
 
-    def test_successful_runs_exclude_run_id_filters_self(self) -> None:
-        rag.upsert_successful_run(sample_run("run_a", status="success"))
-        rag.upsert_successful_run(sample_run("run_b", status="success"))
+    def test_successful_trajectories_exclude_run_id_filters_self(self) -> None:
+        rag.upsert_successful_trajectory(sample_run("run_a", status="success"))
+        rag.upsert_successful_trajectory(sample_run("run_b", status="success"))
 
-        results = rag.query_similar_successful_runs("Find a result", top_k=3, exclude_run_id="run_a")
+        results = rag.query_similar_successful_trajectories("Find a result", top_k=3, exclude_run_id="run_a")
 
         ids = [r["run_id"] for r in results]
         self.assertNotIn("run_a", ids)
         self.assertIn("run_b", ids)
 
-    def test_delete_successful_run_removes_row(self) -> None:
-        rag.upsert_successful_run(sample_run("run_a", status="success"))
-        rag.upsert_successful_run(sample_run("run_b", status="success"))
+    def test_delete_successful_trajectory_removes_row(self) -> None:
+        rag.upsert_successful_trajectory(sample_run("run_a", status="success"))
+        rag.upsert_successful_trajectory(sample_run("run_b", status="success"))
 
-        rag.delete_successful_run("run_a")
+        rag.delete_successful_trajectory("run_a")
 
-        self.assertEqual(rag.successful_runs_collection().count(), 1)
-        ids = [r["run_id"] for r in rag.query_similar_successful_runs("Find a result", top_k=5)]
+        self.assertEqual(rag.successful_trajectories_collection().count(), 1)
+        ids = [r["run_id"] for r in rag.query_similar_successful_trajectories("Find a result", top_k=5)]
         self.assertNotIn("run_a", ids)
 
 
@@ -321,14 +321,14 @@ class HydrationTests(RagPerTestEnv):
         rag.hydrate_all()
         before_counts = (
             rag.failure_memory_collection().count(),
-            rag.eval_cases_collection().count(),
-            rag.successful_runs_collection().count(),
+            rag.failure_eval_cases_collection().count(),
+            rag.successful_trajectories_collection().count(),
         )
         rag.hydrate_all()
         after_counts = (
             rag.failure_memory_collection().count(),
-            rag.eval_cases_collection().count(),
-            rag.successful_runs_collection().count(),
+            rag.failure_eval_cases_collection().count(),
+            rag.successful_trajectories_collection().count(),
         )
         self.assertEqual(before_counts, after_counts)
         self.assertEqual(before_counts, (1, 1, 1))
@@ -365,6 +365,59 @@ class HydrationTests(RagPerTestEnv):
         ids = [case.case_id for case in results]
         self.assertIn("fm_wrong_target_001", ids)
         self.assertNotIn("fm_missed_constraint_001", ids)
+
+    def test_hydrate_all_excludes_success_shaped_eval_cases(self) -> None:
+        """Success-shaped EvalCases must not leak into the failure-precedent
+        index. The live POST path routes them to successful_trajectories;
+        hydrate_all must apply the same shape filter so a restart does not
+        pollute failure_eval_cases.
+        """
+        failure_case = _sample_eval_case(case_id="ec_failure_1")
+        success_case = EvalCase(
+            case_id="ec_success_1",
+            source_run_id="run_success",
+            task="Filter results under twenty dollars",
+            evidence=[
+                EvidenceItem(
+                    claim="task completed: filter applied and correct result clicked",
+                    source="trajectory_digest",
+                    run_id="run_success",
+                    step_index=3,
+                ),
+            ],
+            human_validated=True,
+        )
+        storage.save_eval_case(failure_case)
+        storage.save_eval_case(success_case)
+
+        rag.hydrate_all()
+
+        # Only the failure-shaped case is a failure precedent.
+        self.assertEqual(rag.failure_eval_cases_collection().count(), 1)
+        ids = [c.case_id for c in rag.query_failure_eval_cases(success_case.task, top_k=5)]
+        self.assertIn("ec_failure_1", ids)
+        self.assertNotIn("ec_success_1", ids)
+
+    def test_upsert_failure_eval_case_refuses_success_shape(self) -> None:
+        success_case = EvalCase(
+            case_id="ec_success_2",
+            source_run_id="run_success",
+            task="Filter results under twenty dollars",
+            evidence=[
+                EvidenceItem(
+                    claim="task completed successfully",
+                    source="trajectory_digest",
+                    run_id="run_success",
+                    step_index=1,
+                ),
+            ],
+            human_validated=True,
+        )
+
+        with self.assertRaises(ValueError):
+            rag.upsert_failure_eval_case(success_case)
+
+        self.assertEqual(rag.failure_eval_cases_collection().count(), 0)
 
 
 class ChromaDirOverrideTests(unittest.TestCase):
@@ -481,10 +534,10 @@ class RankingAndTopKTests(RagPerTestEnv):
         cross_task_run = sample_run("run_cross", status="success").model_copy(
             update={"task": "Send a message to a friend"}
         )
-        rag.upsert_successful_run(same_task_run)
-        rag.upsert_successful_run(cross_task_run)
+        rag.upsert_successful_trajectory(same_task_run)
+        rag.upsert_successful_trajectory(cross_task_run)
 
-        results = rag.query_similar_successful_runs(
+        results = rag.query_similar_successful_trajectories(
             "Filter results under twenty dollars", top_k=2
         )
 

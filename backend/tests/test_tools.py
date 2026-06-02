@@ -218,7 +218,7 @@ class ToolsTests(unittest.TestCase):
         """
         canned = [{"run_id": "success_run", "task": "t", "status": "success", "step_count": 3}]
         with mock.patch(
-            "backend.app.tools.rag.query_similar_successful_runs", return_value=canned
+            "backend.app.tools.rag.query_similar_successful_trajectories", return_value=canned
         ) as spy, mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
             results = tools.find_similar_successful_run("t", top_k=3)
 
@@ -247,7 +247,7 @@ class ToolsTests(unittest.TestCase):
             human_validated=True,
         )
         with mock.patch(
-            "backend.app.tools.rag.query_eval_cases", return_value=[seeded]
+            "backend.app.tools.rag.query_failure_eval_cases", return_value=[seeded]
         ) as spy, mock.patch.dict(os.environ, {"TRAJECTA_EVAL_MODE": "1"}):
             results = tools.search_eval_cases("t", top_k=3, exclude_source_run_id="run_1")
 
@@ -338,7 +338,7 @@ class ToolsTests(unittest.TestCase):
 
     def test_find_similar_successful_run_delegates_to_rag(self) -> None:
         canned = [{"run_id": "success_run", "task": "Find a result", "status": "success", "step_count": 3}]
-        with mock.patch("backend.app.tools.rag.query_similar_successful_runs", return_value=canned) as spy:
+        with mock.patch("backend.app.tools.rag.query_similar_successful_trajectories", return_value=canned) as spy:
             results = tools.find_similar_successful_run("Find a result", top_k=3)
 
         spy.assert_called_once_with("Find a result", top_k=3, exclude_run_id=None)
@@ -358,7 +358,7 @@ class ToolsTests(unittest.TestCase):
             regression_rule="Do not stop before task evidence is visible.",
             human_validated=True,
         )
-        with mock.patch("backend.app.tools.rag.query_eval_cases", return_value=[seeded]) as spy:
+        with mock.patch("backend.app.tools.rag.query_failure_eval_cases", return_value=[seeded]) as spy:
             results = tools.search_eval_cases("early terminated", top_k=4, only_validated=True)
 
         spy.assert_called_once_with(
@@ -523,8 +523,8 @@ class ToolsTests(unittest.TestCase):
         storage.save_run(self_run)
         storage.save_run(success_run)
         storage.save_run(failed_run)
-        rag.upsert_successful_run(self_run)
-        rag.upsert_successful_run(success_run)
+        rag.upsert_successful_trajectory(self_run)
+        rag.upsert_successful_trajectory(success_run)
 
         results = tools.find_similar_successful_run(
             "Find a result", top_k=5, exclude_run_id="run_a"
