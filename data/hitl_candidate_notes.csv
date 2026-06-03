@@ -12,7 +12,7 @@ fef879b68afb2a1992a0d09a5f5896fd5d8757c632c43d3b8d284ed413f8a49b,github,success,
 06dd09b6c97fe2a1d51254dba35e162811aa76f5d09049546788fe2b85a5f29d,github,success,,,
 5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c,github,failed,inefficient_search,3,agent didn't use keywords to facilitate search even though found a correct anwser
 8a9be8f4ea379bd784bf390e3b70d246d81b6437a046620d9e666e9b501d3137,booking,success,,,
-8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4,booking,success,,,
+8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4,booking,failed,missed_constraint;wrong_result,32,
 dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7,booking,failed,early_terminated,5,The agent believed it had completed the task due to hallucinations.
 daf6caf4b3a7760aea78f7f9a1072a40056ceb6c99717a750ec6b661d69ee503,arxiv,success,,,
 e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302,arxiv,failed,early_terminated,1,The agent didn't make any attempt
@@ -25,5 +25,5 @@ ef4f37b2b2cb7320a917b137d7566d0a074177615bd81a888438c905f04b7242,arxiv,success,,
 e6c6c09f9be71d3b72dbc6f7368faed38f9b7ab7d94e9a998abddce58991a33d,apple,success,,,
 8fd3a362c8ee2738ffc2fc3a27436a3db710b672d10e7f751e56896c59e32db2,apple,failed,wrong_target,26,The query was about iPad instaed of iPad Pro
 0f0a8a29ac4d9b5cae96404409e112c663bd8f2868ffd3afdadc2456fd3f42b9,allrecipes,success,,,
-76d0f3549aaf144916d28bf2a85c66097e7a30b911629aaac7796d6a70050850,allrecipes,failed,early_terminated,10,"The agent gave up due to no filters "
+76d0f3549aaf144916d28bf2a85c66097e7a30b911629aaac7796d6a70050850,allrecipes,success,,,""
 076c47b3f225bfe95e5df33aa3618902019e77187922155ec69e7c979e22fe2d,allrecipes,success,,,

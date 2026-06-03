@@ -89,6 +89,11 @@ class Trajectory(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    agent_messages: Mapped["AgentMessages | None"] = relationship(
+        back_populates="trajectory",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class Step(Base):
@@ -147,6 +152,35 @@ class Trace(Base):
     )
 
     trajectory: Mapped[Trajectory] = relationship(back_populates="trace")
+
+
+class AgentMessages(Base):
+    """Opaque LLM conversation replay buffer, 1:1 with a trajectory.
+
+    Kept in its own table (not on ``traces``) on purpose. ``AgentTrace`` is the
+    typed, frontend-facing audit surface and is dumped verbatim to the wire; this
+    buffer is the *real* LangChain message history (serialized via
+    ``messages_to_dict``) that the agent loop replays on follow-ups. It carries
+    provider-private metadata — e.g. Gemini thinking models' ``thought_signature``,
+    which must be echoed back on later turns or the API rejects with 400 — that the
+    lossy event projection drops. We never parse ``payload_json`` here; it is an
+    opaque blob tagged with a ``format_version`` and only consumed by
+    ``eval_agent_graph``. Separate table means ``traces`` and every reader of it
+    stay byte-identical, and ``create_all`` adds this missing table on existing
+    dev DBs without a manual migration.
+    """
+
+    __tablename__ = "agent_messages"
+
+    trajectory_id: Mapped[str] = mapped_column(
+        String(256), ForeignKey("trajectories.trajectory_id", ondelete="CASCADE"), primary_key=True
+    )
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    trajectory: Mapped[Trajectory] = relationship(back_populates="agent_messages")
 
 
 class EvalCaseRow(Base):

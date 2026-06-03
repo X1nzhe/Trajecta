@@ -156,7 +156,12 @@ class FollowupSuggestion(BaseModel):
 
 
 class EvidenceItem(BaseModel):
-    claim: str
+    claim: str = Field(
+        description=(
+            "The assertion this evidence supports, as free text. The prose goes "
+            "HERE — do not use a field named 'text'."
+        )
+    )
     source: Literal[
         "trajectory",
         "trajectory_digest",
@@ -166,9 +171,20 @@ class EvidenceItem(BaseModel):
         "eval_case",
         "successful_trajectory",
         "unavailable",
-    ]
+    ] = Field(
+        description=(
+            "Where the evidence came from — exactly one of the allowed enum values. "
+            "NOT free text and NOT step numbers (use step_index for steps)."
+        )
+    )
     trajectory_id: str | None = None
-    step_index: int | None = None
+    step_index: int | None = Field(
+        default=None,
+        description=(
+            "A single, most-relevant step index (1-based). There is no multi-step "
+            "field; describe spans of steps in `claim` prose instead."
+        ),
+    )
     trace_event_seq: int | None = None
     context_id: str | None = None
 

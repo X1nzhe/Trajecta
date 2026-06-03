@@ -148,8 +148,8 @@ class FailureMemoryCase(BaseModel):
 
 
 class EvidenceItem(BaseModel):
-    claim: str
-    source: Literal[
+    claim: str                       # the assertion text (the prose goes here, not a 'text' field)
+    source: Literal[                 # exactly one enum below — NOT free text, NOT step numbers
         "trajectory",
         "trajectory_digest",
         "step_detail_high",
@@ -160,7 +160,7 @@ class EvidenceItem(BaseModel):
         "unavailable",
     ]
     trajectory_id: Optional[str] = None
-    step_index: Optional[int] = None
+    step_index: Optional[int] = None  # a SINGLE most-relevant step; describe spans in claim prose
     trace_event_seq: Optional[int] = None
     context_id: Optional[str] = None
 
@@ -349,6 +349,10 @@ def save_digest(trajectory_id: str, digest: TrajectoryDigest) -> None: ...
 def load_trace(trajectory_id: str) -> Optional[AgentTrace]: ...
 def save_trace(trajectory_id: str, trace: AgentTrace) -> None: ...
 
+# Agent message replay buffer (opaque; provider-private, off the AgentTrace contract)
+def load_agent_messages(trajectory_id: str) -> Optional[dict]: ...
+def save_agent_messages(trajectory_id: str, payload: dict) -> None: ...
+
 # Eval cases
 def save_eval_case(case: EvalCase) -> None: ...
 def load_eval_case(case_id: str) -> Optional[EvalCase]: ...
@@ -367,6 +371,7 @@ Behavior rules:
 - `list_trajectories` issues one `SELECT * FROM trajectories ORDER BY trajectory_id`; the `Trajectory.steps` relationship uses `lazy="selectin"`, so all step rows are pulled in a single follow-up `SELECT ... WHERE trajectory_id IN (...)` rather than per-row. Two queries total regardless of trajectory count.
 - `load_failure_memory` reads `data/failure_memory/cases.jsonl` as source of truth, validates every row, raises on duplicate `case_id`, then refreshes the `failure_memory` DB table from the file on each call. The JSONL stays editable by hand; the DB is just a queryable mirror.
 - `save_eval_case` inserts into the `eval_cases` table and refuses duplicate `case_id` (raises; the API layer surfaces this as 409). It writes **only** SQLite and does not touch ChromaDB; RAG sync is the caller's responsibility — `POST /api/eval-cases` routes by shape (`rag.upsert_successful_trajectory` for success cases, `rag.upsert_failure_eval_case` for failure cases) and `rag.hydrate_all` rebuilds the collections on startup. See the "Index trigger" rules below.
+- `load_agent_messages` / `save_agent_messages` persist the Eval Agent's **opaque LLM conversation replay buffer** in a separate `agent_messages` table (1:1 with a trajectory, cascade-deleted with it). The payload is a `{"format_version", "messages"}` envelope where `messages` is the LangChain `messages_to_dict` form of the live conversation. This buffer exists so a follow-up can replay prior turns with **provider-private metadata intact** — most importantly Gemini thinking models' `thought_signature`, which must be echoed back on later turns (omitting it is a hard `400`) and which the lossy `AgentTrace.events` projection drops. It is **deliberately not part of the `AgentTrace` schema or the NDJSON wire** (`done.agent_trace` / `last_trace` stay byte-identical) — the storage layer never inspects the blob. `eval_agent_graph` serializes it after each turn and, on `/followup`, restores it (falling back to `_messages_from_trace` when absent, undecodable, or `format_version` mismatched). Both functions tolerate a missing table (`OperationalError` → degrade) so an un-migrated dev DB still serves follow-ups via reconstruction.
 - Eval-case drafts (`human_validated=false`) are **not** persisted in v1. The draft survives only in the API response and in the trace's `propose_eval_case` tool-call args. Refreshing the page = lose the draft = re-analyze.
 - `trajectory_exists` is used by `ids.make_eval_case_id` for collision checks; it must be cheap (a single primary-key lookup against `trajectories`).
 - `load_screenshot(trajectory_id, filename) -> bytes | None` is the only way to read screenshot bytes (there is no path-on-disk anymore). VLM callers pass the bytes directly to `llm.summarize_*`.
@@ -488,6 +493,7 @@ Implementation responsibilities:
 - `propose_eval_case` copies `trajectory_id` into `EvalCase.source_trajectory_id`.
 - `propose_eval_case` sets `human_validated=False`.
 - `propose_eval_case` validates that every `retrieved_context_id` appears in a prior `search_failure_memory` or `search_failure_eval_cases` tool result in the current `AgentTrace`.
+- A failing `propose_eval_case` call (schema/`EvidenceItem` validation, `failure_type` out of vocabulary, or a `retrieved_context_ids` / evidence-`context_id` mismatch) is **not immediately fatal**: the error is fed back to the agent as a tool result so it can re-propose, bounded by `MAX_TERMINAL_RETRIES` (default 2) attempts per run. Only after the cap is exhausted does the run terminate with `terminated_by="error"` (carrying the real validation error). These retries do not consume the tool-call budget.
 - The tool-call budget counts `get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`, and `find_similar_successful_trajectory`. `get_trajectory` and `propose_eval_case` do not count against the budget.
 
 ## API Contracts

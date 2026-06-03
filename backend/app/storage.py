@@ -17,8 +17,10 @@ import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import OperationalError
 
 from backend.app import db, models
 from backend.app.schemas import (
@@ -304,6 +306,63 @@ def save_trace(trajectory_id: str, trace: AgentTrace) -> None:
             session.add(models.Trace(trajectory_id=trajectory_id, payload_json=payload))
         else:
             existing.payload_json = payload
+
+
+# ---------------------------------------------------------------------------
+# Agent message replay buffer
+#
+# Opaque LLM conversation history (LangChain messages serialized via
+# messages_to_dict) used to replay follow-up turns with provider-private
+# metadata intact — see backend.app.models.AgentMessages. We never inspect
+# the payload here; it is a format_version-tagged blob owned by
+# eval_agent_graph. Separate from the AgentTrace stored in `traces` so the
+# trace's typed/wire contract is untouched.
+# ---------------------------------------------------------------------------
+
+
+def load_agent_messages(trajectory_id: str) -> dict[str, Any] | None:
+    """Return the opaque replay buffer for a trajectory, or None.
+
+    None means: no buffer persisted yet, an unsafe id, or — defensively — the
+    ``agent_messages`` table is absent (a dev DB created before this feature and
+    never migrated; ``OperationalError``). Callers fall back to rebuilding the
+    message list from trace events, so a missing buffer degrades gracefully
+    rather than crashing the follow-up.
+    """
+    try:
+        _safe_id(trajectory_id, kind="trajectory_id")
+    except ValueError:
+        return None
+    try:
+        with db.session_scope() as session:
+            row = session.get(models.AgentMessages, trajectory_id)
+            if row is None:
+                return None
+            return row.payload_json
+    except OperationalError:
+        return None
+
+
+def save_agent_messages(trajectory_id: str, payload: dict[str, Any]) -> None:
+    """Upsert the opaque replay buffer for a trajectory.
+
+    Mirrors ``save_trace``: the trajectory must exist, and the row is replaced in
+    place inside the surrounding transaction. ``OperationalError`` (missing table
+    on an un-migrated dev DB) is swallowed so persistence stays best-effort — a
+    failed save just means the next follow-up reconstructs from trace events.
+    """
+    _safe_id(trajectory_id, kind="trajectory_id")
+    try:
+        with db.session_scope() as session:
+            if session.get(models.Trajectory, trajectory_id) is None:
+                raise FileNotFoundError(f"cannot attach agent messages; unknown trajectory_id: {trajectory_id}")
+            existing = session.get(models.AgentMessages, trajectory_id)
+            if existing is None:
+                session.add(models.AgentMessages(trajectory_id=trajectory_id, payload_json=payload))
+            else:
+                existing.payload_json = payload
+    except OperationalError:
+        return
 
 
 # ---------------------------------------------------------------------------

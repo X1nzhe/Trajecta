@@ -365,14 +365,25 @@ def search_failure_eval_cases(
 
 def propose_eval_case(
     trajectory_id: str,
-    evidence: list[EvidenceItem | dict[str, Any]],
+    # NOTE: annotate the strict element types (no `| dict[str, Any]`). The
+    # annotation drives the tool's JSON schema in `bind_tools`. For Gemini,
+    # `langchain-google-genai` cannot represent the `anyOf` a dict-union
+    # produces, so it collapses the whole item to a bare `OBJECT` — dropping
+    # the field descriptions, the `required` list, and the `source` enum.
+    # The model then mis-shapes evidence (assertion under `text`, screenshot
+    # filename in `source`) and the terminal call fails validation, costing a
+    # retry round-trip. Runtime is unaffected: the graph calls this function
+    # with raw dict args and `EvidenceItem.model_validate` below coerces them.
+    evidence: list[EvidenceItem],
     retrieved_context_ids: list[str],
     failure_step: int | None = None,
     failure_type: V1FailureType | None = None,
     expected_behavior: str | None = None,
     actual_behavior: str | None = None,
     regression_rule: str | None = None,
-    suggested_followups: list[FollowupSuggestion | dict[str, Any]] | None = None,
+    # Strict element type for the same Gemini-schema reason as `evidence`
+    # above; `_coerce_followup_suggestions` still accepts the raw dicts.
+    suggested_followups: list[FollowupSuggestion] | None = None,
 ) -> dict[str, Any]:
     """Terminal tool for the Eval Agent. Produces a draft EvalCase.
 

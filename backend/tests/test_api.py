@@ -121,11 +121,17 @@ class ApiTests(unittest.TestCase):
         self.previous_data_dir = os.environ.get("TRAJECTA_DATA_DIR")
         self.previous_chroma_dir = os.environ.get("TRAJECTA_CHROMA_DIR")
         self.previous_openai_api_key = os.environ.get("OPENAI_API_KEY")
+        self.previous_openai_base_url = os.environ.get("OPENAI_BASE_URL")
+        self.previous_gemini_api_key = os.environ.get("GEMINI_API_KEY")
+        self.previous_gemini_base_url = os.environ.get("GEMINI_BASE_URL")
         self.previous_agent_model = os.environ.get("TRAJECTA_AGENT_MODEL")
         self.previous_vlm_model = os.environ.get("TRAJECTA_VLM_MODEL")
         os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
         os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(self.tmp.name, "chroma_runtime")
         os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("OPENAI_BASE_URL", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GEMINI_BASE_URL", None)
         os.environ.pop("TRAJECTA_AGENT_MODEL", None)
         os.environ.pop("TRAJECTA_VLM_MODEL", None)
         rag._client_cache = None
@@ -147,6 +153,18 @@ class ApiTests(unittest.TestCase):
             os.environ.pop("OPENAI_API_KEY", None)
         else:
             os.environ["OPENAI_API_KEY"] = self.previous_openai_api_key
+        if self.previous_openai_base_url is None:
+            os.environ.pop("OPENAI_BASE_URL", None)
+        else:
+            os.environ["OPENAI_BASE_URL"] = self.previous_openai_base_url
+        if self.previous_gemini_api_key is None:
+            os.environ.pop("GEMINI_API_KEY", None)
+        else:
+            os.environ["GEMINI_API_KEY"] = self.previous_gemini_api_key
+        if self.previous_gemini_base_url is None:
+            os.environ.pop("GEMINI_BASE_URL", None)
+        else:
+            os.environ["GEMINI_BASE_URL"] = self.previous_gemini_base_url
         if self.previous_agent_model is None:
             os.environ.pop("TRAJECTA_AGENT_MODEL", None)
         else:

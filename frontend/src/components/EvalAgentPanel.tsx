@@ -1269,7 +1269,12 @@ function TraceRow({
     />
   );
   if (event.type === 'user_message') return <MessageBubble align="right" message={event.message ?? ''} />;
-  if (event.type === 'agent_message') return <MessageBubble align="left" message={event.message ?? ''} />;
+  if (event.type === 'agent_message') {
+    const message = event.message?.trim() ?? '';
+    // Legacy traces: Gemini tool-only turns were persisted as literal "[]".
+    if (!message || message === '[]') return null;
+    return <MessageBubble align="left" message={event.message ?? ''} />;
+  }
   if (event.type === 'tool_error') return <ToolErrorBullet event={event} />;
   if (event.type === 'tool_result') return null; // results are folded into the matching tool_call row
 

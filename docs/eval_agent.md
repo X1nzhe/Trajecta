@@ -111,9 +111,27 @@ The agent must not return to the model for another reasoning turn after a
 successful terminal call **within the same turn**. A subsequent `/followup`
 invocation is a new turn and is allowed to call `propose_eval_case` again.
 
+A **failing** `propose_eval_case` call is not immediately fatal. Schema/
+`EvidenceItem` validation errors, an out-of-vocabulary `failure_type`, and the
+`retrieved_context_ids` / evidence-`context_id` checks are fed back to the model
+as a tool result (with a corrective hint) so it can re-propose — the agent often
+gets the verdict right and only mis-shapes one field. This is bounded by
+`MAX_TERMINAL_RETRIES` (default 2) per run; past the cap the run terminates with
+`terminated_by="error"` carrying the real validation error. The retries do not
+count against the tool-call budget (`propose_eval_case` is unbudgeted) and the
+graph recursion limit is the ultimate backstop. The final invariant is unchanged:
+a run that never yields a valid `EvalCase` still ends `terminated_by="error"`.
+
 For `/followup` invocations the graph starts at `agent_loop` and skips
 `preprocess` — the digest is already cached from the initial analyze. The
-`messages` list is rehydrated from the persisted trace before the loop resumes.
+`messages` list is rehydrated before the loop resumes: preferentially by
+replaying the persisted **opaque message buffer** (`storage.load_agent_messages`
+→ `_restore_messages`), which keeps provider-private metadata such as Gemini
+thinking models' `thought_signature` (required on every replayed function call,
+or the API returns a hard `400`). When that buffer is absent, undecodable, or
+written by an offline run, the loop falls back to reconstructing the messages
+from `AgentTrace.events` (`_messages_from_trace`). The buffer is stored off the
+`AgentTrace` contract — see [docs/contracts.md](contracts.md) `save_agent_messages`.
 
 ## Screenshot Detail Policy
 
@@ -166,8 +184,8 @@ After the initial analyze has produced a trace, the user may ask follow-up quest
 5. The turn ends by the standard termination conditions:
    - Agent calls `propose_eval_case` → the new draft **replaces** the previous draft in the response. `terminated_by="propose_eval_case"`. `AgentTrace.turn_count` increments.
    - Per-turn budget exhausted → `terminated_by="budget_exceeded"`. The user may follow up again.
-   - Terminal tool validation error → `terminated_by="error"`. The user may follow up again to correct.
-6. The updated trace is written back via `storage.save_trace(trajectory_id, trace)`, replacing the previous `traces` row inside one transaction.
+   - Terminal tool validation error that survives the bounded retry (see "Stop conditions" above) → `terminated_by="error"`. The user may follow up again to correct.
+6. The updated trace is written back via `storage.save_trace(trajectory_id, trace)`, replacing the previous `traces` row inside one transaction. The turn's full message list is also re-persisted via `storage.save_agent_messages` so the next follow-up replays it with provider metadata intact.
 
 ### Prompt context
 

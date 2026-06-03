@@ -27,12 +27,18 @@ class EvalCaseContractTests(unittest.TestCase):
             "TRAJECTA_DATA_DIR": os.environ.get("TRAJECTA_DATA_DIR"),
             "TRAJECTA_CHROMA_DIR": os.environ.get("TRAJECTA_CHROMA_DIR"),
             "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
+            "OPENAI_BASE_URL": os.environ.get("OPENAI_BASE_URL"),
+            "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY"),
+            "GEMINI_BASE_URL": os.environ.get("GEMINI_BASE_URL"),
             "TRAJECTA_AGENT_MODEL": os.environ.get("TRAJECTA_AGENT_MODEL"),
             "TRAJECTA_VLM_MODEL": os.environ.get("TRAJECTA_VLM_MODEL"),
         }
         os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
         os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(self.tmp.name, "chroma")
         os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("OPENAI_BASE_URL", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GEMINI_BASE_URL", None)
         os.environ.pop("TRAJECTA_AGENT_MODEL", None)
         os.environ.pop("TRAJECTA_VLM_MODEL", None)
         rag._client_cache = None

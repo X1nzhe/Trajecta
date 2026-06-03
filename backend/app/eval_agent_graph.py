@@ -19,7 +19,7 @@ from typing import Any, Literal, Protocol, TypedDict
 from pydantic import BaseModel
 
 from backend.app import preprocess, prompts, storage, tools
-from backend.app.llm import vlm_usage_scope
+from backend.app.llm import resolve_model_provider, vlm_usage_scope
 from backend.app.schemas import AgentTrace, AgentTraceEvent, TurnMetrics
 
 try:  # pragma: no cover - exercised when optional production deps are present
@@ -31,8 +31,14 @@ except ImportError:  # pragma: no cover - local no-dependency test fallback
 
 try:  # pragma: no cover - exercised when optional production deps are present
     from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
+    from langchain_core.messages import messages_from_dict, messages_to_dict
 except ImportError:  # pragma: no cover - the fallback is exercised in local tests
     AnyMessage = Any
+    # No real LangChain → no opaque replay buffer. _serialize_messages /
+    # _restore_messages short-circuit to None, and follow-ups fall back to
+    # rebuilding messages from trace events (the offline mock path).
+    messages_to_dict = None
+    messages_from_dict = None
 
     class _FallbackMessage:
         def __init__(self, content: str = "", **kwargs: Any) -> None:
@@ -87,6 +93,9 @@ class GraphState(EvalState, total=False):
     active_tool_call: dict[str, Any] | None
     llm_client: AgentLLM | Any | None
     done: bool
+    # Count of recoverable propose_eval_case failures so far this run; bounded by
+    # MAX_TERMINAL_RETRIES before the terminal error becomes fatal.
+    terminal_error_retries: int
     # Per-run Spotlighting token, minted in stream_analyze / stream_followup
     # and threaded to every node so digest / step-detail wrapping never depends
     # on a ContextVar that the sync NDJSON stream loses across chunks.
@@ -100,6 +109,10 @@ class AgentExecutionResult:
     eval_case_draft: dict[str, Any] | None
     new_events: list[AgentTraceEvent]
     errors: list[str]
+    # Opaque LangChain message history (messages_to_dict form) for follow-up
+    # replay; None on offline/mock runs or any serialization failure. Persisted
+    # off-trace via storage.save_agent_messages — see _serialize_messages.
+    raw_messages: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -149,7 +162,20 @@ INITIAL_BUDGET = 8
 # the draft). Was 4 historically — bumped to 8 once we saw real followups
 # routinely needing get_step_detail + a fresh search pair.
 FOLLOWUP_BUDGET = 8
+# A malformed propose_eval_case (schema/validation error, failure_type out of
+# vocabulary, or a retrieved_context_ids / evidence-context mismatch) is fed back
+# to the model so it can self-correct — the agent often gets the verdict right and
+# only mis-shapes one field. Bounded by this many retries per run; past the cap the
+# run terminates with terminated_by="error", preserving the invariant "no valid
+# EvalCase => error". propose_eval_case is NOT in BUDGETED_TOOLS, so these retries
+# don't consume the tool-call budget; the cap + graph recursion limit bound them.
+MAX_TERMINAL_RETRIES = 2
 _SENSITIVE_RESULT_KEYS = {"screenshot_bytes", "image_bytes", "image_data"}
+
+# Tag stamped on the persisted opaque replay buffer. Bump if the on-disk shape
+# changes incompatibly; _restore_messages refuses any other version and the
+# caller falls back to rebuilding messages from trace events.
+MESSAGES_FORMAT_VERSION = "lc-messages-v1"
 
 _TOOL_REGISTRY = {
     "get_trajectory": tools.get_trajectory,
@@ -254,23 +280,24 @@ def stream_analyze(
     persist: bool = True,
     source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> Iterator[AgentStreamItem]:
-    # Mirror the env-var split used by _default_llm_client: a real
-    # OpenAI-backed agent only runs when both OPENAI_API_KEY and
-    # TRAJECTA_AGENT_MODEL are set; otherwise OfflineAgentMock takes over.
-    # Stamp "mock" in that case so the frontend can label runs honestly
-    # instead of advertising a model that didn't actually answer.
+    # Mirror the provider split used by _default_llm_client: a real agent only
+    # runs when TRAJECTA_AGENT_MODEL and that provider's API key are set;
+    # otherwise OfflineAgentMock takes over. Stamp "mock" in that case so the
+    # frontend can label runs honestly instead of advertising a model that
+    # didn't actually answer.
     prompt_bundle = prompts.active_prompt_bundle()
     spotlighting_on = prompts.spotlighting_enabled()
     spotlight_token = prompts.new_spotlight_token()
     prompts.set_spotlight_token(spotlight_token)
     _agent_model_env = os.environ.get("TRAJECTA_AGENT_MODEL")
-    _agent_api_key = os.environ.get("OPENAI_API_KEY")
-    trace_model = _agent_model_env if (_agent_model_env and _agent_api_key) else "mock"
-    # Same gate for the VLM side — TRAJECTA_VLM_MODEL needs OPENAI_API_KEY to
-    # reach the real VLM. Without both, get_step_detail goes through
-    # MockVLMClient and we stamp "mock" to match how preprocess_model behaves.
+    _agent_provider = resolve_model_provider(_agent_model_env)
+    trace_model = _agent_model_env if (_agent_model_env and _agent_provider.api_key) else "mock"
+    # Same gate for the VLM side. Without both model and provider key,
+    # get_step_detail goes through MockVLMClient and we stamp "mock" to match
+    # how preprocess_model behaves.
     _vlm_model_env = os.environ.get("TRAJECTA_VLM_MODEL")
-    trace_vlm_model = _vlm_model_env if (_vlm_model_env and _agent_api_key) else "mock"
+    _vlm_provider = resolve_model_provider(_vlm_model_env)
+    trace_vlm_model = _vlm_model_env if (_vlm_model_env and _vlm_provider.api_key) else "mock"
     trace = AgentTrace(
         trajectory_id=trajectory_id,
         user_intent=user_intent,
@@ -298,6 +325,7 @@ def stream_analyze(
         "turn": 0,
         "budget": budget,
         "per_turn_budgeted_calls": 0,
+        "terminal_error_retries": 0,
         "pending_tool_calls": [],
         "active_tool_call": None,
         "llm_client": llm_client,
@@ -363,6 +391,7 @@ def stream_analyze(
             final_trace.vlm_output_tokens = vlm_usage["output"]
             if persist:
                 storage.save_trace(trajectory_id, final_trace)
+                _persist_replay_buffer(trajectory_id, result)
     yield AgentStreamDone(result)
 
 
@@ -439,12 +468,24 @@ def stream_followup(
     with vlm_usage_scope() as vlm_usage:
         try:
             digest = storage.load_digest(trajectory_id) or preprocess.load_or_build_digest(trajectory_id)
+            # Prefer replaying the opaque message buffer (provider metadata such
+            # as Gemini's thought_signature intact); fall back to lossy
+            # reconstruction from trace events for old/undecodable buffers and
+            # offline runs. The restore branch must append the new user turn
+            # itself — the fallback gets it free from the user_message event
+            # already appended above.
+            restored = _restore_messages(storage.load_agent_messages(trajectory_id), trace)
+            if restored is not None:
+                restored.append(HumanMessage(content=message))
+                followup_messages = restored
+            else:
+                followup_messages = _messages_from_trace(trace)
             state = {
                 "trajectory_id": trajectory_id,
                 "user_intent": trace.user_intent,
                 "selected_step": trace.selected_step,
                 "trajectory_digest": [step.model_dump(mode="json") for step in digest.steps],
-                "messages": _messages_from_trace(trace),
+                "messages": followup_messages,
                 "tool_call_count": trace.tool_call_count,
                 "eval_case_draft": _latest_eval_case_draft(trace),
                 "errors": [],
@@ -453,6 +494,7 @@ def stream_followup(
                 "turn": turn,
                 "budget": budget,
                 "per_turn_budgeted_calls": 0,
+                "terminal_error_retries": 0,
                 "pending_tool_calls": [],
                 "active_tool_call": None,
                 "llm_client": llm_client,
@@ -484,7 +526,26 @@ def stream_followup(
             final_trace.vlm_output_tokens += vlm_usage["output"]
             if persist:
                 storage.save_trace(trajectory_id, final_trace)
+                _persist_replay_buffer(trajectory_id, result)
     yield AgentStreamDone(result)
+
+
+def _persist_replay_buffer(trajectory_id: str, result: AgentExecutionResult | None) -> None:
+    """Save the opaque follow-up replay buffer alongside the trace.
+
+    No-op when the run produced no serializable messages (offline mock /
+    LangChain absent / serialization failure) or when the stream ended without a
+    result (exception path) — the next follow-up then reconstructs from trace
+    events. ``storage.save_agent_messages`` swallows a missing-table
+    ``OperationalError``, so this stays best-effort.
+    """
+
+    if result is None or result.raw_messages is None:
+        return
+    storage.save_agent_messages(
+        trajectory_id,
+        {"format_version": MESSAGES_FORMAT_VERSION, "messages": result.raw_messages},
+    )
 
 
 def _consume_stream(stream: Iterator[AgentStreamItem]) -> AgentExecutionResult:
@@ -687,9 +748,9 @@ def _agent_node(state: GraphState) -> GraphState:
     state["messages"].append(message)
     _accumulate_token_usage(state["trace"], message, turn=state["turn"])
     # Only record an agent_message event when the model produced actual text.
-    # When the model returns only tool_calls (content == ""), the tool_call
-    # events that follow already represent the agent's intent — emitting a
-    # blank agent_message just renders as "(empty message)" in the UI.
+    # When the model returns only tool_calls (content == "" or content == []),
+    # the tool_call events that follow already represent the agent's intent —
+    # emitting a blank agent_message just renders as "(empty message)" in the UI.
     content = _message_content(message)
     if content.strip():
         _append_event(state["trace"], "agent_message", turn=state["turn"], message=content)
@@ -812,7 +873,7 @@ def _execute_tool_node(state: GraphState) -> GraphState:
     if name == TERMINAL_TOOL:
         error = _proposal_context_error(args, trace)
         if error is not None:
-            _record_terminal_tool_error(state, name=name, args=args, error=error)
+            _record_terminal_tool_error_or_retry(state, name=name, args=args, call_id=call_id, error=error)
             return state
 
     dispatch_args = args
@@ -847,7 +908,7 @@ def _execute_tool_node(state: GraphState) -> GraphState:
     except Exception as exc:
         error = str(exc)
         if name == TERMINAL_TOOL:
-            _record_terminal_tool_error(state, name=name, args=args, error=error)
+            _record_terminal_tool_error_or_retry(state, name=name, args=args, call_id=call_id, error=error)
         else:
             _record_recoverable_tool_error(state, name=name, args=args, call_id=call_id, error=error)
         return state
@@ -855,7 +916,7 @@ def _execute_tool_node(state: GraphState) -> GraphState:
     if isinstance(result, dict) and isinstance(result.get("tool_error"), str):
         error = result["tool_error"]
         if name == TERMINAL_TOOL:
-            _record_terminal_tool_error(state, name=name, args=args, error=error)
+            _record_terminal_tool_error_or_retry(state, name=name, args=args, call_id=call_id, error=error)
         else:
             _record_recoverable_tool_error(state, name=name, args=args, call_id=call_id, error=error)
         return state
@@ -952,6 +1013,46 @@ def _record_terminal_tool_error(
     state["done"] = True
 
 
+def _record_terminal_tool_error_or_retry(
+    state: GraphState,
+    *,
+    name: str,
+    args: dict[str, Any],
+    call_id: str,
+    error: str,
+) -> None:
+    """Feed a malformed propose_eval_case back to the agent for a bounded retry.
+
+    The agent frequently gets the verdict right and only mis-shapes one field
+    (e.g. an EvidenceItem with the assertion under ``text`` instead of ``claim``,
+    or a step list crammed into the ``source`` enum). The precise validation error
+    is highly correctable, so for the first ``MAX_TERMINAL_RETRIES`` failures we
+    record the diagnostic and return it as a ToolMessage — exactly like
+    ``_record_recoverable_tool_error`` for non-terminal tools — leaving ``done``
+    False so ``_after_execute_tool_node`` routes back to the agent for another
+    propose_eval_case. Past the cap we fall back to ``_record_terminal_tool_error``
+    (hard ``terminated_by="error"``), so a persistently-bad agent still terminates
+    cleanly with the real error. Recoverable retries do not append to
+    ``state["errors"]`` (mirroring the non-terminal path); only the final fatal
+    error does.
+    """
+
+    if state.get("terminal_error_retries", 0) >= MAX_TERMINAL_RETRIES:
+        _record_terminal_tool_error(state, name=name, args=args, error=error)
+        return
+    state["terminal_error_retries"] = state.get("terminal_error_retries", 0) + 1
+    _append_event(state["trace"], "tool_error", turn=state["turn"], name=name, args=args, error=error)
+    hint = (
+        "Fix the arguments and call propose_eval_case again. Each evidence item "
+        "must be {\"claim\": <assertion text>, \"source\": <one of the allowed "
+        "enum values>, ...}; put step numbers in the integer `step_index`, never "
+        "in `source`."
+    )
+    _append_tool_message(
+        state, name=name, call_id=call_id, payload={"tool_error": f"{error}\n\n{hint}"}
+    )
+
+
 def _record_graph_execution_error(
     state: GraphState | None,
     *,
@@ -983,6 +1084,7 @@ def _execution_result(trace: AgentTrace, state: EvalState, start_seq: int) -> Ag
         eval_case_draft=state["eval_case_draft"] if trace.terminated_by == "propose_eval_case" else None,
         new_events=trace.events[start_seq:],
         errors=list(state["errors"]),
+        raw_messages=_serialize_messages(state["messages"]),
     )
 
 
@@ -1043,29 +1145,59 @@ def _invoke_model(client: AgentLLM | Any, messages: list[AnyMessage]) -> AnyMess
 
 def _default_llm_client(state: EvalState) -> AgentLLM:
     model_name = os.environ.get("TRAJECTA_AGENT_MODEL")
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if model_name and api_key:
-        try:  # pragma: no cover - production-only path
-            from langchain_openai import ChatOpenAI
-        except ImportError:
-            pass
+    provider = resolve_model_provider(model_name)
+    if model_name and provider.api_key:
+        if provider.provider == "gemini":
+            # Gemini 3.x thinking models require thought_signature to be
+            # preserved across multi-turn tool-calling loops. The OpenAI-
+            # compatible endpoint + ChatOpenAI silently drops the signature,
+            # causing 400 errors on the second turn. ChatGoogleGenerativeAI
+            # speaks the native Gemini protocol and round-trips the signature —
+            # but ONLY at langchain-google-genai >= 3.0 (we pin >= 4, which also
+            # adds a DUMMY_THOUGHT_SIGNATURE fallback for parts lacking one).
+            # The 2.x line has zero thought_signature support and still 400s.
+            # That version floor is why requirements.txt is on the LangChain 1.x
+            # stack (langchain-core >= 1.4); see AGENTS.md "LLM / VLM Configuration".
+            try:  # pragma: no cover - production-only path
+                from langchain_google_genai import ChatGoogleGenerativeAI
+            except ImportError:
+                pass
+            else:
+                model = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=provider.api_key,
+                    temperature=0,
+                    streaming=True,
+                )
+                if hasattr(model, "bind_tools"):
+                    return model.bind_tools(list(_TOOL_REGISTRY.values()))
+                return model
         else:
-            # streaming=True makes .invoke() internally stream + aggregate
-            # AND emit chunk callbacks. LangGraph's stream_mode="messages"
-            # listens to those callbacks, so the node code keeps using
-            # blocking .invoke() while the streaming layer surfaces deltas.
-            # stream_usage / include_usage on the request preserves
-            # token accumulation at end-of-stream (without it, the final
-            # AIMessage.usage_metadata is None on streamed calls).
-            model = ChatOpenAI(
-                model=model_name,
-                temperature=0,
-                streaming=True,
-                stream_usage=True,
-            )
-            if hasattr(model, "bind_tools"):
-                return model.bind_tools(list(_TOOL_REGISTRY.values()))
-            return model
+            try:  # pragma: no cover - production-only path
+                from langchain_openai import ChatOpenAI
+            except ImportError:
+                pass
+            else:
+                # streaming=True makes .invoke() internally stream + aggregate
+                # AND emit chunk callbacks. LangGraph's stream_mode="messages"
+                # listens to those callbacks, so the node code keeps using
+                # blocking .invoke() while the streaming layer surfaces deltas.
+                # stream_usage / include_usage on the request preserves
+                # token accumulation at end-of-stream (without it, the final
+                # AIMessage.usage_metadata is None on streamed calls).
+                model_kwargs = {
+                    "model": model_name,
+                    "api_key": provider.api_key,
+                    "temperature": 0,
+                    "streaming": True,
+                    "stream_usage": True,
+                }
+                if provider.base_url is not None:
+                    model_kwargs["base_url"] = provider.base_url
+                model = ChatOpenAI(**model_kwargs)
+                if hasattr(model, "bind_tools"):
+                    return model.bind_tools(list(_TOOL_REGISTRY.values()))
+                return model
     return OfflineAgentMock(state)
 
 
@@ -1331,6 +1463,62 @@ def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
     return messages
 
 
+def _serialize_messages(messages: list[AnyMessage]) -> list[dict[str, Any]] | None:
+    """Serialize the live LangChain message list for follow-up replay.
+
+    Returns the ``messages_to_dict`` form, which preserves provider-private
+    metadata (``additional_kwargs`` / ``response_metadata`` — where e.g. Gemini
+    thinking models' ``thought_signature`` rides) that the trace-event
+    projection in ``_messages_from_trace`` drops. Returns ``None`` when LangChain
+    isn't installed (the offline mock path uses ``_FallbackMessage`` shims that
+    ``messages_to_dict`` can't serialize) or on any serialization error, so
+    persistence stays best-effort and never aborts the run.
+    """
+
+    if messages_to_dict is None:
+        return None
+    try:
+        return messages_to_dict(messages)
+    except Exception:  # pragma: no cover - defensive against shims / odd shapes
+        return None
+
+
+def _restore_messages(
+    payload: dict[str, Any] | None, trace: AgentTrace
+) -> list[AnyMessage] | None:
+    """Rebuild the message list from a persisted replay buffer, or ``None``.
+
+    ``None`` (caller falls back to ``_messages_from_trace``) when the buffer is
+    absent, tagged with an unknown ``format_version``, LangChain is unavailable,
+    or ``messages_from_dict`` fails. On success the leading ``SystemMessage`` is
+    swapped for the follow-up system prompt — the buffer stored the initial
+    turn's system prompt, and follow-ups use a different one (mirrors
+    ``_messages_from_trace``, which builds with ``followup=True``).
+    """
+
+    if not isinstance(payload, dict) or messages_from_dict is None:
+        return None
+    if payload.get("format_version") != MESSAGES_FORMAT_VERSION:
+        return None
+    raw = payload.get("messages")
+    if not isinstance(raw, list):
+        return None
+    try:
+        messages = messages_from_dict(raw)
+    except Exception:  # pragma: no cover - defensive against format drift
+        return None
+    if not messages:
+        return None
+    followup_system = SystemMessage(
+        content=_system_prompt(followup=True, prompt_version=trace.prompt_version)
+    )
+    if isinstance(messages[0], SystemMessage):
+        messages[0] = followup_system
+    else:
+        messages.insert(0, followup_system)
+    return messages
+
+
 def _append_event(
     trace: AgentTrace,
     event_type: Literal["agent_message", "user_message", "tool_call", "tool_result", "tool_error"],
@@ -1390,8 +1578,28 @@ def _normalize_tool_call(raw: Any, index: int) -> dict[str, Any]:
 
 def _message_content(message: AnyMessage) -> str:
     content = getattr(message, "content", "")
+    if content is None:
+        return ""
     if isinstance(content, str):
         return content
+    if isinstance(content, (list, tuple)):
+        # Gemini / LangChain often return content=[] on tool-only turns.
+        # json.dumps([]) == "[]", which previously leaked into agent_message
+        # events and rendered as literal brackets in the UI.
+        if not content:
+            return ""
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                if block:
+                    parts.append(block)
+            elif isinstance(block, dict):
+                text = block.get("text")
+                if isinstance(text, str) and text:
+                    parts.append(text)
+            else:
+                return json.dumps(_sanitize_for_trace(content), ensure_ascii=False, sort_keys=True)
+        return "".join(parts)
     return json.dumps(_sanitize_for_trace(content), ensure_ascii=False, sort_keys=True)
 
 

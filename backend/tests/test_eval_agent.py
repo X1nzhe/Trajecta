@@ -10,7 +10,7 @@ from unittest import mock
 from fastapi.testclient import TestClient
 
 from backend.app import eval_agent_graph, preprocess, prompts, rag, storage
-from backend.app.eval_agent_graph import AIMessage
+from backend.app.eval_agent_graph import AIMessage, HumanMessage, SystemMessage, ToolMessage, _message_content
 from backend.app.main import app
 from backend.app.schemas import (
     AgentTrace,
@@ -120,6 +120,9 @@ class EvalAgentTests(unittest.TestCase):
             "TRAJECTA_DATA_DIR": os.environ.get("TRAJECTA_DATA_DIR"),
             "TRAJECTA_CHROMA_DIR": os.environ.get("TRAJECTA_CHROMA_DIR"),
             "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
+            "OPENAI_BASE_URL": os.environ.get("OPENAI_BASE_URL"),
+            "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY"),
+            "GEMINI_BASE_URL": os.environ.get("GEMINI_BASE_URL"),
             "TRAJECTA_AGENT_MODEL": os.environ.get("TRAJECTA_AGENT_MODEL"),
             "TRAJECTA_VLM_MODEL": os.environ.get("TRAJECTA_VLM_MODEL"),
             "TRAJECTA_PROMPT_VERSION": os.environ.get("TRAJECTA_PROMPT_VERSION"),
@@ -127,6 +130,9 @@ class EvalAgentTests(unittest.TestCase):
         os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
         os.environ["TRAJECTA_CHROMA_DIR"] = os.path.join(self.tmp.name, "chroma")
         os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("OPENAI_BASE_URL", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GEMINI_BASE_URL", None)
         os.environ.pop("TRAJECTA_AGENT_MODEL", None)
         os.environ.pop("TRAJECTA_VLM_MODEL", None)
         os.environ.pop("TRAJECTA_PROMPT_VERSION", None)
@@ -164,6 +170,88 @@ class EvalAgentTests(unittest.TestCase):
         self.assertIsNotNone(result.eval_case_draft)
         draft = EvalCase.model_validate(result.eval_case_draft)
         self.assertFalse(draft.human_validated)
+
+    def test_default_llm_client_without_provider_key_uses_offline_mock(self) -> None:
+        os.environ["TRAJECTA_AGENT_MODEL"] = "gemini-3.1-flash-lite"
+        client = eval_agent_graph._default_llm_client({"trajectory_id": "run_1"})  # type: ignore[arg-type]
+        self.assertIsInstance(client, eval_agent_graph.OfflineAgentMock)
+
+    def test_default_llm_client_routes_gemini_model_to_chat_google_genai(self) -> None:
+        # gemini-* routes through the native ChatGoogleGenerativeAI (not the
+        # OpenAI-compatible ChatOpenAI), because Gemini thinking models require
+        # thought_signature to be round-tripped across multi-turn tool calls —
+        # the OpenAI-compat endpoint drops it and 400s on the second turn. The
+        # native client speaks the Gemini protocol and so has no OpenAI-style
+        # base_url. We mock the import the same way the sibling OpenAI test does,
+        # so this passes whether or not langchain-google-genai is installed.
+        class FakeChatGoogleGenerativeAI:
+            instances: list["FakeChatGoogleGenerativeAI"] = []
+
+            def __init__(self, **kwargs) -> None:
+                self.kwargs = kwargs
+                self.bound_tools = []
+                FakeChatGoogleGenerativeAI.instances.append(self)
+
+            def bind_tools(self, tools):
+                self.bound_tools = list(tools)
+                return self
+
+        os.environ["GEMINI_API_KEY"] = "gemini-key"
+        os.environ["TRAJECTA_AGENT_MODEL"] = "gemini-3.1-flash-lite"
+        with mock.patch.dict(
+            "sys.modules",
+            {"langchain_google_genai": mock.Mock(ChatGoogleGenerativeAI=FakeChatGoogleGenerativeAI)},
+        ):
+            client = eval_agent_graph._default_llm_client({"trajectory_id": "run_1"})  # type: ignore[arg-type]
+
+        self.assertIs(client, FakeChatGoogleGenerativeAI.instances[0])
+        self.assertEqual(client.kwargs["model"], "gemini-3.1-flash-lite")
+        self.assertEqual(client.kwargs["google_api_key"], "gemini-key")
+        self.assertTrue(client.kwargs["streaming"])
+        # Native protocol: no OpenAI-compatible base_url is passed.
+        self.assertNotIn("base_url", client.kwargs)
+        self.assertGreater(len(client.bound_tools), 0)
+
+    def test_default_llm_client_routes_non_gemini_model_to_openai_base_url(self) -> None:
+        class FakeChatOpenAI:
+            instances: list["FakeChatOpenAI"] = []
+
+            def __init__(self, **kwargs) -> None:
+                self.kwargs = kwargs
+                self.bound_tools = []
+                FakeChatOpenAI.instances.append(self)
+
+            def bind_tools(self, tools):
+                self.bound_tools = list(tools)
+                return self
+
+        os.environ["OPENAI_API_KEY"] = "openai-key"
+        os.environ["OPENAI_BASE_URL"] = "https://openai-compatible.example/v1"
+        os.environ["GEMINI_API_KEY"] = "gemini-key"
+        os.environ["TRAJECTA_AGENT_MODEL"] = "gpt-4o-mini"
+        with mock.patch.dict(
+            "sys.modules",
+            {"langchain_openai": mock.Mock(ChatOpenAI=FakeChatOpenAI)},
+        ):
+            client = eval_agent_graph._default_llm_client({"trajectory_id": "run_1"})  # type: ignore[arg-type]
+
+        self.assertIs(client, FakeChatOpenAI.instances[0])
+        self.assertEqual(client.kwargs["model"], "gpt-4o-mini")
+        self.assertEqual(client.kwargs["api_key"], "openai-key")
+        self.assertEqual(client.kwargs["base_url"], "https://openai-compatible.example/v1")
+        self.assertGreater(len(client.bound_tools), 0)
+
+    def test_trace_uses_gemini_provider_key_for_model_labels(self) -> None:
+        os.environ["GEMINI_API_KEY"] = "gemini-key"
+        os.environ["TRAJECTA_AGENT_MODEL"] = "gemini-3.1-flash-lite"
+        os.environ["TRAJECTA_VLM_MODEL"] = "gemini-3.1-flash-lite"
+        result = eval_agent_graph.analyze_trajectory(
+            "run_1",
+            llm_client=ScriptedLLM([_tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[]))]),
+        )
+
+        self.assertEqual(result.trace.model, "gemini-3.1-flash-lite")
+        self.assertEqual(result.trace.vlm_model, "gemini-3.1-flash-lite")
 
     def test_trace_records_prompt_version_and_hash(self) -> None:
         result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(_happy_script()))
@@ -275,6 +363,30 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(seqs, list(range(len(seqs))))
         self.assertEqual(turns, sorted(turns))
 
+    def test_message_content_empty_list_is_not_brackets(self) -> None:
+        """Gemini tool-only turns return content=[]; must not become agent_message '[]'."""
+        self.assertEqual(_message_content(AIMessage(content=[])), "")
+        self.assertEqual(
+            _message_content(AIMessage(content=[{"type": "text", "text": ""}])),
+            "",
+        )
+        self.assertEqual(
+            _message_content(AIMessage(content=[{"type": "text", "text": "hello"}])),
+            "hello",
+        )
+
+    def test_tool_only_turn_does_not_emit_agent_message(self) -> None:
+        script = [
+            AIMessage(
+                content=[],
+                tool_calls=[{"name": "get_trajectory", "args": {"trajectory_id": "run_1"}, "id": "call_1"}],
+            ),
+            _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
+        ]
+        result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
+        agent_messages = [event for event in result.trace.events if event.type == "agent_message"]
+        self.assertEqual(agent_messages, [])
+
     def test_stream_yields_events_before_done(self) -> None:
         stream = eval_agent_graph.stream_analyze_trajectory(
             "run_1",
@@ -337,16 +449,49 @@ class EvalAgentTests(unittest.TestCase):
         self.assertEqual(result.trace.terminated_by, "propose_eval_case")
 
     def test_propose_eval_case_validation_error_terminates(self) -> None:
+        # A malformed terminal call is now fed back for a bounded retry; a
+        # persistently-invalid propose still terminates as error after the cap
+        # (MAX_TERMINAL_RETRIES + 1 attempts), with the real error surfaced.
+        bad = _proposal_args(failure_type="INVALID-TYPE", retrieved_context_ids=[])
         result = eval_agent_graph.analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM(
-                [_tool_message("propose_eval_case", _proposal_args(failure_type="INVALID-TYPE", retrieved_context_ids=[]))]
+                [
+                    _tool_message("propose_eval_case", bad)
+                    for _ in range(eval_agent_graph.MAX_TERMINAL_RETRIES + 1)
+                ]
             ),
         )
 
         self.assertEqual(result.trace.terminated_by, "error")
         self.assertGreater(len(result.errors), 0)
         self.assertTrue(any(event.type == "tool_error" for event in result.trace.events))
+
+    def test_malformed_evidence_recovers_via_retry(self) -> None:
+        """The exact bug from a real Gemini run: the model put the assertion under
+        ``text`` and a step list in ``source`` (not the enum). EvidenceItem
+        validation fails, but the terminal error is now fed back so the agent can
+        re-propose correctly instead of hard-failing on the first slip."""
+
+        bad_args = _proposal_args(retrieved_context_ids=[])
+        bad_args["evidence"] = [{"source": "step 8, 9, 10", "text": "Constraint not verified."}]
+        result = eval_agent_graph.analyze_trajectory(
+            "run_1",
+            llm_client=ScriptedLLM(
+                [
+                    _tool_message("propose_eval_case", bad_args),
+                    _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=[])),
+                ]
+            ),
+        )
+
+        self.assertEqual(result.trace.terminated_by, "propose_eval_case")
+        self.assertIsNotNone(result.eval_case_draft)
+        self.assertEqual(result.errors, [])
+        self.assertTrue(
+            any(e.type == "tool_error" and e.name == "propose_eval_case" for e in result.trace.events),
+            "the first malformed attempt should be recorded as a tool_error before recovery",
+        )
 
     def test_malformed_tool_call_recovers_via_retry(self) -> None:
         """Malformed tool_calls payloads no longer terminate the trace.
@@ -444,7 +589,10 @@ class EvalAgentTests(unittest.TestCase):
         result = eval_agent_graph.analyze_trajectory(
             "run_1",
             llm_client=ScriptedLLM(
-                [_tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=["fm_nonexistent_999"]))]
+                [
+                    _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=["fm_nonexistent_999"]))
+                    for _ in range(eval_agent_graph.MAX_TERMINAL_RETRIES + 1)
+                ]
             ),
         )
 
@@ -464,10 +612,10 @@ class EvalAgentTests(unittest.TestCase):
                 "find_similar_successful_trajectory",
                 {"task": "find: answer to question", "top_k": 3, "exclude_trajectory_id": "run_1"},
             ),
-            _tool_message(
-                "propose_eval_case",
-                _proposal_args(retrieved_context_ids=["success_run"]),
-            ),
+            *[
+                _tool_message("propose_eval_case", _proposal_args(retrieved_context_ids=["success_run"]))
+                for _ in range(eval_agent_graph.MAX_TERMINAL_RETRIES + 1)
+            ],
         ]
 
         result = eval_agent_graph.analyze_trajectory("run_1", llm_client=ScriptedLLM(script))
@@ -579,7 +727,12 @@ class EvalAgentTests(unittest.TestCase):
 
         result = eval_agent_graph.analyze_trajectory(
             "run_1",
-            llm_client=ScriptedLLM([_tool_message("propose_eval_case", args)]),
+            llm_client=ScriptedLLM(
+                [
+                    _tool_message("propose_eval_case", args)
+                    for _ in range(eval_agent_graph.MAX_TERMINAL_RETRIES + 1)
+                ]
+            ),
         )
 
         self.assertEqual(result.trace.terminated_by, "error")
@@ -607,7 +760,12 @@ class EvalAgentTests(unittest.TestCase):
 
         result = eval_agent_graph.analyze_trajectory(
             "run_1",
-            llm_client=ScriptedLLM([_tool_message("propose_eval_case", args)]),
+            llm_client=ScriptedLLM(
+                [
+                    _tool_message("propose_eval_case", args)
+                    for _ in range(eval_agent_graph.MAX_TERMINAL_RETRIES + 1)
+                ]
+            ),
         )
 
         self.assertEqual(result.trace.terminated_by, "error")
@@ -1054,6 +1212,9 @@ class SpotlightingWrapTests(unittest.TestCase):
                 "TRAJECTA_DATA_DIR",
                 "TRAJECTA_CHROMA_DIR",
                 "OPENAI_API_KEY",
+                "OPENAI_BASE_URL",
+                "GEMINI_API_KEY",
+                "GEMINI_BASE_URL",
                 "TRAJECTA_AGENT_MODEL",
                 "TRAJECTA_VLM_MODEL",
                 "TRAJECTA_PROMPT_VERSION",
@@ -1063,6 +1224,9 @@ class SpotlightingWrapTests(unittest.TestCase):
         os.environ["TRAJECTA_DATA_DIR"] = self.tmp.name
         os.environ["TRAJECTA_CHROMA_DIR"] = str(Path(self.tmp.name) / "chroma")
         os.environ.pop("OPENAI_API_KEY", None)
+        os.environ.pop("OPENAI_BASE_URL", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GEMINI_BASE_URL", None)
         os.environ.pop("TRAJECTA_AGENT_MODEL", None)
         os.environ.pop("TRAJECTA_VLM_MODEL", None)
         os.environ.pop("TRAJECTA_PROMPT_VERSION", None)
@@ -1235,6 +1399,99 @@ class SpotlightingWrapTests(unittest.TestCase):
         followup_token = prompts.current_spotlight_token()
         self.assertIsNotNone(followup_token)
         self.assertNotEqual(initial_token, followup_token)
+
+
+class ReplayBufferTests(unittest.TestCase):
+    """Opaque follow-up replay buffer (eval_agent_graph._serialize_messages /
+    _restore_messages). The point of the buffer is that provider-private
+    metadata — e.g. Gemini thinking models' thought_signature — survives the
+    persistence round-trip that the lossy trace-event projection drops."""
+
+    def setUp(self) -> None:
+        if eval_agent_graph.messages_to_dict is None:  # pragma: no cover
+            self.skipTest("langchain_core not installed; replay buffer is a no-op")
+
+    @staticmethod
+    def _trace() -> AgentTrace:
+        return AgentTrace(trajectory_id="run_1", user_intent="analyze_trajectory")
+
+    def test_replay_buffer_preserves_thought_signature(self) -> None:
+        storage.save_trajectory(sample_run())
+        messages = [
+            SystemMessage(content="INITIAL system prompt"),
+            HumanMessage(content='{"trajectory_id": "run_1"}'),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "get_trajectory", "args": {"trajectory_id": "run_1"}, "id": "call_a1b2"}],
+                additional_kwargs={"thought_signature": "Cr4BAdHtim8xZ2pQ9vK3Yw=="},
+            ),
+            ToolMessage(content='{"ok": true}', name="get_trajectory", tool_call_id="call_a1b2"),
+        ]
+
+        buffer = eval_agent_graph._serialize_messages(messages)
+        self.assertIsNotNone(buffer)
+        storage.save_agent_messages(
+            "run_1",
+            {"format_version": eval_agent_graph.MESSAGES_FORMAT_VERSION, "messages": buffer},
+        )
+
+        restored = eval_agent_graph._restore_messages(storage.load_agent_messages("run_1"), self._trace())
+
+        self.assertIsNotNone(restored)
+        self.assertEqual(len(restored), 4)
+        # The signature survived persist → load → restore.
+        self.assertEqual(
+            restored[2].additional_kwargs.get("thought_signature"), "Cr4BAdHtim8xZ2pQ9vK3Yw=="
+        )
+        # Leading system message swapped to the follow-up prompt (not the stored initial one).
+        self.assertIsInstance(restored[0], SystemMessage)
+        self.assertNotEqual(restored[0].content, "INITIAL system prompt")
+
+    def test_restore_rejects_unknown_format_version(self) -> None:
+        buffer = eval_agent_graph._serialize_messages([AIMessage(content="x")])
+        self.assertIsNone(
+            eval_agent_graph._restore_messages(
+                {"format_version": "some-future-version", "messages": buffer}, self._trace()
+            )
+        )
+
+    def test_restore_none_payload_falls_back(self) -> None:
+        self.assertIsNone(eval_agent_graph._restore_messages(None, self._trace()))
+
+    def test_serialize_returns_none_without_langchain(self) -> None:
+        # Simulates the offline path where langchain_core is absent and the
+        # _FallbackMessage shims are in use: nothing is persisted, and the
+        # follow-up falls back to _messages_from_trace.
+        with mock.patch.object(eval_agent_graph, "messages_to_dict", None):
+            self.assertIsNone(eval_agent_graph._serialize_messages([AIMessage(content="x")]))
+
+    def test_buffer_preserves_real_gemini_signature_metadata(self) -> None:
+        # langchain-google-genai >= 4 stores per-call signatures under this
+        # additional_kwargs key (id -> base64 sig), and also carries
+        # response_metadata. The buffer must round-trip BOTH channels verbatim
+        # so follow-ups replay real signatures (not just the DUMMY fallback).
+        # This documents the interop contract at the serialize/restore seam.
+        GENAI_KEY = "__gemini_function_call_thought_signatures__"
+        storage.save_trajectory(sample_run())
+        messages = [
+            SystemMessage(content="INITIAL"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "get_trajectory", "args": {"trajectory_id": "run_1"}, "id": "c1"}],
+                additional_kwargs={GENAI_KEY: {"c1": "Cr4BAdHtim8="}},
+                response_metadata={"model_name": "gemini-3.1-flash-lite"},
+            ),
+        ]
+        buffer = eval_agent_graph._serialize_messages(messages)
+        storage.save_agent_messages(
+            "run_1", {"format_version": eval_agent_graph.MESSAGES_FORMAT_VERSION, "messages": buffer}
+        )
+        restored = eval_agent_graph._restore_messages(storage.load_agent_messages("run_1"), self._trace())
+
+        self.assertIsNotNone(restored)
+        ai = restored[1]
+        self.assertEqual(ai.additional_kwargs.get(GENAI_KEY), {"c1": "Cr4BAdHtim8="})
+        self.assertEqual(ai.response_metadata.get("model_name"), "gemini-3.1-flash-lite")
 
 
 if __name__ == "__main__":

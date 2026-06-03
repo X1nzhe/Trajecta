@@ -86,15 +86,23 @@ cp .env.example .env
 Do not commit `.env`. Shell exports take precedence over the file. See [`.env.example`](.env.example) for the full variable list; the essentials are below.
 
 ```text
-# Required for the real-LLM agent + VLM paths.
+# Provider API keys — set one or both depending on which models you use.
+# gemini-* models use GEMINI_API_KEY; all other model ids use OPENAI_API_KEY.
 OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=your-gemini-key
+
+# Optional: override the default API base URLs.
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 
 # Tool-calling Eval Agent. Without this, OfflineAgentMock runs.
 TRAJECTA_AGENT_MODEL=gpt-4o-mini
+# or: TRAJECTA_AGENT_MODEL=gemini-3.1-flash-lite
 
 # Low-detail preprocessing VLM + high-detail get_step_detail VLM.
 # Without this, MockVLMClient runs.
 TRAJECTA_VLM_MODEL=gpt-4o-mini
+# or: TRAJECTA_VLM_MODEL=gemini-3.1-flash-lite
 
 # Optional: versioned Eval Agent prompt bundle.
 TRAJECTA_PROMPT_VERSION=v1_minimal
@@ -112,6 +120,10 @@ TRAJECTA_JUDGE_B_PROMPT_VERSION=<judge-b-prompt-version>
 TRAJECTA_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
+Provider routing: `TRAJECTA_AGENT_MODEL` and `TRAJECTA_VLM_MODEL` each independently select their provider by model name prefix — `gemini-*` uses `GEMINI_API_KEY`; all other model ids use `OPENAI_API_KEY` + optional `OPENAI_BASE_URL`. Agent and VLM can use different providers (e.g., `TRAJECTA_AGENT_MODEL=gpt-4o-mini` + `TRAJECTA_VLM_MODEL=gemini-3.1-flash-lite`).
+
+The two Gemini paths differ: the **VLM** uses Gemini's OpenAI-compatible endpoint (`GEMINI_BASE_URL`, default `…/v1beta/openai/`), while the **agent** uses the native `ChatGoogleGenerativeAI` (ignores `GEMINI_BASE_URL`). The native client is required for Gemini *thinking* models, which attach a `thought_signature` to each function call that must round-trip across multi-turn tool calls — supported only in `langchain-google-genai >= 3.0` (pinned `>= 4`), which is why the project is on the LangChain 1.x stack (`langchain-core >= 1.4` + the `google-genai` SDK). The 2.x line drops the signature and fails Gemini agent runs with a `400`. (The VLM is single-shot, so it has no such requirement and works on either line.)
+
 Prompt updates are versioned directories under `prompts/eval_agent/`, `prompts/vlm_high_detail/`, and `prompts/judge/`. Create a new directory for each prompt change and roll back by setting the corresponding environment variable to a previous version. See [docs/prompt_versioning.md](docs/prompt_versioning.md).
 
 Fallback behavior with no env vars set:
@@ -120,14 +132,21 @@ Fallback behavior with no env vars set:
 - `MockVLMClient` returns deterministic hash-derived summaries for low-detail and high-detail VLM calls.
 - The default pytest suite exercises these offline paths.
 
-Opt-in real LLM smoke:
+Opt-in real LLM smoke (OpenAI):
 
 ```bash
 OPENAI_API_KEY=sk-... TRAJECTA_AGENT_MODEL=gpt-4o-mini TRAJECTA_VLM_MODEL=gpt-4o-mini \
   pytest backend/tests/test_real_llm_integration.py -v
 ```
 
-This test costs real OpenAI tokens and is not part of the default suite.
+Opt-in real LLM smoke (Gemini):
+
+```bash
+GEMINI_API_KEY=your-gemini-key TRAJECTA_AGENT_MODEL=gemini-3.1-flash-lite TRAJECTA_VLM_MODEL=gemini-3.1-flash-lite \
+  pytest backend/tests/test_real_llm_integration.py -v
+```
+
+These tests cost real provider tokens and are not part of the default suite.
 
 ## Eval & Experiments
 
@@ -231,7 +250,7 @@ Human second-judge workflow and reviewer UI are intentionally not part of V1.
 python -m backend.app.ragas_eval --trace-dir eval/runs/{timestamp}/traces --limit 10
 ```
 
-RAGAS reads recorded RAG tool queries and their matching retrieved contexts from the selected trace dump, then falls back to the SQLite `traces` table only when a dump is missing. It produces `eval/ragas_report.{json,md}` with no-ground-truth retrieval-grounded `faithfulness`; it is not an answer-correctness or human ground-truth evaluation.
+RAGAS reads recorded RAG tool queries and their matching retrieved contexts from the selected trace dump, then falls back to the SQLite `traces` table only when a dump is missing. It produces `eval/ragas_report.{json,md}` (a stable latest copy; each run is also archived under `eval/ragas_report/<stamp>/`) with no-ground-truth retrieval-grounded `faithfulness`; it is not an answer-correctness or human ground-truth evaluation.
 
 Latest Phase 8 A6 run: `mode=real`, `n=10`, `ground_truth_source=none`, `faithfulness=0.4068`.
 

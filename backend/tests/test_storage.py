@@ -143,6 +143,31 @@ class StorageTests(unittest.TestCase):
         self.assertIsNotNone(loaded)
         self.assertEqual(loaded.trajectory_id, "run_1")
 
+    def test_save_and_load_agent_messages(self) -> None:
+        storage.save_trajectory(sample_run())
+        payload = {
+            "format_version": "lc-messages-v1",
+            "messages": [{"type": "ai", "data": {"content": "hello"}}],
+        }
+
+        storage.save_agent_messages("run_1", payload)
+
+        self.assertEqual(storage.load_agent_messages("run_1"), payload)
+
+    def test_save_agent_messages_overwrites_in_place(self) -> None:
+        storage.save_trajectory(sample_run())
+        storage.save_agent_messages("run_1", {"format_version": "v", "messages": [1]})
+        storage.save_agent_messages("run_1", {"format_version": "v", "messages": [2]})
+
+        self.assertEqual(storage.load_agent_messages("run_1")["messages"], [2])
+
+    def test_load_agent_messages_missing_returns_none(self) -> None:
+        self.assertIsNone(storage.load_agent_messages("run_unknown"))
+
+    def test_save_agent_messages_unknown_trajectory_raises(self) -> None:
+        with self.assertRaises(FileNotFoundError):
+            storage.save_agent_messages("run_unknown", {"format_version": "v", "messages": []})
+
     def test_save_and_load_digest(self) -> None:
         storage.save_trajectory(sample_run())
         digest = TrajectoryDigest(trajectory_id="run_1", task="Find a result", step_count=0, steps=[])

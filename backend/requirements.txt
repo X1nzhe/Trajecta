@@ -8,10 +8,17 @@ uvicorn[standard]>=0.34,<1
 Pillow>=10,<12
 datasets>=3,<5
 httpx>=0.27,<1
-openai>=1.50,<2
+openai>=2,<3
 chromadb>=0.5,<2
-langgraph>=0.2,<1
-langchain-core>=0.3,<1
-langchain-openai>=0.2,<1
+# LangChain 1.x stack. Required for Gemini-as-agent: thought_signature support
+# only exists in langchain-google-genai>=3.0 (complete in >=4, with a
+# DUMMY_THOUGHT_SIGNATURE fallback), and every such version requires
+# langchain-core>=1.x + the new google-genai SDK. langchain-openai 1.2.x needs
+# langchain-core>=1.4. See docs / AGENTS.md "LLM / VLM Configuration".
+langgraph>=1,<2
+langchain-core>=1.4,<2
+langchain-openai>=1.2,<2
+langchain-google-genai>=4,<5
+google-genai>=1.65,<3
 ragas>=0.2,<1
 fastmcp>=2.0

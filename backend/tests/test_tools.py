@@ -291,6 +291,57 @@ class ToolsTests(unittest.TestCase):
             },
         )
 
+    def test_propose_eval_case_gemini_schema_keeps_evidence_item_shape(self) -> None:
+        """The Gemini-bound schema must keep the EvidenceItem fields.
+
+        Regression guard for the dict-union schema collapse. When the
+        ``evidence`` / ``suggested_followups`` params were annotated
+        ``list[EvidenceItem | dict[str, Any]]``, ``langchain-google-genai``
+        could not represent the resulting ``anyOf`` and degraded each item to
+        a bare ``OBJECT`` — no ``properties``, no ``required``, no ``source``
+        enum. Gemini then mis-shaped evidence (assertion under ``text``,
+        screenshot filename in ``source``), failing the terminal call and
+        burning a retry. Strict element annotations keep the nested schema, so
+        the enum and required list survive the conversion.
+        """
+        try:
+            from langchain_google_genai._function_utils import (
+                convert_to_genai_function_declarations,
+                tool_to_dict,
+            )
+        except ImportError:
+            self.skipTest("langchain-google-genai not installed")
+
+        decl = convert_to_genai_function_declarations([tools.propose_eval_case])
+        params = tool_to_dict(decl[0])["function_declarations"][0]["parameters"]
+
+        evidence_items = params["properties"]["evidence"]["items"]
+        self.assertIsNotNone(
+            evidence_items["properties"],
+            f"evidence item schema collapsed to bare object: {evidence_items}",
+        )
+        self.assertEqual(set(evidence_items["required"]), {"claim", "source"})
+        self.assertEqual(
+            set(evidence_items["properties"]["source"]["enum"]),
+            {
+                "trajectory",
+                "trajectory_digest",
+                "step_detail_high",
+                "step_detail_low",
+                "failure_memory",
+                "eval_case",
+                "successful_trajectory",
+                "unavailable",
+            },
+        )
+
+        followup_items = params["properties"]["suggested_followups"]["items"]
+        self.assertIsNotNone(
+            followup_items["properties"],
+            f"suggested_followups item schema collapsed to bare object: {followup_items}",
+        )
+        self.assertEqual(set(followup_items["required"]), {"label", "message"})
+
     def test_propose_eval_case_rejects_off_vocabulary_failure_type(self) -> None:
         """Tool entry must reject failure_types outside V1_FAILURE_VOCABULARY.
 
