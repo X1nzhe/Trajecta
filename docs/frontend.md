@@ -11,6 +11,8 @@ Right:  Eval Agent controls + observation summary + trace timeline + eval case d
 Footer: dataset and trajectory count summary
 ```
 
+Center panel header (above the step timeline): truncated `trajectory_id` (first 8 + `…` + last 4, same rule as the left list) with a one-click copy button, then the trajectory `task` on the line below with no `navigate:` prefix.
+
 ## Positioning
 
 The right panel uses a chat-style affordance (history + input + prompt chips) because it is the most natural surface for an agent's tool-call trace, the analysis result, and follow-up questions about the result. This is **not a general chatbot** — the agent is bound to one trajectory at a time, operates only through declared tools, and terminates by `propose_eval_case`. The chat surface is a UI presentation choice; the agentic contract in [docs/eval_agent.md](eval_agent.md) is unchanged.

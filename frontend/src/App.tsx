@@ -4,6 +4,7 @@ import { TrajectoryList } from './components/TrajectoryList';
 import { StepTimeline } from './components/StepTimeline';
 import { ScreenshotViewer } from './components/ScreenshotViewer';
 import { StepDetailPanel } from './components/StepDetailPanel';
+import { TrajectoryIdCopy } from './components/TrajectoryIdCopy';
 import { EvalAgentPanel } from './components/EvalAgentPanel';
 import { useUrlState } from './hooks/useUrlState';
 import { fetchTrajectories, fetchTrajectory } from './api/client';
@@ -115,9 +116,9 @@ function App() {
               <div className="bg-white">
                 <div className="border-b border-[color:var(--color-hairline)] px-4 py-3">
                   <div className="min-w-0">
-                    <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">Task</div>
+                    <TrajectoryIdCopy trajectoryId={selectedTrajectory.trajectory_id} />
                     <p className="mt-1 break-words text-[13px] leading-5 text-slate-800">
-                      <span className="text-slate-400">navigate:</span> {selectedTrajectory.task}
+                      {selectedTrajectory.task}
                     </p>
                   </div>
                 </div>

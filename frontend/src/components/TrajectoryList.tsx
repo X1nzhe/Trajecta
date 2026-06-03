@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import type { Trajectory } from '../types/contracts';
+import { truncateTrajectoryId } from '../utils/trajectoryId';
 import { actionColors } from './actionPalette';
 
 interface TrajectoryListProps {
@@ -203,11 +204,6 @@ function FilterSegments({
       })}
     </div>
   );
-}
-
-function truncateTrajectoryId(id: string) {
-  if (id.length <= 14) return id;
-  return `${id.slice(0, 8)}…${id.slice(-4)}`;
 }
 
 function formatTrajectoryDate(trajectory: Trajectory) {
