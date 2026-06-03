@@ -148,8 +148,9 @@ trajecta/
   trajecta_mcp/
     server.py
   eval/
-    ragas_report.json
+    ragas_report.json                      # latest (refreshed each run)
     ragas_report.md
+    ragas_report/<stamp>/ragas_report.{json,md}  # per-run timestamped archive
 ```
 
 `data/trajecta.db` is a single SQLite file managed by SQLAlchemy 2.0 (sync,

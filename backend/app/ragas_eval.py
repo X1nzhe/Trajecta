@@ -50,6 +50,7 @@ import os
 import string
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -787,7 +788,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Override report output dir (default: <repo>/eval).",
+        help=(
+            "Override the report base dir (default: <repo>/eval). Holds the "
+            "stable latest ragas_report.{json,md} and the per-run archive under "
+            "ragas_report/<stamp>/."
+        ),
     )
     parser.add_argument(
         "--force-stub",
@@ -820,10 +825,19 @@ def main(argv: list[str] | None = None) -> int:
     print("RAGAS evaluate start")
     report = build_report(samples, skipped, force_stub=args.force_stub)
     print(f"RAGAS evaluate done mode={report.ragas_mode}")
-    json_path, md_path = write_report(report, output_dir)
 
-    print(f"wrote {json_path}")
-    print(f"wrote {md_path}")
+    # Write a timestamped archive (never overwritten) plus a stable "latest"
+    # copy at the base dir, mirroring agent_eval's eval/runs/<stamp>/ + eval/
+    # pairing. write_report is deterministic, so rendering twice is fine.
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    archive_dir = output_dir / "ragas_report" / stamp
+    archive_json, archive_md = write_report(report, archive_dir)
+    latest_json, latest_md = write_report(report, output_dir)
+
+    print(f"wrote archive {archive_json}")
+    print(f"wrote archive {archive_md}")
+    print(f"wrote latest {latest_json}")
+    print(f"wrote latest {latest_md}")
     print(
         f"  samples={len(report.samples)} mode={report.ragas_mode} "
         f"means={report.metric_means} skipped={report.skipped.to_dict()}"

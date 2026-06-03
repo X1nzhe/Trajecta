@@ -809,6 +809,46 @@ class MainTraceDirFlagTests(unittest.TestCase):
         self.assertIsNone(kwargs["limit"])
 
 
+class MainReportArchiveTests(unittest.TestCase):
+    """main writes a stable latest report at the base dir AND a timestamped
+    archive under ragas_report/<stamp>/ so prior runs are never overwritten
+    (mirrors agent_eval's eval/agent_report.* + eval/runs/<stamp>/ pairing)."""
+
+    def test_main_writes_latest_and_timestamped_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "eval"
+            with mock.patch(
+                "backend.app.ragas_eval.collect_samples",
+                return_value=([], ragas_eval.SkippedCounts()),
+            ):
+                rc = ragas_eval.main(
+                    [
+                        "--data-dir",
+                        str(Path(tmp) / "data"),
+                        "--output-dir",
+                        str(out_dir),
+                        "--force-stub",
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            # main() resolves --output-dir (canonicalising macOS /tmp symlinks),
+            # so assert against the resolved base — inside the with block, before
+            # the TemporaryDirectory is cleaned up.
+            base = out_dir.resolve()
+            # Stable latest at the base dir.
+            self.assertTrue((base / "ragas_report.md").is_file())
+            self.assertTrue((base / "ragas_report.json").is_file())
+            # Exactly one timestamped archive under ragas_report/<stamp>/.
+            archived_md = sorted(base.glob("ragas_report/*/ragas_report.md"))
+            self.assertEqual(len(archived_md), 1)
+            stamp_dir = archived_md[0].parent
+            self.assertTrue((stamp_dir / "ragas_report.json").is_file())
+            # Stamp matches the agent_eval UTC convention (YYYY-MM-DDTHH-MM-SSZ).
+            self.assertRegex(
+                stamp_dir.name, r"^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$"
+            )
+
+
 class BuildReportStubFallbackTests(unittest.TestCase):
     """build_report continues to fall back to stub when OPENAI_API_KEY
     is absent — A6.1 must not silently flip the report to real mode."""

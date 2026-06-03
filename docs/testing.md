@@ -327,11 +327,17 @@ Rules:
 - No human or self-generated `ground_truth` is used. The A6 claim is limited to retrieval-grounded faithfulness: whether the final `actual_behavior` and evidence claims are supported by the contexts retrieved for the recorded query. It does not measure answer correctness, context recall, or human agreement.
 - RAG tool calls with no usable contexts are skipped and counted under `no_context`.
 
-Output files:
+Output files. Each run writes a stable "latest" copy at the base dir **and** a
+timestamped archive under `ragas_report/<stamp>/` (UTC stamp
+`YYYY-MM-DDTHH-MM-SSZ`, same convention as `eval/runs/<stamp>/`), so prior
+reports are never overwritten — mirroring how `agent_eval` keeps
+`eval/agent_report.{json,md}` beside `eval/runs/<stamp>/`:
 
 ```text
-eval/ragas_report.json
-eval/ragas_report.md
+eval/ragas_report.json                       # latest (stable; docs/Phase 8 A6 reference this)
+eval/ragas_report.md                         # latest
+eval/ragas_report/<stamp>/ragas_report.json  # per-run archive
+eval/ragas_report/<stamp>/ragas_report.md
 ```
 
 The JSON report includes aggregate `retrieval_stats` derived from the
