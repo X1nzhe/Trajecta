@@ -259,6 +259,10 @@ eval/runs/*
 eval/runs/2026-06-03T05-45-39Z/judge_v1/
 eval/runs/2026-06-03T05-45-39Z/judge_v2_run1/
 
+# Timestamped RAGAS archive runs are local-only debug output. The stable
+# eval/ragas_report.{json,md} (a file, not this directory) stays tracked.
+eval/ragas_report/
+
 .vite
 dist/
 node_modules/
