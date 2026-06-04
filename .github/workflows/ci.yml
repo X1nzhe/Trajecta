@@ -1,0 +1,45 @@
+name: CI
+
+# Deterministic, key-free CI. The pytest suite runs the mock agent/VLM paths
+# (real-LLM smoke auto-skips without keys); the eval gate reads committed
+# report artifacts. No secrets are required.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: tests + golden integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend deps
+        run: pip install -r backend/requirements.txt
+      - name: Pytest (mock paths, no API keys)
+        working-directory: backend
+        run: pytest -q
+      - name: Golden set integrity (--check)
+        run: python scripts/build_golden_jsonl.py --check
+
+  eval-gate:
+    name: eval metric threshold gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Stdlib-only: reads committed eval/ragas_report.json + the featured run's
+      # judge/agent reports and fails if faithfulness / kappa / binary accuracy
+      # dropped below their floors. No dependency install needed.
+      - name: Check eval thresholds
+        run: python scripts/check_eval_thresholds.py

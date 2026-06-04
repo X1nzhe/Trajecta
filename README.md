@@ -364,6 +364,21 @@ cd frontend
 npm run build
 ```
 
+### CI Threshold Gate
+
+`.github/workflows/ci.yml` runs on every push to `main` and on every pull request, with **no secrets required**. It has two jobs:
+
+- **tests + golden integrity** — installs `backend/requirements.txt`, runs the full `pytest` suite (mock agent/VLM paths; the real-LLM smoke auto-skips without keys), then `python scripts/build_golden_jsonl.py --check`.
+- **eval metric threshold gate** — `python scripts/check_eval_thresholds.py`, a stdlib-only *metric regression gate*. It reads the **committed** report artifacts and fails if any headline metric dropped below its floor:
+
+  | Metric | Source artifact | Floor | Current |
+  | --- | --- | --- | --- |
+  | RAGAS faithfulness (must be `ragas_mode=real`) | `eval/ragas_report.json` | 0.85 | 0.957 |
+  | Dual-judge κ_LLM,LLM | `eval/runs/2026-06-03T05-45-39Z/judge/judge_agreement_report.json` | 0.60 | 1.0 |
+  | Agent binary-verdict accuracy | `eval/runs/2026-06-03T05-45-39Z/agent_report.json` | 0.75 | 0.806 |
+
+The gate does **not** recompute the semantic metrics in CI — those are billed, rate-limited, and non-deterministic, so they are recomputed deliberately offline (`ragas_eval`, `agent_eval --judge`) and *gated* here against the committed values. Floors sit a margin below current values to catch real regressions, not run-to-run noise. Run it locally with `python scripts/check_eval_thresholds.py` (override floors with `--faithfulness-min` / `--kappa-min` / `--binary-acc-min`); it is also covered by `backend/tests/test_eval_thresholds.py`.
+
 ## MCP Connection
 
 MCP shipped in Phase 8 B1 and the live-client smoke is complete: the server has been verified with MCP Inspector. The server exposes the entire Eval Agent as one composite tool so external coding agents can diagnose a browser-agent trajectory via one MCP call.

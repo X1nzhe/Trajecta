@@ -111,7 +111,7 @@ Operating spec: [docs/phase8_s18_alignment.md](phase8_s18_alignment.md).
 - No Reviewer Agent / supervisor architecture
 - No Mem0 / Letta / Graphiti memory framework
 - No Langfuse / Inspect AI tracing
-- No CI threshold gate (deferred)
+- ~~No CI threshold gate (deferred)~~ — **shipped** post-Phase 8: `.github/workflows/ci.yml` runs the mock pytest suite + golden `--check` + a stdlib metric-regression gate (`scripts/check_eval_thresholds.py`) over committed faithfulness / κ / binary-accuracy artifacts. See README § "CI Threshold Gate".
 
 ## README Requirements
 
