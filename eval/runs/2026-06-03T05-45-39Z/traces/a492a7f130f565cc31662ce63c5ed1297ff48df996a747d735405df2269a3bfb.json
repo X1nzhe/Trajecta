@@ -1,0 +1,600 @@
+{
+  "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 1,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 7,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+        "task": "navigate: Locate a breakfast smoothie recipe on Allrecipes that contains spinach and bananas, has at least a four-star rating, and over 25 reviews.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 953.9480789200416,
+                "y": 28.730897009966778
+              },
+              "bbox": {
+                "x": 953.9480789200416,
+                "y": 28.730897009966778,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=953.9480789200416, y=28.730897009966778, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 271.30633437175493,
+                "y": 163.64119601328903
+              },
+              "bbox": {
+                "x": 40.008307372793354,
+                "y": 145.1534940903369,
+                "width": 401.0833043051905,
+                "height": 59.96013289036544
+              },
+              "raw": "mouse_click(x=271.30633437175493, y=163.64119601328903, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "click",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'breakfast smoothie with spinach'",
+              "text": "breakfast smoothie with spinach",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='breakfast smoothie with spinach')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_type",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "press Enter key",
+              "text": "Enter",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_press(key='Enter')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "keyboard_press",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach",
+              "title": "[breakfast smoothie with spinach] Results from Allrecipes",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 502.6657957412872 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=502.6657957412872)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "scroll",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach",
+              "title": "[breakfast smoothie with spinach] Results from Allrecipes",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 296.8026273100083 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=296.8026273100083)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "scroll",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach",
+              "title": "[breakfast smoothie with spinach] Results from Allrecipes",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+          "task": "navigate: Locate a breakfast smoothie recipe on Allrecipes that contains spinach and bananas, has at least a four-star rating, and over 25 reviews.",
+          "step_count": 7,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (953.948, 28.7309)",
+              "action_target": "Click on svg element",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | large food hero image, Allrecipes branding and trusted recipe resource banner visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "click",
+              "action_text": "click at (271.306, 163.641)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=left | Allrecipes search drawer with search box and category menu items",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "type",
+              "action_text": "type 'breakfast smoothie with spinach'",
+              "action_target": "type 'breakfast smoothie with spinach'",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=left | Allrecipes search drawer with search box and category menu",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "unknown",
+              "action_text": "press Enter key",
+              "action_target": "press Enter key",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=yes; error_banner=no; focus=left | Allrecipes search drawer with query “breakfast smoothie with spinach” and search button",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 502.6657957412872 pixels",
+              "url": "https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach",
+              "title": "[breakfast smoothie with spinach] Results from Allrecipes",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=left | Allrecipes search drawer with query “breakfast smoothie with spinach” and search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 296.8026273100083 pixels",
+              "url": "https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach",
+              "title": "[breakfast smoothie with spinach] Results from Allrecipes",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | smoothie recipe cards with large green drink photos and “14 Breakfast Smoothie Recipes” headline",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach",
+              "title": "[breakfast smoothie with spinach] Results from Allrecipes",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Breakfast Banana Green Smoothie recipe title with rating and reviews visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 9240,
+          "vlm_output_tokens": 230
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+        "step_index": 7,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+        "step_index": 7,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_e63181e6>page_state:\nRecipe detail page on Allrecipes for “Breakfast Banana Green Smoothie,” showing rating and review count.\ntask_relevant_visible_text:\n“Allrecipes”; “Recipes > Breakfast and Brunch > Drinks”; “Breakfast Banana Green Smoothie”; “4.6 (60)”; “37 REVIEWS”; “21 PHOTOS”; “Submitted by Cozycook”; “Updated on March 16, 2023”.\nselected_candidate:\nBreakfast Banana Green Smoothie\nconstraint_evidence:\n1. breakfast smoothie recipe — supported (title indicates a breakfast smoothie).\n2. on Allrecipes — supported (site header/logo and URL/title context).\n3. contains spinach — not_visible (no ingredient list visible).\n4. contains bananas — supported (title includes “Banana”).\n5. at least four-star rating — supported (4.6 visible).\n6. over 25 reviews — supported (37 reviews visible).\naction_target:\nSend exit message to user / end trajectory.\nsuccess_signals:\nRecipe candidate meets visible rating and review thresholds; banana requirement is satisfied by title.\nfailure_signals:\nSpinach ingredient is not visible, so full task match cannot be confirmed from this screenshot alone.\nuncertainty:\nWhether the recipe actually contains spinach cannot be verified from the visible page section.</TRAJECTA_DATA_e63181e6>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Locate a breakfast smoothie recipe on Allrecipes that contains spinach and bananas, has at least a four-star rating, and over 25 reviews.",
+          "url": "<TRAJECTA_DATA_e63181e6>https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach</TRAJECTA_DATA_e63181e6>",
+          "title": "<TRAJECTA_DATA_e63181e6>[breakfast smoothie with spinach] Results from Allrecipes</TRAJECTA_DATA_e63181e6>",
+          "action_label": "<TRAJECTA_DATA_e63181e6>send message to user: '[EXIT]'</TRAJECTA_DATA_e63181e6>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_e63181e6>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_e63181e6>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_e63181e6>send message to user: '[EXIT]'</TRAJECTA_DATA_e63181e6>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_e63181e6>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_e63181e6>"
+        },
+        "observation": {
+          "screenshot": "screenshot_007.png",
+          "url": "<TRAJECTA_DATA_e63181e6>https://www.allrecipes.com/search?q=breakfast+smoothie+with+spinach</TRAJECTA_DATA_e63181e6>",
+          "title": "<TRAJECTA_DATA_e63181e6>[breakfast smoothie with spinach] Results from Allrecipes</TRAJECTA_DATA_e63181e6>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1204,
+          "image_height": 752,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb/screenshots/screenshot_007.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches an Allrecipes recipe detail page for “Breakfast Banana Green Smoothie,” and the visible metadata shows 4.6 stars and 37 reviews, satisfying the rating and review-count constraints.",
+            "source": "step_detail_high",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7
+          },
+          {
+            "claim": "The recipe title includes “Banana,” so the banana requirement is visibly supported on the final page.",
+            "source": "step_detail_high",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7
+          },
+          {
+            "claim": "The spinach ingredient is not visible in the final screenshot, but the trajectory does not show any contradictory evidence or an incorrect target page; it ends on a plausible matching recipe page.",
+            "source": "step_detail_high",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7
+          },
+          {
+            "claim": "The agent ended the run after reaching the recipe detail page, so there is no concrete browser-agent failure visible in the evidence held here.",
+            "source": "trajectory",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7
+          }
+        ],
+        "retrieved_context_ids": [],
+        "suggested_followups": [
+          {
+            "label": "Check spinach ingredient",
+            "message": "Would you like me to inspect the ingredient list to verify that the recipe really contains spinach?"
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb_success",
+        "source_trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+        "task": "navigate: Locate a breakfast smoothie recipe on Allrecipes that contains spinach and bananas, has at least a four-star rating, and over 25 reviews.",
+        "failure_step": null,
+        "failure_type": null,
+        "expected_behavior": null,
+        "actual_behavior": null,
+        "evidence": [
+          {
+            "claim": "The trajectory reaches an Allrecipes recipe detail page for “Breakfast Banana Green Smoothie,” and the visible metadata shows 4.6 stars and 37 reviews, satisfying the rating and review-count constraints.",
+            "source": "step_detail_high",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The recipe title includes “Banana,” so the banana requirement is visibly supported on the final page.",
+            "source": "step_detail_high",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The spinach ingredient is not visible in the final screenshot, but the trajectory does not show any contradictory evidence or an incorrect target page; it ends on a plausible matching recipe page.",
+            "source": "step_detail_high",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The agent ended the run after reaching the recipe detail page, so there is no concrete browser-agent failure visible in the evidence held here.",
+            "source": "trajectory",
+            "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": null,
+        "retrieved_context_ids": [],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Check spinach ingredient",
+            "message": "Would you like me to inspect the ingredient list to verify that the recipe really contains spinach?"
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1395,
+  "vlm_output_tokens": 259,
+  "runtime_ms": 42470,
+  "input_tokens": 24009,
+  "output_tokens": 536,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 42470,
+      "input_tokens": 24009,
+      "output_tokens": 536
+    }
+  ]
+}

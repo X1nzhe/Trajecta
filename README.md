@@ -41,6 +41,31 @@ flowchart LR
   Eval --> Reports["reports and metrics"]
 ```
 
+### Eval Agent graph (LangGraph)
+
+Auto-generated from the compiled graph (`_compiled_graph(...).get_graph().draw_mermaid()` in `backend/app/eval_agent_graph.py`). Per-step preprocessing runs once, then the agent loops over tool calls until it emits `propose_eval_case` or hits the tool-call budget:
+
+```mermaid
+graph TD;
+	__start__([__start__]):::first
+	preprocess(preprocess)
+	agent(agent)
+	tool_call(tool_call)
+	execute_tool(execute_tool)
+	__end__([__end__]):::last
+	__start__ --> preprocess;
+	preprocess --> agent;
+	agent -.-> tool_call;
+	agent -.-> agent;
+	agent -.-> __end__;
+	tool_call --> execute_tool;
+	execute_tool -.-> tool_call;
+	execute_tool -.-> agent;
+	execute_tool -.-> __end__;
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+```
+
 Core contracts live in [docs/contracts.md](docs/contracts.md). Behavior docs live in [docs/preprocessing.md](docs/preprocessing.md), [docs/eval_agent.md](docs/eval_agent.md), [docs/rag.md](docs/rag.md), [docs/api.md](docs/api.md), and [docs/architecture.md](docs/architecture.md).
 
 Terminology note: `trajectory` is the canonical product term. Current public

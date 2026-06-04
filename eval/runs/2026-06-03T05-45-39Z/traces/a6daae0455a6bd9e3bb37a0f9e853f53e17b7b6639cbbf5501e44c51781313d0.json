@@ -1,0 +1,215 @@
+{
+  "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 0,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 1,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+        "task": "find: answer to 'What are the ingredients and a brief description of the preparation method?'",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.allrecipes.com/search?q=vegetarian+tacos&offset=96",
+              "title": "[vegetarian tacos] Results from Allrecipes",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 759,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1280,
+              "image_height": 759
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+          "task": "find: answer to 'What are the ingredients and a brief description of the preparation method?'",
+          "step_count": 1,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.allrecipes.com/search?q=vegetarian+tacos&offset=96",
+              "title": "[vegetarian tacos] Results from Allrecipes",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | recipe result grid with pagination, “Make-Ahead Burritos” and “15 Meatless Grilling Ideas” visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 1378,
+          "vlm_output_tokens": 42
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+        "evidence": [
+          {
+            "claim": "The trajectory consists of a single step that exits immediately from an Allrecipes search results page and never reaches any recipe detail page or answer content.",
+            "source": "trajectory",
+            "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+            "step_index": 1
+          },
+          {
+            "claim": "The only visible page state is search results for vegetarian tacos, with no ingredients list or preparation description shown.",
+            "source": "trajectory_digest",
+            "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+            "step_index": 1
+          },
+          {
+            "claim": "Because the task asked for ingredients and a brief preparation method, stopping on a results page without opening a recipe or extracting the answer leaves the task unsatisfied.",
+            "source": "unavailable",
+            "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+            "step_index": 1
+          }
+        ],
+        "retrieved_context_ids": [],
+        "failure_step": 1,
+        "failure_type": "early_terminated",
+        "expected_behavior": "Open a relevant vegetarian tacos recipe result and extract the ingredients plus a brief description of how it is prepared.",
+        "actual_behavior": "The agent exited immediately from the search results page without selecting a recipe or providing the requested answer.",
+        "regression_rule": "When a task asks for recipe ingredients and preparation details, the agent must not stop at the search results page; it should open a relevant recipe and read the ingredient list and method before exiting."
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0_step_1",
+        "source_trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+        "task": "find: answer to 'What are the ingredients and a brief description of the preparation method?'",
+        "failure_step": 1,
+        "failure_type": "early_terminated",
+        "expected_behavior": "Open a relevant vegetarian tacos recipe result and extract the ingredients plus a brief description of how it is prepared.",
+        "actual_behavior": "The agent exited immediately from the search results page without selecting a recipe or providing the requested answer.",
+        "evidence": [
+          {
+            "claim": "The trajectory consists of a single step that exits immediately from an Allrecipes search results page and never reaches any recipe detail page or answer content.",
+            "source": "trajectory",
+            "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+            "step_index": 1,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The only visible page state is search results for vegetarian tacos, with no ingredients list or preparation description shown.",
+            "source": "trajectory_digest",
+            "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+            "step_index": 1,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Because the task asked for ingredients and a brief preparation method, stopping on a results page without opening a recipe or extracting the answer leaves the task unsatisfied.",
+            "source": "unavailable",
+            "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+            "step_index": 1,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": "When a task asks for recipe ingredients and preparation details, the agent must not stop at the search results page; it should open a relevant recipe and read the ingredient list and method before exiting.",
+        "retrieved_context_ids": [],
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 0,
+  "vlm_output_tokens": 0,
+  "runtime_ms": 18241,
+  "input_tokens": 9493,
+  "output_tokens": 486,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 18241,
+      "input_tokens": 9493,
+      "output_tokens": 486
+    }
+  ]
+}

@@ -1,0 +1,1030 @@
+{
+  "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 1,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 15,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+        "task": "navigate: Search for a beach resort in Phuket with a guest rating above 8.5, available for a 6-night stay from May 5, 2026.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 218.25932504440496,
+                "y": 400.57826086956527
+              },
+              "bbox": {
+                "x": 68.20603907637656,
+                "y": 381.74086263905406,
+                "width": 368.9378538521314,
+                "height": 40.85217391304348
+              },
+              "raw": "mouse_click(x=218.25932504440496, y=400.57826086956527, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'phuket'",
+              "text": "phuket",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='phuket')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "keyboard_type",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on DIV element with value 'Phuket Town'",
+              "text": null,
+              "coordinates": {
+                "x": 182.79218819382768,
+                "y": 465.03393382196845
+              },
+              "bbox": {
+                "x": 77.30017761989342,
+                "y": 449.8278191607932,
+                "width": 425.1509769094138,
+                "height": 22.695652173913047
+              },
+              "raw": "mouse_click(x=182.79218819382768, y=465.03393382196845, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 1126.7637794182947,
+                "y": 531.3052312436312
+              },
+              "bbox": {
+                "x": 1126.7637794182947,
+                "y": 531.3052312436312,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=1126.7637794182947, y=531.3052312436312, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 1126.7637794182947,
+                "y": 531.3052312436312
+              },
+              "bbox": {
+                "x": 1126.7637794182947,
+                "y": 531.3052312436312,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=1126.7637794182947, y=531.3052312436312, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 1126.7637794182947,
+                "y": 531.3052312436312
+              },
+              "bbox": {
+                "x": 1126.7637794182947,
+                "y": 531.3052312436312,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=1126.7637794182947, y=531.3052312436312, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value '5'",
+              "text": null,
+              "coordinates": {
+                "x": 930.3304007548845,
+                "y": 673.8338991911515
+              },
+              "bbox": {
+                "x": 916.0355378552397,
+                "y": 651.5921877653703,
+                "width": 45.6269990910857,
+                "height": 49.9304347826087
+              },
+              "raw": "mouse_click(x=930.3304007548845, y=673.8338991911515, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 8,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_008.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value '11'",
+              "text": null,
+              "coordinates": {
+                "x": 897.5915158747779,
+                "y": 729.2113459048064
+              },
+              "bbox": {
+                "x": 870.4085257548845,
+                "y": 706.0617529827616,
+                "width": 45.6269990910857,
+                "height": 49.9304347826087
+              },
+              "raw": "mouse_click(x=897.5915158747779, y=729.2113459048064, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "8",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 9,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_009.png",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Search'",
+              "text": null,
+              "coordinates": {
+                "x": 1186.785079928952,
+                "y": 398.7626017694888
+              },
+              "bbox": {
+                "x": 1144.6963116119005,
+                "y": 386.27999307383664,
+                "width": 68.46181432476686,
+                "height": 31.773913043478263
+              },
+              "raw": "mouse_click(x=1186.785079928952, y=398.7626017694888, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "9",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 10,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_010.png",
+              "url": "https://www.booking.com/searchresults.html?ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&ac_meta=GhBiZDQwMzAyMWVmNDYwYWVkIAAoATICeHU6BnBodWtldA%3D%3D&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 301.3982607613439 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=301.3982607613439)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "10",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 11,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_011.png",
+              "url": "https://www.booking.com/searchresults.html?ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&ac_meta=GhBiZDQwMzAyMWVmNDYwYWVkIAAoATICeHU6BnBodWtldA%3D%3D&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 33.64831304465475,
+                "y": 606.654824165676
+              },
+              "bbox": {
+                "x": 33.64831304465475,
+                "y": 606.654824165676,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=33.64831304465475, y=606.654824165676, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "11",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 12,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_012.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 320.4626017694888 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=320.4626017694888)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "12",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 13,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_013.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 37.28596716113454,
+                "y": 539.4756452477498
+              },
+              "bbox": {
+                "x": 37.28596716113454,
+                "y": 539.4756452477498,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=37.28596716113454, y=539.4756452477498, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "13",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 14,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_014.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206%3Breview_score%3D90",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 31.829484902309055,
+                "y": 731.9347826086957
+              },
+              "bbox": {
+                "x": 31.829484902309055,
+                "y": 731.9347826086957,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=31.829484902309055, y=731.9347826086957, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "14",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          },
+          {
+            "index": 15,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_015.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206%3Breview_score%3D90",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 783,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "15",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1280,
+              "image_height": 783
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+          "task": "navigate: Search for a beach resort in Phuket with a guest rating above 8.5, available for a 6-night stay from May 5, 2026.",
+          "step_count": 15,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (218.259, 400.578)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Find deals for any season, hotel search fields and Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "type",
+              "action_text": "type 'phuket'",
+              "action_target": "type 'phuket'",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=top | Find deals for any season, Booking.com search bar with Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "click",
+              "action_text": "click at (182.792, 465.034)",
+              "action_target": "Click on DIV element with value 'Phuket Town'",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Booking.com homepage with search bar and destination autocomplete for Phuket, big “Find deals for any season” headline",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "click",
+              "action_text": "click at (1126.76, 531.305)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com homepage with large “Find deals for any season” headline and search bar open to calendar picker",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "click",
+              "action_text": "click at (1126.76, 531.305)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=yes; error_banner=no; focus=center | Booking.com homepage with large “Find deals for any season” headline and open date calendar picker",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "click",
+              "action_text": "click at (1126.76, 531.305)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com homepage with large “Find deals for any season” headline and search bar, calendar dropdown open",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "click",
+              "action_text": "click at (930.33, 673.834)",
+              "action_target": "Click on SPAN element with value '5'",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com homepage with search form and open date calendar, large “Find deals for any season” headline",
+              "has_screenshot": true
+            },
+            {
+              "index": 8,
+              "action_type": "click",
+              "action_text": "click at (897.592, 729.211)",
+              "action_target": "Click on SPAN element with value '11'",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=form; modal=yes; error_banner=no; focus=center | Booking.com search form with calendar date picker open, large “Find deals for any season” headline and Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 9,
+              "action_type": "click",
+              "action_text": "click at (1186.79, 398.763)",
+              "action_target": "Click on SPAN element with value 'Search'",
+              "url": "https://www.booking.com/?chal_t=1767595841409&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Find deals for any season, Search button, destination and dates fields visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 10,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 301.3982607613439 pixels",
+              "url": "https://www.booking.com/searchresults.html?ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&ac_meta=GhBiZDQwMzAyMWVmNDYwYWVkIAAoATICeHU6BnBodWtldA%3D%3D&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Phuket: 413 properties found, hotel listing with See availability button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 11,
+              "action_type": "click",
+              "action_text": "click at (33.6483, 606.655)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/searchresults.html?ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&ac_meta=GhBiZDQwMzAyMWVmNDYwYWVkIAAoATICeHU6BnBodWtldA%3D%3D&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with prominent “See availability” buttons and property cards",
+              "has_screenshot": true
+            },
+            {
+              "index": 12,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 320.4626017694888 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Phuket search results with 15 properties found and a prominent hotel listing card",
+              "has_screenshot": true
+            },
+            {
+              "index": 13,
+              "action_type": "click",
+              "action_text": "click at (37.286, 539.476)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel results list with resort cards and blue “See availability” buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 14,
+              "action_type": "click",
+              "action_text": "click at (31.8295, 731.935)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206%3Breview_score%3D90",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Phuket search results, 1 property found, See availability button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 15,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206%3Breview_score%3D90",
+              "title": "Booking.com: Hotels in Phuket. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Phuket: no properties found, search results with hotel listing and filters visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 21390,
+          "vlm_output_tokens": 521
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+        "step_index": 14,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+        "step_index": 14,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_dd68dfad>page_state:\nBooking.com search results page for Phuket, showing 1 property found with filters applied (Wonderful: 9+, Resorts). One visible result card: YUSU Hotel 羽宿酒店.\ntask_relevant_visible_text:\n“Phuket: 1 property found”; “Wonderful: 9+”; “Resorts”; “YUSU Hotel 羽宿酒店”; “Exceptional 9.6”; “6 nights, 2 adults”; “Tue, May 5 — Mon, May 11”; “Breakfast included”; “Beach Nearby”; “3,150 feet from beach”; “See availability”.\nselected_candidate:\nYUSU Hotel 羽宿酒店\nconstraint_evidence:\n- Phuket location: supported (“Phuket” in search bar and results header).\n- Beach resort: not_visible (result is tagged “Resorts” and “Beach Nearby,” but no explicit “beach resort” label).\n- Guest rating above 8.5: supported (“Exceptional 9.6”).\n- Available for 6-night stay: supported (“6 nights, 2 adults” and dates May 5–May 11).\n- From May 5, 2026: supported (search dates show Tue, May 5 — Mon, May 11; URL checkin=2026-05-05).\n- Resort category: supported/partially supported (“Resorts” filter visible; individual property category not explicit).\n- Availability: supported (“See availability” button; page says 1 property found).\n- Price visible: supported ($1,034 total; per night $172).\n- Beach proximity: supported (“3,150 feet from beach”, “Beach Nearby”).\naction_target:\nThe clicked SVG appears to be the left-side filter/expand icon near the lower-left area of the page, likely within the filter sidebar.\nsuccess_signals:\nFilter/sidebar expands or changes; page updates without navigation away; results ref</TRAJECTA_DATA_dd68dfad>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Search for a beach resort in Phuket with a guest rating above 8.5, available for a 6-night stay from May 5, 2026.",
+          "url": "<TRAJECTA_DATA_dd68dfad>https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206%3Breview_score%3D90</TRAJECTA_DATA_dd68dfad>",
+          "title": "<TRAJECTA_DATA_dd68dfad>Booking.com: Hotels in Phuket. Book your hotel now!</TRAJECTA_DATA_dd68dfad>",
+          "action_label": "<TRAJECTA_DATA_dd68dfad>Click on svg element</TRAJECTA_DATA_dd68dfad>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_dd68dfad>mouse_click(x=31.829484902309055, y=731.9347826086957, button='left')</TRAJECTA_DATA_dd68dfad>"
+        },
+        "action": {
+          "type": "click",
+          "label": "<TRAJECTA_DATA_dd68dfad>Click on svg element</TRAJECTA_DATA_dd68dfad>",
+          "text": null,
+          "coordinates": {
+            "x": 31.829484902309055,
+            "y": 731.9347826086957
+          },
+          "bbox": {
+            "x": 31.829484902309055,
+            "y": 731.9347826086957,
+            "width": 0.0,
+            "height": 0.0
+          },
+          "raw": "<TRAJECTA_DATA_dd68dfad>mouse_click(x=31.829484902309055, y=731.9347826086957, button='left')</TRAJECTA_DATA_dd68dfad>"
+        },
+        "observation": {
+          "screenshot": "screenshot_014.png",
+          "url": "<TRAJECTA_DATA_dd68dfad>https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALDvu3KBsACAdICJDY5OWUzZmViLTgwYTItNDliMy05YmI0LTE4NzhiYmI0YmI1NdgCAeACAQ&aid=304142&ss=Phuket+Town%2C+Phuket+Province%2C+Thailand&efdco=1&lang=en-us&src=index&dest_id=-3253342&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=xu&ac_suggestion_list_length=4&search_selected=true&search_pageview_id=bd403021ef460aed&checkin=2026-05-05&checkout=2026-05-11&group_adults=2&no_rooms=1&group_children=0&nflt=ht_id%3D206%3Breview_score%3D90</TRAJECTA_DATA_dd68dfad>",
+          "title": "<TRAJECTA_DATA_dd68dfad>Booking.com: Hotels in Phuket. Book your hotel now!</TRAJECTA_DATA_dd68dfad>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "validated",
+          "image_width": 1280,
+          "image_height": 783,
+          "reason": null
+        },
+        "screenshot_url": "/api/trajectories/b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158/screenshots/screenshot_014.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches a Booking.com results page with the required Phuket search and a visible candidate matching the stay dates and rating constraint: the high-detail step 14 summary shows 'Phuket: 1 property found', 'Exceptional 9.6', and '6 nights, 2 adults' with dates 'Tue, May 5 — Mon, May 11'.",
+            "source": "step_detail_high",
+            "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+            "step_index": 14
+          },
+          {
+            "claim": "The same high-detail inspection shows beach proximity/relevance on the visible candidate via 'Beach Nearby' and '3,150 feet from beach', which is sufficient evidence that the agent found a beach-oriented resort result in Phuket rather than stopping on an unrelated page.",
+            "source": "step_detail_high",
+            "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+            "step_index": 14
+          },
+          {
+            "claim": "The final step is an extra click on a left-side icon while already on a qualified results page; it does not contradict task satisfaction or show a failed state.",
+            "source": "trajectory",
+            "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+            "step_index": 14
+          }
+        ],
+        "retrieved_context_ids": []
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158_success",
+        "source_trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+        "task": "navigate: Search for a beach resort in Phuket with a guest rating above 8.5, available for a 6-night stay from May 5, 2026.",
+        "failure_step": null,
+        "failure_type": null,
+        "expected_behavior": null,
+        "actual_behavior": null,
+        "evidence": [
+          {
+            "claim": "The trajectory reaches a Booking.com results page with the required Phuket search and a visible candidate matching the stay dates and rating constraint: the high-detail step 14 summary shows 'Phuket: 1 property found', 'Exceptional 9.6', and '6 nights, 2 adults' with dates 'Tue, May 5 — Mon, May 11'.",
+            "source": "step_detail_high",
+            "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+            "step_index": 14,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The same high-detail inspection shows beach proximity/relevance on the visible candidate via 'Beach Nearby' and '3,150 feet from beach', which is sufficient evidence that the agent found a beach-oriented resort result in Phuket rather than stopping on an unrelated page.",
+            "source": "step_detail_high",
+            "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+            "step_index": 14,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The final step is an extra click on a left-side icon while already on a qualified results page; it does not contradict task satisfaction or show a failed state.",
+            "source": "trajectory",
+            "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+            "step_index": 14,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": null,
+        "retrieved_context_ids": [],
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1713,
+  "vlm_output_tokens": 482,
+  "runtime_ms": 81005,
+  "input_tokens": 47477,
+  "output_tokens": 510,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 81005,
+      "input_tokens": 47477,
+      "output_tokens": 510
+    }
+  ]
+}

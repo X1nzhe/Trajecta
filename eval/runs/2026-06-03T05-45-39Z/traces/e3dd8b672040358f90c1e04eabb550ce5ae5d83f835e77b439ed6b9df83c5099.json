@@ -1,0 +1,1472 @@
+{
+  "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 1,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 26,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+        "task": "navigate: Check the pricing and availability of the latest model of Apple AirTag, including bulk purchase options on Apple's website.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 174.63080682498025 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=174.63080682498025)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 350.66992127807913 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=350.66992127807913)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.65038823731663 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.65038823731663)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.65038823731663 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.65038823731663)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.65038823731663 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.65038823731663)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 350.6699481395171 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=350.6699481395171)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 526.7090679439181 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=526.7090679439181)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 8,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_008.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.6502807915648 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.6502807915648)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "8",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 9,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_009.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 614.7285204003667 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=614.7285204003667)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "9",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 10,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_010.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 258.4255138294621 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=258.4255138294621)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "10",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 11,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_011.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 350.66984069376525 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=350.66984069376525)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "11",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 12,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_012.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by 295.7459361628973 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-295.7459361628973)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "12",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 13,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_013.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.6700555852689 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.6700555852689)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "13",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 14,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_014.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -438.68961548746944 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-438.68961548746944)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "14",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 15,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_015.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -262.65049568306847 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-262.65049568306847)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "15",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 16,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_016.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.6700555852689 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.6700555852689)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "16",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 17,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_017.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.6699481395171 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.6699481395171)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "17",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 18,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_018.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.6699481395171 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.6699481395171)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "18",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 19,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_019.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -262.65038823731663 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-262.65038823731663)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "19",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 20,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_020.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -438.6895080417176 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-438.6895080417176)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "20",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 21,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_021.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -438.68948118027964 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-438.68948118027964)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "21",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 22,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_022.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by 140.12713804221676 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-140.12713804221676)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "22",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 23,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_023.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on A element with value 'Learn more'",
+              "text": null,
+              "coordinates": {
+                "x": 311.77169274384124,
+                "y": 205.08557457212711
+              },
+              "bbox": {
+                "x": 239.66789504716982,
+                "y": 183.08068459657702,
+                "width": 114.63811910377359,
+                "height": 38.37653013196726
+              },
+              "raw": "mouse_click(x=311.77169274384124, y=205.08557457212711, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "23",
+              "source_action_name": "click",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 24,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_024.png",
+              "url": "https://www.apple.com/iphone/",
+              "title": "iPhone - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 350.6699266293812 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=350.6699266293812)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "24",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 25,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_025.png",
+              "url": "https://www.apple.com/iphone/",
+              "title": "iPhone - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 174.63080147367816 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=174.63080147367816)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "25",
+              "source_action_name": "scroll",
+              "image_width": 746,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 26,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_026.png",
+              "url": "https://www.apple.com/iphone/",
+              "title": "iPhone - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 746,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "26",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 746,
+              "image_height": 720
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+          "task": "navigate: Check the pricing and availability of the latest model of Apple AirTag, including bulk purchase options on Apple's website.",
+          "step_count": 26,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 174.63080682498025 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | iPhone hero headline, Learn more and Shop iPhone buttons, large phone images",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 350.66992127807913 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | iPad air, Now supercharged by the M3 chip, Learn more and Buy buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.65038823731663 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | iPad Air hero with “Now supercharged by the M3 chip” and Learn more, Buy buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.65038823731663 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | MacBook Pro 14\" with Learn more and Buy buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.65038823731663 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | MacBook Pro 14\" with Learn more and Buy buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 350.6699481395171 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple homepage with MacBook hero and Watch Series 11 promo tiles, Learn more/Buy buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 526.7090679439181 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple product promo grid with Watch Series 11, Black Unity band, iPad Pro, AirPods Pro 3",
+              "has_screenshot": true
+            },
+            {
+              "index": 8,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.6502807915648 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple homepage promo tiles with iPad Pro and AirPods Pro 3 hero cards",
+              "has_screenshot": true
+            },
+            {
+              "index": 9,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 614.7285204003667 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Apple homepage tiles for Trade In and Card, “Endless entertainment.” visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 10,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 258.4255138294621 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple homepage with “Endless entertainment.” hero and large “Stream now” button",
+              "has_screenshot": true
+            },
+            {
+              "index": 11,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 350.66984069376525 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple homepage with large hero banner and app promo cards like Stream now, Play now, Watch now",
+              "has_screenshot": true
+            },
+            {
+              "index": 12,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by 295.7459361628973 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=bottom | Apple footer links and trade-in fine print visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 13,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.6700555852689 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple services promo carousel with Stream now and cards like SpongeBob, HIIT with Anja, Sabrina Carpenter",
+              "has_screenshot": true
+            },
+            {
+              "index": 14,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -438.68961548746944 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple TV+ hero banner, “Endless entertainment.” and “Stream now” button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 15,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -262.65049568306847 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple Trade In and Apple Card promo tiles, Endless entertainment headline visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 16,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.6700555852689 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple homepage promo tiles with AirPods, Trade In, and Card offers visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 17,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.6699481395171 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple product showcase grid with iPad Pro and AirPods Pro 3, Learn more and Buy buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 18,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.6699481395171 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple product promo tiles with Watch Series 11, Black Unity band, iPad Pro, AirPods Pro 3",
+              "has_screenshot": true
+            },
+            {
+              "index": 19,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -262.65038823731663 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Apple homepage hero with Learn more and Buy buttons, MacBook image, Watch Series 11 promo tiles",
+              "has_screenshot": true
+            },
+            {
+              "index": 20,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -438.6895080417176 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | MacBook Pro 14\" Supercharged by M5, Learn more and Buy buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 21,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -438.68948118027964 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | iPad Air hero with Learn more and Buy buttons, MacBook Pro 14\" section below",
+              "has_screenshot": true
+            },
+            {
+              "index": 22,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by 140.12713804221676 pixels",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | iPad air, Now supercharged by the M3 chip, Learn more and Buy buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 23,
+              "action_type": "click",
+              "action_text": "click at (311.772, 205.086)",
+              "action_target": "Click on A element with value 'Learn more'",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | iPhone hero headline, Learn more and Shop iPhone buttons, large phone images",
+              "has_screenshot": true
+            },
+            {
+              "index": 24,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 350.6699266293812 pixels",
+              "url": "https://www.apple.com/iphone/",
+              "title": "iPhone - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=top | iPhone page, Explore the lineup, Compare all models link visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 25,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 174.63080147367816 pixels",
+              "url": "https://www.apple.com/iphone/",
+              "title": "iPhone - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Explore the lineup, iPhone 17 Pro and iPhone Air product cards visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 26,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.apple.com/iphone/",
+              "title": "iPhone - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | iPhone 17 Pro and iPhone Air product cards with Learn more buttons",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 23088,
+          "vlm_output_tokens": 918
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+        "step_index": 23,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+        "step_index": 23,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_3e60f545>page_state:\nApple homepage, scrolled to the iPhone hero section; no AirTag pricing/availability content visible.\ntask_relevant_visible_text:\nApple; Store; Mac; iPad; iPhone; Watch; Vision; AirPods; TV & Home; Entertainment; Accessories; Support; iPhone; Say hello to the latest generation of iPhone.; Learn more; Shop iPhone; iPad air\nselected_candidate:\nThe visible “Learn more” button in the iPhone hero section.\nconstraint_evidence:\n- Latest model of Apple AirTag: not_visible\n- Pricing: not_visible\n- Availability: not_visible\n- Bulk purchase options: not_visible\n- On Apple’s website: supported (URL/title and Apple homepage visible)\n- Need product/detail page for AirTag: not_visible\naction_target:\nClick the “Learn more” link/button for the iPhone hero, not AirTag-related.\nsuccess_signals:\nA click opens an iPhone product/marketing page or navigates away from the homepage.\nfailure_signals:\nStill on homepage after click; navigation goes to iPhone content instead of AirTag; no pricing/availability/bulk info appears.\nuncertainty:\nThe clicked element may be a generic homepage promo link; exact destination is not visible from the screenshot alone.</TRAJECTA_DATA_3e60f545>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Check the pricing and availability of the latest model of Apple AirTag, including bulk purchase options on Apple's website.",
+          "url": "<TRAJECTA_DATA_3e60f545>https://www.apple.com/</TRAJECTA_DATA_3e60f545>",
+          "title": "<TRAJECTA_DATA_3e60f545>Apple</TRAJECTA_DATA_3e60f545>",
+          "action_label": "<TRAJECTA_DATA_3e60f545>Click on A element with value 'Learn more'</TRAJECTA_DATA_3e60f545>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_3e60f545>mouse_click(x=311.77169274384124, y=205.08557457212711, button='left')</TRAJECTA_DATA_3e60f545>"
+        },
+        "action": {
+          "type": "click",
+          "label": "<TRAJECTA_DATA_3e60f545>Click on A element with value 'Learn more'</TRAJECTA_DATA_3e60f545>",
+          "text": null,
+          "coordinates": {
+            "x": 311.77169274384124,
+            "y": 205.08557457212711
+          },
+          "bbox": {
+            "x": 239.66789504716982,
+            "y": 183.08068459657702,
+            "width": 114.63811910377359,
+            "height": 38.37653013196726
+          },
+          "raw": "<TRAJECTA_DATA_3e60f545>mouse_click(x=311.77169274384124, y=205.08557457212711, button='left')</TRAJECTA_DATA_3e60f545>"
+        },
+        "observation": {
+          "screenshot": "screenshot_023.png",
+          "url": "<TRAJECTA_DATA_3e60f545>https://www.apple.com/</TRAJECTA_DATA_3e60f545>",
+          "title": "<TRAJECTA_DATA_3e60f545>Apple</TRAJECTA_DATA_3e60f545>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "validated",
+          "image_width": 746,
+          "image_height": 720,
+          "reason": null
+        },
+        "screenshot_url": "/api/trajectories/e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099/screenshots/screenshot_023.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+        "evidence": [
+          {
+            "claim": "The agent ended on Apple's iPhone page after clicking a homepage 'Learn more' link, not on any AirTag pricing/availability page.",
+            "source": "step_detail_high",
+            "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+            "step_index": 23
+          },
+          {
+            "claim": "The high-detail inspection explicitly marks AirTag pricing, availability, and bulk purchase options as not visible, and identifies the clicked candidate as an iPhone hero link rather than AirTag-related.",
+            "source": "step_detail_high",
+            "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+            "step_index": 23
+          },
+          {
+            "claim": "The trajectory's final screenshots remain on https://www.apple.com/iphone/ with iPhone product cards visible, and there is no visible AirTag product page or bulk purchase information before exit.",
+            "source": "trajectory_digest",
+            "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+            "step_index": 26
+          }
+        ],
+        "retrieved_context_ids": [],
+        "failure_step": 23,
+        "failure_type": "wrong_target",
+        "expected_behavior": "Navigate to Apple's AirTag product information page, then check and report the latest model's pricing, availability, and any bulk purchase options on Apple's website.",
+        "actual_behavior": "The agent clicked an iPhone 'Learn more' link from the Apple homepage and ended on the iPhone page without obtaining any AirTag pricing, availability, or bulk purchase details.",
+        "regression_rule": "When the task asks for a specific Apple product and its purchase details, verify the destination is the target product page before following a homepage promo link; do not treat a generic 'Learn more' link as satisfying a product-specific search."
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099_step_23",
+        "source_trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+        "task": "navigate: Check the pricing and availability of the latest model of Apple AirTag, including bulk purchase options on Apple's website.",
+        "failure_step": 23,
+        "failure_type": "wrong_target",
+        "expected_behavior": "Navigate to Apple's AirTag product information page, then check and report the latest model's pricing, availability, and any bulk purchase options on Apple's website.",
+        "actual_behavior": "The agent clicked an iPhone 'Learn more' link from the Apple homepage and ended on the iPhone page without obtaining any AirTag pricing, availability, or bulk purchase details.",
+        "evidence": [
+          {
+            "claim": "The agent ended on Apple's iPhone page after clicking a homepage 'Learn more' link, not on any AirTag pricing/availability page.",
+            "source": "step_detail_high",
+            "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+            "step_index": 23,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The high-detail inspection explicitly marks AirTag pricing, availability, and bulk purchase options as not visible, and identifies the clicked candidate as an iPhone hero link rather than AirTag-related.",
+            "source": "step_detail_high",
+            "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+            "step_index": 23,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The trajectory's final screenshots remain on https://www.apple.com/iphone/ with iPhone product cards visible, and there is no visible AirTag product page or bulk purchase information before exit.",
+            "source": "trajectory_digest",
+            "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+            "step_index": 26,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": "When the task asks for a specific Apple product and its purchase details, verify the destination is the target product page before following a homepage promo link; do not treat a generic 'Learn more' link as satisfying a product-specific search.",
+        "retrieved_context_ids": [],
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 952,
+  "vlm_output_tokens": 264,
+  "runtime_ms": 16131,
+  "input_tokens": 48745,
+  "output_tokens": 591,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 16131,
+      "input_tokens": 48745,
+      "output_tokens": 591
+    }
+  ]
+}

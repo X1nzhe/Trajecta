@@ -1,0 +1,1161 @@
+{
+  "judge": {
+    "slot": "A",
+    "model": "gemini-3.1-flash-lite",
+    "prompt_version": "v1_acceptability_gemini",
+    "prompt_sha256": "61e080fe0e32d5c8000d0678481c6a84ed3450c9d086dac7a24b7c2d971b93cb"
+  },
+  "sample_size": 31,
+  "acceptable_count": 20,
+  "unacceptable_count": 11,
+  "acceptable_rate": 0.6451612903225806,
+  "cases": [
+    {
+      "trajectory_id": "87ea181fa8c78cf62748a3490a845f4740dd4d5824cda20316ec05022998059e",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides evidence supporting the agent's navigation and date selection. It adheres to the required structure for a success-shape claim.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly aligns with the success outcome of the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path in future regression checks."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claims made about the trajectory state."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "8dbb24c167b85f126c58dd983d130fa759dd267d562813b74a6d89ab959c1e71",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion. It adheres to the required structure for a success-shape regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The draft correctly omits failure-specific fields and provides clear evidence for the success path."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any failure-related conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence from the trajectory digest and high-detail steps supports the success claim."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "973265788f73a2309245782ee9e5580dbcb1797dbabd1a3fc06ef8575b7db652",
+      "verdict": "unacceptable",
+      "rationale": "The draft uses 'missed_constraint' as the failure type, which is explicitly forbidden by the golden reference's forbidden_facts list.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The failure type 'missed_constraint' is explicitly listed in the forbidden_facts."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 17 is within the expected range of 15-19."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior descriptions and regression rule are clear and actionable."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft uses a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided supports the claim that the agent failed to verify the shortest layover."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "e5677cbb1e5eea79188ff5193aa5d8a3dd55b3ef5896729fdc85a8d98b6b34f3",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion. It adheres to the required structure for a success-shape claim.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path in future regression checks."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claim of a successful product selection."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion. It adheres to the required structure for a success-shape claim.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly aligns with the success outcome of the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path in future regression checks."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claims made about the trajectory's success."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "3672b077c54192ee2e018d1910a8c06b38e779e80e27ea7f169d586b6e52ee01",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path in future regression checks."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claim of a successful product search and selection."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the failure as a wrong_target error and provides clear evidence and regression rules to support this classification.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure_type 'wrong_target' is explicitly included in the golden reference's allowed set."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 23 is logically consistent with the evidence provided, even if slightly outside the golden range, as it captures the moment the agent committed to the wrong path."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The provided expected behavior and regression rule are actionable and specific enough to prevent future regressions."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claim that the agent navigated to the wrong product page."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+      "verdict": "unacceptable",
+      "rationale": "The draft claims a failure, but the golden reference expects a success outcome, creating a verdict alignment mismatch. The eval case must be reframed to reflect the success criteria defined in the golden reference.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft defines a failure outcome, while the golden reference expects a success outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type is consistent with the described behavior."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step is correctly identified within the trajectory."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The failure fields are well-defined for a regression case."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts a failure, which is explicitly forbidden by the golden reference's forbidden_facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the described behavior."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "865eb899d535f41df5bf4b17d84eaf0ab7adea06704ad24a5fea56598831e7fa",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion. It adheres to the required structure for a success-shape regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claim that the agent successfully reached the target page and content."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "19bacddefba25e3f6e6a63dda5c1862beeef09062e8c008f51a002aa19e2cbc3",
+      "verdict": "unacceptable",
+      "rationale": "The draft claims success, but the golden reference requires a failure outcome due to early termination. The draft fails to identify the agent's failure to actually extract the requested information before exiting.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft asserts success while the golden reference requires a failure outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The draft does not acknowledge the early_terminated failure mode."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "fail",
+          "rationale": "The draft does not identify a failure step."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The draft lacks the required failure fields (expected_behavior, actual_behavior, regression_rule) for a failure-shape case."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts success, which is explicitly forbidden by the golden reference."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided is accurate to the trajectory, even if the interpretation of success is incorrect."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides evidence supporting the agent's navigation to the target recipe page.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any failure-related conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The claims are directly supported by the provided evidence sources."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion. It adheres to the required structure for a success-shape claim.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly aligns with the success outcome of the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence from the trajectory and high-detail VLM analysis supports the success claim."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the failure as an early termination and provides clear, actionable regression criteria.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type 'early_terminated' matches the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 1 is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The provided behavior descriptions and regression rule are sufficient to identify this failure in future runs."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided supports the claim of early termination."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+      "verdict": "unacceptable",
+      "rationale": "The draft identifies the failure as 'missed_constraint', but the golden reference explicitly forbids this failure type and requires 'early_terminated'. The failure step and evidence are correct, but the classification is misaligned with the golden reference.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The draft uses 'missed_constraint', which is explicitly listed in the forbidden_facts of the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 5 is within the expected range of 3-7."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The fields provided are descriptive and would be useful for regression testing if the failure type were corrected."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts 'missed_constraint', which is a forbidden fact."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided supports the description of the agent's behavior."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "32e7dbe84bcaf8206d7d28a43e9c7b26e3553c33e509c30618bddb34fe8aaef4",
+      "verdict": "unacceptable",
+      "rationale": "The draft claims a failure, but the golden reference expects a success outcome, creating a direct conflict in verdict alignment. The draft fails to adhere to the golden reference's required outcome.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft asserts a failure, while the golden reference expects a success."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type is consistent with the described behavior."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step is correctly localized to the end of the trajectory."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The failure fields are well-defined and useful for regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts a failure, which is explicitly forbidden by the golden reference's forbidden_facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided supports the claims made in the draft."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "963540ac95f6f5c7342cd6656329a56ee530dc17f3e6d05191643c554fac51df",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success-shape case and provides evidence that supports this conclusion while acknowledging the limitation regarding the creation date constraint.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly aligns with the success outcome of the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape case."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape case."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence and claims provide a clear path for confirming the success of the task."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence accurately reflects the state of the trajectory and correctly identifies the missing information."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "7cb4d4b1a9b88683ffbd82c7320a64f1a74928a0d41e9cfb2f7c52b4bc4346ab",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path in future regressions."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claim of a successful answer extraction."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly aligns with the success outcome of the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path for future regression checks."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claims made about the trajectory's state."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "369cde93212c31a57d18b8bc1aa61bf5d57d68bcb38d4918b4c9fc301da28a63",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the trajectory as a success and provides sufficient evidence to support this conclusion without forbidden claims.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path in future regression runs."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any failure-related conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence clearly supports the claim of a successful search result page."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+      "verdict": "unacceptable",
+      "rationale": "The proposed eval case is missing the required failure fields (outcome, failure_type, failure_step, etc.) to match the golden reference's failure-shape requirement. It treats the trajectory as a success-path analysis rather than the required early-termination failure case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft lacks the required failure-shape fields to match the golden outcome of 'failed'."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "No failure type was provided in the draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "fail",
+          "rationale": "No failure step was provided in the draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The draft fails to provide the necessary failure-shape fields (expected_behavior, actual_behavior, regression_rule) required for a failure-type regression case."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not explicitly assert a success outcome."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence accurately reflects the provided trajectory details."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+      "verdict": "unacceptable",
+      "rationale": "The draft uses 'early_terminated' as the failure type, which is explicitly forbidden by the golden reference's forbidden_facts list. The failure type should have been 'wrong_result' to align with the golden reference requirements.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the trajectory as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The failure type 'early_terminated' is explicitly listed in the golden reference's forbidden_facts."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 7 is within the expected range of 5-9."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The fields provided are descriptive and would be useful for regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts 'early_terminated', which is a forbidden fact."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the description of the agent's actions."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the failure type and provides clear, actionable regression rules. The failure step is accurately localized to the final step where the agent terminated on the wrong page.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type 'wrong_target' is explicitly included in the golden reference's allowed set."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step is clearly identified based on the provided evidence."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The expected behavior and regression rule provide clear criteria for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claim that the agent ended on the wrong page."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+      "verdict": "acceptable",
+      "rationale": "The eval case accurately captures the failure mode, aligns with the golden reference, and provides clear regression rules.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type 'wrong_result' is explicitly permitted by the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 7 is within the expected range of 5-9."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The provided fields clearly define the failure and the expected behavior for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claims made regarding the hotel rating, dates, and amenities."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "0f1fafb32cb6b85f8a7e950af36286012292780d409caebd76d015af272d099c",
+      "verdict": "unacceptable",
+      "rationale": "The proposed eval case describes a failure (missing verification of the target paper) but is structured as a success-shape claim, creating a contradiction with the golden reference's success outcome. The evidence provided explicitly argues that the task requirements were not fully satisfied, which conflicts with the required success verdict.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft describes a failure to verify the target paper, which contradicts the golden reference's success outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as the draft is structured as a success-shape claim."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Success-shape claims pass this assertion by default."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The draft fails to provide a clear success path, instead highlighting missing evidence that undermines the success claim."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft's evidence claims the task requirement was not satisfied, which is a forbidden failure claim."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided is consistent with the trajectory's state."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+      "verdict": "acceptable",
+      "rationale": "The eval case draft correctly identifies the failure type and step, and provides a clear regression rule based on the provided evidence.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure with the expected failure type."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type 'wrong_result' is explicitly allowed by the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 4 is within the allowed range of 2 to 6."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The provided fields clearly define the failure and the necessary corrective behavior for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided directly supports the claims made in the draft."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+      "verdict": "acceptable",
+      "rationale": "The eval case accurately identifies the failure, provides clear evidence, and aligns with the golden reference requirements.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type 'wrong_result' is explicitly permitted by the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 13 is within the expected range of 11-15."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The expected behavior, actual behavior, and regression rule provide a clear path for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claims made regarding the price constraint violation."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "2d0807be8dc5f2d1219d6c2b7b2f17d00a12178f0f25a1e0f0c0d11e12f1b95b",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the successful outcome and provides sufficient evidence to support the claim that the arXiv search was performed accurately.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a success, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Not applicable as this is a success-shape draft."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The evidence provided is sufficient to confirm the success path in future regression runs."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden failure conditions."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claims made about the search results and date filtering."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "98872d07da3c778a6c97369b1ac1b7e77e37e6829554add5841dd587705ad59e",
+      "verdict": "unacceptable",
+      "rationale": "The draft asserts a failure, but the golden reference requires a success outcome, creating a direct conflict with the forbidden facts.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft defines a failure, while the golden reference expects a success outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type is consistent with the provided evidence."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step is correctly identified based on the trajectory evidence."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The fields provided are sufficient to define a regression case for this failure mode."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts a failure, which is explicitly forbidden by the golden reference."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the claims made in the draft."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "071b66b4835f126f6c205fa349323688f6652d66b103c66cf1606f5abe36ba28",
+      "verdict": "unacceptable",
+      "rationale": "The proposed eval case is missing the required failure fields (failure_type, failure_step, expected_behavior, actual_behavior, regression_rule) despite the golden reference indicating a failure outcome.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft lacks a failure verdict, contradicting the golden reference's requirement for a failure outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The failure_type field is null, failing to categorize the failure as required."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "fail",
+          "rationale": "The failure_step field is null, failing to localize the failure within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The draft is missing the required failure-shape fields (expected_behavior, actual_behavior, regression_rule) needed to catch this regression."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert a success outcome."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The provided evidence supports the claim that the task was not completed."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+      "verdict": "acceptable",
+      "rationale": "The eval case correctly identifies the failure as a missed constraint and provides a clear regression rule based on the evidence.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type 'missed_constraint' is explicitly allowed by the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 4 is within the expected range of 1-5."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The expected behavior and regression rule provide actionable guidance for future regression testing."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the claims made in the eval case."
+        }
+      ]
+    },
+    {
+      "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+      "verdict": "unacceptable",
+      "rationale": "The draft uses a failure type ('missed_constraint') that is explicitly listed in the golden reference's 'forbidden_facts'. The failure type must be aligned with the golden reference's allowed set ('inefficient_search').",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly identifies the outcome as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The failure type 'missed_constraint' is explicitly forbidden by the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 4 is within the allowed range of 3-7."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The fields provided are sufficient to define a regression test for the observed behavior."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft uses a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence provided supports the description of the agent's failure."
+        }
+      ]
+    }
+  ]
+}

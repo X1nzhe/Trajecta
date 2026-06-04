@@ -1,0 +1,720 @@
+{
+  "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 2,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 7,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+        "task": "navigate: Find the most recent publication under the 'Probabilistic Models' category on ArXiv.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 639.3371757925072,
+                "y": 29.093026449513992
+              },
+              "bbox": {
+                "x": 639.3371757925072,
+                "y": 29.093026449513992,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=639.3371757925072, y=29.093026449513992, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 725,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 725,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 529.0201665345118,
+                "y": 94.39535362775936
+              },
+              "bbox": {
+                "x": 16.714697406340058,
+                "y": 75.34883720930233,
+                "width": 623.7455098704577,
+                "height": 38.93023335656455
+              },
+              "raw": "mouse_click(x=529.0201665345118, y=94.39535362775936, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 725,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "click",
+              "image_width": 725,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'Probabilistic models'",
+              "text": "Probabilistic models",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='Probabilistic models')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 725,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_type",
+              "image_width": 725,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "press Enter key",
+              "text": "Enter",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_press(key='Enter')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 725,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "keyboard_press",
+              "image_width": 725,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "title": "Search | arXiv e-print repository",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "go to https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "goto(url='https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 725,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "goto",
+              "image_width": 725,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "title": "Search | arXiv e-print repository",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 238.6046511627907 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=238.6046511627907)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 725,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "scroll",
+              "image_width": 725,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "title": "Search | arXiv e-print repository",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 725,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 725,
+              "image_height": 720
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+          "task": "navigate: Find the most recent publication under the 'Probabilistic Models' category on ArXiv.",
+          "step_count": 7,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (639.337, 29.093)",
+              "action_target": "Click on svg element",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Physics subject search and browse with category list visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "click",
+              "action_text": "click at (529.02, 94.3954)",
+              "action_target": "Click on INPUT element",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Cornell University arXiv subject search and browse, Physics category list visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "type",
+              "action_text": "type 'Probabilistic models'",
+              "action_target": "type 'Probabilistic models'",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Cornell University arXiv subject search and browse, Physics category list visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "unknown",
+              "action_text": "press Enter key",
+              "action_target": "press Enter key",
+              "url": "https://arxiv.org/",
+              "title": "arXiv.org e-Print archive",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | search box with “Probabilistic models” and Physics category list visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "type",
+              "action_text": "type",
+              "action_target": "go to https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "url": "https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "title": "Search | arXiv e-print repository",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Cornell University arXiv subject search page with query “Probabilistic models” in search box",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 238.6046511627907 pixels",
+              "url": "https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "title": "Search | arXiv e-print repository",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | arXiv results page showing 1–50 of 19,188 results for Probabilistic models",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all",
+              "title": "Search | arXiv e-print repository",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | search results for “Probabilistic models” with 19,188 results shown",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 6020,
+          "vlm_output_tokens": 247
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+        "step_index": 6,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+        "step_index": 6,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_8d393905>page_state:\nSearch results page on arXiv for “Probabilistic models,” showing results 1–50 of 19,188. Sort is set to “Announcement date (newest first).” Pagination shows page 1 selected.\ntask_relevant_visible_text:\n“Showing 1–50 of 19,188 results for all: Probabilistic models”\n“Probabilistic models”\n“All fields”\n“Search”\n“Show abstracts / Hide abstracts”\n“Sort results by Announcement date (newest first)”\n“Next”\n“1 2 3 4 5”\nselected_candidate:\nNo specific paper candidate visible yet; top of results list is not shown in this screenshot.\nconstraint_evidence:\n- Find a publication on arXiv: supported (arXiv search results page visible).\n- Most recent publication: supported (sort dropdown set to “Announcement date (newest first)”).\n- Under the “Probabilistic Models” category: not_visible/ambiguous (query text matches, but no explicit category filter shown).\n- Need a publication result, not just search controls: not_visible (no paper entries visible in current viewport).\naction_target:\nScroll further down to reveal the actual result entries, starting from the top of page 1.\nsuccess_signals:\nA paper title/entry appears in the results list, ideally the first result under newest-first sorting.\nfailure_signals:\nStill only search controls/pagination visible; no paper entries or publication dates visible.\nuncertainty:\nThe query is “Probabilistic models,” but the task says category; it’s unclear whether the intended filter is a category or just the search query.</TRAJECTA_DATA_8d393905>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Find the most recent publication under the 'Probabilistic Models' category on ArXiv.",
+          "url": "<TRAJECTA_DATA_8d393905>https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all</TRAJECTA_DATA_8d393905>",
+          "title": "<TRAJECTA_DATA_8d393905>Search | arXiv e-print repository</TRAJECTA_DATA_8d393905>",
+          "action_label": "<TRAJECTA_DATA_8d393905>scroll down by 238.6046511627907 pixels</TRAJECTA_DATA_8d393905>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_8d393905>scroll(delta_x=0.0, delta_y=238.6046511627907)</TRAJECTA_DATA_8d393905>"
+        },
+        "action": {
+          "type": "scroll",
+          "label": "<TRAJECTA_DATA_8d393905>scroll down by 238.6046511627907 pixels</TRAJECTA_DATA_8d393905>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_8d393905>scroll(delta_x=0.0, delta_y=238.6046511627907)</TRAJECTA_DATA_8d393905>"
+        },
+        "observation": {
+          "screenshot": "screenshot_006.png",
+          "url": "<TRAJECTA_DATA_8d393905>https://arxiv.org/search/?query=Probabilistic+models&source=header&searchtype=all</TRAJECTA_DATA_8d393905>",
+          "title": "<TRAJECTA_DATA_8d393905>Search | arXiv e-print repository</TRAJECTA_DATA_8d393905>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 725,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac/screenshots/screenshot_006.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "arXiv search results page with newest-first sort visible but no paper entry selected; task asks for most recent publication in a category and agent exits before revealing result",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec_step_2",
+            "source_trajectory_id": "50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec",
+            "task": "navigate: Identify the most recent article on ArXiv related to 'deep reinforcement learning'.",
+            "failure_step": 2,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have typed the correct search query ('deep reinforcement learning') to find relevant articles. The agent failed to verify the search query for typos before submitting.",
+            "actual_behavior": "The agent performed a search with a typo in the query (\"deep reinforcemen learing\"), which resulted in no results. The agent then terminated the task with [EXIT].",
+            "evidence": [
+              {
+                "claim": "The agent typed 'deep reinforcemen learing' into the search field.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 2,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The search results page displays 'Sorry, your query returned no results'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 6,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that search queries are spelled correctly and verified before submission, especially when the initial search yields no results.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15",
+            "source_trajectory_id": "2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714",
+            "task": "navigate: Search for the lowest-priced round-trip flight from Los Angeles to Seoul, departing on April 5, 2026, and returning on April 15, 2026.",
+            "failure_step": 15,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have sorted the flight results by price and selected the lowest-priced round-trip flight for the specified dates.",
+            "actual_behavior": "The agent performed a search for flights from Los Angeles to Seoul for the specified dates. While the search results page displayed various options, the agent did not select the lowest-priced flight, instead exiting while the results were sorted by \"top flights.\" The task specifically required finding the lowest-priced flight.",
+            "evidence": [
+              {
+                "claim": "The page is currently sorted by 'top flights,' not 'price.'",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent exited without selecting the lowest-priced flight, failing to fulfill the core requirement of the task.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a task requires finding the 'lowest-priced' item, the agent must ensure the results are sorted by price and that the lowest-priced option is identified and selected. Failure to select the correct item based on the specified criteria constitutes a wrong result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1",
+            "source_trajectory_id": "e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302",
+            "task": "find: answer to 'How many of these were submitted by authors affiliated with institutions outside the USA?'",
+            "failure_step": 1,
+            "failure_type": "early_terminated",
+            "expected_behavior": "The agent should have attempted to navigate to individual paper pages or use other available tools/methods to determine the author affiliations for the papers in the search results, or at least attempted a representative sample if the full set was too large.",
+            "actual_behavior": "The agent performed an [EXIT] action immediately after loading the search results page, without attempting to investigate the author affiliations of the papers.",
+            "evidence": [
+              {
+                "claim": "The agent did not attempt to access individual paper pages or any other source to determine author affiliations.",
+                "source": "trajectory",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The task requires checking author affiliations for a large number of papers, which is not possible from the search results page alone. The agent exited without attempting any further steps.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "The agent must not exit a task prematurely without attempting to gather the necessary information to answer the user's query, especially when the initial page does not contain the required data.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches an arXiv search results page for 'Probabilistic models' with the sort control set to 'Announcement date (newest first)', which is the right direction for finding the most recent publication.",
+            "source": "step_detail_high",
+            "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+            "step_index": 6
+          },
+          {
+            "claim": "The same high-detail inspection says no paper entries are visible in the viewport, so the agent never actually revealed or selected a publication result.",
+            "source": "step_detail_high",
+            "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+            "step_index": 6
+          },
+          {
+            "claim": "The trajectory ends immediately after an '[EXIT]' action on the results page, with no visible publication chosen or reported.",
+            "source": "trajectory",
+            "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+            "step_index": 7
+          }
+        ],
+        "retrieved_context_ids": [
+          "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1"
+        ],
+        "failure_step": 7,
+        "failure_type": "early_terminated",
+        "expected_behavior": "The agent should have continued from the correctly sorted arXiv results page to reveal the top paper entry and identify the most recent publication under the Probabilistic Models category, rather than exiting before any result was inspected.",
+        "actual_behavior": "The agent stopped on the search results page without exposing or selecting any publication result, so the task was never completed.",
+        "regression_rule": "Do not terminate a search task once the relevant results page is reached; if the answer depends on the first result under a sort order, the agent must scroll to or open the top result before exiting.",
+        "suggested_followups": [
+          {
+            "label": "Check top result",
+            "message": "Would you like me to inspect the first arXiv result entry to identify the most recent publication?"
+          },
+          {
+            "label": "Verify category",
+            "message": "Should I confirm whether 'Probabilistic Models' is a query phrase or an arXiv category filter?"
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac_step_7",
+        "source_trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+        "task": "navigate: Find the most recent publication under the 'Probabilistic Models' category on ArXiv.",
+        "failure_step": 7,
+        "failure_type": "early_terminated",
+        "expected_behavior": "The agent should have continued from the correctly sorted arXiv results page to reveal the top paper entry and identify the most recent publication under the Probabilistic Models category, rather than exiting before any result was inspected.",
+        "actual_behavior": "The agent stopped on the search results page without exposing or selecting any publication result, so the task was never completed.",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches an arXiv search results page for 'Probabilistic models' with the sort control set to 'Announcement date (newest first)', which is the right direction for finding the most recent publication.",
+            "source": "step_detail_high",
+            "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+            "step_index": 6,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The same high-detail inspection says no paper entries are visible in the viewport, so the agent never actually revealed or selected a publication result.",
+            "source": "step_detail_high",
+            "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+            "step_index": 6,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The trajectory ends immediately after an '[EXIT]' action on the results page, with no visible publication chosen or reported.",
+            "source": "trajectory",
+            "trajectory_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": "Do not terminate a search task once the relevant results page is reached; if the answer depends on the first result under a sort order, the agent must scroll to or open the top result before exiting.",
+        "retrieved_context_ids": [
+          "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Check top result",
+            "message": "Would you like me to inspect the first arXiv result entry to identify the most recent publication?"
+          },
+          {
+            "label": "Verify category",
+            "message": "Should I confirm whether 'Probabilistic Models' is a query phrase or an arXiv category filter?"
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 942,
+  "vlm_output_tokens": 338,
+  "runtime_ms": 61883,
+  "input_tokens": 35113,
+  "output_tokens": 715,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 61883,
+      "input_tokens": 35113,
+      "output_tokens": 715
+    }
+  ]
+}
