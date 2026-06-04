@@ -46,7 +46,7 @@ Reasoning for each non-goal is in `PROJECT.md` "Phase 8 Design Decisions".
 | 2.4         | Failure analysis 2-3 cases + one-line trade-off                                                 | A8                                                                                           | 8.A           |
 | § 1         | GitHub repo + README + eval directory                                                           | Phase 7 commits + Phase 8 D-series docs                                                      | 8.D           |
 | § 3         | 15-min presentation against code                                                                | Read order in 8.E                                                                            | 8.E           |
-| Optional    | CI threshold gate; Langfuse / Inspect AI                                                        | Not in Phase 8. Note in roadmap.                                                             | —             |
+| Optional    | CI threshold gate; Langfuse / Inspect AI                                                        | CI threshold gate **shipped** post-Phase 8 (`.github/workflows/ci.yml` + `scripts/check_eval_thresholds.py`); Langfuse / Inspect AI still out. | README § "CI Threshold Gate" |
 
 
 ## 8.A — Eval Deliverables
