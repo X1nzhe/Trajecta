@@ -32,6 +32,29 @@ def _proposal_event(seq: int = 0) -> AgentTraceEvent:
     )
 
 
+def _success_proposal_event(seq: int = 0) -> AgentTraceEvent:
+    """Success-shape proposal: omits the five failure fields (including
+    actual_behavior) per the EvalCase contract; carries only evidence +
+    retrieved_context_ids. Mirrors what the agent emits when it finds no
+    concrete failure."""
+    return AgentTraceEvent(
+        seq=seq,
+        type="tool_call",
+        name="propose_eval_case",
+        args={
+            "retrieved_context_ids": ["fm_early_terminated_001"],
+            "evidence": [
+                {
+                    "claim": "The final page satisfies the task.",
+                    "source": "step_detail_high",
+                    "trajectory_id": "run_1",
+                    "step_index": 5,
+                }
+            ],
+        },
+    )
+
+
 def _rag_call_event(seq: int = 0, *, query: str = "why did it stop early?") -> AgentTraceEvent:
     return AgentTraceEvent(
         seq=seq,
@@ -110,6 +133,46 @@ class RagasEvalTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "terminate via propose_eval_case"):
             ragas_eval.ragas_answer_from_trace(trace)
+
+    def test_ragas_answer_from_trace_success_shape_returns_claims_only(self) -> None:
+        """Success-shape drafts omit actual_behavior, so the RAGAS answer is the
+        evidence claims alone — no leading actual_behavior, no blank-line prefix,
+        and no crash."""
+        trace = _trace(
+            events=[_rag_call_event(0), _rag_result_event(1), _success_proposal_event(2)]
+        )
+
+        answer = ragas_eval.ragas_answer_from_trace(trace)
+
+        self.assertEqual(answer, "The final page satisfies the task.")
+        self.assertFalse(answer.startswith("\n"))
+        self.assertNotIn("\n\n", answer)
+
+    def test_ragas_answer_from_trace_tolerates_null_actual_behavior(self) -> None:
+        """Exact crash repro: actual_behavior present but null (the shape the
+        agent emits for a success draft) must not raise NoneType + str."""
+        proposal = AgentTraceEvent(
+            seq=2,
+            type="tool_call",
+            name="propose_eval_case",
+            args={
+                "actual_behavior": None,
+                "retrieved_context_ids": ["fm_early_terminated_001"],
+                "evidence": [
+                    {
+                        "claim": "Task completed successfully.",
+                        "source": "step_detail_high",
+                        "trajectory_id": "run_1",
+                        "step_index": 3,
+                    }
+                ],
+            },
+        )
+        trace = _trace(events=[_rag_call_event(0), _rag_result_event(1), proposal])
+
+        answer = ragas_eval.ragas_answer_from_trace(trace)
+
+        self.assertEqual(answer, "Task completed successfully.")
 
     def test_build_report_records_real_ragas_fallback_reason(self) -> None:
         sample = _sample()
@@ -451,6 +514,33 @@ class CollectSamplesA61Tests(unittest.TestCase):
         self.assertEqual(skipped.no_trace, 0)
         self.assertEqual(skipped.budget_exceeded, 0)
         self.assertEqual(skipped.error, 0)
+
+    def test_collect_samples_success_shape_trace_yields_sample(self) -> None:
+        """End-to-end repro of the success-shape crash: a success-shape draft
+        that retrieved context must produce a RAGAS sample (answer = claims
+        only) via collect_samples -> ragas_answer_from_trace, not raise."""
+        trace = _trace(
+            trajectory_id="run_success",
+            events=[
+                _rag_call_event(0),
+                _rag_result_event(1),
+                _success_proposal_event(2),
+            ],
+        )
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_trajectories",
+            return_value=[_fake_run("run_success")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace",
+                return_value=trace,
+            ):
+                samples, skipped = ragas_eval.collect_samples()
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0].trajectory_id, "run_success")
+        self.assertEqual(samples[0].answer, "The final page satisfies the task.")
+        self.assertEqual(samples[0].proposed_failure_type, "")
+        self.assertEqual(skipped.no_context, 0)
 
     def test_collect_samples_trace_dir_fallback_when_sqlite_empty(self) -> None:
         """Trace-dir-only run: storage has no trace, but the dump dir
@@ -859,6 +949,365 @@ class BuildReportStubFallbackTests(unittest.TestCase):
             report = ragas_eval.build_report([sample], ragas_eval.SkippedCounts())
         self.assertEqual(report.ragas_mode, "stub")
         self.assertEqual(report.fallback_reason, "OPENAI_API_KEY is not set")
+
+
+class ContextRecallReferenceTests(unittest.TestCase):
+    """Reference loading + attachment for the context_recall metric."""
+
+    def test_load_references_only_failed_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            data_root = Path(tmp)
+            (data_root / "triage_notes.csv").write_text(
+                "sample_id,category,outcome,failure_mode,failure_step,notes\n"
+                "run_fail,github,failed,wrong_result;missed_constraint,5,forgot the stars filter\n"
+                "run_succ,github,success,,,\n",
+                encoding="utf-8",
+            )
+            refs = ragas_eval._load_references(data_root)
+        self.assertIn("run_fail", refs)
+        self.assertNotIn("run_succ", refs)
+        # multi-label failure_mode rendered, plus the human note carried through.
+        self.assertIn("wrong_result, missed_constraint", refs["run_fail"])
+        self.assertIn("forgot the stars filter", refs["run_fail"])
+
+    def test_load_references_missing_file_returns_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(ragas_eval._load_references(Path(tmp)), {})
+
+    def test_collect_samples_attaches_reference_from_triage(self) -> None:
+        """A failed-golden trajectory's triage description must land on the
+        sample as its context_recall reference."""
+        trace = _trace(trajectory_id="run_ref")
+        with tempfile.TemporaryDirectory() as tmp:
+            data_root = Path(tmp)
+            (data_root / "triage_notes.csv").write_text(
+                "sample_id,category,outcome,failure_mode,failure_step,notes\n"
+                "run_ref,github,failed,wrong_result,5,picked the wrong repo\n",
+                encoding="utf-8",
+            )
+            with mock.patch(
+                "backend.app.ragas_eval.storage.list_trajectories",
+                return_value=[_fake_run("run_ref")],
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.storage.load_trace",
+                    return_value=trace,
+                ):
+                    samples, _ = ragas_eval.collect_samples(data_root)
+        self.assertEqual(len(samples), 1)
+        self.assertIn("wrong_result", samples[0].reference)
+        self.assertIn("picked the wrong repo", samples[0].reference)
+
+    def test_collect_samples_no_reference_when_not_in_triage(self) -> None:
+        """A trajectory absent from triage (or success-shape) gets an empty
+        reference and is therefore excluded from context_recall."""
+        trace = _trace(trajectory_id="run_unlisted")
+        with tempfile.TemporaryDirectory() as tmp:
+            data_root = Path(tmp)
+            (data_root / "triage_notes.csv").write_text(
+                "sample_id,category,outcome,failure_mode,failure_step,notes\n"
+                "someone_else,github,failed,wrong_result,5,note\n",
+                encoding="utf-8",
+            )
+            with mock.patch(
+                "backend.app.ragas_eval.storage.list_trajectories",
+                return_value=[_fake_run("run_unlisted")],
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.storage.load_trace",
+                    return_value=trace,
+                ):
+                    samples, _ = ragas_eval.collect_samples(data_root)
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0].reference, "")
+
+
+class MetricSelectionTests(unittest.TestCase):
+    """--metric selects which RAGAS metric(s) the real path computes."""
+
+    def test_build_report_forwards_metric_selection(self) -> None:
+        sample = _sample()
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
+            with mock.patch(
+                "backend.app.ragas_eval._ragas_import_failure", return_value=None
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval._run_real_ragas",
+                    return_value={"context_recall": 0.5},
+                ) as m:
+                    report = ragas_eval.build_report(
+                        [sample],
+                        ragas_eval.SkippedCounts(),
+                        metrics=("context_recall",),
+                    )
+        self.assertEqual(report.ragas_mode, "real")
+        self.assertEqual(report.metric_means, {"context_recall": 0.5})
+        _, kwargs = m.call_args
+        self.assertEqual(kwargs["metrics"], ("context_recall",))
+
+    def test_main_metric_flag_selects_context_recall_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "eval"
+            with mock.patch(
+                "backend.app.ragas_eval.collect_samples",
+                return_value=([], ragas_eval.SkippedCounts()),
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.build_report",
+                    return_value=ragas_eval.RagasReport(),
+                ) as mb:
+                    with mock.patch(
+                        "backend.app.ragas_eval.write_report",
+                        return_value=(out_dir / "x.json", out_dir / "x.md"),
+                    ):
+                        rc = ragas_eval.main(
+                            [
+                                "--data-dir",
+                                str(Path(tmp) / "data"),
+                                "--output-dir",
+                                str(out_dir),
+                                "--context-mode",
+                                "rag",
+                                "--metric",
+                                "context_recall",
+                                "--force-stub",
+                            ]
+                        )
+        self.assertEqual(rc, 0)
+        _, kwargs = mb.call_args
+        self.assertEqual(kwargs["metrics"], ("context_recall",))
+
+    def test_main_metric_flag_defaults_to_both(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "eval"
+            with mock.patch(
+                "backend.app.ragas_eval.collect_samples",
+                return_value=([], ragas_eval.SkippedCounts()),
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.build_report",
+                    return_value=ragas_eval.RagasReport(),
+                ) as mb:
+                    with mock.patch(
+                        "backend.app.ragas_eval.write_report",
+                        return_value=(out_dir / "x.json", out_dir / "x.md"),
+                    ):
+                        rc = ragas_eval.main(
+                            [
+                                "--data-dir",
+                                str(Path(tmp) / "data"),
+                                "--output-dir",
+                                str(out_dir),
+                                "--context-mode",
+                                "rag",
+                                "--force-stub",
+                            ]
+                        )
+        self.assertEqual(rc, 0)
+        _, kwargs = mb.call_args
+        self.assertEqual(kwargs["metrics"], ("faithfulness", "context_recall"))
+
+
+class MergeReportTests(unittest.TestCase):
+    """--merge folds a freshly computed metric into the existing report
+    without recomputing the metric already on disk."""
+
+    def test_merge_keeps_existing_metric_and_adds_new(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = (Path(tmp) / "eval").resolve()
+            out_dir.mkdir(parents=True, exist_ok=True)
+            # Existing report already has faithfulness from a prior (slow) run.
+            (out_dir / "ragas_report.json").write_text(
+                json.dumps({"metric_means": {"faithfulness": 0.5}}),
+                encoding="utf-8",
+            )
+            new_report = ragas_eval.RagasReport(metric_means={"context_recall": 0.7})
+            captured: dict[str, dict] = {}
+
+            def fake_write(report, output_dir):
+                captured["means"] = dict(report.metric_means)
+                return (
+                    output_dir / "ragas_report.json",
+                    output_dir / "ragas_report.md",
+                )
+
+            with mock.patch(
+                "backend.app.ragas_eval.collect_samples",
+                return_value=([], ragas_eval.SkippedCounts()),
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.build_report", return_value=new_report
+                ):
+                    with mock.patch(
+                        "backend.app.ragas_eval.write_report", side_effect=fake_write
+                    ):
+                        rc = ragas_eval.main(
+                            [
+                                "--data-dir",
+                                str(Path(tmp) / "data"),
+                                "--output-dir",
+                                str(out_dir),
+                                "--metric",
+                                "context_recall",
+                                "--merge",
+                                "--force-stub",
+                            ]
+                        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            captured["means"], {"faithfulness": 0.5, "context_recall": 0.7}
+        )
+
+    def test_merge_without_existing_report_writes_fresh(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = (Path(tmp) / "eval").resolve()
+            new_report = ragas_eval.RagasReport(metric_means={"context_recall": 0.7})
+            captured: dict[str, dict] = {}
+
+            def fake_write(report, output_dir):
+                captured["means"] = dict(report.metric_means)
+                return (
+                    output_dir / "ragas_report.json",
+                    output_dir / "ragas_report.md",
+                )
+
+            with mock.patch(
+                "backend.app.ragas_eval.collect_samples",
+                return_value=([], ragas_eval.SkippedCounts()),
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.build_report", return_value=new_report
+                ):
+                    with mock.patch(
+                        "backend.app.ragas_eval.write_report", side_effect=fake_write
+                    ):
+                        rc = ragas_eval.main(
+                            [
+                                "--data-dir",
+                                str(Path(tmp) / "data"),
+                                "--output-dir",
+                                str(out_dir),
+                                "--metric",
+                                "context_recall",
+                                "--merge",
+                                "--force-stub",
+                            ]
+                        )
+        self.assertEqual(rc, 0)
+        # No prior report -> nothing to merge, just the new metric.
+        self.assertEqual(captured["means"], {"context_recall": 0.7})
+
+
+class EvidenceContextModeTests(unittest.TestCase):
+    """--context-mode evidence builds contexts from agent-visible evidence
+    (step-detail reads etc.), so traces that never called a RAG tool still score."""
+
+    def _step_detail_trace(self, trajectory_id: str = "run_ev") -> AgentTrace:
+        return _trace(
+            trajectory_id=trajectory_id,
+            events=[
+                AgentTraceEvent(
+                    seq=0,
+                    type="tool_call",
+                    name="get_step_detail",
+                    args={"step_index": 5},
+                ),
+                AgentTraceEvent(
+                    seq=1,
+                    type="tool_result",
+                    name="get_step_detail",
+                    result={
+                        "step_index": 5,
+                        "vlm_summary": "The page shows a results list with prices.",
+                    },
+                ),
+                _proposal_event(2),
+            ],
+        )
+
+    def test_evidence_mode_uses_step_detail_without_any_rag_call(self) -> None:
+        trace = self._step_detail_trace()
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_trajectories",
+            return_value=[_fake_run("run_ev")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace", return_value=trace
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.storage.load_digest", return_value=None
+                ):
+                    samples, skipped = ragas_eval.collect_samples(context_mode="evidence")
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0].context_mode, "evidence")
+        self.assertTrue(
+            any("results list with prices" in c for c in samples[0].contexts)
+        )
+        self.assertEqual(skipped.no_context, 0)
+
+    def test_evidence_mode_no_visible_evidence_skips(self) -> None:
+        trace = _trace(trajectory_id="run_bare", events=[_proposal_event(0)])
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_trajectories",
+            return_value=[_fake_run("run_bare")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace", return_value=trace
+            ):
+                with mock.patch(
+                    "backend.app.ragas_eval.storage.load_digest", return_value=None
+                ):
+                    samples, skipped = ragas_eval.collect_samples(context_mode="evidence")
+        self.assertEqual(samples, [])
+        self.assertEqual(skipped.no_context, 1)
+
+    def test_rag_mode_unchanged_default(self) -> None:
+        """Default (rag) mode still produces the search-tool sample."""
+        trace = _trace(trajectory_id="run_rag")
+        with mock.patch(
+            "backend.app.ragas_eval.storage.list_trajectories",
+            return_value=[_fake_run("run_rag")],
+        ):
+            with mock.patch(
+                "backend.app.ragas_eval.storage.load_trace", return_value=trace
+            ):
+                samples, _ = ragas_eval.collect_samples()  # default context_mode="rag"
+        self.assertEqual(len(samples), 1)
+        self.assertEqual(samples[0].context_mode, "rag")
+        self.assertEqual(samples[0].tool_name, "search_failure_memory")
+
+    def test_main_evidence_mode_threads_and_drops_context_recall(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = (Path(tmp) / "eval").resolve()
+            with mock.patch(
+                "backend.app.ragas_eval.collect_samples",
+                return_value=([], ragas_eval.SkippedCounts()),
+            ) as mc:
+                with mock.patch(
+                    "backend.app.ragas_eval.build_report",
+                    return_value=ragas_eval.RagasReport(),
+                ) as mb:
+                    with mock.patch(
+                        "backend.app.ragas_eval.write_report",
+                        return_value=(out_dir / "x.json", out_dir / "x.md"),
+                    ):
+                        rc = ragas_eval.main(
+                            [
+                                "--data-dir",
+                                str(Path(tmp) / "data"),
+                                "--output-dir",
+                                str(out_dir),
+                                "--context-mode",
+                                "evidence",
+                                "--metric",
+                                "both",
+                                "--force-stub",
+                            ]
+                        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(mc.call_args.kwargs["context_mode"], "evidence")
+        # context_recall dropped in evidence mode -> faithfulness only.
+        self.assertEqual(mb.call_args.kwargs["metrics"], ("faithfulness",))
 
 
 if __name__ == "__main__":

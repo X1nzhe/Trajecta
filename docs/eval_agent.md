@@ -158,6 +158,8 @@ The system prompt instructs the agent to:
    - **Success verdict** ("no failure found"): omit all five failure fields; pass only `evidence` and `retrieved_context_ids`. The case_id is generated in the `ec_{trajectory_id}_success` namespace and a second success case for the same run returns 409 on validation.
 9. Never invent evidence. If a screenshot, coordinate, or successful comparison trajectory is missing, include an `EvidenceItem` with `source="unavailable"` and a claim that states what was unavailable.
 
+The exact wording of these instructions lives in the versioned prompt bundles under `prompts/eval_agent/` (selected by `TRAJECTA_PROMPT_VERSION`). `v6_guided_autonomy` is the current featured prompt: it makes the per-tool contract and investigation freedom explicit while keeping the verdict/evidence rules strict (burden-of-proof; distinguishing a `not_visible` constraint that the agent never enforced from one that is merely off-screen). The agent is judged on whether it did the evaluation work well — investigation depth, right tools, grounded evidence, judge acceptability — rather than only matching the binary golden label on genuinely ambiguous trajectories, where binary verdict accuracy is a guardrail. See the README "Prompt Iteration" table and [docs/experiment_log.md](experiment_log.md).
+
 The agent is constrained by a **per-turn** tool-call budget to bound cost and latency:
 
 - **Initial analyze** (`/analyze` or `/steps/{i}/analyze`): default `8`.

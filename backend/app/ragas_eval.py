@@ -30,7 +30,9 @@ migration in Phase 6.
 
 - ``real``: uses the ``ragas`` package's ``faithfulness`` metric over
   no-ground-truth samples. Requires ``OPENAI_API_KEY`` and ``ragas`` to
-  be importable.
+  be importable. ``OPENAI_API_KEY`` is auto-loaded from ``.env`` at the
+  repo root via ``python-dotenv`` (same pattern as ``agent_eval`` and
+  ``backend/app/main.py``); shell exports take precedence over the file.
 - ``stub``: pure-Python stand-ins for both metrics that require neither
   a key nor a network. Selected automatically when ``ragas`` is missing
   or no key is present. Always writes the same two report files so the
@@ -53,6 +55,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+try:
+    from dotenv import load_dotenv  # type: ignore[import-untyped]
+
+    load_dotenv(_REPO_ROOT / ".env")
+except ImportError:  # pragma: no cover - python-dotenv is a hard dep
+    pass
 
 from pydantic import ValidationError
 
@@ -77,6 +87,13 @@ class RagasSample:
     retrieved_context_ids: list[str]
     tool_name: str
     tool_query: str
+    # Golden failure description (from data/triage_notes.csv) used as the
+    # context_recall ground truth. Empty for success-shape / unlabeled
+    # trajectories, which are excluded from context_recall.
+    reference: str = ""
+    # How this sample's contexts were sourced: "rag" (search tool results only)
+    # or "evidence" (all agent-visible evidence in the trace). See --context-mode.
+    context_mode: str = "rag"
 
 
 @dataclass
@@ -260,8 +277,11 @@ def report_from_json_payload(payload: dict[str, Any]) -> RagasReport:
 
 
 def ragas_answer_from_trace(trace: AgentTrace) -> str:
-    """Concatenate the latest propose_eval_case args' actual_behavior with
-    each evidence claim. Raises when the trace contains no terminal call.
+    """Build the RAGAS "answer" from the latest propose_eval_case args:
+    the ``actual_behavior`` narrative (failure-shape drafts only) followed
+    by each evidence claim. Success-shape drafts omit the five failure
+    fields, so ``actual_behavior`` is absent or null and the answer is the
+    evidence claims alone. Raises when the trace contains no terminal call.
     """
 
     if trace.terminated_by != TERMINAL_TOOL:
@@ -274,10 +294,17 @@ def ragas_answer_from_trace(trace: AgentTrace) -> str:
     if not calls:
         raise ValueError("trace has no propose_eval_case tool call")
     args = calls[-1].args or {}
-    actual_behavior = args["actual_behavior"]
-    evidence = args.get("evidence", [])
-    claims = [item["claim"] for item in evidence]
-    return actual_behavior + "\n\n" + "\n".join(claims)
+    actual_behavior = args.get("actual_behavior")
+    evidence = args.get("evidence", []) or []
+    claims = [
+        item["claim"]
+        for item in evidence
+        if isinstance(item, dict) and item.get("claim")
+    ]
+    claims_text = "\n".join(claims)
+    if actual_behavior:
+        return actual_behavior + "\n\n" + claims_text
+    return claims_text
 
 
 def _latest_proposal(trace: AgentTrace) -> AgentTraceEvent | None:
@@ -374,18 +401,90 @@ def _discover_trajectory_ids(*, trace_dir: Path | None) -> list[str]:
     return sorted(trajectory_ids)
 
 
+def _evidence_contexts_from_trace(trace: AgentTrace, digest) -> list[str]:
+    """All agent-visible evidence in a trace, rendered as faithfulness contexts.
+
+    Unlike rag-mode (search tool results only), this is what the agent's
+    eval-case claims should actually be grounded in: every high-detail
+    ``get_step_detail`` read (its VLM summary), any precedent the agent
+    retrieved, and the trajectory digest it received up front. faithfulness
+    over these contexts asks "are the claims faithful to what the agent
+    inspected?" — which works even for traces that never called a RAG tool.
+
+    Note: we read ``get_step_detail`` results directly by scanning the trace,
+    rather than via ``eval.judge.resolve_evidence_source``, because the agent's
+    EvidenceItems carry only ``step_index`` (no ``trace_event_seq``), and that
+    resolver requires the seq anchor for step-detail sources.
+    """
+    contexts: list[str] = []
+    for event in trace.events:
+        if event.type != "tool_result":
+            continue
+        if event.name == "get_step_detail" and isinstance(event.result, dict):
+            vlm = event.result.get("vlm_summary")
+            if isinstance(vlm, str) and vlm.strip():
+                step_index = event.result.get("step_index")
+                contexts.append(f"[step {step_index} high-detail] {vlm.strip()}")
+        elif event.name in SEARCH_TOOL_NAMES:
+            contexts.extend(_contexts_from_tool_result(event))
+    if digest is not None:
+        try:
+            contexts.append("[trajectory digest] " + digest.model_dump_json()[:6000])
+        except Exception:
+            pass
+    return contexts
+
+
+def _load_references(data_root: Path | None = None) -> dict[str, str]:
+    """Map trajectory_id -> a natural-language golden failure description, used
+    as the context_recall ground truth.
+
+    Source: ``<data_root>/triage_notes.csv`` (the human triage golden set, the
+    same file agent_eval grades against). Only ``outcome == "failed"`` rows get a
+    reference; success / unlabeled rows return nothing, so they are excluded from
+    context_recall. A missing file yields an empty mapping — context_recall is
+    then simply skipped while faithfulness still runs.
+    """
+    import csv
+
+    root = data_root if data_root is not None else (storage.REPO_ROOT / "data")
+    path = Path(root) / "triage_notes.csv"
+    refs: dict[str, str] = {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                if (row.get("outcome") or "").strip().lower() != "failed":
+                    continue
+                tid = (row.get("sample_id") or "").strip()
+                if not tid:
+                    continue
+                mode = (row.get("failure_mode") or "").strip()
+                notes = (row.get("notes") or "").strip()
+                parts = ["The trajectory failed its task."]
+                if mode:
+                    parts.append(f"Failure type: {mode.replace(';', ', ')}.")
+                if notes:
+                    parts.append(notes)
+                refs[tid] = " ".join(parts)
+    except FileNotFoundError:
+        return {}
+    return refs
+
+
 def collect_samples(
     data_root: Path | None = None,
     *,
     trace_dir: Path | None = None,
     limit: int | None = None,
+    context_mode: str = "rag",
 ) -> tuple[list[RagasSample], SkippedCounts]:
     """Collect RAGAS samples from persisted traces.
 
     See the module docstring (§ Trace sources) for the per-trajectory_id
-    precedence rule. ``data_root`` is retained for CLI compatibility but
-    no longer contributes a ground-truth label: the formal A6 metric is
-    no-ground-truth faithfulness over retrieved contexts.
+    precedence rule. Faithfulness is no-ground-truth (answer vs retrieved
+    contexts). ``data_root`` locates ``triage_notes.csv``, whose human failure
+    descriptions are attached as each sample's ``reference`` and used as the
+    ground truth for the context_recall metric (failed-golden samples only).
 
     Counts skipped traces in three buckets:
 
@@ -400,6 +499,7 @@ def collect_samples(
     """
     samples: list[RagasSample] = []
     skipped = SkippedCounts()
+    references = _load_references(data_root)
 
     for trajectory_id in _discover_trajectory_ids(trace_dir=trace_dir):
         try:
@@ -435,6 +535,37 @@ def collect_samples(
             skipped.error += 1
             continue
 
+        reference = references.get(trace.trajectory_id, "")
+
+        if context_mode == "evidence":
+            # contexts = everything the agent could see (step-detail reads +
+            # retrieved precedent + the digest), so faithfulness checks the
+            # claims against the agent's actual evidence rather than only RAG hits.
+            try:
+                digest = storage.load_digest(trace.trajectory_id)
+            except Exception:
+                digest = None
+            contexts = _evidence_contexts_from_trace(trace, digest)
+            if not contexts:
+                skipped.no_context += 1
+                continue
+            samples.append(
+                RagasSample(
+                    trajectory_id=trace.trajectory_id,
+                    question=getattr(trace, "user_intent", None) or "analyze_trajectory",
+                    answer=answer,
+                    contexts=contexts,
+                    ground_truth_source=GROUND_TRUTH_SOURCE_NONE,
+                    proposed_failure_type=proposed_failure_type,
+                    retrieved_context_ids=retrieved_context_ids,
+                    tool_name="evidence",
+                    tool_query=getattr(trace, "user_intent", None) or "analyze_trajectory",
+                    reference=reference,
+                    context_mode="evidence",
+                )
+            )
+            continue
+
         produced_for_trace = 0
         saw_rag_call = False
         for tool_name, query, contexts in _iter_rag_tool_samples(trace):
@@ -453,6 +584,8 @@ def collect_samples(
                     retrieved_context_ids=retrieved_context_ids,
                     tool_name=tool_name,
                     tool_query=query,
+                    reference=reference,
+                    context_mode="rag",
                 )
             )
             produced_for_trace += 1
@@ -474,7 +607,7 @@ def _exception_reason(prefix: str, exc: Exception) -> str:
 def _ragas_import_failure() -> str | None:
     try:
         import ragas  # noqa: F401
-        from ragas.metrics import faithfulness  # noqa: F401
+        from ragas.metrics import Faithfulness  # noqa: F401
     except (ImportError, ModuleNotFoundError) as exc:
         return _exception_reason("ragas import failed", exc)
     except Exception as exc:
@@ -482,10 +615,19 @@ def _ragas_import_failure() -> str | None:
     return None
 
 
-def _run_real_ragas(samples: list[RagasSample]) -> dict[str, float]:
+def _run_real_ragas(
+    samples: list[RagasSample],
+    *,
+    metrics: tuple[str, ...] = ("faithfulness", "context_recall"),
+) -> dict[str, float]:
+    import os
+
     from datasets import Dataset
+    from openai import OpenAI
     from ragas import evaluate
-    from ragas.metrics import faithfulness
+    from ragas.llms import llm_factory
+    from ragas.metrics import Faithfulness, LLMContextRecall
+    from ragas.run_config import RunConfig
 
     payload = {
         "user_input": [s.question for s in samples],
@@ -493,12 +635,71 @@ def _run_real_ragas(samples: list[RagasSample]) -> dict[str, float]:
         "retrieved_contexts": [s.contexts for s in samples],
     }
     ds = Dataset.from_dict(payload)
-    result = evaluate(ds, metrics=[faithfulness])
-    df = result.to_pandas()
+    # ragas 0.4.x on this stack (openai 2.x / langchain 1.x) only works through
+    # one specific combination; each piece dodges a concrete failure we hit:
+    #  * llm_factory (instructor, SYNCHRONOUS openai client) — NOT
+    #    LangchainLLMWrapper, whose async callback manager deadlocks inside
+    #    ragas's executor and times every call out at the RunConfig timeout
+    #    (progress sticks at 0/N, nothing scored).
+    #  * a freshly constructed Faithfulness(llm=...) — NOT the module-level
+    #    `faithfulness` singleton, whose shared .llm races to
+    #    "AssertionError: LLM is not set" under concurrency. Binding the llm at
+    #    construction removes the race.
+    #  * TRAJECTA_RAGAS_MODEL must name a model the key serves that still accepts
+    #    `max_tokens` (the instructor client sends it): gpt-4o-mini works;
+    #    next-gen models that require `max_completion_tokens` return 400 here.
+    #    OpenAI() reads OPENAI_API_KEY / OPENAI_BASE_URL from the env.
+    model = os.environ.get("TRAJECTA_RAGAS_MODEL", "gpt-4o-mini")
+    llm = llm_factory(model, client=OpenAI())
+    # raise_exceptions=False so a few bad samples score NaN instead of nuking the
+    # whole run to the stub fallback; the bounded RunConfig keeps a genuinely
+    # stuck call from hanging at 0% (ragas defaults to max_retries=10/max_wait=60).
+    # max_workers=1 (serial) is deliberate: concurrent requests burst past the
+    # OpenAI rate limit, and instructor/tenacity then back off for minutes per
+    # sample (observed ~850s/it at 8 workers). Serial keeps each call ~1s, so the
+    # whole run finishes in a few minutes — the synchronous instructor calls
+    # cannot be cancelled by the asyncio timeout, so avoiding the 429 storm is
+    # what actually bounds the runtime here.
+    run_config = RunConfig(timeout=90, max_retries=1, max_wait=10, max_workers=1)
     means: dict[str, float] = {}
-    for metric in ("faithfulness",):
-        if metric in df.columns:
-            means[metric] = float(df[metric].mean())
+
+    # Faithfulness (no ground truth) over every context-bearing sample: are the
+    # agent's claims supported by the contexts it retrieved? This is the metric
+    # the project requirement is satisfied by, and the one the stub mirrors.
+    if "faithfulness" in metrics:
+        f_df = evaluate(
+            ds,
+            metrics=[Faithfulness(llm=llm)],
+            run_config=run_config,
+            raise_exceptions=False,
+        ).to_pandas()
+        if "faithfulness" in f_df.columns:
+            means["faithfulness"] = float(f_df["faithfulness"].mean())
+
+    # Context recall over the ground-truth-bearing subset: of the golden failure
+    # description (from triage_notes), how much is covered by the precedent the
+    # RAG actually retrieved? Only failed-golden samples carry a reference;
+    # success / unlabeled samples have no failure facts to recall and are skipped.
+    ref_samples = (
+        [s for s in samples if s.reference.strip()]
+        if "context_recall" in metrics
+        else []
+    )
+    if ref_samples:
+        cr_df = evaluate(
+            Dataset.from_dict(
+                {
+                    "user_input": [s.question for s in ref_samples],
+                    "retrieved_contexts": [s.contexts for s in ref_samples],
+                    "reference": [s.reference for s in ref_samples],
+                }
+            ),
+            metrics=[LLMContextRecall(llm=llm)],
+            run_config=run_config,
+            raise_exceptions=False,
+        ).to_pandas()
+        if "context_recall" in cr_df.columns:
+            means["context_recall"] = float(cr_df["context_recall"].mean())
     return means
 
 
@@ -564,6 +765,7 @@ def build_report(
     skipped: SkippedCounts,
     *,
     force_stub: bool = False,
+    metrics: tuple[str, ...] = ("faithfulness", "context_recall"),
 ) -> RagasReport:
     report = RagasReport(skipped=skipped)
     if not samples:
@@ -584,6 +786,8 @@ def build_report(
             "retrieved_context_ids": s.retrieved_context_ids,
             "tool_name": s.tool_name,
             "tool_query": s.tool_query,
+            "reference": s.reference,
+            "context_mode": s.context_mode,
         }
         for s in samples
     ]
@@ -599,7 +803,7 @@ def build_report(
             report.fallback_reason = import_failure
         else:
             try:
-                means = _run_real_ragas(samples)
+                means = _run_real_ragas(samples, metrics=metrics)
                 report.ragas_mode = "real"
                 report.metric_means = means
                 return report
@@ -799,7 +1003,54 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip the real ragas path even if available.",
     )
+    parser.add_argument(
+        "--metric",
+        choices=("faithfulness", "context_recall", "both"),
+        default="both",
+        help=(
+            "Which RAGAS metric(s) to compute in the real path (default: both). "
+            "context_recall runs only over failed-golden samples that retrieved "
+            "(needs a triage reference); faithfulness runs over all "
+            "context-bearing samples. Either alone satisfies the requirement."
+        ),
+    )
+    parser.add_argument(
+        "--merge",
+        action="store_true",
+        help=(
+            "Merge the freshly computed metric(s) into the existing "
+            "ragas_report.json under --output-dir instead of overwriting its "
+            "metric_means. Use with --metric to add one metric (e.g. "
+            "context_recall) without recomputing the other (e.g. faithfulness). "
+            "Only valid when the trace set is unchanged between runs."
+        ),
+    )
+    parser.add_argument(
+        "--context-mode",
+        choices=("rag", "evidence"),
+        default="evidence",
+        help=(
+            "What faithfulness `contexts` are drawn from (default: evidence). "
+            "evidence = all agent-visible evidence in the trace (high-detail step "
+            "reads + retrieved precedent + digest) — the right grounding check "
+            "for an agent whose claims come from the trajectory, and it works "
+            "without any RAG call. rag = search tool results only (reproduces the "
+            "original Phase 8 report). context_recall is rag-mode only."
+        ),
+    )
     args = parser.parse_args(argv)
+    metric_selection = (
+        ("faithfulness", "context_recall")
+        if args.metric == "both"
+        else (args.metric,)
+    )
+    # context_recall is a retrieval-coverage metric — only meaningful when the
+    # contexts ARE the retrieval (rag mode). In evidence mode, drop it.
+    if args.context_mode == "evidence" and "context_recall" in metric_selection:
+        metric_selection = tuple(m for m in metric_selection if m != "context_recall")
+        if not metric_selection:
+            metric_selection = ("faithfulness",)
+        print("RAGAS: context_recall is rag-mode only; skipping it in evidence mode")
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be a positive integer")
 
@@ -814,17 +1065,46 @@ def main(argv: list[str] | None = None) -> int:
     print(f"RAGAS output_dir={output_dir}")
     if args.limit is not None:
         print(f"RAGAS limit={args.limit}")
-    samples, skipped = collect_samples(data_root, trace_dir=trace_dir, limit=args.limit)
-    print(f"RAGAS collected samples={len(samples)} skipped={skipped.to_dict()}")
+    samples, skipped = collect_samples(
+        data_root, trace_dir=trace_dir, limit=args.limit, context_mode=args.context_mode
+    )
+    print(
+        f"RAGAS collected samples={len(samples)} "
+        f"context_mode={args.context_mode} skipped={skipped.to_dict()}"
+    )
     if args.force_stub:
         print("RAGAS mode request=stub (--force-stub)")
     elif os.environ.get("OPENAI_API_KEY"):
         print("RAGAS mode request=real (OPENAI_API_KEY is set)")
     else:
         print("RAGAS mode request=stub (OPENAI_API_KEY is not set)")
+    print(f"RAGAS metric={args.metric}")
     print("RAGAS evaluate start")
-    report = build_report(samples, skipped, force_stub=args.force_stub)
+    report = build_report(
+        samples, skipped, force_stub=args.force_stub, metrics=metric_selection
+    )
     print(f"RAGAS evaluate done mode={report.ragas_mode}")
+
+    if args.merge:
+        existing_path = output_dir / "ragas_report.json"
+        if existing_path.is_file():
+            prev_means = (
+                json.loads(existing_path.read_text(encoding="utf-8")).get("metric_means")
+                or {}
+            )
+            new_keys = list(report.metric_means)
+            # Newly computed metrics win on overlap; previously computed metrics
+            # are carried over so we don't recompute them (e.g. keep an existing
+            # faithfulness while adding context_recall).
+            report.metric_means = {**prev_means, **report.metric_means}
+            print(
+                f"RAGAS --merge: kept {list(prev_means)}, added/updated {new_keys}"
+                f" -> {report.metric_means}"
+            )
+        else:
+            print(
+                f"RAGAS --merge: no existing report at {existing_path}; writing fresh"
+            )
 
     # Write a timestamped archive (never overwritten) plus a stable "latest"
     # copy at the base dir, mirroring agent_eval's eval/runs/<stamp>/ + eval/

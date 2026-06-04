@@ -125,12 +125,20 @@ existence, assertion-name coverage, and distinct sha256 stamps for the
 two bundles so a future edit that breaks rubric alignment fails CI
 before the κ_LLM,LLM rollup is computed.
 
+On the v6 run the two judges agree on all 31 cases (each accepts 20 / 31):
+κ_LLM,LLM = 1.0, above the 0.6 target. Reaching this required correcting the
+regression-case-usefulness assertion (below), which had been failing
+success-shape drafts for omitting failure-only fields; the fix raised κ from
+0.674 to 1.0 and was applied identically to both provider bundles. κ=1.0
+reflects a largely objective checklist at temperature 0 over n=31 — convergence
+on a mechanical standard, not a claim that acceptability judgment is solved.
+
 | Assertion | Predicate |
 | --- | --- |
 | Verdict alignment | The draft's success/failure shape matches the golden `OutcomeFact`. |
 | Failure-mode compatibility | For failed references, `failure_type` is compatible with the labelled failure-type set. |
 | Failure-step localization | For failed references with a labelled step, `failure_step` is inside the expected range, or the cited evidence demonstrates that the inspected step still covers the labelled failure. |
-| Regression-case usefulness | `expected_behavior`, `actual_behavior`, and `regression_rule` would let a future regression eval catch the same failure. |
+| Regression-case usefulness | For a failure-shape draft, `expected_behavior` / `actual_behavior` / `regression_rule` would let a future regression eval catch the same failure. A success-shape draft is required to omit those fields, so it is judged on whether its evidence confirms the success path — **not** failed for their absence. |
 | No forbidden claim | The draft does not assert any `forbidden_facts` entry. |
 | Evidence support | The cited evidence supports the draft's claim; missing screenshots, invalid coordinates, or unavailable sources are represented as honest gaps rather than invented evidence. |
 
@@ -271,13 +279,30 @@ scope beyond Phase 8.
 
 ## RAGAS Evaluation
 
-Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads persisted `AgentTrace` records from an explicit `--trace-dir` first, then falls back to `storage.load_trace(trajectory_id)` from the `traces` SQLite table. It does not re-run the agent or retrieval.
+`backend/app/ragas_eval.py` runs RAGAS **manually** via `python -m backend.app.ragas_eval`; it is not in pytest or CI. It reads persisted `AgentTrace` records from an explicit `--trace-dir` first, then falls back to `storage.load_trace(trajectory_id)` from the `traces` SQLite table. It does not re-run the agent or retrieval, and it auto-loads `.env`.
 
-Run one minimal no-ground-truth RAGAS eval over failure memory RAG.
+### Context modes (`--context-mode`)
+
+The faithfulness `contexts` — the text a claim must be grounded in — can be sourced two ways:
+
+- **`evidence` (default, featured):** all agent-visible evidence in the trace — every high-detail `get_step_detail` read (`vlm_summary`), retrieved precedent, and the trajectory digest. faithfulness then measures "are the eval-case claims faithful to what the agent actually inspected." This is the right fit for Trajecta, whose RAG is *auxiliary precedent* rather than the source of the agent's claims, and it scores traces that never called a RAG tool. One sample per terminated trace.
+- **`rag`:** search-tool results only (one sample per `search_failure_memory` / `search_failure_eval_cases` call). Kept for reproducibility and comparison; it is a poor semantic fit here, so its score is **not published**.
+
+Latest run (evidence mode): `mode=real`, `n=10`, `faithfulness=0.93`, `ground_truth_source=none` — corroborates the LLM judge's `evidence_support` assertion, and satisfies the S18 requirement "≥1 RAGAS faithfulness OR context recall."
+
+### Other flags
+
+- `--metric {faithfulness,context_recall,both}`. `context_recall` is rag-mode only (it scores retrieval coverage against a triage `reference` built from `data/triage_notes.csv` failed rows) and is auto-skipped in evidence mode.
+- `--merge` folds a freshly computed metric into the existing `ragas_report.json` without recomputing the other.
+- `TRAJECTA_RAGAS_MODEL` (default `gpt-4o-mini`) selects the grading model; pick one the `OPENAI_API_KEY` serves that accepts `max_tokens`.
+
+### ragas 0.4.3 real-path setup
+
+The real path builds the LLM via `llm_factory(model, client=OpenAI())` (synchronous — `LangchainLLMWrapper` deadlocks inside ragas's executor), constructs a fresh `Faithfulness(llm=...)` / `LLMContextRecall(llm=...)` per run (the module-level singletons race to "LLM is not set" under concurrency), and runs `RunConfig(max_workers=1)` serially with `raise_exceptions=False` (concurrency bursts past the key's rate limit). On import/key failure it falls back to a deterministic token-overlap `faithfulness_stub`.
 
 Primary metric:
 
-- `faithfulness`
+- `faithfulness` (both context modes); `context_recall` optional in rag mode.
 
 Input shape:
 
@@ -312,10 +337,16 @@ def ragas_answer_from_trace(trace: AgentTrace) -> str:
     if not calls:
         raise ValueError("trace has no propose_eval_case tool call")
     args = calls[-1].args or {}
-    actual_behavior = args["actual_behavior"]
-    evidence = args.get("evidence", [])
-    claims = [item["claim"] for item in evidence]
-    return actual_behavior + "\n\n" + "\n".join(claims)
+    # Success-shape drafts omit the five failure fields, so actual_behavior may
+    # be absent/null — build the answer from the evidence claims alone then.
+    actual_behavior = args.get("actual_behavior")
+    evidence = args.get("evidence", []) or []
+    claims = [
+        item["claim"] for item in evidence
+        if isinstance(item, dict) and item.get("claim")
+    ]
+    claims_text = "\n".join(claims)
+    return (actual_behavior + "\n\n" + claims_text) if actual_behavior else claims_text
 ```
 
 Rules:
@@ -323,9 +354,9 @@ Rules:
 - Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` can contribute RAGAS samples; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
 - The answer text intentionally excludes `expected_behavior`, `regression_rule`, and `agent_message` events. `expected_behavior` describes the correct outcome (not the agent's claim about *this* run), and free-form `agent_message` text often contains discarded hypotheses that would inflate hallucination signal unfairly.
 - `actual_behavior` and `evidence[*].claim` are read from the **trace** (the tool-call `args`), not from a persisted `EvalCase` file, because drafts are not persisted and the trace is the only source available to `ragas_eval.py` (see [docs/eval_agent.md](eval_agent.md) Observability section).
-- Each RAGAS sample corresponds to one recorded `search_failure_memory` or `search_failure_eval_cases` tool call. `question` is that tool call's `args["query"]`; `contexts` are the matching following `tool_result.items`, not a cross-trace or whole-trace context pool.
-- No human or self-generated `ground_truth` is used. The A6 claim is limited to retrieval-grounded faithfulness: whether the final `actual_behavior` and evidence claims are supported by the contexts retrieved for the recorded query. It does not measure answer correctness, context recall, or human agreement.
-- RAG tool calls with no usable contexts are skipped and counted under `no_context`.
+- Sampling depends on `--context-mode`. In `rag` mode each RAGAS sample is one recorded `search_failure_memory` / `search_failure_eval_cases` call (`question` = that call's `args["query"]`; `contexts` = the matching `tool_result.items`). In `evidence` mode (default) each terminated trace yields one sample whose `contexts` are the agent's visible evidence (high-detail reads + digest + retrieved precedent).
+- Faithfulness uses no human ground truth: it scores whether the agent's claims are supported by their `contexts`, not answer correctness or human agreement. The optional `context_recall` metric (rag mode only) does use a ground-truth `reference` — the triage failure description — to score whether retrieval covered it.
+- Samples with no usable contexts are skipped and counted under `no_context`.
 
 Output files. Each run writes a stable "latest" copy at the base dir **and** a
 timestamped archive under `ragas_report/<stamp>/` (UTC stamp
@@ -365,13 +396,12 @@ real RAGAS the deliverable:
 - The S18 § 2.2 Build 3 requirement is satisfied by `faithfulness`
   alone; no `ground_truth` or `context_precision` claim is made for A6.
 
-Latest Phase 8 A6 artefact: `eval/ragas_report.{json,md}` was generated
-from `eval/runs/2026-05-30T04-43-34Z/traces` with `--limit 10`; it reports
+Latest artefact: `eval/ragas_report.{json,md}` is generated with
+`--context-mode evidence --metric faithfulness --limit 10`; it reports
 `ragas_mode="real"`, `ground_truth_source="none"`, sample count 10,
-`faithfulness=0.4068`, and skipped counts
-`budget_exceeded=0`, `error=7`, `no_trace=4`, `no_context=17`.
-Its retrieval evidence summary reports 10 `search_failure_memory`
-samples with 30 retrieved contexts and 0 `search_failure_eval_cases` samples.
+`faithfulness=0.93`, `no_context=0`. The rag-mode faithfulness over the same
+traces is intentionally not published — it is a metric-mismatch artifact (see
+Context modes above), not a measure of the agent's grounding.
 
 The stub-mode fallback remains in the code for offline development but
 is no longer an acceptable production artefact.

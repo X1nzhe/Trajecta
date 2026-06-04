@@ -56,10 +56,14 @@ in this order, with a `status` and `rationale` for each:
   the cited evidence demonstrates the inspected step still covers the
   labelled failure. For success references this assertion always
   passes.
-- `regression_case_usefulness`: `expected_behavior`, `actual_behavior`,
-  and `regression_rule` together would let a future regression eval
-  catch the same failure (or, for success references, confirm the same
-  success path).
+- `regression_case_usefulness`: judge by the draft's shape. For a
+  FAILURE-shape draft, `expected_behavior`, `actual_behavior`, and
+  `regression_rule` together would let a future regression eval catch
+  the same failure. A SUCCESS-shape draft is REQUIRED to omit those
+  three fields, so do NOT fail it for their absence; pass it when its
+  evidence and claim would let a future check confirm the same success
+  path. Their absence in a success-shape draft is contract-correct, not
+  a defect.
 - `no_forbidden_claim`: the draft does not assert any condition listed
   in the golden `forbidden_facts`.
 - `evidence_support`: cited evidence supports the draft's claim, and
@@ -68,6 +72,12 @@ in this order, with a `status` and `rationale` for each:
 
 ## Judging discipline
 
+- Read the draft's verdict shape from its fields: a draft with no
+  `failure_type` and no failure fields is a SUCCESS-shape claim; a draft
+  carrying a `failure_type` is a FAILURE-shape claim. Score
+  `verdict_alignment` and `no_forbidden_claim` against the shape the
+  draft actually has — do not infer a failure claim the draft does not
+  make.
 - Do not invent assertion names beyond the six above.
 - Do not grade writing style, UI quality, or whether the browser agent
   itself succeeded — judge only the eval case draft.

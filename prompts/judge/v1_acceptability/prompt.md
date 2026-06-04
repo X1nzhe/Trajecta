@@ -33,9 +33,18 @@ Required assertions:
   compatible with the golden reference.
 - `failure_step_localization`: failed drafts localize the failure close
   enough to the labelled step or cite evidence that covers it.
-- `regression_case_usefulness`: expected behavior, actual behavior, and
-  regression rule would catch the same failure in the future.
+- `regression_case_usefulness`: for a failure-shape draft, expected
+  behavior, actual behavior, and regression rule would catch the same
+  failure in future. A success-shape draft is required to omit those
+  three fields; do not fail it for their absence — pass it when its
+  evidence would let a future check confirm the same success path.
 - `no_forbidden_claim`: the draft does not assert a forbidden golden
   fact.
 - `evidence_support`: cited evidence supports the draft, and missing
   evidence is represented as unavailable rather than invented.
+
+Read the draft's verdict shape from its fields before scoring: a draft
+with no `failure_type` and no failure fields is a success-shape claim;
+a draft carrying a `failure_type` is a failure-shape claim. Score
+`verdict_alignment` and `no_forbidden_claim` against the shape the draft
+actually has — do not infer a failure claim the draft does not make.
