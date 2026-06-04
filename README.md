@@ -190,7 +190,7 @@ Trajecta's evaluation story has four pillars: a structured golden set, determini
 | Featured prompt | `v6_guided_autonomy` — same accuracy with a cleaner evidence trail (70% of evidence from high-detail inspection) |
 | Failure-sensitive prompt | `v5_constraint_verification` reached 100.0% failure recall and 78.6% step localization |
 | Dual LLM judge | Gemini/OpenAI κ_LLM,LLM = 1.0 (both judges 20/31 acceptable) on the v6 run; see caveat below |
-| RAGAS | evidence-mode, real: faithfulness=0.93 (n=10) and 0.96 (n=58) — holds as the set scales ~6×; claims vs agent-visible evidence, no ground-truth answers |
+| RAGAS faithfulness | evidence-mode, real: 0.93 (n=10) and 0.96 (n=58), holds as the set scales ~6×. Measures whether the generated eval-case draft (its success/failure verdict + supporting claims) stays grounded in the evidence the agent actually saw — a grounding check, so no external answer key is needed |
 | Coarse-to-fine VLM | 91.5% visual-token cost savings in the formal v3 run |
 | Test suite | Last recorded Phase 8 full sweep: 440 passed / 1 skipped |
 
@@ -301,9 +301,9 @@ python -m backend.app.ragas_eval --trace-dir eval/runs/{timestamp}/traces \
   --context-mode evidence --metric faithfulness --limit 10
 ```
 
-The semantic metric is RAGAS `faithfulness`: does each eval-case claim stay faithful to its grounding evidence? Because Trajecta's RAG (failure-memory / eval-case retrieval) is *auxiliary precedent* rather than the source of the agent's claims, the default `--context-mode evidence` builds the faithfulness `contexts` from what the agent actually inspected — its high-detail `get_step_detail` reads, the trajectory digest, and any retrieved precedent — not from Chroma hits alone. So faithfulness here measures "are the claims faithful to what the agent saw," and it corroborates the LLM judge's `evidence_support` assertion (~0 fails).
+The semantic metric is RAGAS `faithfulness`: does the generated eval-case draft — its success/failure verdict and the supporting claims behind it — stay faithful to the evidence the agent actually inspected? Because Trajecta's RAG (failure-memory / eval-case retrieval) is *auxiliary precedent* rather than the source of the agent's claims, the default `--context-mode evidence` builds the faithfulness `contexts` from what the agent actually inspected — its high-detail `get_step_detail` reads, the trajectory digest, and any retrieved precedent — not from Chroma hits alone. So faithfulness here measures "are the claims faithful to what the agent saw," and it corroborates the LLM judge's `evidence_support` assertion (~0 fails).
 
-Runs (both `mode=real`, `--context-mode evidence`, `ground_truth_source=none`; no-ground-truth, not an answer-correctness or human eval): `faithfulness=0.93` at `n=10` and `faithfulness=0.96` at `n=58` — faithfulness holds (slightly up) as the evaluated set scales ~6×. The stable latest copy `eval/ragas_report.{json,md}` is the `n=58` run; each run is archived under `eval/ragas_report/<stamp>/` (n=10: `2026-06-03T21-32-30Z`, n=58: `2026-06-03T23-10-05Z`).
+Runs (both `mode=real`, `--context-mode evidence`): `faithfulness=0.93` at `n=10` and `faithfulness=0.96` at `n=58` — faithfulness holds (slightly up) as the evaluated set scales ~6×. `ground_truth_source=none` is intentional, not a gap: faithfulness scores whether the eval-case draft (verdict + claims) is entailed by its evidence, so it needs no external answer key — a different axis from answer-correctness or human eval, not a weaker stand-in for them. The stable latest copy `eval/ragas_report.{json,md}` is the `n=58` run; each run is archived under `eval/ragas_report/<stamp>/` (n=10: `2026-06-03T21-32-30Z`, n=58: `2026-06-03T23-10-05Z`).
 
 Flags: `--context-mode {rag,evidence}` (evidence is the default and the reported metric; `rag` is a search-results-only variant kept for reproducibility), `--metric {faithfulness,context_recall,both}`, and `--merge` (fold a freshly computed metric into the existing report without recomputing the other). Details and the ragas-0.4.3 setup notes are in [docs/testing.md](docs/testing.md).
 
