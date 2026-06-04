@@ -1,0 +1,705 @@
+{
+  "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 3,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 5,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+        "task": "navigate: Explore Allrecipes for a caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on use element",
+              "text": null,
+              "coordinates": {
+                "x": 823.06103441643,
+                "y": 32.11081169318624
+              },
+              "bbox": {
+                "x": 823.06103441643,
+                "y": 32.11081169318624,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=823.06103441643, y=32.11081169318624, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 986,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 986,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 194.41131009188564,
+                "y": 135.024939877835
+              },
+              "bbox": {
+                "x": 31.87070707070707,
+                "y": 115.87812090844659,
+                "width": 319.50385662040327,
+                "height": 47.86703601108033
+              },
+              "raw": "mouse_click(x=194.41131009188564, y=135.024939877835, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 986,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "click",
+              "image_width": 986,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'caramelized onion and goat cheese pizza'",
+              "text": "caramelized onion and goat cheese pizza",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='caramelized onion and goat cheese pizza')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 986,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_type",
+              "image_width": 986,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "press Enter key",
+              "text": "Enter",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_press(key='Enter')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 986,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "keyboard_press",
+              "image_width": 986,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 986,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 986,
+              "image_height": 720
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+          "task": "navigate: Explore Allrecipes for a caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars.",
+          "step_count": 5,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (823.061, 32.1108)",
+              "action_target": "Click on use element",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | large recipe hero image of chicken and rice skillet",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "click",
+              "action_text": "click at (194.411, 135.025)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=modal; modal=yes; error_banner=no; focus=left | Allrecipes search menu with search box and category list",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "type",
+              "action_text": "type 'caramelized onion and goat cheese pizza'",
+              "action_target": "type 'caramelized onion and goat cheese pizza'",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=left | Allrecipes side menu with search box and category list open over recipe page",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "unknown",
+              "action_text": "press Enter key",
+              "action_target": "press Enter key",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=left | Allrecipes slide-out menu with search box and category links over recipe page",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.allrecipes.com/",
+              "title": "Allrecipes | Recipes, How-Tos, Videos and More",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | search results for caramelized onion and goat cheese pizza, pizza recipe card visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 5405,
+          "vlm_output_tokens": 159
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+        "step_index": 5,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+        "step_index": 5,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_7cc5be82>page_state:\nAllrecipes search results page for “caramelized onion and goat cheese pizza,” showing recipe/article cards in a grid.\ntask_relevant_visible_text:\n“Search Results For”\n“caramelized onion and goat cheese pizza”\n“ITALIAN”\n“Fig and Goat Cheese Pizza”\n“FOOD NEWS AND TRENDS”\n“We Tried 47 Kroger Store-Brand Products...”\nselected_candidate:\nFig and Goat Cheese Pizza\nconstraint_evidence:\n- Recipe/topic matches caramelized onion and goat cheese pizza: not_visible\n- More than 40 reviews: not_visible\n- Rating of at least 4.5 stars: not_visible\n- Must be on Allrecipes: supported (URL/title)\n- Need a recipe result, not an unrelated article: supported for selected candidate being a recipe card; contradicted for the Kroger article card\naction_target:\nLikely click the “Fig and Goat Cheese Pizza” recipe card to inspect whether it meets review/rating constraints.\nsuccess_signals:\nA recipe detail page opens with visible rating and review count meeting thresholds.\nfailure_signals:\nSelected result is not the target recipe, or detail page shows rating < 4.5 or reviews ≤ 40.\nuncertainty:\nNo ratings or review counts are visible on this results screen, so constraint satisfaction cannot be confirmed yet.</TRAJECTA_DATA_7cc5be82>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Explore Allrecipes for a caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars.",
+          "url": "<TRAJECTA_DATA_7cc5be82>https://www.allrecipes.com/</TRAJECTA_DATA_7cc5be82>",
+          "title": "<TRAJECTA_DATA_7cc5be82>Allrecipes | Recipes, How-Tos, Videos and More</TRAJECTA_DATA_7cc5be82>",
+          "action_label": "<TRAJECTA_DATA_7cc5be82>send message to user: '[EXIT]'</TRAJECTA_DATA_7cc5be82>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_7cc5be82>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_7cc5be82>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_7cc5be82>send message to user: '[EXIT]'</TRAJECTA_DATA_7cc5be82>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_7cc5be82>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_7cc5be82>"
+        },
+        "observation": {
+          "screenshot": "screenshot_005.png",
+          "url": "<TRAJECTA_DATA_7cc5be82>https://www.allrecipes.com/</TRAJECTA_DATA_7cc5be82>",
+          "title": "<TRAJECTA_DATA_7cc5be82>Allrecipes | Recipes, How-Tos, Videos and More</TRAJECTA_DATA_7cc5be82>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 986,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d/screenshots/screenshot_005.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+        "step_index": 3,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+        "step_index": 3,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_7cc5be82>page_state:\nAllrecipes mobile site with left slide-out navigation/search drawer open over the homepage; search field is visible and ready for input.\ntask_relevant_visible_text:\nAllrecipes; Search; “What are you looking for?”; DINNERS; MEALS; INGREDIENTS; OCCASIONS; CUISINES; KITCHEN TIPS; NEWS; FEATURES; VIDEO; ABOUT US; GET THE MAGAZINE; My Saves\nselected_candidate:\nSearch input field in the drawer\nconstraint_evidence:\n- recipe topic “caramelized onion and goat cheese pizza”: supported by action context (typed query), not yet visible in page text\n- must use Allrecipes: supported (URL/title and visible Allrecipes branding)\n- more than 40 reviews: not_visible\n- rating of at least 4.5 stars: not_visible\naction_target:\nEntered search query in the Allrecipes search box to find the recipe\nsuccess_signals:\nSearch field is present and appears focused/ready; query entry is the correct next step for recipe discovery\nfailure_signals:\nNo search results or recipe details are visible yet; no evidence of reviews/rating constraints on-screen\nuncertainty:\nThe typed text is not visible in the screenshot, so it’s unclear whether the input has been accepted/displayed yet.</TRAJECTA_DATA_7cc5be82>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Explore Allrecipes for a caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars.",
+          "url": "<TRAJECTA_DATA_7cc5be82>https://www.allrecipes.com/</TRAJECTA_DATA_7cc5be82>",
+          "title": "<TRAJECTA_DATA_7cc5be82>Allrecipes | Recipes, How-Tos, Videos and More</TRAJECTA_DATA_7cc5be82>",
+          "action_label": "<TRAJECTA_DATA_7cc5be82>type 'caramelized onion and goat cheese pizza'</TRAJECTA_DATA_7cc5be82>",
+          "action_text": "<TRAJECTA_DATA_7cc5be82>caramelized onion and goat cheese pizza</TRAJECTA_DATA_7cc5be82>",
+          "action_raw": "<TRAJECTA_DATA_7cc5be82>keyboard_type(text='caramelized onion and goat cheese pizza')</TRAJECTA_DATA_7cc5be82>"
+        },
+        "action": {
+          "type": "type",
+          "label": "<TRAJECTA_DATA_7cc5be82>type 'caramelized onion and goat cheese pizza'</TRAJECTA_DATA_7cc5be82>",
+          "text": "<TRAJECTA_DATA_7cc5be82>caramelized onion and goat cheese pizza</TRAJECTA_DATA_7cc5be82>",
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_7cc5be82>keyboard_type(text='caramelized onion and goat cheese pizza')</TRAJECTA_DATA_7cc5be82>"
+        },
+        "observation": {
+          "screenshot": "screenshot_003.png",
+          "url": "<TRAJECTA_DATA_7cc5be82>https://www.allrecipes.com/</TRAJECTA_DATA_7cc5be82>",
+          "title": "<TRAJECTA_DATA_7cc5be82>Allrecipes | Recipes, How-Tos, Videos and More</TRAJECTA_DATA_7cc5be82>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 986,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d/screenshots/screenshot_003.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "Allrecipes recipe search exits on search results without opening a recipe or verifying required rating >= 4.5 and reviews > 40; hard constraints remain unverified on results page",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32",
+            "source_trajectory_id": "8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4",
+            "task": "navigate: Search for a hotel in Kyoto with a user rating of 7 or higher, equipped with a kitchenette, available for a stay from April 5 to April 8, 2026.",
+            "failure_step": 32,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have correctly set the dates to April 5-8, 2026, and then selected a hotel in Kyoto that met the rating (7+) and amenity (kitchenette) requirements.",
+            "actual_behavior": "The agent searched for hotels in Kyoto with a rating of 7+ and a kitchenette, but it failed to set the correct dates (April 5-8, 2026). The search results were for different dates, and the agent exited without selecting a hotel that met all the criteria.",
+            "evidence": [
+              {
+                "claim": "The search bar shows dates 'Wed, Feb 25 — Thu, Feb 26' instead of the requested 'April 5 to April 8, 2026'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent failed to set the correct dates (April 5-8, 2026) in the search parameters, resulting in incorrect availability results. The agent is exiting prematurely without selecting a hotel that meets all criteria.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that all date and amenity constraints are correctly applied in the search form before proceeding to select a result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec_step_2",
+            "source_trajectory_id": "50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec",
+            "task": "navigate: Identify the most recent article on ArXiv related to 'deep reinforcement learning'.",
+            "failure_step": 2,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have typed the correct search query ('deep reinforcement learning') to find relevant articles. The agent failed to verify the search query for typos before submitting.",
+            "actual_behavior": "The agent performed a search with a typo in the query (\"deep reinforcemen learing\"), which resulted in no results. The agent then terminated the task with [EXIT].",
+            "evidence": [
+              {
+                "claim": "The agent typed 'deep reinforcemen learing' into the search field.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 2,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The search results page displays 'Sorry, your query returned no results'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 6,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that search queries are spelled correctly and verified before submission, especially when the initial search yields no results.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1",
+            "source_trajectory_id": "e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302",
+            "task": "find: answer to 'How many of these were submitted by authors affiliated with institutions outside the USA?'",
+            "failure_step": 1,
+            "failure_type": "early_terminated",
+            "expected_behavior": "The agent should have attempted to navigate to individual paper pages or use other available tools/methods to determine the author affiliations for the papers in the search results, or at least attempted a representative sample if the full set was too large.",
+            "actual_behavior": "The agent performed an [EXIT] action immediately after loading the search results page, without attempting to investigate the author affiliations of the papers.",
+            "evidence": [
+              {
+                "claim": "The agent did not attempt to access individual paper pages or any other source to determine author affiliations.",
+                "source": "trajectory",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The task requires checking author affiliations for a large number of papers, which is not possible from the search results page alone. The agent exited without attempting any further steps.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "The agent must not exit a task prematurely without attempting to gather the necessary information to answer the user's query, especially when the initial page does not contain the required data.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 9,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+        "retrieved_context_ids": [
+          "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+        ],
+        "failure_step": 5,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "After reaching Allrecipes search results, the agent should have opened a candidate recipe and verified that it was a caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars before exiting.",
+        "actual_behavior": "The agent exited directly from the search results page. The visible result card was 'Fig and Goat Cheese Pizza,' and the screen did not show review count or rating evidence meeting the task thresholds, so the required constraints were never verified.",
+        "regression_rule": "Do not treat a search results page as task completion when the task requires recipe-specific thresholds such as rating and review count; open a candidate and confirm all hard constraints before exiting.",
+        "evidence": [
+          {
+            "claim": "The task requires finding an Allrecipes caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars.",
+            "source": "trajectory",
+            "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+            "step_index": 5
+          },
+          {
+            "claim": "By step 3 the agent had only entered the search query in the Allrecipes search field; no recipe details, ratings, or review counts were visible yet.",
+            "source": "step_detail_high",
+            "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+            "step_index": 3
+          },
+          {
+            "claim": "At the final step, the page is still an Allrecipes search results screen for 'caramelized onion and goat cheese pizza.' The visible recipe card is 'Fig and Goat Cheese Pizza,' and the constraint evidence marks the recipe-topic match, review count, and rating threshold as not visible.",
+            "source": "step_detail_high",
+            "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+            "step_index": 5
+          },
+          {
+            "claim": "A validated precedent classifies exiting after making progress but without verifying required hard constraints as missed_constraint rather than success.",
+            "source": "eval_case",
+            "context_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+          }
+        ],
+        "suggested_followups": [
+          {
+            "label": "Inspect candidate recipe",
+            "message": "Open the visible recipe card and check whether its rating and review count satisfy the thresholds."
+          },
+          {
+            "label": "Check earlier result cards",
+            "message": "Review whether any other visible search results better match 'caramelized onion and goat cheese pizza' before selecting one."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 10,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d_step_5",
+        "source_trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+        "task": "navigate: Explore Allrecipes for a caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars.",
+        "failure_step": 5,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "After reaching Allrecipes search results, the agent should have opened a candidate recipe and verified that it was a caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars before exiting.",
+        "actual_behavior": "The agent exited directly from the search results page. The visible result card was 'Fig and Goat Cheese Pizza,' and the screen did not show review count or rating evidence meeting the task thresholds, so the required constraints were never verified.",
+        "evidence": [
+          {
+            "claim": "The task requires finding an Allrecipes caramelized onion and goat cheese pizza recipe with more than 40 reviews and a rating of at least 4.5 stars.",
+            "source": "trajectory",
+            "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+            "step_index": 5,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "By step 3 the agent had only entered the search query in the Allrecipes search field; no recipe details, ratings, or review counts were visible yet.",
+            "source": "step_detail_high",
+            "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+            "step_index": 3,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "At the final step, the page is still an Allrecipes search results screen for 'caramelized onion and goat cheese pizza.' The visible recipe card is 'Fig and Goat Cheese Pizza,' and the constraint evidence marks the recipe-topic match, review count, and rating threshold as not visible.",
+            "source": "step_detail_high",
+            "trajectory_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+            "step_index": 5,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "A validated precedent classifies exiting after making progress but without verifying required hard constraints as missed_constraint rather than success.",
+            "source": "eval_case",
+            "trajectory_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+          }
+        ],
+        "regression_rule": "Do not treat a search results page as task completion when the task requires recipe-specific thresholds such as rating and review count; open a candidate and confirm all hard constraints before exiting.",
+        "retrieved_context_ids": [
+          "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Inspect candidate recipe",
+            "message": "Open the visible recipe card and check whether its rating and review count satisfy the thresholds."
+          },
+          {
+            "label": "Check earlier result cards",
+            "message": "Review whether any other visible search results better match 'caramelized onion and goat cheese pizza' before selecting one."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-2026-03-05",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 2307,
+  "vlm_output_tokens": 552,
+  "runtime_ms": 20753,
+  "input_tokens": 33280,
+  "output_tokens": 977,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 20753,
+      "input_tokens": 33280,
+      "output_tokens": 977
+    }
+  ]
+}

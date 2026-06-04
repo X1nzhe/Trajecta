@@ -1,0 +1,864 @@
+{
+  "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+  "user_intent": "analyze_run",
+  "selected_step": null,
+  "tool_call_count": 6,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 7,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_run",
+      "args": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_run",
+      "args": null,
+      "result": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "task": "find: answer to 'What are the ingredients and estimated preparation time?'",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 474.6843853820598 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=474.6843853820598)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "scroll",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 587.609332822882 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=587.609332822882)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "scroll",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 494.6710963455149 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=494.6710963455149)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "scroll",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 484.67774086378734 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=484.67774086378734)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "scroll",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on BUTTON element with value 'CLOSE'",
+              "text": null,
+              "coordinates": {
+                "x": 1131.484942886812,
+                "y": 709.5282392026578
+              },
+              "bbox": {
+                "x": 1076.317237798546,
+                "y": 691.5402450814992,
+                "width": 88.92471443406023,
+                "height": 39.9734219269103
+              },
+              "raw": "mouse_click(x=1131.484942886812, y=709.5282392026578, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "click",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\n\n1 banana\n\n1 carrot, peeled and cut into large chunks\n\n3½ cup plain fat-free Greek yogurt, or to taste\n\n3/4 cup ice\n\n2 tablespoons honey '",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\\n\\n1 banana\\n\\n1 carrot, peeled and cut into large chunks\\n\\n3½ cup plain fat-free Greek yogurt, or to taste\\n\\n3/4 cup ice\\n\\n2 tablespoons honey ')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1204,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1204,
+              "image_height": 752
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+          "task": "find: answer to 'What are the ingredients and estimated preparation time?'",
+          "step_count": 7,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 474.6843853820598 pixels",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=detail; modal=no; error_banner=no; focus=center | Breakfast Banana Green Smoothie recipe title, rating and reviews visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 587.609332822882 pixels",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | green smoothie photo with Save and Rate buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 494.6710963455149 pixels",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=detail; modal=no; error_banner=no; focus=center | recipe page with prep time, total time, servings, and large food ads visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 484.67774086378734 pixels",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=detail; modal=no; error_banner=no; focus=bottom | Ingredients section with Keep Screen Awake toggle visible, recipe/article page on Allrecipes",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "click",
+              "action_text": "click at (1131.48, 709.528)",
+              "action_target": "Click on BUTTON element with value 'CLOSE'",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=detail; modal=yes; error_banner=no; focus=center | recipe ingredients list with a large ad modal overlay and Close button",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\n\n1 banana\n\n1 carrot, peeled and cut into large chunks\n\n3½ cup plain fat-free Greek yogurt, or to taste\n\n3/4 cup ice\n\n2 tablespoons honey '",
+              "action_target": "send message to user: '[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\n\n1 banana\n\n1 carrot, peeled and cut into large chunks\n\n3½ cup plain fat-free Greek yogurt, or to taste\n\n3/4 cup ice\n\n2 tablespoons honey '",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=detail; modal=no; error_banner=no; focus=center | recipe ingredients list with large mac and cheese ad image on right",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+              "title": "Breakfast Banana Green Smoothie Recipe",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=detail; modal=no; error_banner=no; focus=center | recipe ingredient list with large mac and cheese ad image on right",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 9240,
+          "vlm_output_tokens": 230
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "search_failure_memory",
+      "args": {
+        "query": "recipe page answered with ingredients and prep time then exited; possible wrong_result or early_terminated after finding recipe details",
+        "top_k": 3
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "search_failure_memory",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "fm_early_terminated_001",
+            "failure_type": "early_terminated",
+            "summary": "The agent exited before reaching a page state that satisfies the task.",
+            "fix_hint": "Require a final evidence check that the requested information or state is visible before sending an exit message.",
+            "tags": [
+              "termination",
+              "verification"
+            ]
+          },
+          {
+            "case_id": "fm_wrong_result_001",
+            "failure_type": "wrong_result",
+            "summary": "The agent returned a plausible result that missed qualifiers in the user's request.",
+            "fix_hint": "Extract qualifiers such as recency, thresholds, or category before evaluating candidate results.",
+            "tags": [
+              "qualifier",
+              "result_selection",
+              "github"
+            ]
+          },
+          {
+            "case_id": "fm_missed_constraint_001",
+            "failure_type": "missed_constraint",
+            "summary": "The agent completed a search task but did not enforce an explicit user constraint before stopping.",
+            "fix_hint": "Track hard constraints separately from the main goal and verify them against the final page state before returning success.",
+            "tags": [
+              "constraint",
+              "premature_success",
+              "verification"
+            ]
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "search_eval_cases",
+      "args": {
+        "query": "recipe scraping task answered with recipe details and then exited; judging whether this is a valid success or a premature termination",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "search_eval_cases",
+      "args": null,
+      "result": {
+        "items": []
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "find_similar_successful_run",
+      "args": {
+        "task": "analyze_run",
+        "top_k": 3,
+        "exclude_run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "find_similar_successful_run",
+      "args": null,
+      "result": {
+        "items": []
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 9,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "step_index": 6,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 10,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "step_index": 6,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "page_state:\nRecipe page scrolled to ingredient list; no visible prep-time label in the screenshot.\ntask_relevant_visible_text:\n2 cups baby spinach leaves, or to taste; 1 banana; 1 carrot, peeled and cut into large chunks; 3/4 cup plain fat-free Greek yogurt, or to taste; 3/4 cup ice; 2 tablespoons honey\nselected_candidate:\nBreakfast Banana Green Smoothie recipe ingredients list; estimated prep time from trajectory context: 5 minutes\nconstraint_evidence:\n- Need answer ingredients: supported (ingredient list visible)\n- Need estimated preparation time: not_visible in screenshot; supported by trajectory context/action text as 5 minutes\n- Need recipe/page context matches target recipe: supported (Allrecipes + title/URL context)\n- Need exact ingredient quantities: supported for all listed ingredients except screenshot shows 3/4 cup yogurt and 3/4 cup ice; trajectory action text says 3½ cup yogurt, which is contradicted by screenshot\naction_target:\nSend user the answer with prep time and ingredients for Breakfast Banana Green Smoothie\nsuccess_signals:\nIngredient list is visible and matches the recipe; page context is correct; answer can be composed from context\nfailure_signals:\nPrep time is not visible on-screen; one ingredient quantity in action text conflicts with screenshot (yogurt amount)\nuncertainty:\nWhether the correct yogurt amount is 3/4 cup or 3½ cup; prep time is inferred from prior trajectory rather than visible in this frame",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "find: answer to 'What are the ingredients and estimated preparation time?'",
+          "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+          "title": "Breakfast Banana Green Smoothie Recipe",
+          "action_label": "send message to user: '[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\n\n1 banana\n\n1 carrot, peeled and cut into large chunks\n\n3½ cup plain fat-free Greek yogurt, or to taste\n\n3/4 cup ice\n\n2 tablespoons honey '",
+          "action_text": null,
+          "action_raw": "send_msg_to_user(text='[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\\n\\n1 banana\\n\\n1 carrot, peeled and cut into large chunks\\n\\n3½ cup plain fat-free Greek yogurt, or to taste\\n\\n3/4 cup ice\\n\\n2 tablespoons honey ')"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "send message to user: '[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\n\n1 banana\n\n1 carrot, peeled and cut into large chunks\n\n3½ cup plain fat-free Greek yogurt, or to taste\n\n3/4 cup ice\n\n2 tablespoons honey '",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "send_msg_to_user(text='[ANSWER] Prep time: 5 minutes , ingredients: 2 cups baby spinach leaves, or to taste\\n\\n1 banana\\n\\n1 carrot, peeled and cut into large chunks\\n\\n3½ cup plain fat-free Greek yogurt, or to taste\\n\\n3/4 cup ice\\n\\n2 tablespoons honey ')"
+        },
+        "observation": {
+          "screenshot": "screenshot_006.png",
+          "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+          "title": "Breakfast Banana Green Smoothie Recipe",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1204,
+          "image_height": 752,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/runs/44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d/screenshots/screenshot_006.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 11,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "step_index": 5,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 12,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "step_index": 5,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "page_state:\nRecipe page scrolled to ingredients section; a large video/ad overlay is open at lower right with a visible CLOSE button.\ntask_relevant_visible_text:\n“2 cups baby spinach leaves, or to taste”; “1 banana”; “1 carrot, peeled and cut into large chunks”; “3/4 cup plain fat-free Greek yogurt, or to taste”; “3/4 cup ice”; “2 tablespoons honey”; “Original recipe (1X) yields 1 servings”; “Blueberry Butter Swim Biscuits”; “CLOSE”\nselected_candidate:\nThe visible ingredients list for the recipe; likely the target recipe content, but the estimated preparation time is not visible in this screenshot.\nconstraint_evidence:\n- Need answer ingredients: supported (ingredients list visible).\n- Need estimated preparation time: not_visible (no prep time shown).\n- Page is the Allrecipes recipe “Breakfast Banana Green Smoothie Recipe”: supported (title/url context).\n- Must ignore ad overlay content: supported (overlay is unrelated to recipe).\naction_target:\nClick the CLOSE button on the lower-right overlay/ad.\nsuccess_signals:\nOverlay disappears; more of the recipe page becomes visible, possibly including prep time or additional recipe details.\nfailure_signals:\nOverlay remains open or page navigates away from recipe content.\nuncertainty:\nPrep time is not visible here, so the full requested answer cannot yet be confirmed from this screenshot alone.",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "find: answer to 'What are the ingredients and estimated preparation time?'",
+          "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+          "title": "Breakfast Banana Green Smoothie Recipe",
+          "action_label": "Click on BUTTON element with value 'CLOSE'",
+          "action_text": null,
+          "action_raw": "mouse_click(x=1131.484942886812, y=709.5282392026578, button='left')"
+        },
+        "action": {
+          "type": "click",
+          "label": "Click on BUTTON element with value 'CLOSE'",
+          "text": null,
+          "coordinates": {
+            "x": 1131.484942886812,
+            "y": 709.5282392026578
+          },
+          "bbox": {
+            "x": 1076.317237798546,
+            "y": 691.5402450814992,
+            "width": 88.92471443406023,
+            "height": 39.9734219269103
+          },
+          "raw": "mouse_click(x=1131.484942886812, y=709.5282392026578, button='left')"
+        },
+        "observation": {
+          "screenshot": "screenshot_005.png",
+          "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+          "title": "Breakfast Banana Green Smoothie Recipe",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "validated",
+          "image_width": 1204,
+          "image_height": 752,
+          "reason": null
+        },
+        "screenshot_url": "/api/runs/44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d/screenshots/screenshot_005.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 13,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "step_index": 7,
+        "image_detail": "low"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 14,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "step_index": 7,
+        "has_screenshot": true,
+        "image_detail": "low",
+        "vlm_summary": "page_type=detail; modal=no; error_banner=no; focus=center | recipe ingredient list with large mac and cheese ad image on right",
+        "vlm_prompt_version": null,
+        "vlm_prompt_sha256": null,
+        "task_context": {
+          "task": "find: answer to 'What are the ingredients and estimated preparation time?'",
+          "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+          "title": "Breakfast Banana Green Smoothie Recipe",
+          "action_label": "send message to user: '[EXIT]'",
+          "action_text": null,
+          "action_raw": "send_msg_to_user(text='[EXIT]')"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "send message to user: '[EXIT]'",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "send_msg_to_user(text='[EXIT]')"
+        },
+        "observation": {
+          "screenshot": "screenshot_007.png",
+          "url": "https://www.allrecipes.com/recipe/233980/breakfast-banana-green-smoothie/",
+          "title": "Breakfast Banana Green Smoothie Recipe",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1204,
+          "image_height": 752,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/runs/44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d/screenshots/screenshot_007.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 15,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "evidence": [
+          {
+            "claim": "The run reached the correct Allrecipes recipe page for Breakfast Banana Green Smoothie and navigated to the ingredients section.",
+            "source": "trajectory_digest",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 4
+          },
+          {
+            "claim": "Step 5 shows the ingredients list visibly on-screen, including spinach, banana, carrot, yogurt, ice, and honey.",
+            "source": "step_detail_high",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 5
+          },
+          {
+            "claim": "Step 6's high-detail inspection confirms the ingredient list is visible, but the prep time is not visible in the screenshot and is only inferred from trajectory context as 5 minutes.",
+            "source": "step_detail_high",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 6
+          },
+          {
+            "claim": "Step 6 also reveals a discrepancy: the action text says '3½ cup plain fat-free Greek yogurt' while the screenshot evidence indicates '3/4 cup plain fat-free Greek yogurt'.",
+            "source": "step_detail_high",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 6
+          },
+          {
+            "claim": "The agent sent the answer message and then exited the run.",
+            "source": "trajectory",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 7
+          },
+          {
+            "claim": "A likely failure pattern for this trace is that the agent stopped after finding recipe content without verifying the full requested answer was confirmed on-screen.",
+            "source": "failure_memory",
+            "context_id": "fm_early_terminated_001"
+          }
+        ],
+        "retrieved_context_ids": [
+          "fm_early_terminated_001"
+        ],
+        "failure_step": 7,
+        "failure_type": "early_terminated",
+        "expected_behavior": "Verify that both the ingredients and estimated preparation time are supported by the page state before sending the final answer; then stop only after confirming the requested information is fully satisfied.",
+        "actual_behavior": "The agent sent a final answer based on partially visible page content and trajectory context, then exited. The prep time was not visible in the inspected screenshot, and one ingredient quantity was inconsistent between the action text and screenshot.",
+        "regression_rule": "Before finalizing, require a visible or otherwise explicitly verified source for every requested field; do not rely on an unverified inferred value when the page state does not show the requested detail."
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 16,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d_step_7",
+        "source_run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+        "task": "find: answer to 'What are the ingredients and estimated preparation time?'",
+        "failure_step": 7,
+        "failure_type": "early_terminated",
+        "expected_behavior": "Verify that both the ingredients and estimated preparation time are supported by the page state before sending the final answer; then stop only after confirming the requested information is fully satisfied.",
+        "actual_behavior": "The agent sent a final answer based on partially visible page content and trajectory context, then exited. The prep time was not visible in the inspected screenshot, and one ingredient quantity was inconsistent between the action text and screenshot.",
+        "evidence": [
+          {
+            "claim": "The run reached the correct Allrecipes recipe page for Breakfast Banana Green Smoothie and navigated to the ingredients section.",
+            "source": "trajectory_digest",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Step 5 shows the ingredients list visibly on-screen, including spinach, banana, carrot, yogurt, ice, and honey.",
+            "source": "step_detail_high",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 5,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Step 6's high-detail inspection confirms the ingredient list is visible, but the prep time is not visible in the screenshot and is only inferred from trajectory context as 5 minutes.",
+            "source": "step_detail_high",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 6,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Step 6 also reveals a discrepancy: the action text says '3½ cup plain fat-free Greek yogurt' while the screenshot evidence indicates '3/4 cup plain fat-free Greek yogurt'.",
+            "source": "step_detail_high",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 6,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The agent sent the answer message and then exited the run.",
+            "source": "trajectory",
+            "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "A likely failure pattern for this trace is that the agent stopped after finding recipe content without verifying the full requested answer was confirmed on-screen.",
+            "source": "failure_memory",
+            "run_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "fm_early_terminated_001"
+          }
+        ],
+        "regression_rule": "Before finalizing, require a visible or otherwise explicitly verified source for every requested field; do not rely on an unverified inferred value when the page state does not show the requested detail.",
+        "retrieved_context_ids": [
+          "fm_early_terminated_001"
+        ],
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v1_minimal",
+  "prompt_sha256": "1974f3d3dfa42f369ab2d1e96309c3e7b33b9924347a9c96740441a8bb832e16",
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 4208,
+  "vlm_output_tokens": 637,
+  "runtime_ms": 15722,
+  "input_tokens": 27122,
+  "output_tokens": 1082,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 15722,
+      "input_tokens": 27122,
+      "output_tokens": 1082
+    }
+  ]
+}

@@ -1,0 +1,706 @@
+{
+  "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+  "user_intent": "analyze_run",
+  "selected_step": null,
+  "tool_call_count": 2,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 7,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_run",
+      "args": {
+        "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_run",
+      "args": null,
+      "result": {
+        "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on BUTTON element",
+              "text": null,
+              "coordinates": {
+                "x": 820.8317770344739,
+                "y": 226.61113367671462
+              },
+              "bbox": {
+                "x": 812.1686720015219,
+                "y": 213.72982599038994,
+                "width": 38.203330019842866,
+                "height": 38.22228220711767
+              },
+              "raw": "mouse_click(x=820.8317770344739, y=226.61113367671462, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 217.27899313430638,
+                "y": 568.9328678097346
+              },
+              "bbox": {
+                "x": 63.646200542486554,
+                "y": 537.6756948285399,
+                "width": 295.15551207207443,
+                "height": 38.22228220711767
+              },
+              "raw": "mouse_click(x=217.27899313430638, y=568.9328678097346, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'Zurich'",
+              "text": "Zurich",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='Zurich')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_type",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on path element",
+              "text": null,
+              "coordinates": {
+                "x": 413.74581628019655,
+                "y": 559.770983130531
+              },
+              "bbox": {
+                "x": 413.74581628019655,
+                "y": 559.770983130531,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=413.74581628019655, y=559.770983130531, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 249.86985974607217 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=249.86985974607217)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "scroll",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on BUTTON element with value 'Search'",
+              "text": null,
+              "coordinates": {
+                "x": 959.0245080168096,
+                "y": 284.91411867394913
+              },
+              "bbox": {
+                "x": 945.9908829174664,
+                "y": 261.8427972034016,
+                "width": 123.35109092727045,
+                "height": 56.845392547877495
+              },
+              "raw": "mouse_click(x=959.0245080168096, y=284.91411867394913, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+          "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+          "step_count": 7,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (820.832, 226.611)",
+              "action_target": "Click on BUTTON element",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=modal; modal=yes; error_banner=no; focus=center | Genius sign in, save money; Sign in or register button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "click",
+              "action_text": "click at (217.279, 568.933)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Double cruise cash to spend on board, Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "type",
+              "action_text": "type 'Zurich'",
+              "action_target": "type 'Zurich'",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Double cruise cash to spend on board, Explore cruise deals, Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "click",
+              "action_text": "click at (413.746, 559.771)",
+              "action_target": "Click on path element",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Double cruise cash to spend on board, Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 249.86985974607217 pixels",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Double cruise cash to spend on board, Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "click",
+              "action_text": "click at (959.025, 284.914)",
+              "action_target": "Click on BUTTON element with value 'Search'",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=yes; error_banner=no; focus=center | Booking.com search form with calendar date picker open, Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=top | Zurich: 5 properties found, Search button, hotel filters and listing cards visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 8344,
+          "vlm_output_tokens": 221
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "step_index": 7,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "step_index": 7,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "page_state:\nBooking.com Zurich search results page with filters applied; results list visible and one hotel card partially visible.\ntask_relevant_visible_text:\n“Zurich: 5 properties found”; “Very Good: 8+”; “Breakfast included”; “Hotels”; “Free cancellation”; hotel card: “Glärnischhof by TRINITY”; “Very Good 8.3”; “Breakfast included”; “Per night $253”; “1 night, 2 adults”.\nselected_candidate:\nGlärnischhof by TRINITY\nconstraint_evidence:\n- Zurich location: supported (search field and results header show Zurich)\n- hotel/accommodation category: supported (“Hotels”, hotel result card)\n- rating 8.5 or above: contradicted/not satisfied for visible candidate (8.3 shown); no other visible result ratings shown\n- free breakfast: supported for visible candidate (“Breakfast included”)\n- sauna facilities: not_visible\n- stay starting Jan 20, 2026: contradicted/not satisfied in visible date field (shows Mon, Mar 2 — Tue, Mar 3)\n- four nights: contradicted/not satisfied in visible date field (shows 1 night)\n- price/availability: supported for visible candidate ($253 per night shown)\naction_target:\nExit / send message to user “[EXIT]”\nsuccess_signals:\nUser-facing exit message sent; no further browsing action taken.\nfailure_signals:\nIf the intent was to continue searching, exiting now would stop progress before confirming a hotel meeting all constraints.\nuncertainty:\nOnly one result card is clearly readable; sauna availability and any other qualifying hotels are not visible.",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+          "url": "https://www.booking.com/",
+          "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+          "action_label": "send message to user: '[EXIT]'",
+          "action_text": null,
+          "action_raw": "send_msg_to_user(text='[EXIT]')"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "send message to user: '[EXIT]'",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "send_msg_to_user(text='[EXIT]')"
+        },
+        "observation": {
+          "screenshot": "screenshot_007.png",
+          "url": "https://www.booking.com/",
+          "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1106,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/runs/2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3/screenshots/screenshot_007.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "search_failure_memory",
+      "args": {
+        "query": "Booking.com hotel search exited on results page before verifying all constraints; visible candidate had rating 8.3, breakfast included, date mismatch, sauna not visible",
+        "top_k": 2
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "search_failure_memory",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "fm_missed_constraint_001",
+            "failure_type": "missed_constraint",
+            "summary": "The agent completed a search task but did not enforce an explicit user constraint before stopping.",
+            "fix_hint": "Track hard constraints separately from the main goal and verify them against the final page state before returning success.",
+            "tags": [
+              "constraint",
+              "premature_success",
+              "verification"
+            ]
+          },
+          {
+            "case_id": "fm_wrong_result_001",
+            "failure_type": "wrong_result",
+            "summary": "The agent returned a plausible result that missed qualifiers in the user's request.",
+            "fix_hint": "Extract qualifiers such as recency, thresholds, or category before evaluating candidate results.",
+            "tags": [
+              "qualifier",
+              "result_selection",
+              "github"
+            ]
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "failure_step": 7,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "Continue inspecting the Booking.com results and verify a hotel in Zurich satisfies all hard constraints: rating 8.5+, free breakfast, sauna, check-in starting Jan 20, 2026, and a 4-night stay, before exiting or reporting success.",
+        "actual_behavior": "The agent exited on the results page after one visible hotel card showed 8.3 rating, breakfast included, and mismatched dates/length of stay; sauna availability was not verified and the task constraints were not satisfied in the visible final state.",
+        "regression_rule": "Before stopping on a travel/ecommerce results page, explicitly verify every hard constraint from the user request against the selected candidate and current date/stay fields; do not exit when any required qualifier remains unconfirmed or contradicted.",
+        "evidence": [
+          {
+            "claim": "The final high-detail screenshot shows Booking.com Zurich search results with filters applied and one readable hotel card.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "The visible candidate is Glärnischhof by TRINITY with rating 8.3 and 'Breakfast included'.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "The visible date field shows a 1-night stay on Mon, Mar 2 — Tue, Mar 3, which contradicts the requested Jan 20, 2026 start and 4-night duration.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "Sauna availability is not visible in the final state, so it was not verified before exit.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "The trajectory ends with a send-message '[EXIT]' action rather than further browsing or verification.",
+            "source": "trajectory",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "Failure memory precedent indicates this pattern is a missed-constraint issue requiring explicit verification of all user constraints before stopping.",
+            "source": "failure_memory",
+            "context_id": "fm_missed_constraint_001"
+          }
+        ],
+        "retrieved_context_ids": [
+          "fm_missed_constraint_001"
+        ],
+        "suggested_followups": [
+          {
+            "label": "Find matching hotel",
+            "message": "Search for a Zurich hotel with rating 8.5+, free breakfast, and sauna for Jan 20, 2026, 4 nights."
+          },
+          {
+            "label": "Check date settings",
+            "message": "Verify the check-in date and length of stay before selecting a hotel."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3_step_7",
+        "source_run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+        "failure_step": 7,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "Continue inspecting the Booking.com results and verify a hotel in Zurich satisfies all hard constraints: rating 8.5+, free breakfast, sauna, check-in starting Jan 20, 2026, and a 4-night stay, before exiting or reporting success.",
+        "actual_behavior": "The agent exited on the results page after one visible hotel card showed 8.3 rating, breakfast included, and mismatched dates/length of stay; sauna availability was not verified and the task constraints were not satisfied in the visible final state.",
+        "evidence": [
+          {
+            "claim": "The final high-detail screenshot shows Booking.com Zurich search results with filters applied and one readable hotel card.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The visible candidate is Glärnischhof by TRINITY with rating 8.3 and 'Breakfast included'.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The visible date field shows a 1-night stay on Mon, Mar 2 — Tue, Mar 3, which contradicts the requested Jan 20, 2026 start and 4-night duration.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Sauna availability is not visible in the final state, so it was not verified before exit.",
+            "source": "step_detail_high",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The trajectory ends with a send-message '[EXIT]' action rather than further browsing or verification.",
+            "source": "trajectory",
+            "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Failure memory precedent indicates this pattern is a missed-constraint issue requiring explicit verification of all user constraints before stopping.",
+            "source": "failure_memory",
+            "run_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "fm_missed_constraint_001"
+          }
+        ],
+        "regression_rule": "Before stopping on a travel/ecommerce results page, explicitly verify every hard constraint from the user request against the selected candidate and current date/stay fields; do not exit when any required qualifier remains unconfirmed or contradicted.",
+        "retrieved_context_ids": [
+          "fm_missed_constraint_001"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Find matching hotel",
+            "message": "Search for a Zurich hotel with rating 8.5+, free breakfast, and sauna for Jan 20, 2026, 4 nights."
+          },
+          {
+            "label": "Check date settings",
+            "message": "Verify the check-in date and length of stay before selecting a hotel."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v4_search_strategy_rubric",
+  "prompt_sha256": "a68493cb6e29d23bb94b9641eb238d6d1220ffe4952215a1ef10683c274c4793",
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1267,
+  "vlm_output_tokens": 337,
+  "runtime_ms": 8968,
+  "input_tokens": 27052,
+  "output_tokens": 962,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 8968,
+      "input_tokens": 27052,
+      "output_tokens": 962
+    }
+  ]
+}

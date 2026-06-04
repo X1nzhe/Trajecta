@@ -249,13 +249,28 @@ eval/data/
 
 # Eval artifacts. Per S18 "experiment results, reproducible", the committed
 # evidence is: eval/golden.jsonl, eval/ragas_report.{json,md}, the latest
-# eval/agent_report.{json,md}, docs/experiment_log.md, and ONE canonical run
-# under eval/runs/ (agent_report + traces + the final judge/ with the κ report)
-# so the judge/RAGAS results are re-runnable offline. Other (debug/iteration)
-# runs under eval/runs/ and the mock smoke test stay local-only.
+# eval/agent_report.{json,md}, docs/experiment_log.md, and whitelisted formal
+# runs under eval/runs/ (agent_report + traces + judge/ when present). Ad-hoc
+# debug runs and the mock smoke test stay local-only.
 eval/_mock_smoke_test.json
-eval/runs/*
+eval/runs/**
+# Formal v1→v5 prompt iteration (31-case golden set)
+!eval/runs/2026-05-30T04-03-27Z/
+!eval/runs/2026-05-30T04-03-27Z/**
+!eval/runs/2026-05-30T04-11-14Z/
+!eval/runs/2026-05-30T04-11-14Z/**
+!eval/runs/2026-05-30T04-31-33Z/
+!eval/runs/2026-05-30T04-31-33Z/**
+!eval/runs/2026-05-30T04-37-53Z/
+!eval/runs/2026-05-30T04-37-53Z/**
+!eval/runs/2026-05-30T04-43-34Z/
+!eval/runs/2026-05-30T04-43-34Z/**
+# v6 featured (mini agent+VLM) + gpt-5.4 agent ablation
 !eval/runs/2026-06-03T05-45-39Z/
+!eval/runs/2026-06-03T05-45-39Z/**
+!eval/runs/2026-06-04T06-04-20Z/
+!eval/runs/2026-06-04T06-04-20Z/**
+# Judge rubric debug iterations on v6 mini (not the production κ run)
 eval/runs/2026-06-03T05-45-39Z/judge_v1/
 eval/runs/2026-06-03T05-45-39Z/judge_v2_run1/
 

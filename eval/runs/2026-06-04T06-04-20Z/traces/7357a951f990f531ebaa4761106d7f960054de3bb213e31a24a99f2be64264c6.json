@@ -1,0 +1,799 @@
+{
+  "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 3,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 7,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+        "task": "navigate: Find a Hugging Face blog discussing improvements in the BERT model.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on BUTTON element",
+              "text": null,
+              "coordinates": {
+                "x": 958.5272914521112,
+                "y": 43.529411764705884
+              },
+              "bbox": {
+                "x": 954.9989701338826,
+                "y": 23.529411764705884,
+                "width": 37.63542739443872,
+                "height": 28.235294117647058
+              },
+              "raw": "mouse_click(x=958.5272914521112, y=43.529411764705884, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1142,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1142,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "navigate",
+              "label": "go to https://huggingface.co/",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "goto(url='https://huggingface.co/')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1142,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "goto",
+              "image_width": 1142,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Models'",
+              "text": null,
+              "coordinates": {
+                "x": 208.17095777548917,
+                "y": 251.76470588235296
+              },
+              "bbox": {
+                "x": 174.50489186405767,
+                "y": 237.17647776884192,
+                "width": 56.35023441177195,
+                "height": 28.235294117647058
+              },
+              "raw": "mouse_click(x=208.17095777548917, y=251.76470588235296, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1142,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "click",
+              "image_width": 1142,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 421.0463439752832,
+                "y": 41.1764705882353
+              },
+              "bbox": {
+                "x": 319.3424747989548,
+                "y": 16.47058823529412,
+                "width": 619.1910317418012,
+                "height": 42.35294117647059
+              },
+              "raw": "mouse_click(x=421.0463439752832, y=41.1764705882353, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1142,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "click",
+              "image_width": 1142,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'bert'",
+              "text": "bert",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='bert')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1142,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "keyboard_type",
+              "image_width": 1142,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "press Enter key",
+              "text": "Enter",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_press(key='Enter')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1142,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "keyboard_press",
+              "image_width": 1142,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 971,
+              "image_height": 612,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 971,
+              "image_height": 612
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+          "task": "navigate: Find a Hugging Face blog discussing improvements in the BERT model.",
+          "step_count": 7,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (958.527, 43.5294)",
+              "action_target": "Click on BUTTON element",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | The AI community building the future. Explore AI Apps button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "navigate",
+              "action_text": "navigate",
+              "action_target": "go to https://huggingface.co/",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=center | Hugging Face menu with Log In, Sign Up, Models, Datasets, Spaces buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "click",
+              "action_text": "click at (208.171, 251.765)",
+              "action_target": "Click on SPAN element with value 'Models'",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=center | Hugging Face menu with Log In, Sign Up, Models, Datasets, Spaces buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "click",
+              "action_text": "click at (421.046, 41.1765)",
+              "action_target": "Click on INPUT element",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=center | Hugging Face menu with Log In, Sign Up, Models, Datasets, Spaces buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "type",
+              "action_text": "type 'bert'",
+              "action_target": "type 'bert'",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Hugging Face Models list with search bar and trending model results visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "unknown",
+              "action_text": "press Enter key",
+              "action_target": "press Enter key",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=yes; error_banner=no; focus=top | Hugging Face search dropdown with “bert” typed and model suggestions visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | BERT base model (uncased), Use this model button, downloads last month chart",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 8284,
+          "vlm_output_tokens": 240
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+        "step_index": 7,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+        "step_index": 7,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_fae4bd47>page_state:\nHugging Face model detail page for `google-bert/bert-base-uncased`; not a blog page. Model card content is visible with tabs and stats.\ntask_relevant_visible_text:\n“Hugging Face”, “Search models, datasets, users…”, “google-bert/bert-base-uncased”, “BERT base model (uncased)”, “Pretrained model on English language using a masked language modeling (MLM) objective…”, “Downloads last month 56,444,487”, “Model card”, “Files”, “Community”.\nselected_candidate:\n`google-bert/bert-base-uncased` (BERT base model)\nconstraint_evidence:\n- Find a Hugging Face blog: contradicted by visible page being a model page, not a blog.\n- Discussing improvements in the BERT model: not_visible; visible text describes the base BERT model, but no blog discussion of improvements.\n- On Hugging Face domain: supported by URL/title and page branding.\n- Relevant to BERT: supported by visible model name/title “bert-base-uncased” and “BERT base model (uncased)”.\naction_target:\nNo clear next-page target visible; likely the current model page content or navigation away from models to a blog/search result.\nsuccess_signals:\nA Hugging Face blog/article page appears, ideally mentioning BERT improvements or an improved BERT variant.\nfailure_signals:\nStaying on model detail pages, search results, or non-blog content; no article/blog title about BERT improvements.\nuncertainty:\nThe screenshot may be mid-navigation from a search or prior result; exact intended blog/article is not visible.</TRAJECTA_DATA_fae4bd47>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Find a Hugging Face blog discussing improvements in the BERT model.",
+          "url": "<TRAJECTA_DATA_fae4bd47>https://huggingface.co/models</TRAJECTA_DATA_fae4bd47>",
+          "title": "<TRAJECTA_DATA_fae4bd47>Models – Hugging Face</TRAJECTA_DATA_fae4bd47>",
+          "action_label": "<TRAJECTA_DATA_fae4bd47>send message to user: '[EXIT]'</TRAJECTA_DATA_fae4bd47>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_fae4bd47>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_fae4bd47>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_fae4bd47>send message to user: '[EXIT]'</TRAJECTA_DATA_fae4bd47>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_fae4bd47>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_fae4bd47>"
+        },
+        "observation": {
+          "screenshot": "screenshot_007.png",
+          "url": "<TRAJECTA_DATA_fae4bd47>https://huggingface.co/models</TRAJECTA_DATA_fae4bd47>",
+          "title": "<TRAJECTA_DATA_fae4bd47>Models – Hugging Face</TRAJECTA_DATA_fae4bd47>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 971,
+          "image_height": 612,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6/screenshots/screenshot_007.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+        "step_index": 5,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+        "step_index": 5,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_fae4bd47>page_state:\nModels listing page on Hugging Face with the search box focused and the text “bert” typed in; results list still shows general model entries (e.g., Qwen, GLM, Nanbeige), not a blog page.\ntask_relevant_visible_text:\n“Hugging Face”, “Search models, datasets, users…”, “Models”, “Filter by name”, “Inference Available”, “Add filters”, “Sort: Trending”, model names like “Qwen/Qwen3.5-35B-A3B”, “Qwen/Qwen3.5-397B-A17B”, “Qwen/Qwen3.5-27B”, “Qwen/Qwen3.5-122B-A10B”, “zai-org/GLM-5”, “Nanbeige/Nanbeige4.1-3B”.\nselected_candidate:\nNo clear candidate yet; current page is a models search/listing page, not a Hugging Face blog article.\nconstraint_evidence:\n- Find a Hugging Face blog: contradicted by visible page title/content being “Models” listing, not blog.\n- Discussing improvements in the BERT model: not_visible; no blog/article text about BERT improvements shown.\n- Use Hugging Face site: supported by visible Hugging Face branding and URL/title context.\n- Search/query for “bert”: supported by typed text in the search field and action context.\naction_target:\nType “bert” into the top search field on the Models page.\nsuccess_signals:\nSearch field contains “bert”; results may update to BERT-related models or content.\nfailure_signals:\nStill on Models listing with unrelated results; no blog/article navigation visible.\nuncertainty:\nThe typed query may not yet have triggered results refresh; the intended blog could require switching from Models to Blog/searching site-wide.</TRAJECTA_DATA_fae4bd47>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Find a Hugging Face blog discussing improvements in the BERT model.",
+          "url": "<TRAJECTA_DATA_fae4bd47>https://huggingface.co/models</TRAJECTA_DATA_fae4bd47>",
+          "title": "<TRAJECTA_DATA_fae4bd47>Models – Hugging Face</TRAJECTA_DATA_fae4bd47>",
+          "action_label": "<TRAJECTA_DATA_fae4bd47>type 'bert'</TRAJECTA_DATA_fae4bd47>",
+          "action_text": "<TRAJECTA_DATA_fae4bd47>bert</TRAJECTA_DATA_fae4bd47>",
+          "action_raw": "<TRAJECTA_DATA_fae4bd47>keyboard_type(text='bert')</TRAJECTA_DATA_fae4bd47>"
+        },
+        "action": {
+          "type": "type",
+          "label": "<TRAJECTA_DATA_fae4bd47>type 'bert'</TRAJECTA_DATA_fae4bd47>",
+          "text": "<TRAJECTA_DATA_fae4bd47>bert</TRAJECTA_DATA_fae4bd47>",
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_fae4bd47>keyboard_type(text='bert')</TRAJECTA_DATA_fae4bd47>"
+        },
+        "observation": {
+          "screenshot": "screenshot_005.png",
+          "url": "<TRAJECTA_DATA_fae4bd47>https://huggingface.co/models</TRAJECTA_DATA_fae4bd47>",
+          "title": "<TRAJECTA_DATA_fae4bd47>Models – Hugging Face</TRAJECTA_DATA_fae4bd47>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1142,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6/screenshots/screenshot_005.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "Hugging Face task asked for a blog/article about BERT improvements, but the agent searched Models for 'bert', ended on the bert-base-uncased model page, and exited without reaching any blog page",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17_step_6",
+            "source_trajectory_id": "7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17",
+            "task": "navigate: Search for a model on Hugging Face suitable for fine-tuning on sentiment intensity classification.",
+            "failure_step": 6,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have searched for models relevant to \"sentiment intensity classification\", inspected the model cards or documentation of promising candidates to verify their suitability for this specific task, and then selected a model that is documented to be suitable for sentiment intensity classification.",
+            "actual_behavior": "The agent searched for \"fine-tuning sentiment\", selected a model (\"amerwafiy/finetuning-sentiment-model-3000-samples\") that had no model card or documentation, and then exited without verifying if it was suitable for \"sentiment intensity classification\". The selected model was an empty repository, making it a wrong result for the task.",
+            "evidence": [
+              {
+                "claim": "The model page for 'amerwafiy/finetuning-sentiment-model-3000-samples' shows 'No model card' and provides no information about its capabilities.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 6,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a task requires a specific type of model (e.g., 'sentiment intensity classification'), the agent must verify the model's suitability by inspecting its model card or documentation, rather than selecting an arbitrary or undocumented model from search results. Selecting an empty or non-functional model repository constitutes a wrong result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1",
+            "source_trajectory_id": "e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302",
+            "task": "find: answer to 'How many of these were submitted by authors affiliated with institutions outside the USA?'",
+            "failure_step": 1,
+            "failure_type": "early_terminated",
+            "expected_behavior": "The agent should have attempted to navigate to individual paper pages or use other available tools/methods to determine the author affiliations for the papers in the search results, or at least attempted a representative sample if the full set was too large.",
+            "actual_behavior": "The agent performed an [EXIT] action immediately after loading the search results page, without attempting to investigate the author affiliations of the papers.",
+            "evidence": [
+              {
+                "claim": "The agent did not attempt to access individual paper pages or any other source to determine author affiliations.",
+                "source": "trajectory",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The task requires checking author affiliations for a large number of papers, which is not possible from the search results page alone. The agent exited without attempting any further steps.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "The agent must not exit a task prematurely without attempting to gather the necessary information to answer the user's query, especially when the initial page does not contain the required data.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec_step_2",
+            "source_trajectory_id": "50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec",
+            "task": "navigate: Identify the most recent article on ArXiv related to 'deep reinforcement learning'.",
+            "failure_step": 2,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have typed the correct search query ('deep reinforcement learning') to find relevant articles. The agent failed to verify the search query for typos before submitting.",
+            "actual_behavior": "The agent performed a search with a typo in the query (\"deep reinforcemen learing\"), which resulted in no results. The agent then terminated the task with [EXIT].",
+            "evidence": [
+              {
+                "claim": "The agent typed 'deep reinforcemen learing' into the search field.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 2,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The search results page displays 'Sorry, your query returned no results'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 6,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that search queries are spelled correctly and verified before submission, especially when the initial search yields no results.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 9,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+        "retrieved_context_ids": [
+          "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1"
+        ],
+        "failure_step": 5,
+        "failure_type": "wrong_target",
+        "expected_behavior": "The agent should have navigated to a Hugging Face blog or article page about BERT improvements, using site search or blog navigation rather than the Models catalog, and only exited after reaching a relevant blog page.",
+        "actual_behavior": "The agent switched to the Hugging Face Models section, searched for 'bert', landed on the google-bert/bert-base-uncased model page, and exited without ever reaching a blog page.",
+        "regression_rule": "When a task asks for a blog or article on a site, the agent must navigate to the site's blog/article content rather than a different content type such as a model repository page. Reaching a related model page does not satisfy a request for a blog post.",
+        "evidence": [
+          {
+            "claim": "The trajectory task is to find 'a Hugging Face blog discussing improvements in the BERT model.'",
+            "source": "trajectory",
+            "step_index": 1,
+            "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6"
+          },
+          {
+            "claim": "On step 5, the visible page is the Hugging Face Models listing with 'bert' typed into the search field; it is not a blog page and shows model-listing controls like 'Models', 'Filter by name', and 'Sort: Trending'.",
+            "source": "step_detail_high",
+            "step_index": 5,
+            "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6"
+          },
+          {
+            "claim": "On the final step, the visible page is the model detail page for 'google-bert/bert-base-uncased' with 'BERT base model (uncased)' and tabs like 'Model card', 'Files', and 'Community'; the high-detail read explicitly says this is not a blog page.",
+            "source": "step_detail_high",
+            "step_index": 7,
+            "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6"
+          },
+          {
+            "claim": "A validated precedent shows premature exit from a page that cannot satisfy the task is a concrete failure pattern, supporting that stopping without navigating to task-relevant content is a failure.",
+            "source": "eval_case",
+            "context_id": "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1"
+          }
+        ],
+        "suggested_followups": [
+          {
+            "label": "Inspect model-page detour",
+            "message": "Show where the run first diverged from blog/article navigation into the Models section."
+          },
+          {
+            "label": "Compare with success pattern",
+            "message": "Find a successful trajectory for a similar 'find a blog/article' Hugging Face task and contrast the navigation path."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 10,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6_step_5",
+        "source_trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+        "task": "navigate: Find a Hugging Face blog discussing improvements in the BERT model.",
+        "failure_step": 5,
+        "failure_type": "wrong_target",
+        "expected_behavior": "The agent should have navigated to a Hugging Face blog or article page about BERT improvements, using site search or blog navigation rather than the Models catalog, and only exited after reaching a relevant blog page.",
+        "actual_behavior": "The agent switched to the Hugging Face Models section, searched for 'bert', landed on the google-bert/bert-base-uncased model page, and exited without ever reaching a blog page.",
+        "evidence": [
+          {
+            "claim": "The trajectory task is to find 'a Hugging Face blog discussing improvements in the BERT model.'",
+            "source": "trajectory",
+            "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+            "step_index": 1,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "On step 5, the visible page is the Hugging Face Models listing with 'bert' typed into the search field; it is not a blog page and shows model-listing controls like 'Models', 'Filter by name', and 'Sort: Trending'.",
+            "source": "step_detail_high",
+            "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+            "step_index": 5,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "On the final step, the visible page is the model detail page for 'google-bert/bert-base-uncased' with 'BERT base model (uncased)' and tabs like 'Model card', 'Files', and 'Community'; the high-detail read explicitly says this is not a blog page.",
+            "source": "step_detail_high",
+            "trajectory_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "A validated precedent shows premature exit from a page that cannot satisfy the task is a concrete failure pattern, supporting that stopping without navigating to task-relevant content is a failure.",
+            "source": "eval_case",
+            "trajectory_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1"
+          }
+        ],
+        "regression_rule": "When a task asks for a blog or article on a site, the agent must navigate to the site's blog/article content rather than a different content type such as a model repository page. Reaching a related model page does not satisfy a request for a blog post.",
+        "retrieved_context_ids": [
+          "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Inspect model-page detour",
+            "message": "Show where the run first diverged from blog/article navigation into the Models section."
+          },
+          {
+            "label": "Compare with success pattern",
+            "message": "Find a successful trajectory for a similar 'find a blog/article' Hugging Face task and contrast the navigation path."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-2026-03-05",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 2268,
+  "vlm_output_tokens": 726,
+  "runtime_ms": 27552,
+  "input_tokens": 36719,
+  "output_tokens": 968,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 27552,
+      "input_tokens": 36719,
+      "output_tokens": 968
+    }
+  ]
+}

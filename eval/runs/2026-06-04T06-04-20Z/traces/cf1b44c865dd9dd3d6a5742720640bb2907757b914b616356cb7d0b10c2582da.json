@@ -1,0 +1,705 @@
+{
+  "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 3,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 5,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+        "task": "navigate: Search for an open-source project related to 'virtual assistants' on GitHub that has been created in 2024.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://github.com/",
+              "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 899.9253767734982,
+                "y": 33.9622641509434
+              },
+              "bbox": {
+                "x": 899.9253767734982,
+                "y": 33.9622641509434,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=899.9253767734982, y=33.9622641509434, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1122,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1122,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://github.com/",
+              "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'open-source project related to 'virtual assistants''",
+              "text": "open-source project related to 'virtual assistants'",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text=\"open-source project related to 'virtual assistants'\")"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1122,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "keyboard_type",
+              "image_width": 1122,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://github.com/",
+              "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "press Enter key",
+              "text": "Enter",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_press(key='Enter')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1122,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_press",
+              "image_width": 1122,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories",
+              "title": "Repository search results · GitHub",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 95.48247976123163 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=95.48247976123163)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1122,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "scroll",
+              "image_width": 1122,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories",
+              "title": "Repository search results · GitHub",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1122,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1122,
+              "image_height": 720
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+          "task": "navigate: Search for an open-source project related to 'virtual assistants' on GitHub that has been created in 2024.",
+          "step_count": 5,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (899.925, 33.9623)",
+              "action_target": "Click on svg element",
+              "url": "https://github.com/",
+              "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=detail; modal=no; error_banner=no; focus=center | GitHub homepage hero: “The future of building happens together” with Sign up for GitHub button",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "type",
+              "action_text": "type \"open-source project related to 'virtual assistants'\"",
+              "action_target": "type 'open-source project related to 'virtual assistants''",
+              "url": "https://github.com/",
+              "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=top | GitHub homepage with search bar open, Sign up for GitHub and Try GitHub Copilot free buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "unknown",
+              "action_text": "press Enter key",
+              "action_target": "press Enter key",
+              "url": "https://github.com/",
+              "title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | GitHub search bar with query “open-source project related to virtual assistants” and homepage hero headline visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 95.48247976123163 pixels",
+              "url": "https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories",
+              "title": "Repository search results · GitHub",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | 0 results, Your search did not match any repositories",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories",
+              "title": "Repository search results · GitHub",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Your search did not match any repositories, with empty-state illustration and search filters",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 6095,
+          "vlm_output_tokens": 190
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+        "step_index": 4,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+        "step_index": 4,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_0dcd2368>page_state:\nGitHub repository search results page in dark mode showing “0 results” for the current query; no repository cards are visible.\ntask_relevant_visible_text:\n“0 results”; “Your search did not match any repositories”; “However we found 336 issues and 284 pull requests that matched your search query”; left filters include Repositories, Issues, Pull requests, Discussions, Users, Commits, Packages, Wikis, Topics, Marketplace.\nselected_candidate:\nNone visible.\nconstraint_evidence:\n1. Open-source project/repository on GitHub — supported (page is GitHub repository search results).\n2. Related to “virtual assistants” — supported by URL/query context, but not visible in screenshot text.\n3. Created in 2024 — not_visible (no repo/date metadata shown).\n4. Must be a repository/project result — contradicted for current view (0 repository results shown).\n5. Need an actual matching candidate to inspect/select — contradicted (no repository candidates visible).\naction_target:\nContinue searching/adjust query or filters to find a repository result matching the task.\nsuccess_signals:\nA repository card appears with name, description, and ideally creation date in 2024.\nfailure_signals:\nStill “0 results”; no repository entries; only issues/pull requests match.\nuncertainty:\nThe exact query content is only partially inferable from URL/context, and no repository metadata is visible to verify a 2024 creation date.</TRAJECTA_DATA_0dcd2368>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Search for an open-source project related to 'virtual assistants' on GitHub that has been created in 2024.",
+          "url": "<TRAJECTA_DATA_0dcd2368>https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories</TRAJECTA_DATA_0dcd2368>",
+          "title": "<TRAJECTA_DATA_0dcd2368>Repository search results · GitHub</TRAJECTA_DATA_0dcd2368>",
+          "action_label": "<TRAJECTA_DATA_0dcd2368>scroll down by 95.48247976123163 pixels</TRAJECTA_DATA_0dcd2368>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_0dcd2368>scroll(delta_x=0.0, delta_y=95.48247976123163)</TRAJECTA_DATA_0dcd2368>"
+        },
+        "action": {
+          "type": "scroll",
+          "label": "<TRAJECTA_DATA_0dcd2368>scroll down by 95.48247976123163 pixels</TRAJECTA_DATA_0dcd2368>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_0dcd2368>scroll(delta_x=0.0, delta_y=95.48247976123163)</TRAJECTA_DATA_0dcd2368>"
+        },
+        "observation": {
+          "screenshot": "screenshot_004.png",
+          "url": "<TRAJECTA_DATA_0dcd2368>https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories</TRAJECTA_DATA_0dcd2368>",
+          "title": "<TRAJECTA_DATA_0dcd2368>Repository search results · GitHub</TRAJECTA_DATA_0dcd2368>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1122,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da/screenshots/screenshot_004.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+        "step_index": 5,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+        "step_index": 5,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_0dcd2368>page_state:\nGitHub repository search results page in dark mode showing “0 results” / “Your search did not match any repositories.”\ntask_relevant_visible_text:\n“Repositories 0”, “Issues 336”, “Pull requests 284”, “Discussions 23”, “Users 0”, “Commits 38”, “Packages 0”, “Wikis 67”, “Topics 0”, “Marketplace 0”, “Your search did not match any repositories”, “However we found 336 issues and 284 pull requests…”, “Search across an organization”, “Saved searches”, “advanced search”.\nselected_candidate:\nNone visible; no repository results are shown.\nconstraint_evidence:\n- open-source project on GitHub: supported (GitHub repository search page visible)\n- related to “virtual assistants”: supported by URL query context, but no matching repo visible\n- created in 2024: not_visible (no repo/date metadata shown)\n- must be a repository/project result: contradicted for current page state (0 repository results)\n- need an actual matching candidate to inspect/select: contradicted (none shown)\naction_target:\nSend message to user: “[EXIT]”\nsuccess_signals:\nUser receives exit signal; trajectory can terminate cleanly.\nfailure_signals:\nAny attempt to select a repository here would fail because no repository results are visible.\nuncertainty:\nSearch query may be too broad or too restrictive; no evidence of whether a 2024-created virtual-assistant project exists elsewhere in GitHub results.</TRAJECTA_DATA_0dcd2368>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Search for an open-source project related to 'virtual assistants' on GitHub that has been created in 2024.",
+          "url": "<TRAJECTA_DATA_0dcd2368>https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories</TRAJECTA_DATA_0dcd2368>",
+          "title": "<TRAJECTA_DATA_0dcd2368>Repository search results · GitHub</TRAJECTA_DATA_0dcd2368>",
+          "action_label": "<TRAJECTA_DATA_0dcd2368>send message to user: '[EXIT]'</TRAJECTA_DATA_0dcd2368>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_0dcd2368>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_0dcd2368>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_0dcd2368>send message to user: '[EXIT]'</TRAJECTA_DATA_0dcd2368>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_0dcd2368>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_0dcd2368>"
+        },
+        "observation": {
+          "screenshot": "screenshot_005.png",
+          "url": "<TRAJECTA_DATA_0dcd2368>https://github.com/search?q=open-source%20project%20related%20to%20%27virtual%20assistants%27&type=repositories</TRAJECTA_DATA_0dcd2368>",
+          "title": "<TRAJECTA_DATA_0dcd2368>Repository search results · GitHub</TRAJECTA_DATA_0dcd2368>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1122,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da/screenshots/screenshot_005.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "GitHub repository search returned 0 repository results for a natural-language query, and the agent exited without reformulating the query or applying filters to find a repository created in 2024",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c_step_4",
+            "source_trajectory_id": "5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c",
+            "task": "navigate: Locate a JavaScript repository on GitHub that was updated in the last 20 days and has at least 1,500 stars.",
+            "failure_step": 4,
+            "failure_type": "inefficient_search",
+            "expected_behavior": "The agent should have used GitHub's search syntax or filters to directly find repositories matching the criteria (e.g., 'javascript stars:>1500 pushed:>2025-01-01'), avoiding the need to manually paginate through numerous results.",
+            "actual_behavior": "The agent performed a generic search for 'javascript repository' and then manually paged through 19 pages of results to find a repository that met the criteria, rather than using GitHub's advanced search filters (e.g., 'stars:>1500', 'pushed:>2025-01-01') to narrow down the results efficiently.",
+            "evidence": [
+              {
+                "claim": "The agent searched for 'javascript repository' and then clicked through 19 pages of results.",
+                "source": "trajectory_digest",
+                "trajectory_id": null,
+                "step_index": 4,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent did not use any search filters to narrow down the results, despite the task having specific criteria (1,500+ stars, updated in the last 20 days).",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 4,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When searching on platforms with advanced filtering capabilities (like GitHub), the agent must utilize these filters to narrow down results according to the task's constraints, rather than relying on manual pagination through generic search results.",
+            "retrieved_context_ids": [
+              "fm_inefficient_search_001"
+            ],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302_step_1",
+            "source_trajectory_id": "e25282127f17d877f4bae26fccf4b750d11501ad7d5aa33c1e6d326cc66b9302",
+            "task": "find: answer to 'How many of these were submitted by authors affiliated with institutions outside the USA?'",
+            "failure_step": 1,
+            "failure_type": "early_terminated",
+            "expected_behavior": "The agent should have attempted to navigate to individual paper pages or use other available tools/methods to determine the author affiliations for the papers in the search results, or at least attempted a representative sample if the full set was too large.",
+            "actual_behavior": "The agent performed an [EXIT] action immediately after loading the search results page, without attempting to investigate the author affiliations of the papers.",
+            "evidence": [
+              {
+                "claim": "The agent did not attempt to access individual paper pages or any other source to determine author affiliations.",
+                "source": "trajectory",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The task requires checking author affiliations for a large number of papers, which is not possible from the search results page alone. The agent exited without attempting any further steps.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "The agent must not exit a task prematurely without attempting to gather the necessary information to answer the user's query, especially when the initial page does not contain the required data.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17_step_6",
+            "source_trajectory_id": "7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17",
+            "task": "navigate: Search for a model on Hugging Face suitable for fine-tuning on sentiment intensity classification.",
+            "failure_step": 6,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have searched for models relevant to \"sentiment intensity classification\", inspected the model cards or documentation of promising candidates to verify their suitability for this specific task, and then selected a model that is documented to be suitable for sentiment intensity classification.",
+            "actual_behavior": "The agent searched for \"fine-tuning sentiment\", selected a model (\"amerwafiy/finetuning-sentiment-model-3000-samples\") that had no model card or documentation, and then exited without verifying if it was suitable for \"sentiment intensity classification\". The selected model was an empty repository, making it a wrong result for the task.",
+            "evidence": [
+              {
+                "claim": "The model page for 'amerwafiy/finetuning-sentiment-model-3000-samples' shows 'No model card' and provides no information about its capabilities.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 6,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a task requires a specific type of model (e.g., 'sentiment intensity classification'), the agent must verify the model's suitability by inspecting its model card or documentation, rather than selecting an arbitrary or undocumented model from search results. Selecting an empty or non-functional model repository constitutes a wrong result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 9,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+        "retrieved_context_ids": [
+          "ec_5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c_step_4"
+        ],
+        "failure_step": 4,
+        "failure_type": "inefficient_search",
+        "expected_behavior": "After the initial GitHub search returned no repository results, the agent should have reformulated the query and/or used GitHub search qualifiers or filters to look for repositories related to virtual assistants and verify a repository created in 2024 before exiting.",
+        "actual_behavior": "The agent issued a broad natural-language repository query, reached a GitHub results page with 0 repository results, and then exited without trying another query, using advanced search/filtering, or locating any candidate repository whose 2024 creation date could be checked.",
+        "regression_rule": "When a GitHub repository search returns no matching repositories for a task with explicit content/date constraints, the agent must continue by refining the query or applying search qualifiers/filters until it finds a repository candidate or exhausts reasonable search strategies; it must not exit directly from an empty results page.",
+        "evidence": [
+          {
+            "claim": "The task requires finding a GitHub open-source project related to virtual assistants that was created in 2024, so merely reaching search results is insufficient without locating a repository candidate and checking the date constraint.",
+            "source": "trajectory",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 4
+          },
+          {
+            "claim": "The agent's query was the literal natural-language phrase \"open-source project related to 'virtual assistants'\", indicating it did not use GitHub-specific search qualifiers for the required 2024 constraint before submitting the search.",
+            "source": "trajectory",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 2
+          },
+          {
+            "claim": "High-detail inspection of step 4 shows the GitHub repository search page displaying \"0 results\" and \"Your search did not match any repositories,\" with no repository cards visible; the structured constraint evidence marks both the need for a repository result and an actual matching candidate as contradicted.",
+            "source": "step_detail_high",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 4
+          },
+          {
+            "claim": "High-detail inspection of the final step shows the agent exited from the same empty repository-results page, which still displayed \"Repositories 0\" and no repository candidates, so the task remained unsatisfied at termination.",
+            "source": "step_detail_high",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 5
+          },
+          {
+            "claim": "Validated precedent exists for GitHub-search failures where the agent should use platform filtering/qualifiers instead of persisting with an ineffective search strategy; this trajectory is analogous but even earlier because it exits immediately after the empty result.",
+            "source": "eval_case",
+            "context_id": "ec_5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c_step_4"
+          }
+        ],
+        "suggested_followups": [
+          {
+            "label": "Show empty-result evidence",
+            "message": "Inspect the screenshots and evidence showing GitHub returned 0 repository results before exit."
+          },
+          {
+            "label": "Compare failure types",
+            "message": "Review why this was classified as inefficient search rather than early termination or missed constraint."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 10,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da_step_4",
+        "source_trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+        "task": "navigate: Search for an open-source project related to 'virtual assistants' on GitHub that has been created in 2024.",
+        "failure_step": 4,
+        "failure_type": "inefficient_search",
+        "expected_behavior": "After the initial GitHub search returned no repository results, the agent should have reformulated the query and/or used GitHub search qualifiers or filters to look for repositories related to virtual assistants and verify a repository created in 2024 before exiting.",
+        "actual_behavior": "The agent issued a broad natural-language repository query, reached a GitHub results page with 0 repository results, and then exited without trying another query, using advanced search/filtering, or locating any candidate repository whose 2024 creation date could be checked.",
+        "evidence": [
+          {
+            "claim": "The task requires finding a GitHub open-source project related to virtual assistants that was created in 2024, so merely reaching search results is insufficient without locating a repository candidate and checking the date constraint.",
+            "source": "trajectory",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The agent's query was the literal natural-language phrase \"open-source project related to 'virtual assistants'\", indicating it did not use GitHub-specific search qualifiers for the required 2024 constraint before submitting the search.",
+            "source": "trajectory",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 2,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "High-detail inspection of step 4 shows the GitHub repository search page displaying \"0 results\" and \"Your search did not match any repositories,\" with no repository cards visible; the structured constraint evidence marks both the need for a repository result and an actual matching candidate as contradicted.",
+            "source": "step_detail_high",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "High-detail inspection of the final step shows the agent exited from the same empty repository-results page, which still displayed \"Repositories 0\" and no repository candidates, so the task remained unsatisfied at termination.",
+            "source": "step_detail_high",
+            "trajectory_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+            "step_index": 5,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Validated precedent exists for GitHub-search failures where the agent should use platform filtering/qualifiers instead of persisting with an ineffective search strategy; this trajectory is analogous but even earlier because it exits immediately after the empty result.",
+            "source": "eval_case",
+            "trajectory_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "ec_5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c_step_4"
+          }
+        ],
+        "regression_rule": "When a GitHub repository search returns no matching repositories for a task with explicit content/date constraints, the agent must continue by refining the query or applying search qualifiers/filters until it finds a repository candidate or exhausts reasonable search strategies; it must not exit directly from an empty results page.",
+        "retrieved_context_ids": [
+          "ec_5bbd13b41ee5ef33a18dbecf048e8d5ca53f291b414e4a7141367067b20bc54c_step_4"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Show empty-result evidence",
+            "message": "Inspect the screenshots and evidence showing GitHub returned 0 repository results before exit."
+          },
+          {
+            "label": "Compare failure types",
+            "message": "Review why this was classified as inefficient search rather than early termination or missed constraint."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-2026-03-05",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 2609,
+  "vlm_output_tokens": 608,
+  "runtime_ms": 22769,
+  "input_tokens": 33882,
+  "output_tokens": 1092,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 22769,
+      "input_tokens": 33882,
+      "output_tokens": 1092
+    }
+  ]
+}

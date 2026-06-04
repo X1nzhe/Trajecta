@@ -125,13 +125,23 @@ existence, assertion-name coverage, and distinct sha256 stamps for the
 two bundles so a future edit that breaks rubric alignment fails CI
 before the κ_LLM,LLM rollup is computed.
 
-On the v6 run the two judges agree on all 31 cases (each accepts 20 / 31):
-κ_LLM,LLM = 1.0, above the 0.6 target. Reaching this required correcting the
-regression-case-usefulness assertion (below), which had been failing
-success-shape drafts for omitting failure-only fields; the fix raised κ from
-0.674 to 1.0 and was applied identically to both provider bundles. κ=1.0
-reflects a largely objective checklist at temperature 0 over n=31 — convergence
-on a mechanical standard, not a claim that acceptability judgment is solved.
+On the **v6 mini-agent** run (`eval/runs/2026-06-03T05-45-39Z/`) the two judges
+agree on all 31 cases (each accepts 20 / 31): κ_LLM,LLM = 1.0, above the 0.6
+target. Reaching this required correcting the regression-case-usefulness
+assertion (below), which had been failing success-shape drafts for omitting
+failure-only fields; the fix raised κ from 0.674 to 1.0 and was applied
+identically to both provider bundles.
+
+On **v6 gpt-5.4-agent** traces (`eval/runs/2026-06-04T06-04-20Z/`), the same
+judge pair accepts fewer drafts (A 16/31, B 14/31) with κ = 0.743 and four
+disagreements — still above 0.6, but lower than the mini run because drafts are
+weaker, not because the rubric changed.
+
+κ=1.0 on the mini run reflects a largely objective checklist at temperature 0
+over n=31 — convergence on a mechanical standard, not a claim that
+acceptability judgment is solved. See
+[docs/experiment_log.md](experiment_log.md#model-ablation-v6-agent-only) for
+agent-model ablation metrics and digest-cache / token accounting notes.
 
 | Assertion | Predicate |
 | --- | --- |

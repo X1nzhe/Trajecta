@@ -210,7 +210,7 @@ OPENAI_API_KEY=sk-... TRAJECTA_AGENT_MODEL=gpt-4o-mini TRAJECTA_VLM_MODEL=gpt-4o
   python -m app.agent_eval --trace-dir eval/runs/$(date -u +%Y-%m-%dT%H-%M-%SZ)/traces
 ```
 
-Produces `eval/agent_report.{json,md}` plus per-sample trace JSONs under the `--trace-dir`. Both `eval/agent_report.*` and `eval/runs/` are reproducible local artefacts and are `.gitignore`d.
+Produces `eval/agent_report.{json,md}` plus per-sample trace JSONs under the `--trace-dir`. The latest `eval/agent_report.*` stays local-only (`.gitignore`d). Formal experiment runs under `eval/runs/` are **whitelisted** in `.gitignore` (v1→v5, v6 mini, gpt-5.4 ablation); other timestamps remain local-only.
 
 `agent_eval` retries transient provider failures per sample: 429, rate limit, timeout, and connection errors retry up to 3 times by default. Tune with `--max-retries`, `--retry-base-s`, and `--retry-max-s`.
 
@@ -266,6 +266,26 @@ The current featured prompt is `v6_guided_autonomy` — it does not beat v3's he
 
 Caveat: this v6 report (run `2026-06-03T05-45-39Z`) predates later v6 prompt edits (`not_visible` / precedence rules); those were not re-run over the full 31-case set.
 
+Optional **model ablation** on the same v6 prompt (VLM still `gpt-5.4-mini-2026-03-17`; artefact `eval/runs/2026-06-04T06-04-20Z/`):
+
+| Metric | v6 + `gpt-5.4-2026-03-05` agent | v6 + mini agent |
+| --- | --- | --- |
+| Binary verdict accuracy | 67.7% | 80.6% |
+| Success-verdict recall | 41.2% | 82.4% |
+| Failure-verdict recall | 100.0% | 78.6% |
+| Mean `get_step_detail` / run | 2.32 | 1.00 |
+| Total cost (31 runs) | $4.577 | $1.103 |
+| Dual-judge acceptable (A / B) | 16/31; 14/31 | 20/31; 20/31 |
+| κ_LLM,LLM | 0.743 | 1.000 |
+
+Full `gpt-5.4` agent trades headline accuracy for failure sensitivity (profile
+similar to `v5_constraint_verification`). Cross-run cost is **not** a fair
+unit-price comparison: agent list prices differ, tool depth differs, and digest
+cache hit rate differed (mini 8/31 cached preprocess vs gpt-5.4 31/31). Digest
+cache lowers **VLM** usage on a hit but does not reduce **agent** `input_tokens`
+(the digest still enters the LLM prompt). Details in
+[docs/experiment_log.md](docs/experiment_log.md#model-ablation-v6-agent-only).
+
 The v5 prompt is intentionally failure-sensitive: failure recall reaches 100.0%, but success recall drops to 41.2%. Full per-round metrics and caveats are in [docs/experiment_log.md](docs/experiment_log.md).
 
 ### Dual LLM Judge
@@ -278,9 +298,23 @@ python -m backend.app.agent_eval \
 
 The judge scores one binary dimension: `acceptable_eval_case`, meaning whether the generated draft is acceptable as a reusable regression case. Judge A uses a Gemini-compatible provider/model configured by `TRAJECTA_JUDGE_A_MODEL`; Judge B uses an OpenAI-compatible provider/model configured by `TRAJECTA_JUDGE_B_MODEL`.
 
-On the v6 run, Judge A (`gemini-3.1-flash-lite`) and Judge B (`gpt-5.4-mini-2026-03-17`) each accept 20 / 31 drafts and agree on all 31 cases: κ_LLM,LLM = 1.0 (target ≥ 0.6 met). Reaching this required fixing the `regression_case_usefulness` assertion, which had been failing success-shape drafts for omitting the failure-only fields they are contractually required to omit; the fix lifted κ from 0.674 to 1.0 and was applied identically to both provider rubrics to keep the comparison valid.
+On the **v6 mini-agent** run (`2026-06-03T05-45-39Z`), Judge A
+(`gemini-3.1-flash-lite`) and Judge B (`gpt-5.4-mini-2026-03-17`) each accept
+20 / 31 drafts and agree on all 31 cases: κ_LLM,LLM = 1.0 (target ≥ 0.6 met).
+Reaching this required fixing the `regression_case_usefulness` assertion,
+which had been failing success-shape drafts for omitting the failure-only fields
+they are contractually required to omit; the fix lifted κ from 0.674 to 1.0 and
+was applied identically to both provider rubrics to keep the comparison valid.
 
-Caveat: κ=1.0 here reflects a largely objective checklist (verdict shape, failure-type membership, evidence support) applied at temperature 0 over n=31 — two competent models converging on a mechanical standard, not proof that acceptability judgment is "solved." Expect κ < 1.0 on a larger or harder set.
+On **v6 gpt-5.4-agent** traces (`2026-06-04T06-04-20Z`), the same judge pair
+accepts fewer drafts (A 16/31, B 14/31) with κ = 0.743 (4 disagreements) — still
+above the 0.6 target.
+
+Caveat: κ=1.0 on the mini run reflects a largely objective checklist (verdict
+shape, failure-type membership, evidence support) applied at temperature 0 over
+n=31 — two competent models converging on a mechanical standard, not proof that
+acceptability judgment is "solved." Expect κ < 1.0 on a larger or harder set or
+when the underlying agent drafts are weaker.
 
 Standalone judge rerun/debug path:
 

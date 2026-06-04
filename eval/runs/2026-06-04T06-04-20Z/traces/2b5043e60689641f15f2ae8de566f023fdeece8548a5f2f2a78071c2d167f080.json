@@ -1,0 +1,1527 @@
+{
+  "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 4,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 20,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "task": "navigate: Navigate to Apple's website and determine the average battery life of the latest Apple Watch model.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Watch'",
+              "text": null,
+              "coordinates": {
+                "x": 439.4887804943869,
+                "y": 20.536436671426852
+              },
+              "bbox": {
+                "x": 426.6114124568221,
+                "y": 0.0,
+                "width": 38.6873920552677,
+                "height": 48.58082191780822
+              },
+              "raw": "mouse_click(x=439.4887804943869, y=20.536436671426852, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.apple.com/watch/",
+              "title": "Apple Watch - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on FIGURE element",
+              "text": null,
+              "coordinates": {
+                "x": 102.5768600226684,
+                "y": 87.66631990197587
+              },
+              "bbox": {
+                "x": 86.86701377644646,
+                "y": 66.24657534246576,
+                "width": 29.844559585492227,
+                "height": 61.83013698630137
+              },
+              "raw": "mouse_click(x=102.5768600226684, y=87.66631990197587, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 853.2558769330586 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=853.2558769330586)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 845.3062744140625 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=845.3062744140625)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 1050.2289871842895 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=1050.2289871842895)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 876.2214776862157 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=876.2214776862157)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 1006.9476756474743 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=1006.9476756474743)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 8,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_008.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 715.4630136986301 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=715.4630136986301)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "8",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 9,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_009.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 913.3191285851884 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=913.3191285851884)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "9",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 10,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_010.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 510.54070526541096 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=510.54070526541096)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "10",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 11,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_011.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 1091.7438851134418 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=1091.7438851134418)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "11",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 12,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_012.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 3464.253815282534 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=3464.253815282534)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "12",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 13,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_013.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 1384.9944215539383 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=1384.9944215539383)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "13",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 14,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_014.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 1202.154304901541 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=1202.154304901541)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "14",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 15,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_015.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 1973.2648731806507 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=1973.2648731806507)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "15",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 16,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_016.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 913.3196677011987 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=913.3196677011987)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "16",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 17,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_017.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 3098.572503745719 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=3098.572503745719)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "17",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 18,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_018.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 857.6710348886986 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=857.6710348886986)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "18",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 19,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_019.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 820.573383989726 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=820.573383989726)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "19",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          },
+          {
+            "index": 20,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_020.png",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 806,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "20",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1280,
+              "image_height": 806
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+          "task": "navigate: Navigate to Apple's website and determine the average battery life of the latest Apple Watch model.",
+          "step_count": 20,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (439.489, 20.5364)",
+              "action_target": "Click on SPAN element with value 'Watch'",
+              "url": "https://www.apple.com/",
+              "title": "Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple holiday hero with “Wrapping up this special season.” and Shop gifts button",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "click",
+              "action_text": "click at (102.577, 87.6663)",
+              "action_target": "Click on FIGURE element",
+              "url": "https://www.apple.com/watch/",
+              "title": "Apple Watch - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=left | Apple Watch headline, product tiles for multiple watch models visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 853.2558769330586 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=left | Apple Watch Series 11 hero, “The ultimate way to watch your health.” Buy button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 845.3062744140625 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=top | Get the highlights. Apple Watch Series 11 hero section",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 1050.2289871842895 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11, Take a closer look., Buy button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 876.2214776862157 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11 hero image with Buy button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 1006.9476756474743 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11 hero with large “your body by heart.” headline",
+              "has_screenshot": true
+            },
+            {
+              "index": 8,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 715.4630136986301 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=top | Apple Watch Series 11, high blood pressure headline, Buy button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 9,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 913.3191285851884 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | More features to empower your health. Apple Watch sleep score and sleep apnea visuals",
+              "has_screenshot": true
+            },
+            {
+              "index": 10,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 510.54070526541096 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Fitness hero headline “Better by every measure.” on Apple Watch Series 11 page",
+              "has_screenshot": true
+            },
+            {
+              "index": 11,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 1091.7438851134418 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11 hero headline “Better by every measure.” with large watch image",
+              "has_screenshot": true
+            },
+            {
+              "index": 12,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 3464.253815282534 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=top | Apple Watch Series 11, Buy button, large product hero image",
+              "has_screenshot": true
+            },
+            {
+              "index": 13,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 1384.9944215539383 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11, Buy button, workout and fitness feature panels",
+              "has_screenshot": true
+            },
+            {
+              "index": 14,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 1202.154304901541 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Up to 13 hours of battery life. Always a positive.",
+              "has_screenshot": true
+            },
+            {
+              "index": 15,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 1973.2648731806507 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11, large lifestyle hero image, Buy button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 16,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 913.3196677011987 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11 hero page with Buy button and large product imagery",
+              "has_screenshot": true
+            },
+            {
+              "index": 17,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 3098.572503745719 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11, headline “A real lifeline.” and Buy button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 18,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 857.6710348886986 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Keep exploring Apple Watch. Compare all Apple Watch models",
+              "has_screenshot": true
+            },
+            {
+              "index": 19,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 820.573383989726 pixels",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11 vs Apple Watch SE 3 comparison with Learn more and Buy buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 20,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.apple.com/apple-watch-series-11/",
+              "title": "Apple Watch Series 11 - Apple",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Apple Watch Series 11 comparison page, Compare all Apple Watch models button visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 29480,
+          "vlm_output_tokens": 651
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "step_index": 14,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "step_index": 14,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_40fab35e>page_state:\nScrolled to a product marketing section on Apple Watch Series 11 page showing battery life claim.\ntask_relevant_visible_text:\nApple Watch Series 11\nOverview\nWhy Apple Watch\nTech Specs\nBuy\nUp to 13 hours of battery life.\nAlways a positive.\nselected_candidate:\n13 hours of battery life\nconstraint_evidence:\n- Navigate to Apple’s website: supported (apple.com URL/title visible)\n- Latest Apple Watch model: supported (page title/URL show Apple Watch Series 11)\n- Determine average battery life: supported (battery life claim visible)\n- Exact battery life value visible: supported (“Up to 13 hours of battery life”)\n- Average/typical battery life wording: not_visible (only “Up to” is shown, not an average)\n- Price/rating/date/other qualifiers: not_visible\naction_target:\nContinue scrolling or inspect nearby specs to confirm whether this is the relevant battery-life figure for the task.\nsuccess_signals:\nVisible battery-life number for the latest Apple Watch model found.\nfailure_signals:\nIf the task requires an average rather than a maximum, this “Up to 13 hours” may not satisfy it.\nuncertainty:\nThe page shows a maximum battery-life claim, not an explicit average; may need a specs section or footnote for the exact metric.</TRAJECTA_DATA_40fab35e>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Navigate to Apple's website and determine the average battery life of the latest Apple Watch model.",
+          "url": "<TRAJECTA_DATA_40fab35e>https://www.apple.com/apple-watch-series-11/</TRAJECTA_DATA_40fab35e>",
+          "title": "<TRAJECTA_DATA_40fab35e>Apple Watch Series 11 - Apple</TRAJECTA_DATA_40fab35e>",
+          "action_label": "<TRAJECTA_DATA_40fab35e>scroll down by 1202.154304901541 pixels</TRAJECTA_DATA_40fab35e>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_40fab35e>scroll(delta_x=0.0, delta_y=1202.154304901541)</TRAJECTA_DATA_40fab35e>"
+        },
+        "action": {
+          "type": "scroll",
+          "label": "<TRAJECTA_DATA_40fab35e>scroll down by 1202.154304901541 pixels</TRAJECTA_DATA_40fab35e>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_40fab35e>scroll(delta_x=0.0, delta_y=1202.154304901541)</TRAJECTA_DATA_40fab35e>"
+        },
+        "observation": {
+          "screenshot": "screenshot_014.png",
+          "url": "<TRAJECTA_DATA_40fab35e>https://www.apple.com/apple-watch-series-11/</TRAJECTA_DATA_40fab35e>",
+          "title": "<TRAJECTA_DATA_40fab35e>Apple Watch Series 11 - Apple</TRAJECTA_DATA_40fab35e>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1280,
+          "image_height": 806,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080/screenshots/screenshot_014.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "step_index": 20,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "step_index": 20,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_40fab35e>page_state:\nApple Watch Series 11 product page, mid-page comparison section visible; no obvious battery-life summary beyond comparison table.\ntask_relevant_visible_text:\n“Apple Watch Series 11”\n“Up to 24 hours”\n“Up to 38 hours in Low Power Mode”\n“Fast charging”\n“Compare all Apple Watch models”\nselected_candidate:\nApple Watch Series 11 battery life: “Up to 24 hours” (standard mode)\nconstraint_evidence:\n1. Navigate to Apple’s website — supported (apple.com URL/title visible).\n2. Determine average battery life of the latest Apple Watch model — supported that latest model page is open; battery-life text visible, but “average” is not explicitly shown.\n3. Latest Apple Watch model — supported (page title says Apple Watch Series 11).\n4. Battery life information visible — supported (“Up to 24 hours”; “Up to 38 hours in Low Power Mode”).\n5. Need a single average battery life value — not_visible (no average calculation or explicit average label shown).\naction_target:\nSend exit message to user: [EXIT]\nsuccess_signals:\nLatest model page identified; battery-life figures visible for Series 11.\nfailure_signals:\nNo explicit “average battery life” value shown; only max/low-power figures are visible.\nuncertainty:\nWhether the task expects the standard battery life, a computed average, or another interpretation of “average” is unclear.</TRAJECTA_DATA_40fab35e>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Navigate to Apple's website and determine the average battery life of the latest Apple Watch model.",
+          "url": "<TRAJECTA_DATA_40fab35e>https://www.apple.com/apple-watch-series-11/</TRAJECTA_DATA_40fab35e>",
+          "title": "<TRAJECTA_DATA_40fab35e>Apple Watch Series 11 - Apple</TRAJECTA_DATA_40fab35e>",
+          "action_label": "<TRAJECTA_DATA_40fab35e>send message to user: '[EXIT]'</TRAJECTA_DATA_40fab35e>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_40fab35e>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_40fab35e>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_40fab35e>send message to user: '[EXIT]'</TRAJECTA_DATA_40fab35e>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_40fab35e>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_40fab35e>"
+        },
+        "observation": {
+          "screenshot": "screenshot_020.png",
+          "url": "<TRAJECTA_DATA_40fab35e>https://www.apple.com/apple-watch-series-11/</TRAJECTA_DATA_40fab35e>",
+          "title": "<TRAJECTA_DATA_40fab35e>Apple Watch Series 11 - Apple</TRAJECTA_DATA_40fab35e>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1280,
+          "image_height": 806,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080/screenshots/screenshot_020.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "step_index": 2,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "step_index": 2,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_40fab35e>page_state:\nApple Watch landing page on apple.com with top nav and product tiles visible; no detailed product specs section is open yet.\ntask_relevant_visible_text:\nApple Watch; Apple Watch Series 11; Apple Watch SE 3; Apple Watch Ultra 3; Apple Watch Nike; Apple Watch Hermès; Compare; Bands; Accessories; Apple Fitness+; Shop Watch; watchOS 26; Get gifts in time for the holidays with free two-hour delivery on eligible products — now through 12/24. Shop\nselected_candidate:\nApple Watch Series 11 tile (top row, marked New)\nconstraint_evidence:\n- Navigate to Apple’s website: supported (URL/title show apple.com/watch and Apple Watch - Apple).\n- Determine average battery life of the latest Apple Watch model: not_visible (no battery-life text shown).\n- Latest Apple Watch model: supported (Apple Watch Series 11 is visible and marked New; likely latest among visible models).\n- Need a product/detail page or spec info for battery life: not_visible (only category tiles/hero imagery visible).\n- Price/rating/date/other qualifiers for the latest model: not_visible (no price, stars, or spec details visible).\naction_target:\nClick the FIGURE element corresponding to the Apple Watch Series 11 product tile/image.\nsuccess_signals:\nNavigation to a Series 11 product page or a section containing battery life specs.\nfailure_signals:\nClick lands on a non-product area, or page remains on the category landing page without battery-life information.\nuncertainty:\nThe clicked figure may correspond to a diff</TRAJECTA_DATA_40fab35e>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Navigate to Apple's website and determine the average battery life of the latest Apple Watch model.",
+          "url": "<TRAJECTA_DATA_40fab35e>https://www.apple.com/watch/</TRAJECTA_DATA_40fab35e>",
+          "title": "<TRAJECTA_DATA_40fab35e>Apple Watch - Apple</TRAJECTA_DATA_40fab35e>",
+          "action_label": "<TRAJECTA_DATA_40fab35e>Click on FIGURE element</TRAJECTA_DATA_40fab35e>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_40fab35e>mouse_click(x=102.5768600226684, y=87.66631990197587, button='left')</TRAJECTA_DATA_40fab35e>"
+        },
+        "action": {
+          "type": "click",
+          "label": "<TRAJECTA_DATA_40fab35e>Click on FIGURE element</TRAJECTA_DATA_40fab35e>",
+          "text": null,
+          "coordinates": {
+            "x": 102.5768600226684,
+            "y": 87.66631990197587
+          },
+          "bbox": {
+            "x": 86.86701377644646,
+            "y": 66.24657534246576,
+            "width": 29.844559585492227,
+            "height": 61.83013698630137
+          },
+          "raw": "<TRAJECTA_DATA_40fab35e>mouse_click(x=102.5768600226684, y=87.66631990197587, button='left')</TRAJECTA_DATA_40fab35e>"
+        },
+        "observation": {
+          "screenshot": "screenshot_002.png",
+          "url": "<TRAJECTA_DATA_40fab35e>https://www.apple.com/watch/</TRAJECTA_DATA_40fab35e>",
+          "title": "<TRAJECTA_DATA_40fab35e>Apple Watch - Apple</TRAJECTA_DATA_40fab35e>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "validated",
+          "image_width": 1280,
+          "image_height": 806,
+          "reason": null
+        },
+        "screenshot_url": "/api/trajectories/2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080/screenshots/screenshot_002.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 9,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "Apple product page task asks for average battery life of latest model; agent opens latest model page, sees only 'Up to' battery-life figures and exits without verifying an average/typical value",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 10,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_258ca520af5e5391bac0b3f8a2d06134cd9c1700d544f433c356b485a90dd9a3_step_9",
+            "source_trajectory_id": "258ca520af5e5391bac0b3f8a2d06134cd9c1700d544f433c356b485a90dd9a3",
+            "task": "find: answer to 'Does it come with a warranty?'",
+            "failure_step": 9,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have used the visible Warranty & Support information and answered in line with it, rather than claiming the item does not come with a warranty.",
+            "actual_behavior": "The agent answered that the item does not come with a warranty even though the page showed a Warranty & Support section with a manufacturer warranty note.",
+            "evidence": [
+              {
+                "claim": "The task was to answer whether the Ello Syndicate 20oz reusable glass water bottle comes with a warranty.",
+                "source": "trajectory_digest",
+                "trajectory_id": "258ca520af5e5391bac0b3f8a2d06134cd9c1700d544f433c356b485a90dd9a3",
+                "step_index": null,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "Screenshot 8 shows the Amazon product page scrolled to the Warranty & Support section, where warranty information is visible.",
+                "source": "step_detail_high",
+                "trajectory_id": "258ca520af5e5391bac0b3f8a2d06134cd9c1700d544f433c356b485a90dd9a3",
+                "step_index": 8,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The visible text on screenshot 8 includes 'Warranty & Support' and 'Manufacturer’s warranty can be requested from customer service,' showing that warranty-related information was available on the page.",
+                "source": "step_detail_high",
+                "trajectory_id": "258ca520af5e5391bac0b3f8a2d06134cd9c1700d544f433c356b485a90dd9a3",
+                "step_index": 8,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent nonetheless answered '[ANSWER] It doesn't come with a warranty.' at the final step, which conflicts with the warranty information visible on screenshot 8.",
+                "source": "trajectory",
+                "trajectory_id": "258ca520af5e5391bac0b3f8a2d06134cd9c1700d544f433c356b485a90dd9a3",
+                "step_index": 9,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a page visibly contains warranty/support information, the agent must not answer 'no warranty' unless the visible text explicitly says there is no warranty; if the warranty terms are vague, answer with the available warranty wording instead.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_1ec82bdc3cf7a04b325f161137006bcbecf7c70e0754d63088ed052dddafa134_step_1",
+            "source_trajectory_id": "1ec82bdc3cf7a04b325f161137006bcbecf7c70e0754d63088ed052dddafa134",
+            "task": "find: answer to 'What's the flight option with the latest departure time on the return journey?'",
+            "failure_step": 1,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have navigated to or identified the return flight options and selected the one with the latest departure time from that list.",
+            "actual_behavior": "The agent identified the latest departure time from the \"departing flights\" (outbound) list instead of the \"return journey\" list. The agent also provided an incomplete answer.",
+            "evidence": [
+              {
+                "claim": "The agent failed to recognize that the current view is for \"departing flights\" (outbound), not the \"return journey\" requested by the user. The agent also cut off the message mid-sentence.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The screenshot shows \"Top departing flights\" for the outbound leg, not the return journey.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 1,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When searching for flight information, the agent must explicitly verify whether it is looking at the outbound or return leg of the journey as requested by the user.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15",
+            "source_trajectory_id": "2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714",
+            "task": "navigate: Search for the lowest-priced round-trip flight from Los Angeles to Seoul, departing on April 5, 2026, and returning on April 15, 2026.",
+            "failure_step": 15,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have sorted the flight results by price and selected the lowest-priced round-trip flight for the specified dates.",
+            "actual_behavior": "The agent performed a search for flights from Los Angeles to Seoul for the specified dates. While the search results page displayed various options, the agent did not select the lowest-priced flight, instead exiting while the results were sorted by \"top flights.\" The task specifically required finding the lowest-priced flight.",
+            "evidence": [
+              {
+                "claim": "The page is currently sorted by 'top flights,' not 'price.'",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent exited without selecting the lowest-priced flight, failing to fulfill the core requirement of the task.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a task requires finding the 'lowest-priced' item, the agent must ensure the results are sorted by price and that the lowest-priced option is identified and selected. Failure to select the correct item based on the specified criteria constitutes a wrong result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 11,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "retrieved_context_ids": [
+          "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15"
+        ],
+        "failure_step": 20,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "After reaching the latest Apple Watch model page, the agent should have verified a battery-life figure that satisfies the task's wording: an average/typical battery life for the latest model, or otherwise navigated to specs/footnotes to confirm the appropriate metric before exiting.",
+        "actual_behavior": "The agent navigated to Apple Watch Series 11 and scrolled until battery-life numbers were visible, but the inspected screenshots show only 'Up to 13 hours of battery life' and later 'Up to 24 hours' / 'Up to 38 hours in Low Power Mode.' It exited without confirming any explicit average or typical battery-life value.",
+        "regression_rule": "When a task asks for a specific metric like average battery life, the agent must not stop after finding only 'up to' or alternate-mode figures; it should verify that the visible value matches the requested metric or continue to specs/footnotes until it does.",
+        "evidence": [
+          {
+            "claim": "The trajectory task is to navigate to Apple’s website and determine the average battery life of the latest Apple Watch model.",
+            "source": "trajectory",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080"
+          },
+          {
+            "claim": "On the Apple Watch landing page, Apple Watch Series 11 is visible and marked New, supporting that the agent identified the latest model before drilling in.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 2
+          },
+          {
+            "claim": "On step 14, the Series 11 page visibly shows 'Up to 13 hours of battery life,' and the high-detail read marks the exact value as visible but says average/typical wording is not visible.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 14
+          },
+          {
+            "claim": "On the final inspected step, the Series 11 page shows 'Up to 24 hours' and 'Up to 38 hours in Low Power Mode'; the high-detail read again says battery-life information is visible but a single average value is not visible.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 20
+          },
+          {
+            "claim": "The agent then sent '[EXIT]' at step 20 instead of continuing to a specs section or otherwise verifying the requested average battery-life metric.",
+            "source": "trajectory",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 20
+          },
+          {
+            "claim": "A validated prior eval case similarly treats stopping after finding only non-task-matching result-state information, without verifying the requested criterion, as a failure that should be guarded by an explicit verification rule.",
+            "source": "eval_case",
+            "context_id": "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15"
+          }
+        ],
+        "suggested_followups": [
+          {
+            "label": "Check specs section",
+            "message": "Inspect whether the Apple Watch Series 11 tech specs page exposes a typical battery-life metric instead of only 'up to' values."
+          },
+          {
+            "label": "Review final answer behavior",
+            "message": "Confirm whether the agent ever sent the user a battery-life answer before exiting, or only navigated and stopped."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 12,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080_step_20",
+        "source_trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+        "task": "navigate: Navigate to Apple's website and determine the average battery life of the latest Apple Watch model.",
+        "failure_step": 20,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "After reaching the latest Apple Watch model page, the agent should have verified a battery-life figure that satisfies the task's wording: an average/typical battery life for the latest model, or otherwise navigated to specs/footnotes to confirm the appropriate metric before exiting.",
+        "actual_behavior": "The agent navigated to Apple Watch Series 11 and scrolled until battery-life numbers were visible, but the inspected screenshots show only 'Up to 13 hours of battery life' and later 'Up to 24 hours' / 'Up to 38 hours in Low Power Mode.' It exited without confirming any explicit average or typical battery-life value.",
+        "evidence": [
+          {
+            "claim": "The trajectory task is to navigate to Apple’s website and determine the average battery life of the latest Apple Watch model.",
+            "source": "trajectory",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "On the Apple Watch landing page, Apple Watch Series 11 is visible and marked New, supporting that the agent identified the latest model before drilling in.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 2,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "On step 14, the Series 11 page visibly shows 'Up to 13 hours of battery life,' and the high-detail read marks the exact value as visible but says average/typical wording is not visible.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 14,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "On the final inspected step, the Series 11 page shows 'Up to 24 hours' and 'Up to 38 hours in Low Power Mode'; the high-detail read again says battery-life information is visible but a single average value is not visible.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 20,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The agent then sent '[EXIT]' at step 20 instead of continuing to a specs section or otherwise verifying the requested average battery-life metric.",
+            "source": "trajectory",
+            "trajectory_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+            "step_index": 20,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "A validated prior eval case similarly treats stopping after finding only non-task-matching result-state information, without verifying the requested criterion, as a failure that should be guarded by an explicit verification rule.",
+            "source": "eval_case",
+            "trajectory_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15"
+          }
+        ],
+        "regression_rule": "When a task asks for a specific metric like average battery life, the agent must not stop after finding only 'up to' or alternate-mode figures; it should verify that the visible value matches the requested metric or continue to specs/footnotes until it does.",
+        "retrieved_context_ids": [
+          "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Check specs section",
+            "message": "Inspect whether the Apple Watch Series 11 tech specs page exposes a typical battery-life metric instead of only 'up to' values."
+          },
+          {
+            "label": "Review final answer behavior",
+            "message": "Confirm whether the agent ever sent the user a battery-life answer before exiting, or only navigated and stopped."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-2026-03-05",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 4598,
+  "vlm_output_tokens": 910,
+  "runtime_ms": 31827,
+  "input_tokens": 64064,
+  "output_tokens": 1223,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 31827,
+      "input_tokens": 64064,
+      "output_tokens": 1223
+    }
+  ]
+}
