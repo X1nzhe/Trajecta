@@ -64,8 +64,8 @@ class TrajectoryStep(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class TrajectoryRun(BaseModel):
-    run_id: str
+class Trajectory(BaseModel):
+    trajectory_id: str
     task: str
     source: str = "allenai/MolmoWeb-HumanSkills"
     status: Literal["success", "failed", "unknown"] = "unknown"
@@ -87,7 +87,7 @@ class StepDigest(BaseModel):
 
 
 class TrajectoryDigest(BaseModel):
-    run_id: str
+    trajectory_id: str
     task: str
     step_count: int
     steps: list[StepDigest]
@@ -137,7 +137,7 @@ class FailureMemoryCase(BaseModel):
     summary: str
     fix_hint: str | None = None
     tags: list[str] = Field(default_factory=list)
-    source_run_id: str | None = None
+    source_trajectory_id: str | None = None
 
 
 class FollowupSuggestion(BaseModel):
@@ -156,7 +156,12 @@ class FollowupSuggestion(BaseModel):
 
 
 class EvidenceItem(BaseModel):
-    claim: str
+    claim: str = Field(
+        description=(
+            "The assertion this evidence supports, as free text. The prose goes "
+            "HERE — do not use a field named 'text'."
+        )
+    )
     source: Literal[
         "trajectory",
         "trajectory_digest",
@@ -164,11 +169,22 @@ class EvidenceItem(BaseModel):
         "step_detail_low",
         "failure_memory",
         "eval_case",
-        "successful_run",
+        "successful_trajectory",
         "unavailable",
-    ]
-    run_id: str | None = None
-    step_index: int | None = None
+    ] = Field(
+        description=(
+            "Where the evidence came from — exactly one of the allowed enum values. "
+            "NOT free text and NOT step numbers (use step_index for steps)."
+        )
+    )
+    trajectory_id: str | None = None
+    step_index: int | None = Field(
+        default=None,
+        description=(
+            "A single, most-relevant step index (1-based). There is no multi-step "
+            "field; describe spans of steps in `claim` prose instead."
+        ),
+    )
     trace_event_seq: int | None = None
     context_id: str | None = None
 
@@ -190,7 +206,7 @@ class EvalCase(BaseModel):
     """
 
     case_id: str
-    source_run_id: str
+    source_trajectory_id: str
     task: str
     failure_step: int | None = None
     failure_type: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]*$")
@@ -252,11 +268,11 @@ class TurnMetrics(BaseModel):
 
 
 class AgentTrace(BaseModel):
-    run_id: str
-    user_intent: Literal["analyze_run", "analyze_step"]
+    trajectory_id: str
+    user_intent: Literal["analyze_trajectory", "analyze_step"]
     selected_step: int | None = None
     # How this run was initiated: "ui" (HTTP analyze endpoint), "eval"
-    # (agent_eval harness), or "mcp" (the MCP server's analyze_run composite).
+    # (agent_eval harness), or "mcp" (the MCP server's analyze_trajectory composite).
     # Lets audit / Phase 8 reports distinguish run origin. Old persisted traces
     # deserialize as "ui".
     source: Literal["ui", "eval", "mcp"] = "ui"
@@ -404,8 +420,8 @@ Fact = Annotated[
 
 
 class GoldenInput(BaseModel):
-    run_id: str = Field(min_length=1)
-    intent: Literal["analyze_run", "analyze_step"] = "analyze_run"
+    trajectory_id: str = Field(min_length=1)
+    intent: Literal["analyze_trajectory", "analyze_step"] = "analyze_trajectory"
 
 
 class GoldenCase(BaseModel):

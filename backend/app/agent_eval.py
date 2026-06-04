@@ -51,7 +51,7 @@ identical across mock and real runs.
 - ``eval/agent_report.json`` — full per-sample detail + aggregates + baselines.
 - ``eval/agent_report.md`` — human-readable summary.
 - ``eval/runs/<stamp>/agent_report.{json,md}`` — timestamped archive copy.
-- ``eval/runs/<stamp>/traces/<run_id>.json`` — per-sample AgentTrace dumps
+- ``eval/runs/<stamp>/traces/<trajectory_id>.json`` — per-sample AgentTrace dumps
   (Phase 8 A2). Read by ``eval/judge.py`` (A3) and the real RAGAS run (A6);
   ``agent_report.json`` only carries source counts, not the full evidence
   chain, so the per-sample dumps are the canonical persistence path for
@@ -137,7 +137,7 @@ V1_FAILURE_VOCABULARY = (
 class GoldenSample:
     """One row of the human-triaged golden set."""
 
-    run_id: str
+    trajectory_id: str
     category: str
     outcome: str  # "success" | "failed"
     failure_types: list[str]  # multi-label parsed from CSV (empty for success)
@@ -149,7 +149,7 @@ class GoldenSample:
 class GradedSample:
     """A golden sample after agent inference and grading."""
 
-    run_id: str
+    trajectory_id: str
     category: str
     label_outcome: str
     label_failure_types: list[str]
@@ -167,7 +167,7 @@ class GradedSample:
     failure_type_correct: bool | None
     failure_step_within_2: bool | None
     # Cost / timing — sourced from trace + a wall-clock timer around
-    # ``analyze_run``. ``input_tokens`` / ``output_tokens`` are the LLM
+    # ``analyze_trajectory``. ``input_tokens`` / ``output_tokens`` are the LLM
     # cumulative totals from ``AgentTrace``; ``vlm_*`` track VLM
     # consumption separately. ``latency_s`` is wall-clock from agent
     # start (post-storage-load) to terminal-tool return.
@@ -193,8 +193,8 @@ class GradedSample:
 
 @dataclass
 class SkippedCounts:
-    not_importable: int = 0  # storage.load_run raised FileNotFoundError
-    agent_error: int = 0  # analyze_run raised before terminating
+    not_importable: int = 0  # storage.load_trajectory raised FileNotFoundError
+    agent_error: int = 0  # analyze_trajectory raised before terminating
 
     def to_dict(self) -> dict[str, int]:
         return {"not_importable": self.not_importable, "agent_error": self.agent_error}
@@ -205,14 +205,14 @@ class GoldenSetFilterSummary:
     original_n: int = 0
     evaluated_n: int = 0
     failure_memory_overlap_n: int = 0
-    failure_memory_overlap_run_ids: list[str] = field(default_factory=list)
+    failure_memory_overlap_trajectory_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "original_n": self.original_n,
             "evaluated_n": self.evaluated_n,
             "failure_memory_overlap_n": self.failure_memory_overlap_n,
-            "failure_memory_overlap_run_ids": self.failure_memory_overlap_run_ids,
+            "failure_memory_overlap_trajectory_ids": self.failure_memory_overlap_trajectory_ids,
         }
 
 
@@ -404,7 +404,7 @@ def load_golden_set(csv_path: Path) -> list[GoldenSample]:
         for row in reader:
             samples.append(
                 GoldenSample(
-                    run_id=(row.get("sample_id") or "").strip(),
+                    trajectory_id=(row.get("sample_id") or "").strip(),
                     category=(row.get("category") or "").strip().lower(),
                     outcome=(row.get("outcome") or "").strip().lower(),
                     failure_types=_parse_failure_modes(row.get("failure_mode") or ""),
@@ -415,34 +415,34 @@ def load_golden_set(csv_path: Path) -> list[GoldenSample]:
     return samples
 
 
-def _failure_memory_source_run_ids() -> set[str]:
-    """Return run_ids used as curated failure-memory sources."""
+def _failure_memory_source_trajectory_ids() -> set[str]:
+    """Return trajectory_ids used as curated failure-memory sources."""
 
     return {
-        case.source_run_id
+        case.source_trajectory_id
         for case in storage.load_failure_memory()
-        if case.source_run_id
+        if case.source_trajectory_id
     }
 
 
 def filter_golden_set_for_failure_memory_overlap(
     golden: list[GoldenSample],
-    failure_memory_source_run_ids: set[str] | None = None,
+    failure_memory_source_trajectory_ids: set[str] | None = None,
 ) -> tuple[list[GoldenSample], GoldenSetFilterSummary]:
-    """Drop golden rows whose run_id appears in failure_memory source_run_id."""
+    """Drop golden rows whose trajectory_id appears in failure_memory source_trajectory_id."""
 
-    source_run_ids = (
-        _failure_memory_source_run_ids()
-        if failure_memory_source_run_ids is None
-        else failure_memory_source_run_ids
+    source_trajectory_ids = (
+        _failure_memory_source_trajectory_ids()
+        if failure_memory_source_trajectory_ids is None
+        else failure_memory_source_trajectory_ids
     )
-    filtered = [sample for sample in golden if sample.run_id not in source_run_ids]
-    excluded = [sample.run_id for sample in golden if sample.run_id in source_run_ids]
+    filtered = [sample for sample in golden if sample.trajectory_id not in source_trajectory_ids]
+    excluded = [sample.trajectory_id for sample in golden if sample.trajectory_id in source_trajectory_ids]
     return filtered, GoldenSetFilterSummary(
         original_n=len(golden),
         evaluated_n=len(filtered),
         failure_memory_overlap_n=len(excluded),
-        failure_memory_overlap_run_ids=sorted(set(excluded)),
+        failure_memory_overlap_trajectory_ids=sorted(set(excluded)),
     )
 
 
@@ -554,7 +554,7 @@ def _grade(
         failure_step_within_2 = abs(proposed_step - sample.failure_step) <= 2
 
     return GradedSample(
-        run_id=sample.run_id,
+        trajectory_id=sample.trajectory_id,
         category=sample.category,
         label_outcome=sample.outcome,
         label_failure_types=sample.failure_types,
@@ -592,9 +592,9 @@ def _forced_mock_env():
     through to ``OfflineAgentMock``.
 
     Why not pass ``llm_client=OfflineAgentMock(state)`` directly? The
-    ``analyze_run`` signature accepts ``llm_client`` but the mock needs the
+    ``analyze_trajectory`` signature accepts ``llm_client`` but the mock needs the
     LangGraph ``state`` dict (which only exists inside ``_default_llm_client``)
-    to know the ``run_id`` and ``trajectory_digest``. The cleanest way to force
+    to know the ``trajectory_id`` and ``trajectory_digest``. The cleanest way to force
     the mock from outside is to make the env look like the no-credentials case
     that the production builder already handles.
     """
@@ -609,12 +609,12 @@ def _forced_mock_env():
             os.environ[key] = value
 
 
-def _run_agent(run_id: str, *, force_mock: bool) -> AgentTrace:
+def _run_agent(trajectory_id: str, *, force_mock: bool) -> AgentTrace:
     if force_mock:
         with _forced_mock_env():
-            result = eval_agent_graph.analyze_run(run_id, persist=False, source="eval")
+            result = eval_agent_graph.analyze_trajectory(trajectory_id, persist=False, source="eval")
     else:
-        result = eval_agent_graph.analyze_run(run_id, persist=False, source="eval")
+        result = eval_agent_graph.analyze_trajectory(trajectory_id, persist=False, source="eval")
     return result.trace
 
 
@@ -653,8 +653,8 @@ def _retry_delay_s(attempt_index: int, *, base_s: float, max_s: float) -> float:
     return min(cap, base * (2 ** attempt_index))
 
 
-def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
-    """Persist one AgentTrace as ``{trace_dir}/{run_id}.json``.
+def _dump_trace(trace: AgentTrace, trace_dir: Path, trajectory_id: str) -> Path | None:
+    """Persist one AgentTrace as ``{trace_dir}/{trajectory_id}.json``.
 
     Phase 8 A2 — the judge (A3) and the real RAGAS run (A6) both need the
     full evidence + tool-result chain, which the aggregate
@@ -669,7 +669,7 @@ def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
     """
     try:
         trace_dir.mkdir(parents=True, exist_ok=True)
-        out_path = trace_dir / f"{run_id}.json"
+        out_path = trace_dir / f"{trajectory_id}.json"
         out_path.write_text(
             trace.model_dump_json(indent=2),
             encoding="utf-8",
@@ -677,7 +677,7 @@ def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
         return out_path
     except OSError as exc:  # pragma: no cover - defensive
         print(
-            f"  ! failed to dump trace for {run_id[:12]}…: "
+            f"  ! failed to dump trace for {trajectory_id[:12]}…: "
             f"{type(exc).__name__}: {exc}",
             file=sys.stderr,
             flush=True,
@@ -687,19 +687,19 @@ def _dump_trace(trace: AgentTrace, trace_dir: Path, run_id: str) -> Path | None:
 
 def _load_resume_trace(
     trace_dir: Path,
-    run_id: str,
+    trajectory_id: str,
     *,
     expected_prompt_version: str,
 ) -> AgentTrace | None:
     """Load a completed per-sample trace if this run can be resumed."""
 
-    path = trace_dir / f"{run_id}.json"
+    path = trace_dir / f"{trajectory_id}.json"
     if not path.exists():
         return None
     trace = AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
-    if trace.run_id != run_id:
+    if trace.trajectory_id != trajectory_id:
         raise ValueError(
-            f"resume trace {path} has run_id={trace.run_id!r}, expected {run_id!r}"
+            f"resume trace {path} has trajectory_id={trace.trajectory_id!r}, expected {trajectory_id!r}"
         )
     if trace.prompt_version != expected_prompt_version:
         raise ValueError(
@@ -747,7 +747,7 @@ def collect_graded_samples(
     for slowdowns or pattern shifts (e.g. all booking runs taking 3× longer).
 
     When ``trace_dir`` is set, each agent run's full ``AgentTrace`` is
-    serialised to ``{trace_dir}/{run_id}.json`` via :func:`_dump_trace`.
+    serialised to ``{trace_dir}/{trajectory_id}.json`` via :func:`_dump_trace`.
     The dump is the persistence path the judge (A3) and the real RAGAS
     run (A6) read from. Dump failures are logged but do not abort the
     grading run.
@@ -759,14 +759,14 @@ def collect_graded_samples(
     overall_start = time.perf_counter()
     expected_prompt_version = prompts.active_prompt_version()
     for i, sample in enumerate(subset, start=1):
-        prefix = f"[{i:2d}/{total}] {sample.run_id[:12]}…"
+        prefix = f"[{i:2d}/{total}] {sample.trajectory_id[:12]}…"
         try:
-            run = storage.load_run(sample.run_id)
+            trajectory = storage.load_trajectory(sample.trajectory_id)
         except FileNotFoundError:
             skipped.not_importable += 1
             print(f"{prefix} skipped: not importable in storage", file=sys.stderr)
             continue
-        step_count = len(run.steps)
+        step_count = len(trajectory.steps)
         print(
             f"{prefix} starting  (category={sample.category}, "
             f"label={sample.outcome}, step_count={step_count})",
@@ -779,7 +779,7 @@ def collect_graded_samples(
             try:
                 trace = _load_resume_trace(
                     trace_dir,
-                    sample.run_id,
+                    sample.trajectory_id,
                     expected_prompt_version=expected_prompt_version,
                 )
             except Exception as exc:
@@ -796,7 +796,7 @@ def collect_graded_samples(
                 latency_s = _trace_latency_s(trace)
                 print(
                     f"{prefix} resumed from trace "
-                    f"({trace_dir / f'{sample.run_id}.json'})",
+                    f"({trace_dir / f'{sample.trajectory_id}.json'})",
                     file=sys.stderr,
                     flush=True,
                 )
@@ -805,7 +805,7 @@ def collect_graded_samples(
             trace = None
             for attempt in range(attempts):
                 try:
-                    trace = _run_agent(sample.run_id, force_mock=force_mock)
+                    trace = _run_agent(sample.trajectory_id, force_mock=force_mock)
                     break
                 except Exception as exc:  # pragma: no cover - defensive
                     elapsed = time.perf_counter() - start
@@ -838,7 +838,7 @@ def collect_graded_samples(
                 continue
             latency_s = time.perf_counter() - start
             if trace_dir is not None:
-                _dump_trace(trace, trace_dir, sample.run_id)
+                _dump_trace(trace, trace_dir, sample.trajectory_id)
         graded_sample = _grade(
             sample, trace, latency_s=latency_s, step_count=step_count
         )
@@ -1022,7 +1022,7 @@ def compute_cost_ablation(graded: list[GradedSample]) -> dict[str, Any]:
             "actual_high_detail_tokens": 0,
             "naive_high_detail_tokens": 0,
             "savings_ratio": 0.0,
-            "mean_high_detail_calls_per_run": 0.0,
+            "mean_high_detail_calls_per_trajectory": 0.0,
             "mean_step_count": 0.0,
         }
     actual_high = sum(
@@ -1036,7 +1036,7 @@ def compute_cost_ablation(graded: list[GradedSample]) -> dict[str, Any]:
         "actual_high_detail_tokens": actual_high,
         "naive_high_detail_tokens": naive_high,
         "savings_ratio": savings_ratio,
-        "mean_high_detail_calls_per_run": _mean(
+        "mean_high_detail_calls_per_trajectory": _mean(
             [float(s.get_step_detail_count) for s in graded]
         ),
         "mean_step_count": _mean([float(s.step_count) for s in graded]),
@@ -1098,8 +1098,8 @@ def compute_metrics(graded: list[GradedSample]) -> dict[str, Any]:
         "mean_latency_s": _mean([s.latency_s for s in graded]),
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
-        "mean_input_tokens_per_run": _mean([float(s.input_tokens) for s in graded]),
-        "mean_output_tokens_per_run": _mean([float(s.output_tokens) for s in graded]),
+        "mean_input_tokens_per_trajectory": _mean([float(s.input_tokens) for s in graded]),
+        "mean_output_tokens_per_trajectory": _mean([float(s.output_tokens) for s in graded]),
         "total_vlm_input_tokens": total_vlm_input_tokens,
         "total_vlm_output_tokens": total_vlm_output_tokens,
     }
@@ -1124,7 +1124,7 @@ def build_report(
     report = AgentEvalReport(agent_mode=agent_mode)
     report.samples = [
         {
-            "run_id": s.run_id,
+            "trajectory_id": s.trajectory_id,
             "category": s.category,
             "label_outcome": s.label_outcome,
             "label_failure_types": s.label_failure_types,
@@ -1311,8 +1311,8 @@ def write_report(
     lines.append(f"| Mean wall-clock latency / run | {m.get('mean_latency_s', 0.0):.2f}s |")
     lines.append(f"| Mean tool_call_count / run | {m.get('mean_tool_call_count', 0.0):.2f} |")
     lines.append(f"| Mean `get_step_detail` / run | {m.get('mean_get_step_detail_count', 0.0):.2f} |")
-    lines.append(f"| Mean LLM input tokens / run | {m.get('mean_input_tokens_per_run', 0.0):.0f} |")
-    lines.append(f"| Mean LLM output tokens / run | {m.get('mean_output_tokens_per_run', 0.0):.0f} |")
+    lines.append(f"| Mean LLM input tokens / run | {m.get('mean_input_tokens_per_trajectory', 0.0):.0f} |")
+    lines.append(f"| Mean LLM output tokens / run | {m.get('mean_output_tokens_per_trajectory', 0.0):.0f} |")
     lines.append(f"| Total LLM input tokens | {m.get('total_input_tokens', 0)} |")
     lines.append(f"| Total LLM output tokens | {m.get('total_output_tokens', 0)} |")
     lines.append(f"| Total VLM input tokens | {m.get('total_vlm_input_tokens', 0)} |")
@@ -1358,7 +1358,7 @@ def write_report(
         f"| Mean step_count / run | {ca.get('mean_step_count', 0.0):.1f} |"
     )
     lines.append(
-        f"| Mean high-detail VLM calls / run | {ca.get('mean_high_detail_calls_per_run', 0.0):.2f} |"
+        f"| Mean high-detail VLM calls / run | {ca.get('mean_high_detail_calls_per_trajectory', 0.0):.2f} |"
     )
     lines.append(
         f"| Actual high-detail VLM tokens (total) | {ca.get('actual_high_detail_tokens', 0)} |"
@@ -1480,7 +1480,7 @@ def write_report(
         " agent's proposal carry a step value, and the sample is labeled `failed`."
     )
     lines.append(
-        "- Samples whose `run_id` is not importable into storage are excluded from"
+        "- Samples whose `trajectory_id` is not importable into storage are excluded from"
         " all metrics; their count is reported in the `skipped` block."
     )
     lines.append(
@@ -1665,7 +1665,7 @@ def _run_judge_post_step(
             continue
         print(
             f"Judge {cfg.slot} ({cfg.model}, prompt={cfg.prompt_version}):"
-            f" graded {len(result.graded_run_ids)} cases →"
+            f" graded {len(result.graded_trajectory_ids)} cases →"
             f" {result.json_path}",
             file=sys.stderr,
         )
@@ -1790,7 +1790,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Directory to dump per-sample AgentTrace JSONs (one file per"
-            " run_id). When omitted and not --mock, defaults to"
+            " trajectory_id). When omitted and not --mock, defaults to"
             " <out>/runs/<archive_stamp>/traces — i.e. alongside the"
             " timestamped agent_report. When --mock is set and this flag"
             " is omitted, traces are NOT dumped (mock mode is a wiring"
@@ -1883,9 +1883,10 @@ def main(argv: list[str] | None = None) -> int:
         file=sys.stderr,
     )
     # FastAPI lifespan (which calls rag.hydrate_all on startup) does NOT run
-    # under ``python -m``. Without this, the failure_memory / eval_cases /
-    # successful_runs Chroma collections are empty, and search_* tools come back
-    # with nothing — the agent has no RAG context and the eval is degenerate.
+    # under ``python -m``. Without this, the failure_memory / failure_eval_cases
+    # / successful_trajectories Chroma collections are empty, and search_* tools
+    # come back with nothing — the agent has no RAG context and the eval is
+    # degenerate.
     rag.hydrate_all()
     print("Hydrated ChromaDB collections from disk.", file=sys.stderr)
 
@@ -1943,10 +1944,10 @@ def main(argv: list[str] | None = None) -> int:
     # Compute baselines over the EXACT subset the agent was graded against,
     # so the baseline N matches the agent N. Otherwise the comparison column is
     # apples-to-oranges (e.g. baseline N=14 vs agent N=11 when 3 runs are not
-    # importable). Restrict by the graded_run_ids set; baselines remain purely
+    # importable). Restrict by the graded_trajectory_ids set; baselines remain purely
     # analytical (no agent call).
-    graded_run_ids = {s.run_id for s in graded}
-    golden_graded = [s for s in golden if s.run_id in graded_run_ids]
+    graded_trajectory_ids = {s.trajectory_id for s in graded}
+    golden_graded = [s for s in golden if s.trajectory_id in graded_trajectory_ids]
     label_baselines = compute_label_baselines(golden_graded)
     report = build_report(
         graded,

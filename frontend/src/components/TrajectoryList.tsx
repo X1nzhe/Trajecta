@@ -1,4 +1,4 @@
-// frontend/src/components/RunList.tsx — Option A
+// frontend/src/components/TrajectoryList.tsx — Option A
 // Refined session list:
 //   - mono IDs (JetBrains Mono) so they read as identifiers
 //   - inline mini-trajectory bar on each card (one segment per step)
@@ -9,37 +9,38 @@
 // Drop-in replacement — same props.
 
 import { useMemo, useState } from 'react';
-import type { TrajectoryRun } from '../types/contracts';
+import type { Trajectory } from '../types/contracts';
+import { truncateTrajectoryId } from '../utils/trajectoryId';
 import { actionColors } from './actionPalette';
 
-interface RunListProps {
-  runs: TrajectoryRun[];
-  selectedRunId: string | null;
-  onSelectRun: (runId: string) => void;
+interface TrajectoryListProps {
+  trajectories: Trajectory[];
+  selectedTrajectoryId: string | null;
+  onSelectTrajectory: (trajectoryId: string) => void;
 }
 
-export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
+export function TrajectoryList({ trajectories, selectedTrajectoryId, onSelectTrajectory }: TrajectoryListProps) {
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<RunFilter>('All');
+  const [filter, setFilter] = useState<TrajectoryFilter>('All');
 
   const counts = useMemo(() => ({
-    All: runs.length,
-    Failed: runs.filter((r) => r.status === 'failed').length,
-    Success: runs.filter((r) => r.status === 'success').length,
-    Unverified: runs.filter((r) => r.status === 'unknown').length,
-  }), [runs]);
+    All: trajectories.length,
+    Failed: trajectories.filter((r) => r.status === 'failed').length,
+    Success: trajectories.filter((r) => r.status === 'success').length,
+    Unverified: trajectories.filter((r) => r.status === 'unknown').length,
+  }), [trajectories]);
 
-  const filtered = runs.filter((run) => {
+  const filtered = trajectories.filter((trajectory) => {
     if (search) {
       const q = search.toLowerCase().trim();
       const matches =
-        run.task.toLowerCase().includes(q) ||
-        run.run_id.toLowerCase().includes(q);
+        trajectory.task.toLowerCase().includes(q) ||
+        trajectory.trajectory_id.toLowerCase().includes(q);
       if (!matches) return false;
     }
-    if (filter === 'Failed' && run.status !== 'failed') return false;
-    if (filter === 'Success' && run.status !== 'success') return false;
-    if (filter === 'Unverified' && run.status !== 'unknown') return false;
+    if (filter === 'Failed' && trajectory.status !== 'failed') return false;
+    if (filter === 'Success' && trajectory.status !== 'success') return false;
+    if (filter === 'Unverified' && trajectory.status !== 'unknown') return false;
     return true;
   });
 
@@ -51,7 +52,7 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
           <div>
             <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-slate-500">Sessions</div>
             <div className="mt-0.5 text-[13px] font-bold text-slate-950">
-              <span className="tabular-nums">{runs.length}</span> trajectories
+              <span className="tabular-nums">{trajectories.length}</span> trajectories
             </div>
           </div>
           <FilterSegments active={filter} counts={counts} onChange={setFilter} />
@@ -73,12 +74,12 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
 
       {/* List */}
       <div className="flex-1 space-y-2 overflow-y-auto bg-[color:var(--color-canvas)] p-2">
-        {filtered.map((run) => (
-          <RunCard
-            key={run.run_id}
-            run={run}
-            selected={selectedRunId === run.run_id}
-            onSelect={() => onSelectRun(run.run_id)}
+        {filtered.map((trajectory) => (
+          <TrajectoryCard
+            key={trajectory.trajectory_id}
+            trajectory={trajectory}
+            selected={selectedTrajectoryId === trajectory.trajectory_id}
+            onSelect={() => onSelectTrajectory(trajectory.trajectory_id)}
           />
         ))}
         {filtered.length === 0 && (
@@ -91,9 +92,9 @@ export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
   );
 }
 
-function RunCard({ run, selected, onSelect }: { run: TrajectoryRun; selected: boolean; onSelect: () => void }) {
-  const colors = actionColors(run);
-  const stepsLabel = `${run.steps.length} ${run.steps.length === 1 ? 'step' : 'steps'}`;
+function TrajectoryCard({ trajectory, selected, onSelect }: { trajectory: Trajectory; selected: boolean; onSelect: () => void }) {
+  const colors = actionColors(trajectory);
+  const stepsLabel = `${trajectory.steps.length} ${trajectory.steps.length === 1 ? 'step' : 'steps'}`;
   return (
     <button
       onClick={onSelect}
@@ -105,18 +106,18 @@ function RunCard({ run, selected, onSelect }: { run: TrajectoryRun; selected: bo
       ].join(' ')}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate font-mono text-[11px] font-semibold text-slate-900" title={run.run_id}>
-          {truncateRunId(run.run_id)}
+        <span className="min-w-0 truncate font-mono text-[11px] font-semibold text-slate-900" title={trajectory.trajectory_id}>
+          {truncateTrajectoryId(trajectory.trajectory_id)}
         </span>
-        <StatusPill status={run.status} />
+        <StatusPill status={trajectory.status} />
       </div>
 
       <p className="line-clamp-2 text-[12.5px] leading-5 text-slate-600">
-        <span className="text-slate-400">navigate:</span> {run.task}
+        <span className="text-slate-400">navigate:</span> {trajectory.task}
       </p>
 
       {/* Mini-trajectory: one tiny bar per step, colored by action type.
-         Encodes the shape of the run at a glance. */}
+         Encodes the shape of the trajectory at a glance. */}
       <div className="mt-3 flex items-center gap-2">
         <div className="flex flex-1 items-center gap-[2px]">
           {colors.slice(0, 28).map((c, i) => (
@@ -132,23 +133,23 @@ function RunCard({ run, selected, onSelect }: { run: TrajectoryRun; selected: bo
         </div>
         <div className="flex items-center gap-2 font-mono text-[10px] tabular-nums text-slate-500">
           <span>{stepsLabel}</span>
-          {commentCount(run) > 0 && (
+          {commentCount(trajectory) > 0 && (
             <span className="inline-flex items-center gap-1" title="Local review comments">
               <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.5 8.5 0 0 1 21 11.5Z" />
               </svg>
-              {commentCount(run)}
+              {commentCount(trajectory)}
             </span>
           )}
         </div>
       </div>
 
-      <div className="mt-1 font-mono text-[10px] text-slate-400">{formatRunDate(run)}</div>
+      <div className="mt-1 font-mono text-[10px] text-slate-400">{formatTrajectoryDate(trajectory)}</div>
     </button>
   );
 }
 
-function StatusPill({ status }: { status: TrajectoryRun['status'] }) {
+function StatusPill({ status }: { status: Trajectory['status'] }) {
   const map = {
     failed:  { dot: '#dc2626', c: 'text-red-700',     bg: 'bg-red-50',     label: 'Failed'     },
     success: { dot: '#16a34a', c: 'text-emerald-700', bg: 'bg-emerald-50', label: 'Success'    },
@@ -162,11 +163,11 @@ function StatusPill({ status }: { status: TrajectoryRun['status'] }) {
   );
 }
 
-type RunFilter = 'All' | 'Failed' | 'Success' | 'Unverified';
+type TrajectoryFilter = 'All' | 'Failed' | 'Success' | 'Unverified';
 
 // Short label per filter. Counts live in the hover title so the rail
 // stays compact — the "all/24 fail/0" form was loud at small panel widths.
-const FILTER_SHORT_LABEL: Record<RunFilter, string> = {
+const FILTER_SHORT_LABEL: Record<TrajectoryFilter, string> = {
   All: 'all',
   Failed: 'fail',
   Success: 'ok',
@@ -178,11 +179,11 @@ function FilterSegments({
   counts,
   onChange,
 }: {
-  active: RunFilter;
-  counts: Record<RunFilter, number>;
-  onChange: (f: RunFilter) => void;
+  active: TrajectoryFilter;
+  counts: Record<TrajectoryFilter, number>;
+  onChange: (f: TrajectoryFilter) => void;
 }) {
-  const items: RunFilter[] = ['All', 'Failed', 'Success', 'Unverified'];
+  const items: TrajectoryFilter[] = ['All', 'Failed', 'Success', 'Unverified'];
   return (
     <div className="flex items-center gap-0.5 font-mono text-[10px]">
       {items.map((f) => {
@@ -205,13 +206,8 @@ function FilterSegments({
   );
 }
 
-function truncateRunId(id: string) {
-  if (id.length <= 14) return id;
-  return `${id.slice(0, 8)}…${id.slice(-4)}`;
-}
-
-function formatRunDate(run: TrajectoryRun) {
-  const raw = firstString(run.metadata, ['created_at', 'imported_at', 'date']) ?? run.steps[0]?.timestamp;
+function formatTrajectoryDate(trajectory: Trajectory) {
+  const raw = firstString(trajectory.metadata, ['created_at', 'imported_at', 'date']) ?? trajectory.steps[0]?.timestamp;
   if (!raw) return 'Date unavailable';
   const numeric = Number(raw);
   const date = Number.isFinite(numeric)
@@ -221,8 +217,8 @@ function formatRunDate(run: TrajectoryRun) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function commentCount(run: TrajectoryRun) {
-  const value = run.metadata.comment_count ?? run.metadata.comments_count ?? run.metadata.review_comment_count;
+function commentCount(trajectory: Trajectory) {
+  const value = trajectory.metadata.comment_count ?? trajectory.metadata.comments_count ?? trajectory.metadata.review_comment_count;
   return typeof value === 'number' ? value : 0;
 }
 

@@ -29,6 +29,14 @@ TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION=v1_task_context
 When variables are unset, the backend uses `v1_minimal` for the Eval Agent and
 `v1_task_context` for high-detail VLM inspection.
 
+The committed Eval Agent prompt bundles are `v1_minimal`, `v2_success_rubric`,
+`v3_balanced_rubric`, `v4_search_strategy_rubric`, `v5_constraint_verification`,
+and `v6_guided_autonomy`. `v6_guided_autonomy` is the current featured prompt:
+it pairs a legible per-tool contract and explicit investigation freedom with a
+strict verdict/evidence contract (burden-of-proof, `not_visible` handling that
+distinguishes a missing screenshot from an unenforced constraint). See the
+README "Prompt Iteration" table for per-version metrics.
+
 Judge prompt versions are selected by the Phase 8 judge runner, not by
 the Eval Agent runtime. The Phase 8 production judge path uses two LLM
 judge configs over the same `agent_eval` artifact set:
@@ -121,8 +129,9 @@ into `eval/agent_report.{json,md}` and timestamped reports under
 
 Failure memory source of truth remains
 `data/failure_memory/cases.jsonl`. On startup or manual eval, `rag.hydrate_all`
-rebuilds the ChromaDB `failure_memory` collection from that file, so removed or
-renamed memory cases do not leave stale vectors behind.
+rebuilds the ChromaDB `failure_pattern_memory` collection from that file
+(implementation collection: `failure_memory`), so removed or renamed memory
+cases do not leave stale vectors behind.
 
 SQLite rows are also rebuilt from `cases.jsonl` by `storage.load_failure_memory`.
 If you change the embedding model, still clear `data/chroma/` or point

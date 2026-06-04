@@ -13,7 +13,7 @@ from backend.app.schemas import (
     StepObservation,
     StepResult,
     TrajectoryDigest,
-    TrajectoryRun,
+    Trajectory,
     TrajectoryStep,
 )
 
@@ -49,11 +49,11 @@ def _make_step(
 
 def _make_run(
     *,
-    run_id: str = "run_pre_1",
+    trajectory_id: str = "run_pre_1",
     steps: list[TrajectoryStep] | None = None,
-) -> TrajectoryRun:
-    return TrajectoryRun(
-        run_id=run_id,
+) -> Trajectory:
+    return Trajectory(
+        trajectory_id=trajectory_id,
         task="Find a result",
         status="failed",
         steps=steps or [_make_step(index=0)],
@@ -68,8 +68,8 @@ def _png_bytes(*, width: int = 64, height: int = 48) -> bytes:
     return buf.getvalue()
 
 
-def _attach_screenshot(run_id: str, filename: str, *, width: int = 64, height: int = 48) -> None:
-    storage.save_screenshots(run_id, {filename: _png_bytes(width=width, height=height)})
+def _attach_screenshot(trajectory_id: str, filename: str, *, width: int = 64, height: int = 48) -> None:
+    storage.save_screenshots(trajectory_id, {filename: _png_bytes(width=width, height=height)})
 
 
 class SpyVLMClient:
@@ -108,7 +108,7 @@ class BuildDigestTests(PreprocessTestBase):
 
         self.assertEqual(digest.step_count, 3)
         self.assertEqual([s.index for s in digest.steps], [0, 1, 2])
-        self.assertEqual(digest.run_id, run.run_id)
+        self.assertEqual(digest.trajectory_id, run.trajectory_id)
         self.assertEqual(digest.task, run.task)
         self.assertEqual(digest.preprocess_model, "mock")
         self.assertEqual(digest.preprocess_version, "v2")
@@ -119,7 +119,7 @@ class BuildDigestTests(PreprocessTestBase):
         TrajectoryDigest.model_validate(digest.model_dump(mode="json"))
 
     def test_raises_on_empty_steps(self) -> None:
-        run = TrajectoryRun(run_id="empty", task="t", steps=[])
+        run = Trajectory(trajectory_id="empty", task="t", steps=[])
         with self.assertRaises(ValueError):
             preprocess.build_digest(run, client=MockVLMClient())
 
@@ -131,8 +131,8 @@ class BuildDigestTests(PreprocessTestBase):
                 _make_step(index=2, screenshot=None),
             ]
         )
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "present.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "present.png")
 
         digest = preprocess.build_digest(run, client=MockVLMClient())
 
@@ -167,9 +167,9 @@ class BuildDigestTests(PreprocessTestBase):
                 ),
             ]
         )
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "step0.png", width=64, height=48)
-        _attach_screenshot(run.run_id, "step1.png", width=64, height=48)
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "step0.png", width=64, height=48)
+        _attach_screenshot(run.trajectory_id, "step1.png", width=64, height=48)
 
         digest = preprocess.build_digest(run, client=MockVLMClient())
 
@@ -185,9 +185,9 @@ class BuildDigestTests(PreprocessTestBase):
                 _make_step(index=1, screenshot="b.png"),
             ]
         )
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "a.png")
-        _attach_screenshot(run.run_id, "b.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "a.png")
+        _attach_screenshot(run.trajectory_id, "b.png")
 
         digest = preprocess.build_digest(run, client=spy)
 
@@ -215,8 +215,8 @@ class BuildDigestTests(PreprocessTestBase):
                 ),
             ]
         )
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "a.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "a.png")
 
         digest = preprocess.build_digest(run, client=spy)
 
@@ -228,7 +228,7 @@ class BuildDigestTests(PreprocessTestBase):
         run = _make_run(
             steps=[_make_step(index=0, screenshot="missing.png")],
         )
-        storage.save_run(run)
+        storage.save_trajectory(run)
 
         digest = preprocess.build_digest(run, client=spy)
 
@@ -242,9 +242,9 @@ class BuildDigestTests(PreprocessTestBase):
                 _make_step(index=1, screenshot="b.png"),
             ]
         )
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "a.png")
-        _attach_screenshot(run.run_id, "b.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "a.png")
+        _attach_screenshot(run.trajectory_id, "b.png")
 
         first = preprocess.build_digest(run, client=MockVLMClient())
         second = preprocess.build_digest(run, client=MockVLMClient())
@@ -257,11 +257,11 @@ class BuildDigestTests(PreprocessTestBase):
 class LoadOrBuildDigestTests(PreprocessTestBase):
     def test_cache_hit_avoids_vlm(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "a.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "a.png")
 
         cached = preprocess.build_digest(run, client=MockVLMClient())
-        storage.save_digest(run.run_id, cached)
+        storage.save_digest(run.trajectory_id, cached)
 
         spy = SpyVLMClient(model_name="mock")
         import backend.app.preprocess as preprocess_mod
@@ -269,7 +269,7 @@ class LoadOrBuildDigestTests(PreprocessTestBase):
         original_factory = preprocess_mod.get_vlm_client
         preprocess_mod.get_vlm_client = lambda: spy
         try:
-            result = preprocess.load_or_build_digest(run.run_id)
+            result = preprocess.load_or_build_digest(run.trajectory_id)
         finally:
             preprocess_mod.get_vlm_client = original_factory
 
@@ -278,43 +278,43 @@ class LoadOrBuildDigestTests(PreprocessTestBase):
 
     def test_rebuilds_on_model_mismatch(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "a.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "a.png")
 
         stale = preprocess.build_digest(run, client=MockVLMClient())
         stale = stale.model_copy(update={"preprocess_model": "old-model-id"})
-        storage.save_digest(run.run_id, stale)
+        storage.save_digest(run.trajectory_id, stale)
 
-        result = preprocess.load_or_build_digest(run.run_id)
+        result = preprocess.load_or_build_digest(run.trajectory_id)
 
         self.assertEqual(result.preprocess_model, "mock")
-        on_disk = storage.load_digest(run.run_id)
+        on_disk = storage.load_digest(run.trajectory_id)
         self.assertIsNotNone(on_disk)
         self.assertEqual(on_disk.preprocess_model, "mock")
 
     def test_rebuilds_on_version_mismatch(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "a.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "a.png")
 
         stale_payload = preprocess.build_digest(run, client=MockVLMClient()).model_dump(mode="json")
         stale_payload["preprocess_version"] = "v0"
-        storage.save_digest(run.run_id, TrajectoryDigest.model_validate(stale_payload))
+        storage.save_digest(run.trajectory_id, TrajectoryDigest.model_validate(stale_payload))
 
-        result = preprocess.load_or_build_digest(run.run_id)
+        result = preprocess.load_or_build_digest(run.trajectory_id)
 
         self.assertEqual(result.preprocess_version, "v2")
 
     def test_builds_and_saves_when_cache_absent(self) -> None:
         run = _make_run(steps=[_make_step(index=0, screenshot="a.png")])
-        storage.save_run(run)
-        _attach_screenshot(run.run_id, "a.png")
+        storage.save_trajectory(run)
+        _attach_screenshot(run.trajectory_id, "a.png")
 
-        self.assertIsNone(storage.load_digest(run.run_id))
-        result = preprocess.load_or_build_digest(run.run_id)
+        self.assertIsNone(storage.load_digest(run.trajectory_id))
+        result = preprocess.load_or_build_digest(run.trajectory_id)
 
-        self.assertEqual(result.run_id, run.run_id)
-        self.assertIsNotNone(storage.load_digest(run.run_id))
+        self.assertEqual(result.trajectory_id, run.trajectory_id)
+        self.assertIsNotNone(storage.load_digest(run.trajectory_id))
 
 
 if __name__ == "__main__":

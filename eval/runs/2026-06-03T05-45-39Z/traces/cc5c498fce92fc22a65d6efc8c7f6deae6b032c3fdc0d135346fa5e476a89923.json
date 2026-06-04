@@ -1,0 +1,954 @@
+{
+  "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 1,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 14,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+        "task": "navigate: Look for a waterproof action camera on Amazon with 4K video capability. It should have at least 4+ stars and be priced between $100 and $150.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 488.85351915687164,
+                "y": 28.021057932000414
+              },
+              "bbox": {
+                "x": 427.8625819394214,
+                "y": 12.505263378745632,
+                "width": 319.13200723327304,
+                "height": 44.0
+              },
+              "raw": "mouse_click(x=488.85351915687164, y=28.021057932000414, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'action camera'",
+              "text": "action camera",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='action camera')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "keyboard_type",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 785.1284188517179,
+                "y": 32.65263908787778
+              },
+              "bbox": {
+                "x": 746.9945891726944,
+                "y": 11.578947368421053,
+                "width": 52.07956600361664,
+                "height": 46.31578947368421
+              },
+              "raw": "mouse_click(x=785.1284188517179, y=32.65263908787778, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&sprefix=action+camera%2Caps%2C436&ref=nb_sb_noss_1",
+              "title": "Amazon.com : action camera",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 461.3052631302884 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=461.3052631302884)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&sprefix=action+camera%2Caps%2C436&ref=nb_sb_noss_1",
+              "title": "Amazon.com : action camera",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "drag from (x=33.3309235667665, y=237.3684210526316) to (x=85.17902174220163, y=237.3684210526316)",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "mouse_drag_and_drop(from_x=33.3309235667665, from_y=237.3684210526316, to_x=85.17902174220163, to_y=237.3684210526316)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "mouse_drag_and_drop",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=",
+              "title": "Amazon.com: Action Camera - $98-above",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "drag from (x=287.94213734742317, y=762.5895160875823) to (x=87.95660036166366, y=757.0315648129113)",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "mouse_drag_and_drop(from_x=287.94213734742317, from_y=762.5895160875823, to_x=87.95660036166366, to_y=757.0315648129113)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "mouse_drag_and_drop",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=155",
+              "title": "Amazon.com: Action Camera - $98-$155",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 229.72631576186734 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=229.72631576186734)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 8,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_008.png",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=155",
+              "title": "Amazon.com: Action Camera - $98-$155",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 577.0947297748767 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=577.0947297748767)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "8",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 9,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_009.png",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=155",
+              "title": "Amazon.com: Action Camera - $98-$155",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on I element",
+              "text": null,
+              "coordinates": {
+                "x": 21.294755435550407,
+                "y": 494.8842034590872
+              },
+              "bbox": {
+                "x": 14.350814405444734,
+                "y": 488.6894948858964,
+                "width": 18.517179023508138,
+                "height": 18.526315789473685
+              },
+              "raw": "mouse_click(x=21.294755435550407, y=494.8842034590872, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "9",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 10,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_010.png",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011&dc&crid=D47GIZ1KMRB3&qid=1767531109&rnid=117987465011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-101014846537111_4&ds=v1%3AEhrKh1xt5pXLRuMso6eyvBk3hQmmurmuvnQhOp6OKZY",
+              "title": "Amazon.com: Action Camera - $98-$155 / 4K",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 808.6736841829199 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=808.6736841829199)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "10",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 11,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_011.png",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011&dc&crid=D47GIZ1KMRB3&qid=1767531109&rnid=117987465011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-101014846537111_4&ds=v1%3AEhrKh1xt5pXLRuMso6eyvBk3hQmmurmuvnQhOp6OKZY",
+              "title": "Amazon.com: Action Camera - $98-$155 / 4K",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on I element",
+              "text": null,
+              "coordinates": {
+                "x": 25.924050191427444,
+                "y": 815.3894878186678
+              },
+              "bbox": {
+                "x": 14.350814405444734,
+                "y": 808.5289756373355,
+                "width": 18.517179023508138,
+                "height": 18.526315789473685
+              },
+              "raw": "mouse_click(x=25.924050191427444, y=815.3894878186678, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "11",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 12,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_012.png",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0",
+              "title": "Amazon.com: Action Camera - $98-$155 / Waterproof / 4K",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 113.9368420776568 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=113.9368420776568)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "12",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 13,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_013.png",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0",
+              "title": "Amazon.com: Action Camera - $98-$155 / Waterproof / 4K",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'AKASO Brave 4 Action Camera 4K 30fps with 64GB MicroSD U3 Card Bicycle Helmet Accessories Kit Bundle, 20MP Ultra HD 131FT Waterproof Underwater Camera EIS WiFi Remote Control 5X Zoom Sport Cameras'",
+              "text": null,
+              "coordinates": {
+                "x": 760.1301847875226,
+                "y": 91.93686154014186
+              },
+              "bbox": {
+                "x": 643.4719710669078,
+                "y": 74.33684740568462,
+                "width": 596.9620253164558,
+                "height": 109.3052649247019
+              },
+              "raw": "mouse_click(x=760.1301847875226, y=91.93686154014186, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "13",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          },
+          {
+            "index": 14,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_014.png",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0",
+              "title": "Amazon.com: Action Camera - $98-$155 / Waterproof / 4K",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 836,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "14",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1280,
+              "image_height": 836
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+          "task": "navigate: Look for a waterproof action camera on Amazon with 4K video capability. It should have at least 4+ stars and be priced between $100 and $150.",
+          "step_count": 14,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (488.854, 28.0211)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=top | Our Top 100+ picks for a home refresh",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "type",
+              "action_text": "type 'action camera'",
+              "action_target": "type 'action camera'",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | New year, new devices, Shop Amazon’s latest",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "click",
+              "action_text": "click at (785.128, 32.6526)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Amazon search box with autocomplete suggestions for action camera",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 461.3052631302884 pixels",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&sprefix=action+camera%2Caps%2C436&ref=nb_sb_noss_1",
+              "title": "Amazon.com : action camera",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for action camera, DJI Osmo Action 5 Pro featured with product image and price",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "unknown",
+              "action_text": "drag from (x=33.3309235667665, y=237.3684210526316) to (x=85.17902174220163, y=237.3684210526316)",
+              "action_target": "drag from (x=33.3309235667665, y=237.3684210526316) to (x=85.17902174220163, y=237.3684210526316)",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&sprefix=action+camera%2Caps%2C436&ref=nb_sb_noss_1",
+              "title": "Amazon.com : action camera",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for action cameras, Add to cart buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "unknown",
+              "action_text": "drag from (x=287.94213734742317, y=762.5895160875823) to (x=87.95660036166366, y=757.0315648129113)",
+              "action_target": "drag from (x=287.94213734742317, y=762.5895160875823) to (x=87.95660036166366, y=757.0315648129113)",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=",
+              "title": "Amazon.com: Action Camera - $98-above",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for action cameras, Add to cart buttons and product prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 229.72631576186734 pixels",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=155",
+              "title": "Amazon.com: Action Camera - $98-$155",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | See personalized recommendations, Sign in button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 8,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 577.0947297748767 pixels",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=155",
+              "title": "Amazon.com: Action Camera - $98-$155",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon search results for action cameras, Add to cart buttons and prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 9,
+              "action_type": "click",
+              "action_text": "click at (21.2948, 494.884)",
+              "action_target": "Click on I element",
+              "url": "https://www.amazon.com/s?k=action+camera&crid=D47GIZ1KMRB3&qid=1767531044&rnid=386442011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_36_0_0&low-price=98&high-price=155",
+              "title": "Amazon.com: Action Camera - $98-$155",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | action camera product listings with Add to cart buttons and prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 10,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 808.6736841829199 pixels",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011&dc&crid=D47GIZ1KMRB3&qid=1767531109&rnid=117987465011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-101014846537111_4&ds=v1%3AEhrKh1xt5pXLRuMso6eyvBk3hQmmurmuvnQhOp6OKZY",
+              "title": "Amazon.com: Action Camera - $98-$155 / 4K",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | See personalized recommendations, Sign in button, action camera results loading",
+              "has_screenshot": true
+            },
+            {
+              "index": 11,
+              "action_type": "click",
+              "action_text": "click at (25.9241, 815.389)",
+              "action_target": "Click on I element",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011&dc&crid=D47GIZ1KMRB3&qid=1767531109&rnid=117987465011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-101014846537111_4&ds=v1%3AEhrKh1xt5pXLRuMso6eyvBk3hQmmurmuvnQhOp6OKZY",
+              "title": "Amazon.com: Action Camera - $98-$155 / 4K",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | AKASO action camera listings with large product video and Add to cart buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 12,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 113.9368420776568 pixels",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0",
+              "title": "Amazon.com: Action Camera - $98-$155 / Waterproof / 4K",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for AKASO action cameras, large “Waterproof” promo video visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 13,
+              "action_type": "click",
+              "action_text": "click at (760.13, 91.9369)",
+              "action_target": "Click on SPAN element with value 'AKASO Brave 4 Action Camera 4K 30fps with 64GB MicroSD U3 Card Bicycle Helmet Accessories Kit Bundle, 20MP Ultra HD 131FT Waterproof Underwater Camera EIS WiFi Remote Control 5X Zoom Sport Cameras'",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0",
+              "title": "Amazon.com: Action Camera - $98-$155 / Waterproof / 4K",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for action cameras with product cards and Add to cart buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 14,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0",
+              "title": "Amazon.com: Action Camera - $98-$155 / Waterproof / 4K",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | AKASO Brave 4 Action Camera 4K, Add to cart and Buy Now buttons visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 21308,
+          "vlm_output_tokens": 452
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+        "step_index": 13,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+        "step_index": 13,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_5e1e8fd8>page_state:\nAmazon search results page for action cameras, filtered to price $98–$155 and waterproof/4K-related facets. The first result is visually centered and appears to be the intended target.\ntask_relevant_visible_text:\nAKASO Brave 4 Action Camera 4K 30fps with 64GB MicroSD U3 Card Bicycle Helmet Accessories Kit Bundle, 20MP Ultra HD...\n4.4 stars (1.1K)\n$99.99\nSave 15% with coupon\nSJCAM C300 Pocket Travel Action Camera 4K...\n4.2 stars (81)\n$133.99\nPrice filter: $98–$155\nCustomer Reviews: 4 stars & up\nselected_candidate:\nAKASO Brave 4 Action Camera 4K 30fps with 64GB MicroSD U3 Card Bicycle Helmet Accessories Kit Bundle...\nconstraint_evidence:\n- Waterproof action camera: supported (page title includes “Waterproof”; result title includes action camera, and product image/context is a camera listing)\n- 4K video capability: supported (result title explicitly says “4K 30fps”)\n- At least 4+ stars: supported (visible rating 4.4)\n- Priced between $100 and $150: contradicted (visible price is $99.99, below $100)\naction_target:\nClick the AKASO Brave 4 result title/span.\nsuccess_signals:\nThe AKASO product page opens or the click highlights/navigates to that listing.\nfailure_signals:\nWrong result opens, click misses, or page remains unchanged.\nuncertainty:\nThe screenshot does not explicitly show waterproof in the product title itself, only in the page title/filter context; however the listing is clearly within the waterproof/4K search results.</TRAJECTA_DATA_5e1e8fd8>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Look for a waterproof action camera on Amazon with 4K video capability. It should have at least 4+ stars and be priced between $100 and $150.",
+          "url": "<TRAJECTA_DATA_5e1e8fd8>https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0</TRAJECTA_DATA_5e1e8fd8>",
+          "title": "<TRAJECTA_DATA_5e1e8fd8>Amazon.com: Action Camera - $98-$155 / Waterproof / 4K</TRAJECTA_DATA_5e1e8fd8>",
+          "action_label": "<TRAJECTA_DATA_5e1e8fd8>Click on SPAN element with value 'AKASO Brave 4 Action Camera 4K 30fps with 64GB MicroSD U3 Card Bicycle Helmet Accessories Kit Bundle, 20MP Ultra HD 131FT Waterproof Underwater Camera EIS WiFi Remote Control 5X Zoom Sport Cameras'</TRAJECTA_DATA_5e1e8fd8>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_5e1e8fd8>mouse_click(x=760.1301847875226, y=91.93686154014186, button='left')</TRAJECTA_DATA_5e1e8fd8>"
+        },
+        "action": {
+          "type": "click",
+          "label": "<TRAJECTA_DATA_5e1e8fd8>Click on SPAN element with value 'AKASO Brave 4 Action Camera 4K 30fps with 64GB MicroSD U3 Card Bicycle Helmet Accessories Kit Bundle, 20MP Ultra HD 131FT Waterproof Underwater Camera EIS WiFi Remote Control 5X Zoom Sport Cameras'</TRAJECTA_DATA_5e1e8fd8>",
+          "text": null,
+          "coordinates": {
+            "x": 760.1301847875226,
+            "y": 91.93686154014186
+          },
+          "bbox": {
+            "x": 643.4719710669078,
+            "y": 74.33684740568462,
+            "width": 596.9620253164558,
+            "height": 109.3052649247019
+          },
+          "raw": "<TRAJECTA_DATA_5e1e8fd8>mouse_click(x=760.1301847875226, y=91.93686154014186, button='left')</TRAJECTA_DATA_5e1e8fd8>"
+        },
+        "observation": {
+          "screenshot": "screenshot_013.png",
+          "url": "<TRAJECTA_DATA_5e1e8fd8>https://www.amazon.com/s?k=action+camera&rh=p_36%3A9800-15500%2Cp_n_g-101014846537111%3A117987574011%2Cp_n_g-1003145509111%3A23733039011&dc&crid=D47GIZ1KMRB3&qid=1767531133&rnid=23733031011&sprefix=action+camera%2Caps%2C436&ref=sr_nr_p_n_g-1003145509111_3&ds=v1%3A32P%2BohGF8kVYCy94fRlQ56eWpBhdvzfDvuyTZ3MK2w0</TRAJECTA_DATA_5e1e8fd8>",
+          "title": "<TRAJECTA_DATA_5e1e8fd8>Amazon.com: Action Camera - $98-$155 / Waterproof / 4K</TRAJECTA_DATA_5e1e8fd8>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "validated",
+          "image_width": 1280,
+          "image_height": 836,
+          "reason": null
+        },
+        "screenshot_url": "/api/trajectories/cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923/screenshots/screenshot_013.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches an Amazon results page filtered for action cameras with waterproof/4K facets, and the selected candidate is the AKASO Brave 4 listing.",
+            "source": "step_detail_high",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 13
+          },
+          {
+            "claim": "High-detail inspection shows the chosen AKASO Brave 4 result has 4.4 stars, satisfying the 4+ stars requirement.",
+            "source": "step_detail_high",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 13
+          },
+          {
+            "claim": "High-detail inspection shows the chosen AKASO Brave 4 result is priced at $99.99, which contradicts the required $100–$150 range.",
+            "source": "step_detail_high",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 13
+          },
+          {
+            "claim": "The trajectory ends after clicking the AKASO Brave 4 result and then exiting, with no later evidence that a qualifying $100–$150 item was selected or verified.",
+            "source": "trajectory",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 14
+          }
+        ],
+        "retrieved_context_ids": [],
+        "failure_step": 13,
+        "failure_type": "wrong_result",
+        "expected_behavior": "Select or verify an action camera listing that satisfies all hard constraints, including waterproof, 4K video, at least 4 stars, and a price between $100 and $150.",
+        "actual_behavior": "The agent clicked an AKASO Brave 4 listing that matched the waterproof, 4K, and 4+ star constraints, but its visible price was $99.99, below the required minimum.",
+        "regression_rule": "When a task specifies a price band or other hard qualifier, do not finalize on a near-match; confirm the visible candidate satisfies every constraint before selecting or exiting."
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923_step_13",
+        "source_trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+        "task": "navigate: Look for a waterproof action camera on Amazon with 4K video capability. It should have at least 4+ stars and be priced between $100 and $150.",
+        "failure_step": 13,
+        "failure_type": "wrong_result",
+        "expected_behavior": "Select or verify an action camera listing that satisfies all hard constraints, including waterproof, 4K video, at least 4 stars, and a price between $100 and $150.",
+        "actual_behavior": "The agent clicked an AKASO Brave 4 listing that matched the waterproof, 4K, and 4+ star constraints, but its visible price was $99.99, below the required minimum.",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches an Amazon results page filtered for action cameras with waterproof/4K facets, and the selected candidate is the AKASO Brave 4 listing.",
+            "source": "step_detail_high",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 13,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "High-detail inspection shows the chosen AKASO Brave 4 result has 4.4 stars, satisfying the 4+ stars requirement.",
+            "source": "step_detail_high",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 13,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "High-detail inspection shows the chosen AKASO Brave 4 result is priced at $99.99, which contradicts the required $100–$150 range.",
+            "source": "step_detail_high",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 13,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The trajectory ends after clicking the AKASO Brave 4 result and then exiting, with no later evidence that a qualifying $100–$150 item was selected or verified.",
+            "source": "trajectory",
+            "trajectory_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+            "step_index": 14,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": "When a task specifies a price band or other hard qualifier, do not finalize on a near-match; confirm the visible candidate satisfies every constraint before selecting or exiting.",
+        "retrieved_context_ids": [],
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1817,
+  "vlm_output_tokens": 370,
+  "runtime_ms": 63540,
+  "input_tokens": 44439,
+  "output_tokens": 683,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 63540,
+      "input_tokens": 44439,
+      "output_tokens": 683
+    }
+  ]
+}

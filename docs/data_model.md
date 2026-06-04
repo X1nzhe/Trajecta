@@ -11,7 +11,7 @@ Implementation target:
 
 Model families:
 
-- Trajectory data: `Coordinate`, `BBox`, `StepAction`, `StepObservation`, `StepResult`, `CoordinateValidation`, `TrajectoryStep`, `TrajectoryRun`
+- Trajectory data: `Coordinate`, `BBox`, `StepAction`, `StepObservation`, `StepResult`, `CoordinateValidation`, `TrajectoryStep`, `Trajectory`
 - Preprocessing output: `StepDigest`, `TrajectoryDigest`
 - Memory and eval artifacts: `FailureMemoryCase`, `EvidenceItem`, `EvalCase`
 - Agent observability: `AgentTraceEvent`, `AgentTrace`

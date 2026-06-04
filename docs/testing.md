@@ -21,8 +21,8 @@ so the judge can run mechanical prechecks without a regex parser):
 ```json
 {
   "input": {
-    "run_id": "87ea181f...",
-    "intent": "analyze_run"
+    "trajectory_id": "87ea181f...",
+    "intent": "analyze_trajectory"
   },
   "expected_facts": [
     {"field": "outcome",      "op": "eq",       "value": "failed"},
@@ -56,7 +56,7 @@ produced by `scripts/build_golden_jsonl.py` and never edited by hand.
 
 **Build rules**:
 
-- `input.run_id` ← CSV `sample_id`. `input.intent` defaults to `"analyze_run"`.
+- `input.trajectory_id` ← CSV `sample_id`. `input.intent` defaults to `"analyze_trajectory"`.
 - For `outcome=="success"` rows:
   - `expected_facts = [{outcome eq "success"}]`
   - `forbidden_facts = [{outcome eq "failed"}]`
@@ -125,12 +125,20 @@ existence, assertion-name coverage, and distinct sha256 stamps for the
 two bundles so a future edit that breaks rubric alignment fails CI
 before the κ_LLM,LLM rollup is computed.
 
+On the v6 run the two judges agree on all 31 cases (each accepts 20 / 31):
+κ_LLM,LLM = 1.0, above the 0.6 target. Reaching this required correcting the
+regression-case-usefulness assertion (below), which had been failing
+success-shape drafts for omitting failure-only fields; the fix raised κ from
+0.674 to 1.0 and was applied identically to both provider bundles. κ=1.0
+reflects a largely objective checklist at temperature 0 over n=31 — convergence
+on a mechanical standard, not a claim that acceptability judgment is solved.
+
 | Assertion | Predicate |
 | --- | --- |
 | Verdict alignment | The draft's success/failure shape matches the golden `OutcomeFact`. |
 | Failure-mode compatibility | For failed references, `failure_type` is compatible with the labelled failure-type set. |
 | Failure-step localization | For failed references with a labelled step, `failure_step` is inside the expected range, or the cited evidence demonstrates that the inspected step still covers the labelled failure. |
-| Regression-case usefulness | `expected_behavior`, `actual_behavior`, and `regression_rule` would let a future regression eval catch the same failure. |
+| Regression-case usefulness | For a failure-shape draft, `expected_behavior` / `actual_behavior` / `regression_rule` would let a future regression eval catch the same failure. A success-shape draft is required to omit those fields, so it is judged on whether its evidence confirms the success path — **not** failed for their absence. |
 | No forbidden claim | The draft does not assert any `forbidden_facts` entry. |
 | Evidence support | The cited evidence supports the draft's claim; missing screenshots, invalid coordinates, or unavailable sources are represented as honest gaps rather than invented evidence. |
 
@@ -148,7 +156,7 @@ to call back to Trajecta:
 
 ```python
 {
-  "run_id": "...",
+  "trajectory_id": "...",
   "golden_reference": {<row from eval/golden.jsonl>},
   "proposed_eval_case": {<args of latest propose_eval_case tool_call>},
   "evidence_with_sources": [
@@ -271,13 +279,30 @@ scope beyond Phase 8.
 
 ## RAGAS Evaluation
 
-Create `backend/app/ragas_eval.py`. RAGAS is run **manually** via `python -m backend.app.ragas_eval`; it is not integrated into pytest and not part of CI in v1. The script reads persisted `AgentTrace` records from an explicit `--trace-dir` first, then falls back to `storage.load_trace(run_id)` from the `traces` SQLite table. It does not re-run the agent or retrieval.
+`backend/app/ragas_eval.py` runs RAGAS **manually** via `python -m backend.app.ragas_eval`; it is not in pytest or CI. It reads persisted `AgentTrace` records from an explicit `--trace-dir` first, then falls back to `storage.load_trace(trajectory_id)` from the `traces` SQLite table. It does not re-run the agent or retrieval, and it auto-loads `.env`.
 
-Run one minimal no-ground-truth RAGAS eval over failure memory RAG.
+### Context modes (`--context-mode`)
+
+The faithfulness `contexts` — the text a claim must be grounded in — can be sourced two ways:
+
+- **`evidence` (default, featured):** all agent-visible evidence in the trace — every high-detail `get_step_detail` read (`vlm_summary`), retrieved precedent, and the trajectory digest. faithfulness then measures "are the eval-case claims faithful to what the agent actually inspected." This is the right fit for Trajecta, whose RAG is *auxiliary precedent* rather than the source of the agent's claims, and it scores traces that never called a RAG tool. One sample per terminated trace.
+- **`rag`:** search-tool results only (one sample per `search_failure_memory` / `search_failure_eval_cases` call). Kept for reproducibility and comparison; it is a poor semantic fit here, so its score is **not published**.
+
+Latest run (evidence mode): `mode=real`, `n=10`, `faithfulness=0.93`, `ground_truth_source=none` — corroborates the LLM judge's `evidence_support` assertion, and satisfies the S18 requirement "≥1 RAGAS faithfulness OR context recall."
+
+### Other flags
+
+- `--metric {faithfulness,context_recall,both}`. `context_recall` is rag-mode only (it scores retrieval coverage against a triage `reference` built from `data/triage_notes.csv` failed rows) and is auto-skipped in evidence mode.
+- `--merge` folds a freshly computed metric into the existing `ragas_report.json` without recomputing the other.
+- `TRAJECTA_RAGAS_MODEL` (default `gpt-4o-mini`) selects the grading model; pick one the `OPENAI_API_KEY` serves that accepts `max_tokens`.
+
+### ragas 0.4.3 real-path setup
+
+The real path builds the LLM via `llm_factory(model, client=OpenAI())` (synchronous — `LangchainLLMWrapper` deadlocks inside ragas's executor), constructs a fresh `Faithfulness(llm=...)` / `LLMContextRecall(llm=...)` per run (the module-level singletons race to "LLM is not set" under concurrency), and runs `RunConfig(max_workers=1)` serially with `raise_exceptions=False` (concurrency bursts past the key's rate limit). On import/key failure it falls back to a deterministic token-overlap `faithfulness_stub`.
 
 Primary metric:
 
-- `faithfulness`
+- `faithfulness` (both context modes); `context_recall` optional in rag mode.
 
 Input shape:
 
@@ -312,10 +337,16 @@ def ragas_answer_from_trace(trace: AgentTrace) -> str:
     if not calls:
         raise ValueError("trace has no propose_eval_case tool call")
     args = calls[-1].args or {}
-    actual_behavior = args["actual_behavior"]
-    evidence = args.get("evidence", [])
-    claims = [item["claim"] for item in evidence]
-    return actual_behavior + "\n\n" + "\n".join(claims)
+    # Success-shape drafts omit the five failure fields, so actual_behavior may
+    # be absent/null — build the answer from the evidence claims alone then.
+    actual_behavior = args.get("actual_behavior")
+    evidence = args.get("evidence", []) or []
+    claims = [
+        item["claim"] for item in evidence
+        if isinstance(item, dict) and item.get("claim")
+    ]
+    claims_text = "\n".join(claims)
+    return (actual_behavior + "\n\n" + claims_text) if actual_behavior else claims_text
 ```
 
 Rules:
@@ -323,15 +354,21 @@ Rules:
 - Only traces whose **latest turn** has `terminated_by == "propose_eval_case"` can contribute RAGAS samples; budget-exceeded and error terminations are filtered out at the script level and counted in the report.
 - The answer text intentionally excludes `expected_behavior`, `regression_rule`, and `agent_message` events. `expected_behavior` describes the correct outcome (not the agent's claim about *this* run), and free-form `agent_message` text often contains discarded hypotheses that would inflate hallucination signal unfairly.
 - `actual_behavior` and `evidence[*].claim` are read from the **trace** (the tool-call `args`), not from a persisted `EvalCase` file, because drafts are not persisted and the trace is the only source available to `ragas_eval.py` (see [docs/eval_agent.md](eval_agent.md) Observability section).
-- Each RAGAS sample corresponds to one recorded `search_failure_memory` or `search_eval_cases` tool call. `question` is that tool call's `args["query"]`; `contexts` are the matching following `tool_result.items`, not a cross-trace or whole-trace context pool.
-- No human or self-generated `ground_truth` is used. The A6 claim is limited to retrieval-grounded faithfulness: whether the final `actual_behavior` and evidence claims are supported by the contexts retrieved for the recorded query. It does not measure answer correctness, context recall, or human agreement.
-- RAG tool calls with no usable contexts are skipped and counted under `no_context`.
+- Sampling depends on `--context-mode`. In `rag` mode each RAGAS sample is one recorded `search_failure_memory` / `search_failure_eval_cases` call (`question` = that call's `args["query"]`; `contexts` = the matching `tool_result.items`). In `evidence` mode (default) each terminated trace yields one sample whose `contexts` are the agent's visible evidence (high-detail reads + digest + retrieved precedent).
+- Faithfulness uses no human ground truth: it scores whether the agent's claims are supported by their `contexts`, not answer correctness or human agreement. The optional `context_recall` metric (rag mode only) does use a ground-truth `reference` — the triage failure description — to score whether retrieval covered it.
+- Samples with no usable contexts are skipped and counted under `no_context`.
 
-Output files:
+Output files. Each run writes a stable "latest" copy at the base dir **and** a
+timestamped archive under `ragas_report/<stamp>/` (UTC stamp
+`YYYY-MM-DDTHH-MM-SSZ`, same convention as `eval/runs/<stamp>/`), so prior
+reports are never overwritten — mirroring how `agent_eval` keeps
+`eval/agent_report.{json,md}` beside `eval/runs/<stamp>/`:
 
 ```text
-eval/ragas_report.json
-eval/ragas_report.md
+eval/ragas_report.json                       # latest (stable; docs/Phase 8 A6 reference this)
+eval/ragas_report.md                         # latest
+eval/ragas_report/<stamp>/ragas_report.json  # per-run archive
+eval/ragas_report/<stamp>/ragas_report.md
 ```
 
 The JSON report includes aggregate `retrieval_stats` derived from the
@@ -341,7 +378,7 @@ match: `evidence_context_occurrences` is what the RAG tools *returned*
 (parsed from each sample's contexts, global across tools), while
 `cited_context_ids` is the subset the final `propose_eval_case`
 *referenced*. Cited ids are proposal-level, so they are deduped per
-`run_id` before aggregating — never summed per-sample or attributed to a
+`trajectory_id` before aggregating — never summed per-sample or attributed to a
 single search tool.
 
 ### Phase 8 status
@@ -359,13 +396,12 @@ real RAGAS the deliverable:
 - The S18 § 2.2 Build 3 requirement is satisfied by `faithfulness`
   alone; no `ground_truth` or `context_precision` claim is made for A6.
 
-Latest Phase 8 A6 artefact: `eval/ragas_report.{json,md}` was generated
-from `eval/runs/2026-05-30T04-43-34Z/traces` with `--limit 10`; it reports
+Latest artefact: `eval/ragas_report.{json,md}` is generated with
+`--context-mode evidence --metric faithfulness --limit 10`; it reports
 `ragas_mode="real"`, `ground_truth_source="none"`, sample count 10,
-`faithfulness=0.4068`, and skipped counts
-`budget_exceeded=0`, `error=7`, `no_trace=4`, `no_context=17`.
-Its retrieval evidence summary reports 10 `search_failure_memory`
-samples with 30 retrieved contexts and 0 `search_eval_cases` samples.
+`faithfulness=0.93`, `no_context=0`. The rag-mode faithfulness over the same
+traces is intentionally not published — it is a metric-mismatch artifact (see
+Context modes above), not a measure of the agent's grounding.
 
 The stub-mode fallback remains in the code for offline development but
 is no longer an acceptable production artefact.
@@ -379,7 +415,7 @@ Required tests:
 ```text
 tests/test_schema.py
 - validate trajectory fixture schema
-- reject missing run_id
+- reject missing trajectory_id
 - reject invalid step action type
 
 tests/test_importer.py
@@ -399,12 +435,12 @@ tests/test_preprocess.py
 - preprocess uses deterministic mock VLM when no API key is configured
 
 tests/test_tools.py
-- get_run returns known run with attached digest
-- get_run accepts a comparison run_id distinct from the run currently under analysis
+- get_trajectory returns known run with attached digest
+- get_trajectory accepts a comparison trajectory_id distinct from the trajectory currently under analysis
 - get_step_detail returns high-detail analysis for a valid step
 - get_step_detail with image_detail="low" returns a low-detail analysis without throwing
-- find_similar_successful_run returns only runs with status=="success" and excludes the queried run_id
-- find_similar_successful_run returns an empty list when no successful run is indexed for the task
+- find_similar_successful_trajectory returns only human-validated successful trajectories and excludes the queried trajectory_id
+- find_similar_successful_trajectory returns an empty list when no successful trajectory is indexed for the task
 - propose_eval_case rejects an EvalCase draft missing required fields
 
 tests/test_eval_agent.py
@@ -414,7 +450,7 @@ tests/test_eval_agent.py
 - agent's retrieved_context_ids match IDs actually returned by search_* tool calls in the trace, across all turns
 - agent's evidence items validate against `EvidenceItem`, and retrieval-derived evidence has `context_id` values returned by search_* tool calls
 - step-detail evidence includes a `trace_event_seq` pointing to a matching `get_step_detail` event
-- agent uses get_step_detail no more than min(tool_call_budget, ceil(0.3 * step_count)) times on run-level analysis
+- agent uses get_step_detail no more than min(tool_call_budget, ceil(0.3 * step_count)) times on trajectory-level analysis
 - AgentTraceEvent.seq is strictly monotonic across the whole trace, including across turns
 - AgentTraceEvent.turn is non-decreasing across the event list
 - a follow-up turn re-resumes the loop from the persisted messages and does not invoke the preprocess node again
@@ -422,7 +458,7 @@ tests/test_eval_agent.py
 
 tests/test_api.py
 - list runs endpoint returns at least 5 imported or fixture runs
-- screenshot endpoint returns a fixture image by run_id and filename
+- screenshot endpoint returns a fixture image by trajectory_id and filename
 - screenshot endpoint rejects missing files and path traversal
 - analyze endpoint returns an application/x-ndjson stream with at least one event line and a terminal done line
 - analyze done line carries eval_case_draft and agent_trace; agent_trace exposes tool_call_count, turn_count, and terminated_by
@@ -443,9 +479,9 @@ tests/test_rag.py
 - ChromaDB collection initializes
 - failure memory seed contains at least 5 cases including missed_constraint
 - search_failure_memory returns missed_constraint case for constraint query
-- search_eval_cases defaults to human_validated=true cases
-- successful_runs collection only indexes runs with status=="success"
-- find_similar_successful_run returns higher similarity for same-task runs than for cross-task runs
+- search_failure_eval_cases defaults to human_validated=true failure EvalCases
+- successful_trajectories only indexes trajectories with human-validated `status=="success"`
+- find_similar_successful_trajectory returns higher similarity for same-task runs than for cross-task runs
 - top_k length is respected
 
 tests/test_eval_case.py
@@ -479,7 +515,7 @@ tests/test_agent_eval.py            (extend)
 - the dump path defaults to eval/runs/{ts}/traces/ when the flag is omitted
 - retryable 429 / timeout / connection failures are retried per sample
 - non-retryable agent errors are not retried and still count as agent_error
-- existing trace_dir/{run_id}.json files resume directly into grading without calling _run_agent
+- existing trace_dir/{trajectory_id}.json files resume directly into grading without calling _run_agent
 - resume rejects prompt_version mismatches to prevent cross-prompt contamination
 - explicit eval/runs/{ts}/traces resume writes the final report back to eval/runs/{ts}/
 - judge post-step receives the same report path and trace dir produced by the eval run
@@ -532,9 +568,9 @@ Use Vitest or Playwright when the frontend exists.
 - User can select a run and step
 - Screenshot and action details display
 - Coordinate overlay is shown only when validated
-- Trajectory Preprocessing produces a trajectory digest for any imported run
+- Trajectory Preprocessing produces a trajectory digest for any imported trajectory
 - Eval Agent autonomously inspects suspicious steps, retrieves similar cases, and terminates via `propose_eval_case`
-- Per-run agent trace is persisted as the `traces` SQLite row keyed by `run_id` (`storage.save_trace`) and rendered in the frontend
+- Per-run agent trace is persisted as the `traces` SQLite row keyed by `trajectory_id` (`storage.save_trace`) and rendered in the frontend
 - ChromaDB retrieves similar failure cases and eval cases
 - Eval case draft is generated as a fully-populated EvalCase JSON
 - User can review, edit, and export the eval case
@@ -551,7 +587,7 @@ Checklist":
 - `eval/ragas_report.md` — `mode == "real"`, `n ≥ 10`.
 - `README.md` — "Eval & Experiments" table ≥ 5 rows with concrete metric deltas (no "improved slightly" phrasing).
 - `docs/failure_analysis.md` — 2–3 case studies + one-line trade-off.
-- `backend/tests/test_mcp_server.py` (Phase 8 B1, skips if fastmcp absent) — exactly six tools exposed, excluded names raise `method_not_found`, `analyze_run` composite stamps `source=mcp` + `human_validated=False` + trace parity with the HTTP path.
+- `backend/tests/test_mcp_server.py` (Phase 8 B1, skips if fastmcp absent) — exactly six tools exposed, excluded names raise `method_not_found`, `analyze_trajectory` composite stamps `source=mcp` + `human_validated=False` + trace parity with the HTTP path.
 - `cd frontend && npm run build` — exits 0.
 - `git status` — clean.
 - `PROJECT.md`, `README.md`, `docs/roadmap.md`, `docs/testing.md`, `docs/eval_agent.md` — all reflect Phase 8.

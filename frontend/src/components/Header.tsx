@@ -4,15 +4,15 @@
 
 import { useState } from 'react';
 import { importDataset } from '../api/client';
-import type { TrajectoryRun } from '../types/contracts';
+import type { Trajectory } from '../types/contracts';
 
 interface HeaderProps {
   onReload: () => void;
-  runs?: TrajectoryRun[];      // optional — shows status counts in the bar
+  trajectories?: Trajectory[];      // optional — shows status counts in the bar
   datasetLabel?: string;        // e.g. "allenai / MolmoWeb-HumanSkills"
 }
 
-export function Header({ onReload, runs = [], datasetLabel }: HeaderProps) {
+export function Header({ onReload, trajectories = [], datasetLabel }: HeaderProps) {
   const [isImporting, setIsImporting] = useState(false);
 
   const handleImport = async () => {
@@ -29,9 +29,9 @@ export function Header({ onReload, runs = [], datasetLabel }: HeaderProps) {
   };
 
   const counts = {
-    success: runs.filter((r) => r.status === 'success').length,
-    failed: runs.filter((r) => r.status === 'failed').length,
-    unknown: runs.filter((r) => r.status === 'unknown').length,
+    success: trajectories.filter((r) => r.status === 'success').length,
+    failed: trajectories.filter((r) => r.status === 'failed').length,
+    unknown: trajectories.filter((r) => r.status === 'unknown').length,
   };
 
   return (
@@ -55,12 +55,12 @@ export function Header({ onReload, runs = [], datasetLabel }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        {runs.length > 0 && (
+        {trajectories.length > 0 && (
           <div className="hidden items-center gap-3 text-[11.5px] text-slate-500 md:flex">
             <Dot color="#16a34a" /> <span className="tabular-nums">{counts.success}</span>
             <Dot color="#dc2626" /> <span className="tabular-nums">{counts.failed}</span>
             <Dot color="#d97706" /> <span className="tabular-nums">{counts.unknown}</span>
-            <span className="font-mono text-slate-400">· {runs.length} total</span>
+            <span className="font-mono text-slate-400">· {trajectories.length} total</span>
           </div>
         )}
         <button

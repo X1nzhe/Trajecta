@@ -27,7 +27,7 @@ from backend.app.schemas import (
     StepAction,
     StepObservation,
     StepResult,
-    TrajectoryRun,
+    Trajectory,
     TrajectoryStep,
 )
 
@@ -96,7 +96,7 @@ class _CapturingTerminalLLM:
                 {
                     "name": "propose_eval_case",
                     "args": {
-                        "run_id": "run_stream_spotlight",
+                        "trajectory_id": "run_stream_spotlight",
                         "failure_step": 1,
                         "failure_type": "missed_constraint",
                         "expected_behavior": "The agent should respect the task constraint.",
@@ -105,7 +105,7 @@ class _CapturingTerminalLLM:
                             {
                                 "claim": "The digest text was provided as trajectory evidence.",
                                 "source": "trajectory",
-                                "run_id": "run_stream_spotlight",
+                                "trajectory_id": "run_stream_spotlight",
                                 "step_index": 1,
                             }
                         ],
@@ -123,9 +123,9 @@ def test_stream_analyze_survives_fresh_context_per_chunk(monkeypatch):
     ``next()`` call, matching Starlette's sync-stream threadpool behavior."""
     monkeypatch.setenv("TRAJECTA_SPOTLIGHTING", "on")
     prompts.load_prompt_bundle.cache_clear()
-    storage.save_run(
-        TrajectoryRun(
-            run_id="run_stream_spotlight",
+    storage.save_trajectory(
+        Trajectory(
+            trajectory_id="run_stream_spotlight",
             task="Find a result",
             status="failed",
             steps=[
@@ -149,7 +149,7 @@ def test_stream_analyze_survives_fresh_context_per_chunk(monkeypatch):
     )
 
     llm = _CapturingTerminalLLM()
-    stream = agent.stream_analyze_run(
+    stream = agent.stream_analyze_trajectory(
         "run_stream_spotlight",
         llm_client=llm,
         persist=False,

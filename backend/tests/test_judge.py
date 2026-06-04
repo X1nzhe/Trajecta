@@ -34,7 +34,7 @@ from backend.app.schemas import (
     StepObservation,
     StepResult,
     TrajectoryDigest,
-    TrajectoryRun,
+    Trajectory,
     TrajectoryStep,
 )
 from eval.judge import (
@@ -91,7 +91,7 @@ GOLDEN_PATH = REPO_ROOT / "eval" / "golden.jsonl"
 
 def _failed_golden(
     *,
-    run_id: str = "run_failed",
+    trajectory_id: str = "run_failed",
     failure_types: list[str] | None = None,
     failure_step_range: tuple[int, int] | None = (3, 7),
 ) -> GoldenCase:
@@ -119,16 +119,16 @@ def _failed_golden(
             FailureTypeFact(field="failure_type", op="in", value=other_types)
         )
     return GoldenCase(
-        input={"run_id": run_id},
+        input={"trajectory_id": trajectory_id},
         expected_facts=expected,
         forbidden_facts=forbidden,
         tags=["site"],
     )
 
 
-def _success_golden(run_id: str = "run_success") -> GoldenCase:
+def _success_golden(trajectory_id: str = "run_success") -> GoldenCase:
     return GoldenCase(
-        input={"run_id": run_id},
+        input={"trajectory_id": trajectory_id},
         expected_facts=[OutcomeFact(field="outcome", op="eq", value="success")],
         forbidden_facts=[OutcomeFact(field="outcome", op="eq", value="failed")],
         tags=["site"],
@@ -139,7 +139,7 @@ def _matched_failed_proposal(
     failure_type: str = "missed_constraint", failure_step: int = 5
 ) -> dict:
     return {
-        "run_id": "run_failed",
+        "trajectory_id": "run_failed",
         "failure_step": failure_step,
         "failure_type": failure_type,
         "expected_behavior": "should satisfy constraint",
@@ -152,7 +152,7 @@ def _matched_failed_proposal(
 
 def _matched_success_proposal() -> dict:
     return {
-        "run_id": "run_success",
+        "trajectory_id": "run_success",
         "failure_step": None,
         "failure_type": None,
         "expected_behavior": None,
@@ -433,15 +433,15 @@ def test_load_golden_cases_reads_committed_jsonl() -> None:
         pytest.skip("eval/golden.jsonl missing; run scripts/build_golden_jsonl.py")
     cases = load_golden_cases(GOLDEN_PATH)
     assert len(cases) == 35
-    # All keys are non-empty hex run_ids.
-    for run_id in cases:
-        assert run_id and isinstance(run_id, str)
+    # All keys are non-empty hex trajectory_ids.
+    for trajectory_id in cases:
+        assert trajectory_id and isinstance(trajectory_id, str)
 
 
-def test_load_golden_cases_rejects_duplicate_run_ids(tmp_path: Path) -> None:
-    """Two rows with the same run_id is a builder bug; loader must catch it."""
+def test_load_golden_cases_rejects_duplicate_trajectory_ids(tmp_path: Path) -> None:
+    """Two rows with the same trajectory_id is a builder bug; loader must catch it."""
     row = {
-        "input": {"run_id": "duplicate", "intent": "analyze_run"},
+        "input": {"trajectory_id": "duplicate", "intent": "analyze_trajectory"},
         "expected_facts": [{"field": "outcome", "op": "eq", "value": "success"}],
         "forbidden_facts": [{"field": "outcome", "op": "eq", "value": "failed"}],
         "tags": ["x"],
@@ -450,7 +450,7 @@ def test_load_golden_cases_rejects_duplicate_run_ids(tmp_path: Path) -> None:
     fake.write_text(
         json.dumps(row) + "\n" + json.dumps(row) + "\n", encoding="utf-8"
     )
-    with pytest.raises(ValueError, match="duplicate run_id"):
+    with pytest.raises(ValueError, match="duplicate trajectory_id"):
         load_golden_cases(fake)
 
 
@@ -460,8 +460,8 @@ def test_load_trace_round_trips_through_agent_trace_model(tmp_path: Path) -> Non
     that A2 writes is in fact loadable by A3.
     """
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         selected_step=None,
         tool_call_count=1,
         turn_count=1,
@@ -474,7 +474,7 @@ def test_load_trace_round_trips_through_agent_trace_model(tmp_path: Path) -> Non
                 type="tool_call",
                 name="propose_eval_case",
                 args={
-                    "run_id": "run_x",
+                    "trajectory_id": "run_x",
                     "failure_step": 3,
                     "failure_type": "missed_constraint",
                     "expected_behavior": "x",
@@ -496,7 +496,7 @@ def test_load_trace_round_trips_through_agent_trace_model(tmp_path: Path) -> Non
         trace.model_dump_json(indent=2), encoding="utf-8"
     )
     loaded = load_trace(trace_dir, "run_x")
-    assert loaded.run_id == "run_x"
+    assert loaded.trajectory_id == "run_x"
     assert loaded.terminated_by == "propose_eval_case"
     assert loaded.tool_call_count == 1
 
@@ -510,7 +510,7 @@ def test_load_trace_missing_file_raises() -> None:
 # extract_proposed_eval_case
 
 
-def _trace_with_propose_calls(run_id: str, *, n_calls: int) -> AgentTrace:
+def _trace_with_propose_calls(trajectory_id: str, *, n_calls: int) -> AgentTrace:
     """Build a trace with ``n_calls`` propose_eval_case events to verify
     extract_proposed_eval_case picks the latest."""
     events = []
@@ -523,7 +523,7 @@ def _trace_with_propose_calls(run_id: str, *, n_calls: int) -> AgentTrace:
                 type="tool_call",
                 name="propose_eval_case",
                 args={
-                    "run_id": run_id,
+                    "trajectory_id": trajectory_id,
                     "failure_step": turn,  # so we can tell calls apart
                     "failure_type": "missed_constraint",
                     "expected_behavior": "x",
@@ -536,8 +536,8 @@ def _trace_with_propose_calls(run_id: str, *, n_calls: int) -> AgentTrace:
         )
         seq += 1
     return AgentTrace(
-        run_id=run_id,
-        user_intent="analyze_run",
+        trajectory_id=trajectory_id,
+        user_intent="analyze_trajectory",
         selected_step=None,
         tool_call_count=n_calls,
         turn_count=n_calls,
@@ -562,8 +562,8 @@ def test_extract_proposed_eval_case_returns_none_when_trace_did_not_terminate() 
     """A trace terminated via budget_exceeded leaves no propose_eval_case
     args. The judge must treat such traces as "no draft to grade"."""
     trace = AgentTrace(
-        run_id="run_be",
-        user_intent="analyze_run",
+        trajectory_id="run_be",
+        user_intent="analyze_trajectory",
         selected_step=None,
         tool_call_count=8,
         turn_count=1,
@@ -598,17 +598,17 @@ def _step(idx: int, *, label: str = "click") -> TrajectoryStep:
     )
 
 
-def _run(run_id: str = "run_x", n_steps: int = 5) -> TrajectoryRun:
-    return TrajectoryRun(
-        run_id=run_id,
+def _run(trajectory_id: str = "run_x", n_steps: int = 5) -> Trajectory:
+    return Trajectory(
+        trajectory_id=trajectory_id,
         task="example task",
         steps=[_step(i + 1) for i in range(n_steps)],
     )
 
 
-def _digest(run_id: str = "run_x", n_steps: int = 5) -> TrajectoryDigest:
+def _digest(trajectory_id: str = "run_x", n_steps: int = 5) -> TrajectoryDigest:
     return TrajectoryDigest(
-        run_id=run_id,
+        trajectory_id=trajectory_id,
         task="example task",
         step_count=n_steps,
         steps=[
@@ -629,10 +629,10 @@ def _digest(run_id: str = "run_x", n_steps: int = 5) -> TrajectoryDigest:
     )
 
 
-def _empty_trace(run_id: str = "run_x") -> AgentTrace:
+def _empty_trace(trajectory_id: str = "run_x") -> AgentTrace:
     return AgentTrace(
-        run_id=run_id,
-        user_intent="analyze_run",
+        trajectory_id=trajectory_id,
+        user_intent="analyze_trajectory",
         selected_step=None,
         tool_call_count=0,
         turn_count=1,
@@ -655,7 +655,7 @@ def test_resolve_trajectory_uses_run_step_index() -> None:
     item = EvidenceItem(
         claim="click happened on step 3",
         source="trajectory",
-        run_id="run_x",
+        trajectory_id="run_x",
         step_index=3,
     )
     resolved = resolve_evidence_source(item, trace=_empty_trace(), run=run)
@@ -664,17 +664,17 @@ def test_resolve_trajectory_uses_run_step_index() -> None:
     assert resolved["observation"]["url"] == "https://example.test"
 
 
-def test_resolve_trajectory_falls_back_to_get_run_tool_result() -> None:
-    """The agent can also cite ``get_run`` via ``trace_event_seq`` — the
+def test_resolve_trajectory_falls_back_to_get_trajectory_tool_result() -> None:
+    """The agent can also cite ``get_trajectory`` via ``trace_event_seq`` — the
     resolver honours that anchor when no run snapshot is supplied."""
-    payload = {"run_id": "run_x", "task": "example task", "steps": []}
+    payload = {"trajectory_id": "run_x", "task": "example task", "steps": []}
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         terminated_by="propose_eval_case",
         events=[
-            AgentTraceEvent(seq=0, turn=0, type="tool_call", name="get_run", args={"run_id": "run_x"}),
-            AgentTraceEvent(seq=1, turn=0, type="tool_result", name="get_run", result=payload),
+            AgentTraceEvent(seq=0, turn=0, type="tool_call", name="get_trajectory", args={"trajectory_id": "run_x"}),
+            AgentTraceEvent(seq=1, turn=0, type="tool_result", name="get_trajectory", result=payload),
         ],
         model="mock",
         prompt_version="v5",
@@ -700,15 +700,15 @@ def test_resolve_digest_uses_digest_step_index() -> None:
 
 def test_resolve_step_detail_pulls_matching_tool_result() -> None:
     detail_payload = {
-        "run_id": "run_x",
+        "trajectory_id": "run_x",
         "step_index": 4,
         "has_screenshot": True,
         "vlm_summary": "constraint satisfied",
         "image_detail": "high",
     }
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         terminated_by="propose_eval_case",
         events=[
             AgentTraceEvent(
@@ -716,7 +716,7 @@ def test_resolve_step_detail_pulls_matching_tool_result() -> None:
                 turn=0,
                 type="tool_call",
                 name="get_step_detail",
-                args={"run_id": "run_x", "step_index": 4, "image_detail": "high"},
+                args={"trajectory_id": "run_x", "step_index": 4, "image_detail": "high"},
             ),
             AgentTraceEvent(
                 seq=1, turn=0, type="tool_result", name="get_step_detail", result=detail_payload
@@ -747,11 +747,11 @@ def test_resolve_failure_memory_prefers_trace_tool_result() -> None:
         "summary": "agent ignored the labelled constraint",
         "fix_hint": "always re-read the form before submit",
         "tags": [],
-        "source_run_id": "earlier_run",
+        "source_trajectory_id": "earlier_run",
     }
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         terminated_by="propose_eval_case",
         events=[
             AgentTraceEvent(
@@ -797,26 +797,26 @@ def test_resolve_failure_memory_falls_back_to_index() -> None:
     assert resolved["case_id"] == "fm_missed_constraint_002"
 
 
-def test_resolve_successful_run_matches_context_id_against_search_items() -> None:
+def test_resolve_successful_trajectory_matches_context_id_against_search_items() -> None:
     item = EvidenceItem(
         claim="similar successful run",
-        source="successful_run",
+        source="successful_trajectory",
         context_id="success_run_42",
     )
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         terminated_by="propose_eval_case",
         events=[
             AgentTraceEvent(
                 seq=0,
                 turn=0,
                 type="tool_result",
-                name="find_similar_successful_run",
+                name="find_similar_successful_trajectory",
                 result={
                     "items": [
-                        {"run_id": "irrelevant_run", "task": "other"},
-                        {"run_id": "success_run_42", "task": "example task"},
+                        {"trajectory_id": "irrelevant_run", "task": "other"},
+                        {"trajectory_id": "success_run_42", "task": "example task"},
                     ]
                 },
             ),
@@ -827,7 +827,7 @@ def test_resolve_successful_run_matches_context_id_against_search_items() -> Non
         vlm_model="mock",
     )
     resolved = resolve_evidence_source(item, trace=trace)
-    assert resolved == {"run_id": "success_run_42", "task": "example task"}
+    assert resolved == {"trajectory_id": "success_run_42", "task": "example task"}
 
 
 def test_resolve_returns_none_when_evidence_underspecified() -> None:
@@ -851,7 +851,7 @@ def _propose_event(
         type="tool_call",
         name="propose_eval_case",
         args={
-            "run_id": "run_x",
+            "trajectory_id": "run_x",
             "failure_step": failure_step,
             "failure_type": "missed_constraint",
             "expected_behavior": "should satisfy constraint",
@@ -865,9 +865,9 @@ def _propose_event(
 
 def test_build_judge_payload_assembles_documented_shape() -> None:
     """Matches the input shape documented in docs/testing.md § Input shape."""
-    golden = _failed_golden(run_id="run_x")
+    golden = _failed_golden(trajectory_id="run_x")
     detail_payload = {
-        "run_id": "run_x",
+        "trajectory_id": "run_x",
         "step_index": 3,
         "vlm_summary": "field empty",
         "image_detail": "high",
@@ -876,15 +876,15 @@ def test_build_judge_payload_assembles_documented_shape() -> None:
         {
             "claim": "field was blank",
             "source": "step_detail_high",
-            "run_id": "run_x",
+            "trajectory_id": "run_x",
             "step_index": 3,
             "trace_event_seq": 1,
         },
         {"claim": "no screenshot for step 7", "source": "unavailable"},
     ]
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         terminated_by="propose_eval_case",
         events=[
             AgentTraceEvent(
@@ -892,7 +892,7 @@ def test_build_judge_payload_assembles_documented_shape() -> None:
                 turn=0,
                 type="tool_call",
                 name="get_step_detail",
-                args={"run_id": "run_x", "step_index": 3, "image_detail": "high"},
+                args={"trajectory_id": "run_x", "step_index": 3, "image_detail": "high"},
             ),
             AgentTraceEvent(
                 seq=1, turn=0, type="tool_result", name="get_step_detail", result=detail_payload
@@ -904,9 +904,9 @@ def test_build_judge_payload_assembles_documented_shape() -> None:
         prompt_sha256="0" * 64,
         vlm_model="mock",
     )
-    payload = build_judge_payload(run_id="run_x", golden=golden, trace=trace)
-    assert payload["run_id"] == "run_x"
-    assert payload["golden_reference"]["input"]["run_id"] == "run_x"
+    payload = build_judge_payload(trajectory_id="run_x", golden=golden, trace=trace)
+    assert payload["trajectory_id"] == "run_x"
+    assert payload["golden_reference"]["input"]["trajectory_id"] == "run_x"
     assert payload["proposed_eval_case"]["failure_type"] == "missed_constraint"
     assert len(payload["evidence_with_sources"]) == 2
     first = payload["evidence_with_sources"][0]
@@ -920,10 +920,10 @@ def test_build_judge_payload_assembles_documented_shape() -> None:
 def test_build_judge_payload_handles_no_propose_call() -> None:
     """A budget-exceeded trace has no draft — payload still contains the
     golden reference so the judge can mark it unacceptable."""
-    golden = _failed_golden(run_id="run_x")
+    golden = _failed_golden(trajectory_id="run_x")
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         tool_call_count=8,
         terminated_by="budget_exceeded",
         events=[
@@ -934,7 +934,7 @@ def test_build_judge_payload_handles_no_propose_call() -> None:
         prompt_sha256="0" * 64,
         vlm_model="mock",
     )
-    payload = build_judge_payload(run_id="run_x", golden=golden, trace=trace)
+    payload = build_judge_payload(trajectory_id="run_x", golden=golden, trace=trace)
     assert payload["proposed_eval_case"] is None
     assert payload["evidence_with_sources"] == []
 
@@ -944,11 +944,11 @@ def test_build_judge_payload_preserves_malformed_evidence_rows() -> None:
     validation, the judge still needs to see the raw row — we keep it
     with ``resolved_source = None`` instead of silently dropping it so
     the LLM can flag the violation."""
-    golden = _failed_golden(run_id="run_x")
+    golden = _failed_golden(trajectory_id="run_x")
     malformed = {"claim": "missing source field"}
     trace = AgentTrace(
-        run_id="run_x",
-        user_intent="analyze_run",
+        trajectory_id="run_x",
+        user_intent="analyze_trajectory",
         terminated_by="propose_eval_case",
         events=[_propose_event(seq=0, evidence=[malformed])],
         model="mock",
@@ -956,7 +956,7 @@ def test_build_judge_payload_preserves_malformed_evidence_rows() -> None:
         prompt_sha256="0" * 64,
         vlm_model="mock",
     )
-    payload = build_judge_payload(run_id="run_x", golden=golden, trace=trace)
+    payload = build_judge_payload(trajectory_id="run_x", golden=golden, trace=trace)
     assert payload["evidence_with_sources"] == [
         {"evidence": malformed, "resolved_source": None}
     ]
@@ -1095,11 +1095,11 @@ def test_run_llm_judge_returns_typed_result(tmp_path: Path) -> None:
 
     def fake_judge(prompt: str, payload: dict[str, object]) -> str:
         captured["prompt"] = prompt
-        captured["payload_run_id"] = payload["run_id"]
+        captured["payload_trajectory_id"] = payload["trajectory_id"]
         return _good_judge_json("acceptable")
 
     config = JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v_acc")
-    payload = {"run_id": "run_x", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    payload = {"trajectory_id": "run_x", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
     result = run_llm_judge(
         payload,
         config,
@@ -1117,12 +1117,12 @@ def test_run_llm_judge_returns_typed_result(tmp_path: Path) -> None:
     assert [a.name for a in result.assertions] == ["verdict_alignment", "evidence_support"]
     # The callable received the prompt text and the payload.
     assert captured["prompt"] == "rubric text"
-    assert captured["payload_run_id"] == "run_x"
+    assert captured["payload_trajectory_id"] == "run_x"
 
 
 def test_run_llm_judge_unacceptable_verdict_flips_property(tmp_path: Path) -> None:
     config = JudgeConfig(slot="B", model="openai-test", prompt_version="v_acc")
-    payload = {"run_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    payload = {"trajectory_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
     result = run_llm_judge(
         payload,
         config,
@@ -1138,7 +1138,7 @@ def test_run_llm_judge_propagates_parser_failure(tmp_path: Path) -> None:
     writer (A3.3) can mark the row as judge_error rather than silently
     flipping the verdict."""
     config = JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v_acc")
-    payload = {"run_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    payload = {"trajectory_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
     with pytest.raises(ValueError, match="verdict"):
         run_llm_judge(
             payload,
@@ -1161,7 +1161,7 @@ def test_run_llm_judge_default_callable_raises_when_provider_unconfigured(
     monkeypatch.delenv("TRAJECTA_JUDGE_A_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     config = JudgeConfig(slot="A", model="gemini-flash-test", prompt_version="v_acc")
-    payload = {"run_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
+    payload = {"trajectory_id": "r", "golden_reference": {}, "proposed_eval_case": {}, "evidence_with_sources": []}
     with pytest.raises(JudgeProviderError, match="TRAJECTA_JUDGE_A_API_KEY"):
         run_llm_judge(payload, config, prompts_root=_judge_prompt_dir(tmp_path))
 
@@ -1178,8 +1178,8 @@ def test_run_llm_judge_pipes_payload_into_callable(tmp_path: Path) -> None:
         return _good_judge_json("acceptable")
 
     payload_in = {
-        "run_id": "run_x",
-        "golden_reference": {"input": {"run_id": "run_x"}},
+        "trajectory_id": "run_x",
+        "golden_reference": {"input": {"trajectory_id": "run_x"}},
         "proposed_eval_case": {"failure_type": "missed_constraint"},
         "evidence_with_sources": [
             {"evidence": {"claim": "c", "source": "unavailable"}, "resolved_source": None}
@@ -1245,7 +1245,7 @@ def test_judge_case_report_from_llm_result_copies_fields() -> None:
         ],
     )
     row = JudgeCaseReport.from_llm_result("run_x", result)
-    assert row.run_id == "run_x"
+    assert row.trajectory_id == "run_x"
     assert row.verdict == "unacceptable"
     assert row.rationale == "verdict mismatch"
     assert row.acceptable is False
@@ -1278,7 +1278,7 @@ def test_build_judge_report_preserves_input_order() -> None:
         ("run_c", _llm_result(verdict="acceptable")),
     ]
     report = build_judge_report(results)
-    assert [c.run_id for c in report.cases] == ["run_b", "run_a", "run_c"]
+    assert [c.trajectory_id for c in report.cases] == ["run_b", "run_a", "run_c"]
 
 
 def test_build_judge_report_rejects_empty_results() -> None:
@@ -1364,7 +1364,7 @@ def test_write_judge_report_emits_json_shape(tmp_path: Path) -> None:
     assert data["acceptable_count"] == 1
     assert data["unacceptable_count"] == 1
     assert data["acceptable_rate"] == 0.5
-    assert [c["run_id"] for c in data["cases"]] == ["run_1", "run_2"]
+    assert [c["trajectory_id"] for c in data["cases"]] == ["run_1", "run_2"]
     assert [c["verdict"] for c in data["cases"]] == ["acceptable", "unacceptable"]
     # Assertions land in JSON exactly as the judge returned them.
     case_1_assertions = data["cases"][0]["assertions"]
@@ -1406,7 +1406,7 @@ def test_write_judge_report_md_contains_sample_count_and_rate(tmp_path: Path) ->
     assert "Sample count: **3**" in md
     # 2/3 ≈ 66.7% — formatted to one decimal place.
     assert "acceptable_rate: 66.7%" in md
-    # Per-case table contains both verdicts and run_ids.
+    # Per-case table contains both verdicts and trajectory_ids.
     assert "| `run_1` | `acceptable` |" in md
     assert "| `run_2` | `unacceptable` |" in md
     assert "| `run_3` | `acceptable` |" in md
@@ -1483,20 +1483,20 @@ def test_judge_report_acceptable_rate_all_unacceptable() -> None:
 # bundle into ``tmp_path``.
 
 
-def _agent_report_with_samples(run_ids: list[str]) -> dict:
+def _agent_report_with_samples(trajectory_ids: list[str]) -> dict:
     """A minimal ``agent_report.json``-shaped dict for CLI tests.
 
-    The standalone runner only reads ``samples[].run_id``; the other
+    The standalone runner only reads ``samples[].trajectory_id``; the other
     fields the real eval populates (timing, prompt_version, metrics,
     skipped) are irrelevant for the judge fan-out and would just couple
     these tests to the eval-report schema unnecessarily."""
     return {
-        "samples": [{"run_id": rid} for rid in run_ids],
+        "samples": [{"trajectory_id": rid} for rid in trajectory_ids],
         "skipped": {"not_importable": 0, "agent_error": 0},
     }
 
 
-def _write_trace(trace_dir: Path, run_id: str, *, with_propose: bool = True) -> None:
+def _write_trace(trace_dir: Path, trajectory_id: str, *, with_propose: bool = True) -> None:
     """Write a per-sample trace dump in the on-disk format that
     ``agent_eval --trace-dir`` produces. ``with_propose=False`` mimics a
     budget_exceeded / error termination — no draft to grade."""
@@ -1508,7 +1508,7 @@ def _write_trace(trace_dir: Path, run_id: str, *, with_propose: bool = True) -> 
                 type="tool_call",
                 name="propose_eval_case",
                 args={
-                    "run_id": run_id,
+                    "trajectory_id": trajectory_id,
                     "failure_step": 5,
                     "failure_type": "missed_constraint",
                     "expected_behavior": "should satisfy constraint",
@@ -1526,8 +1526,8 @@ def _write_trace(trace_dir: Path, run_id: str, *, with_propose: bool = True) -> 
         terminated_by = "budget_exceeded"
         tool_call_count = 8
     trace = AgentTrace(
-        run_id=run_id,
-        user_intent="analyze_run",
+        trajectory_id=trajectory_id,
+        user_intent="analyze_trajectory",
         selected_step=None,
         tool_call_count=tool_call_count,
         turn_count=1,
@@ -1539,19 +1539,19 @@ def _write_trace(trace_dir: Path, run_id: str, *, with_propose: bool = True) -> 
         vlm_model="mock",
     )
     trace_dir.mkdir(parents=True, exist_ok=True)
-    (trace_dir / f"{run_id}.json").write_text(
+    (trace_dir / f"{trajectory_id}.json").write_text(
         trace.model_dump_json(indent=2), encoding="utf-8"
     )
 
 
-def _write_golden(path: Path, run_ids: list[str]) -> None:
-    """Emit a minimal ``golden.jsonl`` covering ``run_ids`` (all failed-shape)."""
+def _write_golden(path: Path, trajectory_ids: list[str]) -> None:
+    """Emit a minimal ``golden.jsonl`` covering ``trajectory_ids`` (all failed-shape)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     rows = []
-    for rid in run_ids:
+    for rid in trajectory_ids:
         rows.append(
             {
-                "input": {"run_id": rid, "intent": "analyze_run"},
+                "input": {"trajectory_id": rid, "intent": "analyze_trajectory"},
                 "expected_facts": [
                     {"field": "outcome", "op": "eq", "value": "failed"},
                     {
@@ -1607,8 +1607,8 @@ def _accept_callable(verdict: str = "acceptable"):
 # ---- load_agent_report ----------------------------------------------------
 
 
-def test_cli_load_agent_report_returns_sample_run_ids(tmp_path: Path) -> None:
-    """The runner reads ``samples[].run_id`` in order so subsequent
+def test_cli_load_agent_report_returns_sample_trajectory_ids(tmp_path: Path) -> None:
+    """The runner reads ``samples[].trajectory_id`` in order so subsequent
     ``--sample-size`` selection is deterministic across reruns."""
     report_path = tmp_path / "agent_report.json"
     report_path.write_text(
@@ -1633,12 +1633,12 @@ def test_cli_load_agent_report_rejects_missing_samples_key(tmp_path: Path) -> No
         load_agent_report(path)
 
 
-def test_cli_load_agent_report_rejects_non_string_run_id(tmp_path: Path) -> None:
+def test_cli_load_agent_report_rejects_non_string_trajectory_id(tmp_path: Path) -> None:
     path = tmp_path / "agent_report.json"
     path.write_text(
-        json.dumps({"samples": [{"run_id": 123}]}), encoding="utf-8"
+        json.dumps({"samples": [{"trajectory_id": 123}]}), encoding="utf-8"
     )
-    with pytest.raises(ValueError, match="run_id"):
+    with pytest.raises(ValueError, match="trajectory_id"):
         load_agent_report(path)
 
 
@@ -1646,21 +1646,21 @@ def test_cli_load_agent_report_rejects_non_string_run_id(tmp_path: Path) -> None
 
 
 def _cli_inputs(
-    tmp_path: Path, run_ids: list[str], *, with_propose: bool | dict[str, bool] = True
+    tmp_path: Path, trajectory_ids: list[str], *, with_propose: bool | dict[str, bool] = True
 ) -> dict[str, Path]:
     """Lay out a tmp_path with golden + agent_report + trace dir for
-    ``run_ids``. ``with_propose`` may be a single bool (applied to all)
+    ``trajectory_ids``. ``with_propose`` may be a single bool (applied to all)
     or a per-run mapping so a test can mix gradeable and non-gradeable
     runs in one fixture."""
     if isinstance(with_propose, bool):
-        propose_map = {rid: with_propose for rid in run_ids}
+        propose_map = {rid: with_propose for rid in trajectory_ids}
     else:
         propose_map = with_propose
     golden_path = tmp_path / "golden.jsonl"
-    _write_golden(golden_path, run_ids)
+    _write_golden(golden_path, trajectory_ids)
     report_path = tmp_path / "agent_report.json"
     report_path.write_text(
-        json.dumps(_agent_report_with_samples(run_ids)), encoding="utf-8"
+        json.dumps(_agent_report_with_samples(trajectory_ids)), encoding="utf-8"
     )
     trace_dir = tmp_path / "traces"
     for rid, has_propose in propose_map.items():
@@ -1677,13 +1677,13 @@ def _cli_inputs(
 
 def test_cli_run_standalone_judge_grades_each_run(tmp_path: Path) -> None:
     """Happy path: golden + trace + propose_eval_case for every sample.
-    The mocked callable runs once per run_id and the rolled-up report
+    The mocked callable runs once per trajectory_id and the rolled-up report
     carries per-case verdicts in submission order."""
     paths = _cli_inputs(tmp_path, ["run_a", "run_b", "run_c"])
-    seen_run_ids: list[str] = []
+    seen_trajectory_ids: list[str] = []
 
     def fake(prompt: str, payload: dict[str, object]) -> str:
-        seen_run_ids.append(payload["run_id"])  # type: ignore[arg-type]
+        seen_trajectory_ids.append(payload["trajectory_id"])  # type: ignore[arg-type]
         return _accept_callable("acceptable")(prompt, payload)
 
     result = run_standalone_judge(
@@ -1697,8 +1697,8 @@ def test_cli_run_standalone_judge_grades_each_run(tmp_path: Path) -> None:
     )
 
     assert isinstance(result, StandaloneJudgeResult)
-    assert seen_run_ids == ["run_a", "run_b", "run_c"]
-    assert result.graded_run_ids == ["run_a", "run_b", "run_c"]
+    assert seen_trajectory_ids == ["run_a", "run_b", "run_c"]
+    assert result.graded_trajectory_ids == ["run_a", "run_b", "run_c"]
     assert result.report.sample_size == 3
     assert result.report.acceptable_rate == 1.0
     # Every skipped category was empty so it was pruned from the dict.
@@ -1743,7 +1743,7 @@ def test_cli_run_standalone_judge_respects_sample_size(tmp_path: Path) -> None:
         sample_size=2,
         prompts_root=paths["prompts_root"],
     )
-    assert result.graded_run_ids == ["run_a", "run_b"]
+    assert result.graded_trajectory_ids == ["run_a", "run_b"]
     assert result.report.sample_size == 2
 
 
@@ -1782,7 +1782,7 @@ def test_cli_run_standalone_judge_skips_missing_trace(tmp_path: Path) -> None:
         judge_callable=_accept_callable("acceptable"),
         prompts_root=paths["prompts_root"],
     )
-    assert result.graded_run_ids == ["run_a"]
+    assert result.graded_trajectory_ids == ["run_a"]
     assert result.skipped == {"missing_trace": ["run_b"]}
     assert result.report.sample_size == 1
 
@@ -1806,7 +1806,7 @@ def test_cli_run_standalone_judge_skips_when_no_proposal(tmp_path: Path) -> None
         judge_callable=_accept_callable("acceptable"),
         prompts_root=paths["prompts_root"],
     )
-    assert result.graded_run_ids == ["run_a"]
+    assert result.graded_trajectory_ids == ["run_a"]
     assert result.skipped == {"no_proposal": ["run_b"]}
 
 
@@ -1831,7 +1831,7 @@ def test_cli_run_standalone_judge_skips_when_no_golden(tmp_path: Path) -> None:
         judge_callable=_accept_callable("acceptable"),
         prompts_root=paths["prompts_root"],
     )
-    assert result.graded_run_ids == ["run_a"]
+    assert result.graded_trajectory_ids == ["run_a"]
     assert result.skipped == {"no_golden": ["run_x"]}
 
 
@@ -2184,7 +2184,7 @@ def test_default_judge_callable_sends_prompt_as_system_payload_as_user(
         cfg,
         env={"TRAJECTA_JUDGE_A_API_KEY": "k", "TRAJECTA_JUDGE_A_BASE_URL": "https://x"},
     )
-    payload = {"run_id": "run_x", "extra": {"nested": [1, 2, 3]}}
+    payload = {"trajectory_id": "run_x", "extra": {"nested": [1, 2, 3]}}
     with _patch_openai(fake):
         raw = callable_("RUBRIC TEXT", payload)
     assert raw == '{"verdict": "acceptable", "rationale": "", "assertions": []}'
@@ -2217,7 +2217,7 @@ def test_default_judge_callable_threads_base_url_into_client(tmp_path: Path) -> 
         },
     )
     with _patch_openai(fake):
-        callable_("rubric", {"run_id": "r"})
+        callable_("rubric", {"trajectory_id": "r"})
     assert fake.construction_calls == [
         {"api_key": "gemini-key", "base_url": "https://gemini.example/v1"}
     ]
@@ -2233,7 +2233,7 @@ def test_default_judge_callable_omits_base_url_when_unset(tmp_path: Path) -> Non
         cfg, env={"TRAJECTA_JUDGE_B_API_KEY": "openai-key"}
     )
     with _patch_openai(fake):
-        callable_("rubric", {"run_id": "r"})
+        callable_("rubric", {"trajectory_id": "r"})
     assert fake.construction_calls == [{"api_key": "openai-key"}]
 
 
@@ -2252,7 +2252,7 @@ def test_default_judge_callable_uses_slot_A_model_not_slot_B(tmp_path: Path) -> 
         },
     )
     with _patch_openai(fake):
-        callable_("rubric", {"run_id": "r"})
+        callable_("rubric", {"trajectory_id": "r"})
     assert fake.calls[0]["model"] == "model-A"
 
 
@@ -2268,7 +2268,7 @@ def test_default_judge_callable_uses_slot_B_model_not_slot_A(tmp_path: Path) -> 
         },
     )
     with _patch_openai(fake):
-        callable_("rubric", {"run_id": "r"})
+        callable_("rubric", {"trajectory_id": "r"})
     assert fake.calls[0]["model"] == "model-B"
 
 
@@ -2286,7 +2286,7 @@ def test_default_judge_callable_returns_provider_content_verbatim(
         cfg, env={"TRAJECTA_JUDGE_B_API_KEY": "k"}
     )
     with _patch_openai(fake):
-        assert callable_("rubric", {"run_id": "r"}) == raw_json
+        assert callable_("rubric", {"trajectory_id": "r"}) == raw_json
 
 
 def test_default_judge_callable_propagates_provider_exception_as_judge_error() -> None:
@@ -2301,7 +2301,7 @@ def test_default_judge_callable_propagates_provider_exception_as_judge_error() -
     )
     with _patch_openai(fake):
         with pytest.raises(JudgeProviderError, match="provider call failed"):
-            callable_("rubric", {"run_id": "r"})
+            callable_("rubric", {"trajectory_id": "r"})
 
 
 def test_default_judge_callable_rejects_empty_response_content() -> None:
@@ -2315,7 +2315,7 @@ def test_default_judge_callable_rejects_empty_response_content() -> None:
     )
     with _patch_openai(fake):
         with pytest.raises(JudgeProviderError, match="empty or non-string"):
-            callable_("rubric", {"run_id": "r"})
+            callable_("rubric", {"trajectory_id": "r"})
 
 
 def test_default_judge_callable_rejects_non_string_response_content() -> None:
@@ -2330,7 +2330,7 @@ def test_default_judge_callable_rejects_non_string_response_content() -> None:
     )
     with _patch_openai(fake):
         with pytest.raises(JudgeProviderError, match="empty or non-string"):
-            callable_("rubric", {"run_id": "r"})
+            callable_("rubric", {"trajectory_id": "r"})
 
 
 def test_run_llm_judge_uses_default_callable_when_env_set(tmp_path: Path) -> None:
@@ -2350,7 +2350,7 @@ def test_run_llm_judge_uses_default_callable_when_env_set(tmp_path: Path) -> Non
     )
     cfg = JudgeConfig(slot="B", model="openai-test", prompt_version="v_acc")
     payload = {
-        "run_id": "run_x",
+        "trajectory_id": "run_x",
         "golden_reference": {},
         "proposed_eval_case": {},
         "evidence_with_sources": [],
@@ -2502,10 +2502,10 @@ def _judge_report(
     cases = cases or [("run_1", "acceptable", None)]
     judge = JudgeConfig(slot=slot, model=model, prompt_version=prompt_version)  # type: ignore[arg-type]
     case_reports = []
-    for run_id, verdict, assertions in cases:
+    for trajectory_id, verdict, assertions in cases:
         case_reports.append(
             JudgeCaseReport(
-                run_id=run_id,
+                trajectory_id=trajectory_id,
                 verdict=verdict,  # type: ignore[arg-type]
                 rationale=f"{slot} says {verdict}",
                 assertions=assertions or [],
@@ -2519,7 +2519,7 @@ def _judge_report(
 
 
 def _verdicts(*verdicts: str) -> list[tuple[str, str, list[JudgeAssertion] | None]]:
-    """Compact factory: index-numbered run_ids paired with verdicts."""
+    """Compact factory: index-numbered trajectory_ids paired with verdicts."""
     return [(f"run_{i + 1}", v, None) for i, v in enumerate(verdicts)]
 
 
@@ -2586,7 +2586,7 @@ def test_agreement_rejects_swapped_slot_arguments() -> None:
         build_judge_agreement_report(a, a)
 
 
-def test_agreement_rejects_mismatched_run_id_set() -> None:
+def test_agreement_rejects_mismatched_trajectory_id_set() -> None:
     """A judge B graded on a different golden subset is a wiring bug —
     κ over disjoint cases is meaningless."""
     a = _judge_report(slot="A", cases=_verdicts("acceptable", "acceptable"))
@@ -2599,7 +2599,7 @@ def test_agreement_rejects_mismatched_run_id_set() -> None:
         build_judge_agreement_report(a, b)
 
 
-def test_agreement_rejects_mismatched_run_id_order() -> None:
+def test_agreement_rejects_mismatched_trajectory_id_order() -> None:
     """Even when the sets match, the ordering must match too — paired
     indices are how κ matches verdicts."""
     a = _judge_report(slot="A", cases=_verdicts("acceptable", "unacceptable"))
@@ -2611,7 +2611,7 @@ def test_agreement_rejects_mismatched_run_id_order() -> None:
             ("run_1", "acceptable", None),
         ],
     )
-    with pytest.raises(ValueError, match="different run_id ordering"):
+    with pytest.raises(ValueError, match="different trajectory_id ordering"):
         build_judge_agreement_report(a, b)
 
 
@@ -2726,7 +2726,7 @@ def test_write_agreement_json_carries_kappa_sample_size_policy_and_judges(
     assert data["judges"]["B"]["prompt_sha256"] == _AGREEMENT_SHA_B
     assert data["judges"]["A"]["acceptable_rate"] == 2 / 3
     assert data["judges"]["B"]["acceptable_rate"] == 1 / 3
-    assert [c["run_id"] for c in data["cases"]] == ["run_1", "run_2", "run_3"]
+    assert [c["trajectory_id"] for c in data["cases"]] == ["run_1", "run_2", "run_3"]
     assert data["cases"][0]["agree"] is True
     assert data["cases"][1]["agree"] is False
     assert data["agreement_count"] == 2
@@ -2765,7 +2765,7 @@ def test_write_agreement_json_disagreements_list_failed_assertions(
     data = json.loads(json_path.read_text(encoding="utf-8"))
     assert len(data["disagreements"]) == 1
     row = data["disagreements"][0]
-    assert row["run_id"] == "run_2"
+    assert row["trajectory_id"] == "run_2"
     assert row["judge_a"]["failed_assertions"] == ["evidence_support"]
     assert row["judge_b"]["failed_assertions"] == ["verdict_alignment"]
 
@@ -2914,13 +2914,13 @@ def test_agreement_case_agree_property_matches_paired_verdicts() -> None:
     separately-tracked counter. Drift between the two would corrupt
     agreement_count downstream."""
     ca = JudgeCaseReport(
-        run_id="run_1", verdict="acceptable", rationale="x", assertions=[]
+        trajectory_id="run_1", verdict="acceptable", rationale="x", assertions=[]
     )
     cb_same = JudgeCaseReport(
-        run_id="run_1", verdict="acceptable", rationale="y", assertions=[]
+        trajectory_id="run_1", verdict="acceptable", rationale="y", assertions=[]
     )
     cb_diff = JudgeCaseReport(
-        run_id="run_1", verdict="unacceptable", rationale="z", assertions=[]
+        trajectory_id="run_1", verdict="unacceptable", rationale="z", assertions=[]
     )
-    assert JudgeAgreementCase(run_id="run_1", judge_a=ca, judge_b=cb_same).agree is True
-    assert JudgeAgreementCase(run_id="run_1", judge_a=ca, judge_b=cb_diff).agree is False
+    assert JudgeAgreementCase(trajectory_id="run_1", judge_a=ca, judge_b=cb_same).agree is True
+    assert JudgeAgreementCase(trajectory_id="run_1", judge_a=ca, judge_b=cb_diff).agree is False

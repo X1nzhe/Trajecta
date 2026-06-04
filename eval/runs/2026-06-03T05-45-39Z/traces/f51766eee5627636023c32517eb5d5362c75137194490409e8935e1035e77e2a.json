@@ -1,0 +1,430 @@
+{
+  "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 1,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 4,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+        "task": "navigate: Find a 16-inch ring light on Amazon with adjustable brightness and a phone holder, under $40.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 562.7319587628866,
+                "y": 26.232558139534884
+              },
+              "bbox": {
+                "x": 439.8063039248752,
+                "y": 13.491030138592388,
+                "width": 299.3265115482291,
+                "height": 47.46843853820598
+              },
+              "raw": "mouse_click(x=562.7319587628866, y=26.232558139534884, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1213,
+              "image_height": 752,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1213,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type '16-inch ring light'",
+              "text": "16-inch ring light",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='16-inch ring light')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1213,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "keyboard_type",
+              "image_width": 1213,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "press Enter key",
+              "text": "Enter",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_press(key='Enter')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1213,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_press",
+              "image_width": 1213,
+              "image_height": 752
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1213,
+              "image_height": 752,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1213,
+              "image_height": 752
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+          "task": "navigate: Find a 16-inch ring light on Amazon with adjustable brightness and a phone holder, under $40.",
+          "step_count": 4,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (562.732, 26.2326)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Winter Sale, Up to 50% off Amazon Outlet banner with shopping category tiles",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "type",
+              "action_text": "type '16-inch ring light'",
+              "action_target": "type '16-inch ring light'",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=top | Cozy, luxe essentials; Shop new designer arrivals",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "unknown",
+              "action_text": "press Enter key",
+              "action_target": "press Enter key",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Amazon search autocomplete for “16-inch ring light” with suggestion list visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | Aureday 14\" Selfie Ring Light with 62\" Tripod Stand and Phone Holder, Dimmable LED Ringlight",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 5280,
+          "vlm_output_tokens": 141
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+        "step_index": 4,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+        "step_index": 4,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_f40410ab>page_state:\nAmazon product detail page for a ring light. Search bar contains “16-inch ring light,” but the visible product is a different item.\ntask_relevant_visible_text:\n“Aureday 14\" Selfie Ring Light with 62\" Tripod Stand and Phone Holder, Dimmable LED Phone Ringlight…”\n“4.4” “(14,056)”\n“Prime Member Price $31.99”\n“Phone Holder”\n“Dimmable LED”\n“14\"”\nselected_candidate:\nAureday 14\" Selfie Ring Light with 62\" Tripod Stand and Phone Holder\nconstraint_evidence:\n- 16-inch ring light: contradicted (visible product is 14\", not 16\")\n- adjustable brightness: supported (“Dimmable LED”)\n- phone holder: supported (“Phone Holder” in title)\n- under $40: supported (“Prime Member Price $31.99”)\n- Amazon product on Amazon: supported (amazon.com page/title)\naction_target:\nSend exit message to user: [EXIT]\nsuccess_signals:\nUser is informed that the current visible product does not match the 16-inch requirement, despite matching other constraints.\nfailure_signals:\nIf the agent intended to continue shopping, exiting now would stop further search before finding an exact 16-inch match.\nuncertainty:\nPrice shown is Prime Member Price only; non-Prime price is not visible. No exact 16-inch matching product is visible on this screen.</TRAJECTA_DATA_f40410ab>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Find a 16-inch ring light on Amazon with adjustable brightness and a phone holder, under $40.",
+          "url": "<TRAJECTA_DATA_f40410ab>https://www.amazon.com/</TRAJECTA_DATA_f40410ab>",
+          "title": "<TRAJECTA_DATA_f40410ab>Amazon.com. Spend less. Smile more.</TRAJECTA_DATA_f40410ab>",
+          "action_label": "<TRAJECTA_DATA_f40410ab>send message to user: '[EXIT]'</TRAJECTA_DATA_f40410ab>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_f40410ab>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_f40410ab>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_f40410ab>send message to user: '[EXIT]'</TRAJECTA_DATA_f40410ab>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_f40410ab>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_f40410ab>"
+        },
+        "observation": {
+          "screenshot": "screenshot_004.png",
+          "url": "<TRAJECTA_DATA_f40410ab>https://www.amazon.com/</TRAJECTA_DATA_f40410ab>",
+          "title": "<TRAJECTA_DATA_f40410ab>Amazon.com. Spend less. Smile more.</TRAJECTA_DATA_f40410ab>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1213,
+          "image_height": 752,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a/screenshots/screenshot_004.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+        "evidence": [
+          {
+            "claim": "The final visible page is a product detail page for an Aureday 14\" Selfie Ring Light, and the high-detail VLM explicitly says the visible product is a different item than the requested 16-inch ring light.",
+            "source": "step_detail_high",
+            "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+            "step_index": 4
+          },
+          {
+            "claim": "The constraint evidence on the final screen contradicts the 16-inch requirement while supporting the other constraints (adjustable brightness, phone holder, and under $40), so the core size qualifier was not satisfied.",
+            "source": "step_detail_high",
+            "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+            "step_index": 4
+          },
+          {
+            "claim": "The trajectory exits immediately after landing on the wrong-size product, with no subsequent search or correction step to find an exact 16-inch match.",
+            "source": "trajectory",
+            "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+            "step_index": 4
+          }
+        ],
+        "retrieved_context_ids": [],
+        "failure_step": 4,
+        "failure_type": "wrong_result",
+        "expected_behavior": "Select or continue searching for a ring light that is actually 16 inches, while also satisfying adjustable brightness, phone holder, and under-$40 constraints.",
+        "actual_behavior": "Stopped on a 14-inch ring light product page and exited, despite the visible item contradicting the 16-inch requirement.",
+        "regression_rule": "When a task specifies a hard product-size qualifier, the agent must verify the selected item matches that exact size before exiting; do not treat a near-match that violates the size requirement as task completion."
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a_step_4",
+        "source_trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+        "task": "navigate: Find a 16-inch ring light on Amazon with adjustable brightness and a phone holder, under $40.",
+        "failure_step": 4,
+        "failure_type": "wrong_result",
+        "expected_behavior": "Select or continue searching for a ring light that is actually 16 inches, while also satisfying adjustable brightness, phone holder, and under-$40 constraints.",
+        "actual_behavior": "Stopped on a 14-inch ring light product page and exited, despite the visible item contradicting the 16-inch requirement.",
+        "evidence": [
+          {
+            "claim": "The final visible page is a product detail page for an Aureday 14\" Selfie Ring Light, and the high-detail VLM explicitly says the visible product is a different item than the requested 16-inch ring light.",
+            "source": "step_detail_high",
+            "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The constraint evidence on the final screen contradicts the 16-inch requirement while supporting the other constraints (adjustable brightness, phone holder, and under $40), so the core size qualifier was not satisfied.",
+            "source": "step_detail_high",
+            "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The trajectory exits immediately after landing on the wrong-size product, with no subsequent search or correction step to find an exact 16-inch match.",
+            "source": "trajectory",
+            "trajectory_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": "When a task specifies a hard product-size qualifier, the agent must verify the selected item matches that exact size before exiting; do not treat a near-match that violates the size requirement as task completion.",
+        "retrieved_context_ids": [],
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1371,
+  "vlm_output_tokens": 303,
+  "runtime_ms": 33729,
+  "input_tokens": 19294,
+  "output_tokens": 553,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 33729,
+      "input_tokens": 19294,
+      "output_tokens": 553
+    }
+  ]
+}

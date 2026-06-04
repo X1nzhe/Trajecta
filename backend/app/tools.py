@@ -1,7 +1,7 @@
 """Eval Agent tool implementations.
 
-``search_failure_memory``, ``search_eval_cases``, and
-``find_similar_successful_run`` delegate to ``rag.query_*`` against the
+``search_failure_memory``, ``search_failure_eval_cases``, and
+``find_similar_successful_trajectory`` delegate to ``rag.query_*`` against the
 three v1 ChromaDB collections. The external signatures and JSON return
 shapes are stable; agent code and existing API handlers do not change.
 
@@ -34,16 +34,17 @@ logger = logging.getLogger(__name__)
 
 
 # Fields stripped from tool return payloads when TRAJECTA_EVAL_MODE is set.
-# In cold-start eval (eval_cases and successful_runs collections empty;
-# failure_memory seeded from data/failure_memory/cases.jsonl), the only
-# residual leak surface is `source_run_id` on FailureMemoryCase: each seed
-# case points to a run in data/triage_notes.csv. exclude_source_run_id is
+# In cold-start eval (failure_eval_cases and successful_trajectories
+# collections empty; failure_memory seeded from
+# data/failure_memory/cases.jsonl), the only
+# residual leak surface is `source_trajectory_id` on FailureMemoryCase: each seed
+# case points to a trajectory in data/triage_notes.csv. exclude_source_trajectory_id is
 # already injected server-side (eval_agent_graph._execute_tool_node) to
-# block the "case derived from current run" path. This strip is defense in
+# block the "case derived from current trajectory" path. This strip is defense in
 # depth: it also blocks the second-order pivot where the agent calls
-# get_run(source_run_id) on the source of a NON-current case to look at
+# get_trajectory(source_trajectory_id) on the source of a NON-current case to look at
 # how the human exemplar manifested.
-_EVAL_MODE_REDACT_FIELDS = ("source_run_id",)
+_EVAL_MODE_REDACT_FIELDS = ("source_trajectory_id",)
 
 
 def _is_eval_mode() -> bool:
@@ -116,25 +117,25 @@ def _coerce_one_followup(item: Any) -> "FollowupSuggestion | None":
     return FollowupSuggestion(label=label, message=message)
 
 
-def get_run(run_id: str) -> dict[str, Any]:
-    """Load a trajectory run by ID, including its preprocessed digest if cached.
+def get_trajectory(trajectory_id: str) -> dict[str, Any]:
+    """Load a trajectory by ID, including its preprocessed digest if cached.
 
-    Returns the full TrajectoryRun (task, status, steps with action/observation/result
+    Returns the full Trajectory (task, status, steps with action/observation/result
     per step) plus an optional ``digest`` key carrying the cached TrajectoryDigest
     (low-detail VLM summaries per step). Call this once at the start of analysis
     to orient on the task and the per-step digest before deciding which steps
     to inspect at high detail.
     """
 
-    run = storage.load_run(run_id)
-    payload = run.model_dump(mode="json")
-    digest = storage.load_digest(run_id)
+    trajectory = storage.load_trajectory(trajectory_id)
+    payload = trajectory.model_dump(mode="json")
+    digest = storage.load_digest(trajectory_id)
     if digest is not None:
         payload["digest"] = digest.model_dump(mode="json")
     if _is_eval_mode():
-        # ``main.py`` flips ``run.status`` to "success"/"failed" when a
+        # ``main.py`` flips ``trajectory.status`` to "success"/"failed" when a
         # human validates an EvalCase. Importer-fresh runs are "unknown",
-        # but any run that has been through the validation endpoint
+        # but any trajectory that has been through the validation endpoint
         # carries the human's verdict in this field — i.e. ground truth.
         # Force "unknown" in eval mode so the agent must derive its own
         # verdict from the trajectory rather than copying the persisted
@@ -146,42 +147,42 @@ def get_run(run_id: str) -> dict[str, Any]:
     return payload
 
 
-def find_similar_successful_run(
+def find_similar_successful_trajectory(
     task: str,
     top_k: int = 3,
-    exclude_run_id: str | None = None,
+    exclude_trajectory_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Retrieve previously human-validated successful runs whose task is similar.
 
     Use this to find a counter-example for replay-and-diff once a likely failure
     region is identified. ``task`` is the natural-language task description from
-    the run under analysis. ``exclude_run_id`` should be set to the current
-    run_id to avoid returning the run itself. Returns up to ``top_k`` records,
-    each with run_id / task / status / step_count. Empty list is normal when
+    the trajectory under analysis. ``exclude_trajectory_id`` should be set to the current
+    trajectory_id to avoid returning the trajectory itself. Returns up to ``top_k`` records,
+    each with trajectory_id / task / status / step_count. Empty list is normal when
     no validated success case exists yet.
 
-    The ``run_id`` values returned here are NOT case_ids. Do NOT place them in
+    The ``trajectory_id`` values returned here are NOT case_ids. Do NOT place them in
     ``propose_eval_case.retrieved_context_ids`` — that field only accepts
-    case_ids from ``search_failure_memory`` or ``search_eval_cases``. Similar-
-    run comparisons are tracked through the AgentTrace itself.
+    case_ids from ``search_failure_memory`` or ``search_failure_eval_cases``. Similar-
+    trajectory comparisons are tracked through the AgentTrace itself.
     """
 
-    # ``find_similar_successful_run`` returns task-similar successful
+    # ``find_similar_successful_trajectory`` returns task-similar successful
     # trajectories as replay-and-diff comparators — it does NOT carry
-    # the current run's verdict, so it is not a direct leak channel.
+    # the current trajectory's verdict, so it is not a direct leak channel.
     # The agent uses the comparator legitimately to identify what
-    # "should have happened". ``exclude_run_id`` (auto-injected by the
-    # agent loop dispatcher to ``trace.run_id``) blocks the only real
-    # leak: a run being returned as similar to itself.
-    return rag.query_similar_successful_runs(
+    # "should have happened". ``exclude_trajectory_id`` (auto-injected by the
+    # agent loop dispatcher to ``trace.trajectory_id``) blocks the only real
+    # leak: a trajectory being returned as similar to itself.
+    return rag.query_similar_successful_trajectories(
         task,
         top_k=top_k,
-        exclude_run_id=exclude_run_id,
+        exclude_trajectory_id=exclude_trajectory_id,
     )
 
 
 def get_step_detail(
-    run_id: str,
+    trajectory_id: str,
     step_index: int,
     image_detail: Literal["low", "high"] = "high",
 ) -> dict[str, Any]:
@@ -205,16 +206,16 @@ def get_step_detail(
     """
 
     try:
-        run = storage.load_run(run_id)
+        trajectory = storage.load_trajectory(trajectory_id)
     except FileNotFoundError:
-        return {"tool_error": f"unknown run_id: {run_id}"}
+        return {"tool_error": f"unknown trajectory_id: {trajectory_id}"}
 
-    step = next((candidate for candidate in run.steps if candidate.index == step_index), None)
+    step = next((candidate for candidate in trajectory.steps if candidate.index == step_index), None)
     if step is None:
         return {
             "tool_error": (
-                f"step_index {step_index} not found for run {run_id} "
-                f"with {len(run.steps)} stored steps"
+                f"step_index {step_index} not found for trajectory {trajectory_id} "
+                f"with {len(trajectory.steps)} stored steps"
             )
         }
 
@@ -224,7 +225,7 @@ def get_step_detail(
     screenshot_filename = step.observation.screenshot
     screenshot_bytes: bytes | None = None
     if screenshot_filename:
-        screenshot_bytes = storage.load_screenshot(run_id, screenshot_filename)
+        screenshot_bytes = storage.load_screenshot(trajectory_id, screenshot_filename)
 
     has_screenshot = screenshot_bytes is not None
     vlm_summary: str | None = None
@@ -248,7 +249,7 @@ def get_step_detail(
                     image_name=image_name,
                     action_type=step.action.type,
                     step_index=step_index,
-                    task=run.task,
+                    task=trajectory.task,
                     action_label=step.action.label,
                     action_text=step.action.text,
                     action_raw=step.action.raw,
@@ -261,24 +262,24 @@ def get_step_detail(
             # bytes, client constructor blew up, etc.) — surface it so we
             # never silently feed the agent vlm_summary=null without a clue.
             logger.warning(
-                "get_step_detail VLM dispatch failed (run_id=%s, step_index=%s): %s: %s",
-                run_id, step_index, type(exc).__name__, exc,
+                "get_step_detail VLM dispatch failed (trajectory_id=%s, step_index=%s): %s: %s",
+                trajectory_id, step_index, type(exc).__name__, exc,
             )
             vlm_summary = None
 
     screenshot_url = None
     if has_screenshot and screenshot_filename is not None:
-        screenshot_url = f"/api/runs/{run_id}/screenshots/{screenshot_filename}"
+        screenshot_url = f"/api/trajectories/{trajectory_id}/screenshots/{screenshot_filename}"
 
     # NOTE: this returns RAW step detail. The HTTP detail endpoint
-    # (GET /api/runs/{id}/steps/{idx}/detail) and the MCP read tool both
+    # (GET /api/trajectories/{id}/steps/{idx}/detail) and the MCP read tool both
     # call this directly and need token-free, unwrapped data. Phase 8 B6
     # Spotlighting wrapping of untrusted text is applied only when this
     # result is fed into the Eval Agent's own LLM context — see
     # ``_spotlight_wrap_step_detail`` in eval_agent_graph.py, which wraps at
-    # the tool-result seam where a per-run spotlight token is guaranteed set.
+    # the tool-result seam where a per-trajectory spotlight token is guaranteed set.
     return {
-        "run_id": run_id,
+        "trajectory_id": trajectory_id,
         "step_index": step_index,
         "has_screenshot": has_screenshot,
         "image_detail": image_detail,
@@ -286,7 +287,7 @@ def get_step_detail(
         "vlm_prompt_version": vlm_prompt_version,
         "vlm_prompt_sha256": vlm_prompt_sha256,
         "task_context": {
-            "task": run.task,
+            "task": trajectory.task,
             "url": step.observation.url,
             "title": step.observation.title,
             "action_label": step.action.label,
@@ -304,7 +305,7 @@ def get_step_detail(
 def search_failure_memory(
     query: str,
     top_k: int = 3,
-    exclude_source_run_id: str | None = None,
+    exclude_source_trajectory_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Retrieve curated failure-pattern memory cases (FailureMemoryCase) similar to the query.
 
@@ -315,60 +316,74 @@ def search_failure_memory(
     case has a ``case_id`` you must include in EvalCase.retrieved_context_ids
     if you rely on it for the final eval case.
 
-    ``exclude_source_run_id`` is server-injected by the agent loop with the
-    current ``run_id`` to prevent the agent from "rediscovering" a failure
-    memory case authored from this very run. The LLM does not need to set it;
+    ``exclude_source_trajectory_id`` is server-injected by the agent loop with the
+    current ``trajectory_id`` to prevent the agent from "rediscovering" a failure
+    memory case authored from this very trajectory. The LLM does not need to set it;
     the dispatcher in ``eval_agent_graph._execute_tool_node`` overrides whatever
     the model emits. Exposed in the signature so direct callers (tests, eval
     scripts, the REST API) can choose to enforce or omit the guard.
     """
 
     cases = rag.query_failure_memory(
-        query, top_k=top_k, exclude_source_run_id=exclude_source_run_id
+        query, top_k=top_k, exclude_source_trajectory_id=exclude_source_trajectory_id
     )
     return [_redact_for_eval(case.model_dump(mode="json")) for case in cases]
 
 
-def search_eval_cases(
+def search_failure_eval_cases(
     query: str,
     top_k: int = 3,
     only_validated: bool = True,
-    exclude_source_run_id: str | None = None,
+    exclude_source_trajectory_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Retrieve prior human-validated EvalCase records similar to the query.
+    """Retrieve prior human-validated failure EvalCase records similar to the
+    query (failure precedents from the ``failure_eval_cases`` collection).
 
     Use this to find precedent — has the agent seen a similar failure on
-    another run before, and if so, what regression rule was authored? With
+    another trajectory before, and if so, what regression rule was authored? Only
+    failure-shaped EvalCases are indexed here; success verdicts live in
+    ``successful_trajectories`` (see ``find_similar_successful_trajectory``). With
     ``only_validated=True`` (default), only cases that survived human review
     are returned. The ``case_id`` of any case you rely on must appear in
     EvalCase.retrieved_context_ids.
 
-    ``exclude_source_run_id`` mirrors ``search_failure_memory``: the agent
-    loop dispatcher auto-injects the current ``run_id`` so an EvalCase
-    derived from the run under analysis (whose verdict literally IS the
+    ``exclude_source_trajectory_id`` mirrors ``search_failure_memory``: the agent
+    loop dispatcher auto-injects the current ``trajectory_id`` so an EvalCase
+    derived from the trajectory under analysis (whose verdict literally IS the
     answer) is filtered out at the chroma layer. Direct callers (tests,
     eval scripts, REST API) can opt in or out.
     """
 
-    cases = rag.query_eval_cases(
+    cases = rag.query_failure_eval_cases(
         query,
         top_k=top_k,
         only_validated=only_validated,
-        exclude_source_run_id=exclude_source_run_id,
+        exclude_source_trajectory_id=exclude_source_trajectory_id,
     )
     return [case.model_dump(mode="json") for case in cases]
 
 
 def propose_eval_case(
-    run_id: str,
-    evidence: list[EvidenceItem | dict[str, Any]],
+    trajectory_id: str,
+    # NOTE: annotate the strict element types (no `| dict[str, Any]`). The
+    # annotation drives the tool's JSON schema in `bind_tools`. For Gemini,
+    # `langchain-google-genai` cannot represent the `anyOf` a dict-union
+    # produces, so it collapses the whole item to a bare `OBJECT` — dropping
+    # the field descriptions, the `required` list, and the `source` enum.
+    # The model then mis-shapes evidence (assertion under `text`, screenshot
+    # filename in `source`) and the terminal call fails validation, costing a
+    # retry round-trip. Runtime is unaffected: the graph calls this function
+    # with raw dict args and `EvidenceItem.model_validate` below coerces them.
+    evidence: list[EvidenceItem],
     retrieved_context_ids: list[str],
     failure_step: int | None = None,
     failure_type: V1FailureType | None = None,
     expected_behavior: str | None = None,
     actual_behavior: str | None = None,
     regression_rule: str | None = None,
-    suggested_followups: list[FollowupSuggestion | dict[str, Any]] | None = None,
+    # Strict element type for the same Gemini-schema reason as `evidence`
+    # above; `_coerce_followup_suggestions` still accepts the raw dicts.
+    suggested_followups: list[FollowupSuggestion] | None = None,
 ) -> dict[str, Any]:
     """Terminal tool for the Eval Agent. Produces a draft EvalCase.
 
@@ -379,14 +394,14 @@ def propose_eval_case(
     - **Success case** — caller omits all five failure fields. ID is
       generated by ``make_success_case_id``. The case still carries
       ``evidence`` so the human reviewer sees why the agent ruled "no
-      failure". v1 allows at most one success case per run.
+      failure". v1 allows at most one success case per trajectory.
 
     Half-populated calls raise via the EvalCase model_validator (XOR
     rule). The handler exposes that as HTTP 422.
 
     ``retrieved_context_ids`` must contain ONLY case_ids returned by
-    ``search_failure_memory`` (``fm_*``) or ``search_eval_cases``
-    (``ec_*``). Run_ids returned by ``find_similar_successful_run`` are
+    ``search_failure_memory`` (``fm_*``) or ``search_failure_eval_cases``
+    (``ec_*``). Run_ids returned by ``find_similar_successful_trajectory`` are
     NOT eligible — they live in their own namespace and are tracked via
     the AgentTrace. Including them here is rejected and forces a retry.
 
@@ -399,7 +414,7 @@ def propose_eval_case(
     via the FollowupSuggestion schema.
     """
 
-    run = storage.load_run(run_id)
+    trajectory = storage.load_trajectory(trajectory_id)
     evidence_items = [EvidenceItem.model_validate(item) for item in evidence]
 
     # Reject failure_types outside the v1 closed vocabulary. The EvalCase
@@ -417,18 +432,18 @@ def propose_eval_case(
     failure_fields = (failure_step, failure_type, expected_behavior, actual_behavior, regression_rule)
     present = sum(1 for value in failure_fields if value is not None)
     if present == 0:
-        case_id = make_success_case_id(run_id)
+        case_id = make_success_case_id(trajectory_id)
     elif present == 5:
-        case_id = make_eval_case_id(run_id, failure_step, failure_type)
+        case_id = make_eval_case_id(trajectory_id, failure_step, failure_type)
     else:
         # Let the EvalCase model_validator raise the canonical error so
         # tool callers see one consistent error shape.
-        case_id = f"ec_{run_id}_invalid"
+        case_id = f"ec_{trajectory_id}_invalid"
 
     case = EvalCase(
         case_id=case_id,
-        source_run_id=run_id,
-        task=run.task,
+        source_trajectory_id=trajectory_id,
+        task=trajectory.task,
         failure_step=failure_step,
         failure_type=failure_type,
         expected_behavior=expected_behavior,

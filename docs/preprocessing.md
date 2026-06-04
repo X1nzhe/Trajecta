@@ -40,7 +40,7 @@ Out of scope:
 - RAG retrieval — the agent retrieves via tools.
 - OCR — v1 does not run a separate OCR pipeline; the agent uses task-aware
   high-detail `get_step_detail` for any text or constraint-evidence reading.
-- Multi-run aggregation or cross-run comparison.
+- Multi-run aggregation or cross-trajectory comparison.
 
 ## Schemas
 
@@ -61,7 +61,7 @@ Fields and how they are populated:
 | `result_status` | source step result | `"unknown"` if not provided |
 | `coord_validation_status` | computed by `coordinate_validator.py` | see [docs/dataset_import.md](dataset_import.md) |
 | `vlm_low_detail_summary` | low-detail VLM call | see below |
-| `has_screenshot` | `screenshots` table lookup | `True` if a `screenshots` row exists for `(run_id, StepObservation.screenshot)` |
+| `has_screenshot` | `screenshots` table lookup | `True` if a `screenshots` row exists for `(trajectory_id, StepObservation.screenshot)` |
 
 `vlm_low_detail_summary` is **a retrieval hint, not authoritative evidence.** See [docs/eval_agent.md](eval_agent.md) "Screenshot Detail Policy".
 
@@ -93,7 +93,7 @@ DOM / accessibility text from the source dataset), the low-detail VLM call is
 - `vlm_low_detail_summary` is set to `None`.
 - The digest still records the step; downstream reasoning uses the dataset text
   in `action_target` / `visible_text`, which is preferred over any VLM hint.
-- The skip decision is per-step, not per-run. A run may have a mix of
+- The skip decision is per-step, not per-trajectory. A run may have a mix of
   text-rich and text-missing steps.
 
 This keeps preprocessing cost proportional to how much the dataset already tells
@@ -102,14 +102,14 @@ deterministic (no VLM calls).
 
 ## Caching
 
-Preprocessing is idempotent for a given `(run_id, preprocess_version, preprocess_model)`. The cached digest is persisted as the `digests` row keyed by `run_id` (one row per run; `payload_json` carries the full `TrajectoryDigest`).
+Preprocessing is idempotent for a given `(trajectory_id, preprocess_version, preprocess_model)`. The cached digest is persisted as the `digests` row keyed by `trajectory_id` (one row per run; `payload_json` carries the full `TrajectoryDigest`).
 
 On API request:
 
 1. If a `digests` row exists and its `preprocess_version` + `preprocess_model` match the current ones, return it.
 2. Otherwise run preprocessing, upsert the row via `storage.save_digest`, and return the fresh digest.
 
-Bumping `preprocess_version` in code invalidates all cached digests; this is the supported way to roll out a contract change. Re-imports also invalidate the digest — the API handler calls `storage.delete_digest(run_id)` after each `storage.save_run` because the upstream changed.
+Bumping `preprocess_version` in code invalidates all cached digests; this is the supported way to roll out a contract change. Re-imports also invalidate the digest — the API handler calls `storage.delete_digest(trajectory_id)` after each `storage.save_trajectory` because the upstream changed.
 
 ## Fallback and Offline Tests
 
@@ -125,7 +125,7 @@ The mock path is the default for pytest. Any test that requires real VLM output 
 The Eval Agent **only** sees:
 
 - the `TrajectoryDigest` (text only), and
-- tool results from `get_step_detail`, `search_failure_memory`, `search_eval_cases`.
+- tool results from `get_step_detail`, `search_failure_memory`, `search_failure_eval_cases`.
 
 The agent never receives raw screenshot bytes or the high-detail VLM output through the digest. This keeps the prompt small, cacheable, and within visual-token budget.
 
@@ -133,14 +133,18 @@ If the digest is missing or malformed, the `preprocess` node must fail fast rath
 
 ## Contract with RAG
 
-Preprocessing **does not write to ChromaDB**. RAG ingestion of `failure_memory`, `eval_cases`, and `successful_runs` is a separate concern owned by [docs/rag.md](rag.md).
+Preprocessing **does not write to ChromaDB**. RAG ingestion of
+`failure_pattern_memory`, `failure_eval_cases`, and
+`successful_trajectories` is a separate concern owned by [docs/rag.md](rag.md).
+The `failure_pattern_memory` concept is implemented under the collection name
+`failure_memory`.
 
 ## Acceptance Criteria
 
-- Running preprocessing on any imported run produces a `TrajectoryDigest` that validates against the schema.
-- The digest contains one `StepDigest` per step in the source run, in order.
+- Running preprocessing on any imported trajectory produces a `TrajectoryDigest` that validates against the schema.
+- The digest contains one `StepDigest` per step in the source trajectory, in order.
 - `coord_validation_status` is set for every step that has both an action coordinate and screenshot dimensions.
-- `has_screenshot` is `True` if and only if a `screenshots` row exists for `(run_id, filename)`.
+- `has_screenshot` is `True` if and only if a `screenshots` row exists for `(trajectory_id, filename)`.
 - With no API key, the digest is still produced using the mock VLM and is byte-stable across runs.
 - The cached `digests` row's `payload_json` round-trips through the `TrajectoryDigest` schema.
 - For any step whose source `StepObservation.visible_text` is non-empty, `StepDigest.vlm_low_detail_summary` is `None` and no VLM call is recorded for that step.
@@ -155,8 +159,8 @@ Preprocessing **does not write to ChromaDB**. RAG ingestion of `failure_memory`,
 `backend/app/preprocess.py` should expose:
 
 ```python
-def build_digest(run: TrajectoryRun) -> TrajectoryDigest: ...
-def load_or_build_digest(run_id: str) -> TrajectoryDigest: ...
+def build_digest(trajectory: Trajectory) -> TrajectoryDigest: ...
+def load_or_build_digest(trajectory_id: str) -> TrajectoryDigest: ...
 ```
 
 `load_or_build_digest` is the entry point the API and agent use; it handles caching.

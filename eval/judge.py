@@ -30,7 +30,7 @@ A3.2 (this file) adds:
 
     * Per-EvidenceItem source resolution from the persisted trace +
       storage so the LLM judge never has to call back to Trajecta.
-    * A per-case judge payload (``run_id``, ``golden_reference``,
+    * A per-case judge payload (``trajectory_id``, ``golden_reference``,
       ``proposed_eval_case``, ``evidence_with_sources``) consumed by the
       LLM call.
     * One env-configured ``acceptable_eval_case`` LLM judge invocation
@@ -41,7 +41,7 @@ A3.3 (this file) adds report writers on top of A3.2:
 
     * ``JudgeCaseReport`` / ``JudgeReport`` dataclasses.
     * ``build_judge_report`` — one-judge per-case rollup from
-      ``(run_id, JudgeLLMResult)`` pairs, including ``acceptable_rate``
+      ``(trajectory_id, JudgeLLMResult)`` pairs, including ``acceptable_rate``
       and the judge traceability triple (slot, model, prompt_version,
       prompt_sha256).
     * ``write_judge_report`` — emits ``eval/judge_report.json`` and a
@@ -50,10 +50,10 @@ A3.3 (this file) adds report writers on top of A3.2:
 
 A3.4 (this file) adds the standalone CLI on top of A3.2/A3.3:
 
-    * ``load_agent_report`` — read the ordered ``samples[].run_id``
+    * ``load_agent_report`` — read the ordered ``samples[].trajectory_id``
       list from an ``agent_report.json`` produced by ``agent_eval``.
     * ``run_standalone_judge`` — internal runner that fans out one
-      env-configured judge slot across the report's run_ids using the
+      env-configured judge slot across the report's trajectory_ids using the
       A3.2 ``run_llm_judge`` runner + A3.3 ``write_judge_report``
       writers. ``judge_callable`` injection keeps the path mockable in
       tests; the default callable still raises ``NotImplementedError``
@@ -95,7 +95,7 @@ from backend.app.schemas import (  # noqa: E402
     GoldenCase,
     OutcomeFact,
     TrajectoryDigest,
-    TrajectoryRun,
+    Trajectory,
 )
 
 # Default artefact locations match the convention established by A1
@@ -108,9 +108,9 @@ DEFAULT_JUDGE_REPORT_PATH = _REPO_ROOT / "eval" / "judge_report.json"
 
 # Tool names that surface retrieval evidence into a trace. Used by
 # ``resolve_evidence_source`` to scan for ``failure_memory`` / ``eval_case``
-# / ``successful_run`` payloads without re-querying ChromaDB.
+# / ``successful_trajectory`` payloads without re-querying ChromaDB.
 _SEARCH_TOOL_NAMES = frozenset(
-    {"search_failure_memory", "search_eval_cases", "find_similar_successful_run"}
+    {"search_failure_memory", "search_failure_eval_cases", "find_similar_successful_trajectory"}
 )
 
 # The five failure-shape fields on an EvalCase. Used to derive whether a
@@ -170,11 +170,11 @@ class ClauseEvaluation:
 
 
 def load_golden_cases(path: Path = DEFAULT_GOLDEN_PATH) -> dict[str, GoldenCase]:
-    """Load ``eval/golden.jsonl`` into a ``run_id → GoldenCase`` mapping.
+    """Load ``eval/golden.jsonl`` into a ``trajectory_id → GoldenCase`` mapping.
 
     Each row is validated through ``GoldenCase.model_validate``; a stale
     JSONL with the old free-text fact shape raises during validation
-    rather than producing silently-wrong judgments. Duplicate run_ids
+    rather than producing silently-wrong judgments. Duplicate trajectory_ids
     across rows raise — the golden set should have one row per run.
     """
     if not path.exists():
@@ -193,26 +193,26 @@ def load_golden_cases(path: Path = DEFAULT_GOLDEN_PATH) -> dict[str, GoldenCase]
                 raise ValueError(
                     f"golden case at {path}:{line_no} failed validation: {exc}"
                 ) from exc
-            if case.input.run_id in cases:
+            if case.input.trajectory_id in cases:
                 raise ValueError(
-                    f"duplicate run_id {case.input.run_id!r} in {path}; "
+                    f"duplicate trajectory_id {case.input.trajectory_id!r} in {path}; "
                     f"each golden row must be unique"
                 )
-            cases[case.input.run_id] = case
+            cases[case.input.trajectory_id] = case
     return cases
 
 
-def load_trace(trace_dir: Path, run_id: str) -> AgentTrace:
+def load_trace(trace_dir: Path, trajectory_id: str) -> AgentTrace:
     """Load a per-sample trace dump produced by ``agent_eval.py --trace-dir``.
 
-    Phase 8 A2 introduced this on-disk format: one ``{run_id}.json`` per
+    Phase 8 A2 introduced this on-disk format: one ``{trajectory_id}.json`` per
     gradeable sample under ``eval/runs/<stamp>/traces/``. The file
     contents are ``AgentTrace.model_dump_json(indent=2)``.
     """
-    path = trace_dir / f"{run_id}.json"
+    path = trace_dir / f"{trajectory_id}.json"
     if not path.exists():
         raise FileNotFoundError(
-            f"trace dump for run_id={run_id!r} not found at {path}; "
+            f"trace dump for trajectory_id={trajectory_id!r} not found at {path}; "
             f"re-run `python -m backend.app.agent_eval` to produce it"
         )
     return AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
@@ -472,14 +472,14 @@ def disagreement_indices(a: list[bool], b: list[bool]) -> list[int]:
 # persisted trace + storage so the LLM never has to call back to Trajecta.
 # Per ``docs/testing.md`` § Input shape (per case): the resolved source
 # is one of step JSON / failure_memory case / step_detail tool_result /
-# eval_case / successful_run record / None (when marked unavailable).
+# eval_case / successful_trajectory record / None (when marked unavailable).
 
 
 def _items_from_tool_result(event_result: Any) -> list[Any]:
     """Unwrap the ``{"items": [...]}`` envelope produced for list-returning
     tools by ``eval_agent_graph._trace_result_payload``.
 
-    For dict-returning tools (``get_step_detail``, ``get_run``) the payload
+    For dict-returning tools (``get_step_detail``, ``get_trajectory``) the payload
     is the dict itself, so we return ``[payload]`` to keep the caller's
     iteration uniform.
     """
@@ -507,16 +507,16 @@ def _scan_trace_for_case(
     return None
 
 
-def _scan_trace_for_successful_run(
-    trace: AgentTrace, *, run_id: str
+def _scan_trace_for_successful_trajectory(
+    trace: AgentTrace, *, trajectory_id: str
 ) -> dict[str, Any] | None:
-    """Return the first find_similar_successful_run item whose ``run_id``
+    """Return the first find_similar_successful_trajectory item whose ``trajectory_id``
     matches the EvidenceItem's ``context_id``."""
     for ev in trace.events:
-        if ev.type != "tool_result" or ev.name != "find_similar_successful_run":
+        if ev.type != "tool_result" or ev.name != "find_similar_successful_trajectory":
             continue
         for item in _items_from_tool_result(ev.result):
-            if isinstance(item, dict) and item.get("run_id") == run_id:
+            if isinstance(item, dict) and item.get("trajectory_id") == trajectory_id:
                 return item
     return None
 
@@ -545,7 +545,7 @@ def resolve_evidence_source(
     item: EvidenceItem,
     *,
     trace: AgentTrace,
-    run: TrajectoryRun | None = None,
+    run: Trajectory | None = None,
     digest: TrajectoryDigest | None = None,
     failure_memory_cases: dict[str, FailureMemoryCase] | None = None,
     eval_cases: dict[str, EvalCase] | None = None,
@@ -563,7 +563,7 @@ def resolve_evidence_source(
 
       * ``trajectory`` / ``trajectory_digest`` — look the step up by
         ``step_index`` in the supplied ``run`` / ``digest``. The agent may
-        also use ``trace_event_seq`` to point at a ``get_run`` tool_result;
+        also use ``trace_event_seq`` to point at a ``get_trajectory`` tool_result;
         we honour either anchor.
       * ``step_detail_high`` / ``step_detail_low`` — pull the matching
         ``get_step_detail`` tool_result from the trace by
@@ -573,9 +573,9 @@ def resolve_evidence_source(
         retrieval tool_result (so the judge sees exactly what the agent
         saw, including any redaction). Fall back to live storage lookups
         only when the trace no longer carries the case.
-      * ``successful_run`` — scan ``find_similar_successful_run`` results
+      * ``successful_trajectory`` — scan ``find_similar_successful_trajectory`` results
         by ``context_id`` (which the agent fills with the comparator's
-        ``run_id``).
+        ``trajectory_id``).
       * ``unavailable`` — by contract, no source.
     """
     if item.source == "unavailable":
@@ -600,8 +600,8 @@ def resolve_evidence_source(
             item, trace=trace, index=eval_cases, loader="eval_case"
         )
 
-    if item.source == "successful_run":
-        return _resolve_successful_run(item, trace=trace)
+    if item.source == "successful_trajectory":
+        return _resolve_successful_trajectory(item, trace=trace)
 
     return None
 
@@ -609,19 +609,19 @@ def resolve_evidence_source(
 def _resolve_trajectory(
     item: EvidenceItem,
     *,
-    run: TrajectoryRun | None,
+    run: Trajectory | None,
     trace: AgentTrace,
 ) -> dict[str, Any] | None:
     if run is not None and item.step_index is not None:
         for step in run.steps:
             if step.index == item.step_index:
                 return step.model_dump(mode="json")
-    # Fall back to a get_run tool_result if the agent cited one.
+    # Fall back to a get_trajectory tool_result if the agent cited one.
     if item.trace_event_seq is not None:
         for ev in trace.events:
             if (
                 ev.type == "tool_result"
-                and ev.name == "get_run"
+                and ev.name == "get_trajectory"
                 and ev.seq == item.trace_event_seq
                 and isinstance(ev.result, dict)
             ):
@@ -639,13 +639,13 @@ def _resolve_digest(
         for step in digest.steps:
             if step.index == item.step_index:
                 return step.model_dump(mode="json")
-    # ``get_run`` returns the digest inline as ``trajectory_digest``;
+    # ``get_trajectory`` returns the digest inline as ``trajectory_digest``;
     # honour a trace_event_seq pointing at that payload too.
     if item.trace_event_seq is not None:
         for ev in trace.events:
             if (
                 ev.type == "tool_result"
-                and ev.name == "get_run"
+                and ev.name == "get_trajectory"
                 and ev.seq == item.trace_event_seq
                 and isinstance(ev.result, dict)
             ):
@@ -700,20 +700,20 @@ def _resolve_curated_case(
     return None
 
 
-def _resolve_successful_run(
+def _resolve_successful_trajectory(
     item: EvidenceItem, *, trace: AgentTrace
 ) -> dict[str, Any] | None:
     if item.context_id:
-        return _scan_trace_for_successful_run(trace, run_id=item.context_id)
+        return _scan_trace_for_successful_trajectory(trace, trajectory_id=item.context_id)
     return None
 
 
 def build_judge_payload(
     *,
-    run_id: str,
+    trajectory_id: str,
     golden: GoldenCase,
     trace: AgentTrace,
-    run: TrajectoryRun | None = None,
+    run: Trajectory | None = None,
     digest: TrajectoryDigest | None = None,
     failure_memory_cases: dict[str, FailureMemoryCase] | None = None,
     eval_cases: dict[str, EvalCase] | None = None,
@@ -723,7 +723,7 @@ def build_judge_payload(
     Matches the structure described in ``docs/testing.md`` § Input shape::
 
         {
-          "run_id": "...",
+          "trajectory_id": "...",
           "golden_reference": {<row from golden.jsonl>},
           "proposed_eval_case": {<args of latest propose_eval_case>} | None,
           "evidence_with_sources": [
@@ -769,7 +769,7 @@ def build_judge_payload(
                 )
 
     return {
-        "run_id": run_id,
+        "trajectory_id": trajectory_id,
         "golden_reference": golden.model_dump(mode="json"),
         "proposed_eval_case": proposed,
         "evidence_with_sources": evidence_with_sources,
@@ -1182,17 +1182,17 @@ class JudgeCaseReport:
     reads the same field when κ < 0.6.
     """
 
-    run_id: str
+    trajectory_id: str
     verdict: Literal["acceptable", "unacceptable"]
     rationale: str
     assertions: list[JudgeAssertion] = field(default_factory=list)
 
     @classmethod
     def from_llm_result(
-        cls, run_id: str, result: JudgeLLMResult
+        cls, trajectory_id: str, result: JudgeLLMResult
     ) -> "JudgeCaseReport":
         return cls(
-            run_id=run_id,
+            trajectory_id=trajectory_id,
             verdict=result.verdict,
             rationale=result.rationale,
             assertions=list(result.assertions),
@@ -1204,7 +1204,7 @@ class JudgeCaseReport:
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "run_id": self.run_id,
+            "trajectory_id": self.trajectory_id,
             "verdict": self.verdict,
             "rationale": self.rationale,
             "assertions": [a.as_dict() for a in self.assertions],
@@ -1269,7 +1269,7 @@ class JudgeReport:
 def build_judge_report(
     judge_results: list[tuple[str, JudgeLLMResult]],
 ) -> JudgeReport:
-    """Roll up ``(run_id, JudgeLLMResult)`` pairs into a one-judge report.
+    """Roll up ``(trajectory_id, JudgeLLMResult)`` pairs into a one-judge report.
 
     Validates that every result carries the same slot / model /
     prompt_version / prompt_sha256 — mixing two judges into one report
@@ -1282,7 +1282,7 @@ def build_judge_report(
     """
     if not judge_results:
         raise ValueError(
-            "build_judge_report requires at least one (run_id, JudgeLLMResult) pair; "
+            "build_judge_report requires at least one (trajectory_id, JudgeLLMResult) pair; "
             "an empty result set is an operator wiring bug, not a valid report"
         )
     first = judge_results[0][1]
@@ -1291,7 +1291,7 @@ def build_judge_report(
         model=first.model,
         prompt_version=first.prompt_version,
     )
-    for run_id, result in judge_results:
+    for trajectory_id, result in judge_results:
         if (
             result.slot != first.slot
             or result.model != first.model
@@ -1299,15 +1299,15 @@ def build_judge_report(
             or result.prompt_sha256 != first.prompt_sha256
         ):
             raise ValueError(
-                f"build_judge_report received mixed judge identity at run_id={run_id!r}; "
+                f"build_judge_report received mixed judge identity at trajectory_id={trajectory_id!r}; "
                 f"expected slot={first.slot!r} model={first.model!r} "
                 f"prompt_version={first.prompt_version!r}; "
                 f"got slot={result.slot!r} model={result.model!r} "
                 f"prompt_version={result.prompt_version!r}"
             )
     cases = [
-        JudgeCaseReport.from_llm_result(run_id, result)
-        for run_id, result in judge_results
+        JudgeCaseReport.from_llm_result(trajectory_id, result)
+        for trajectory_id, result in judge_results
     ]
     return JudgeReport(judge=judge, prompt_sha256=first.prompt_sha256, cases=cases)
 
@@ -1360,12 +1360,12 @@ def _render_judge_report_md(report: JudgeReport) -> str:
         "",
         "## Per-case verdicts",
         "",
-        "| run_id | verdict | rationale |",
+        "| trajectory_id | verdict | rationale |",
         "| --- | --- | --- |",
     ]
     for case in report.cases:
         rationale = _md_one_line(case.rationale, max_len=120)
-        lines.append(f"| `{case.run_id}` | `{case.verdict}` | {rationale} |")
+        lines.append(f"| `{case.trajectory_id}` | `{case.verdict}` | {rationale} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -1388,7 +1388,7 @@ def _md_one_line(s: str, *, max_len: int) -> str:
 # A4.3 — κ_LLM,LLM dual-judge agreement rollup
 #
 # Two one-judge ``JudgeReport``s (one slot A, one slot B) graded over
-# the same run_ids in the same order are folded into a single
+# the same trajectory_ids in the same order are folded into a single
 # ``JudgeAgreementReport`` that carries the per-judge ``acceptable_rate``,
 # the binary-verdict Cohen's κ, and the disagreement breakdown that
 # ``docs/testing.md`` § "Target and fallback" mandates when κ drops
@@ -1424,7 +1424,7 @@ def _failed_assertion_names(case: JudgeCaseReport) -> list[str]:
 
 @dataclass(frozen=True)
 class JudgeAgreementCase:
-    """One paired (Judge A, Judge B) verdict for a single run_id.
+    """One paired (Judge A, Judge B) verdict for a single trajectory_id.
 
     ``judge_a`` and ``judge_b`` are the original single-judge
     ``JudgeCaseReport`` rows verbatim; surfacing them whole keeps the
@@ -1432,7 +1432,7 @@ class JudgeAgreementCase:
     to cross-reference the two underlying single-judge reports.
     """
 
-    run_id: str
+    trajectory_id: str
     judge_a: JudgeCaseReport
     judge_b: JudgeCaseReport
 
@@ -1446,7 +1446,7 @@ class JudgeAgreementCase:
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "run_id": self.run_id,
+            "trajectory_id": self.trajectory_id,
             "judge_a": self.judge_a.as_dict(),
             "judge_b": self.judge_b.as_dict(),
             "agree": self.agree,
@@ -1523,7 +1523,7 @@ class JudgeAgreementReport:
             "cases": [c.as_dict() for c in self.cases],
             "disagreements": [
                 {
-                    "run_id": c.run_id,
+                    "trajectory_id": c.trajectory_id,
                     "judge_a": {
                         "verdict": c.judge_a.verdict,
                         "rationale": c.judge_a.rationale,
@@ -1553,7 +1553,7 @@ def build_judge_agreement_report(
       * ``judge_a`` must carry slot ``"A"`` and ``judge_b`` slot
         ``"B"``. Swapping them silently would mis-label the κ row and
         every downstream column.
-      * Both reports must list the same run_ids in the same order. The
+      * Both reports must list the same trajectory_ids in the same order. The
         agent_eval post-step already grades the two slots over an
         identical fan-out, so a mismatch here is a wiring bug (e.g.
         one slot was rerun against a different golden subset).
@@ -1576,25 +1576,25 @@ def build_judge_agreement_report(
             f"got {judge_b.judge.slot!r}."
         )
 
-    a_run_ids = [c.run_id for c in judge_a.cases]
-    b_run_ids = [c.run_id for c in judge_b.cases]
-    if a_run_ids != b_run_ids:
-        only_a = sorted(set(a_run_ids) - set(b_run_ids))
-        only_b = sorted(set(b_run_ids) - set(a_run_ids))
-        order_only_mismatch = set(a_run_ids) == set(b_run_ids)
+    a_trajectory_ids = [c.trajectory_id for c in judge_a.cases]
+    b_trajectory_ids = [c.trajectory_id for c in judge_b.cases]
+    if a_trajectory_ids != b_trajectory_ids:
+        only_a = sorted(set(a_trajectory_ids) - set(b_trajectory_ids))
+        only_b = sorted(set(b_trajectory_ids) - set(a_trajectory_ids))
+        order_only_mismatch = set(a_trajectory_ids) == set(b_trajectory_ids)
         detail = (
-            "different run_id ordering" if order_only_mismatch
+            "different trajectory_id ordering" if order_only_mismatch
             else f"coverage diff: only_in_A={only_a}, only_in_B={only_b}"
         )
         raise ValueError(
             "build_judge_agreement_report requires both judges to grade "
-            "the same run_ids in the same order; "
+            "the same trajectory_ids in the same order; "
             f"{detail}. A4.3 κ_LLM,LLM is only meaningful when the two "
             "judge streams are paired one-to-one."
         )
 
     paired = [
-        JudgeAgreementCase(run_id=a.run_id, judge_a=a, judge_b=b)
+        JudgeAgreementCase(trajectory_id=a.trajectory_id, judge_a=a, judge_b=b)
         for a, b in zip(judge_a.cases, judge_b.cases)
     ]
     a_acceptable = [c.judge_a.acceptable for c in paired]
@@ -1678,13 +1678,13 @@ def _render_judge_agreement_md(report: JudgeAgreementReport) -> str:
         "",
         "## Per-case verdicts",
         "",
-        "| run_id | Judge A | Judge B | agree |",
+        "| trajectory_id | Judge A | Judge B | agree |",
         "| --- | --- | --- | --- |",
     ]
     for case in report.cases:
         marker = "✓" if case.agree else "✗"
         lines.append(
-            f"| `{case.run_id}` | `{case.judge_a.verdict}` | "
+            f"| `{case.trajectory_id}` | `{case.judge_a.verdict}` | "
             f"`{case.judge_b.verdict}` | {marker} |"
         )
     lines.append("")
@@ -1730,7 +1730,7 @@ def _render_disagreement_section(report: JudgeAgreementReport) -> list[str]:
         b_failed = _failed_assertion_names(case.judge_b) or ["(none)"]
         lines.extend(
             [
-                f"### `{case.run_id}`",
+                f"### `{case.trajectory_id}`",
                 "",
                 f"- **Judge A**: `{case.judge_a.verdict}`",
                 f"  - Failed assertions: {', '.join(f'`{n}`' for n in a_failed)}",
@@ -1767,9 +1767,9 @@ class StandaloneJudgeResult:
 
     ``report`` is the rolled-up ``JudgeReport`` written to disk; the two
     path fields are the resolved ``(json_path, md_path)`` tuple returned
-    by ``write_judge_report``. ``graded_run_ids`` preserves the order
+    by ``write_judge_report``. ``graded_trajectory_ids`` preserves the order
     the runner submitted to the judge so the caller can compare against
-    the report's per-case table. ``skipped`` is a reason → run_ids mapping
+    the report's per-case table. ``skipped`` is a reason → trajectory_ids mapping
     so the stderr summary (and A3.5's post-step) can disclose what got
     left out, matching the Phase 8 ``sample_size`` / ``selection_policy``
     disclosure rule in ``docs/testing.md`` § Sample policy.
@@ -1778,7 +1778,7 @@ class StandaloneJudgeResult:
     report: JudgeReport
     json_path: Path
     md_path: Path
-    graded_run_ids: list[str]
+    graded_trajectory_ids: list[str]
     skipped: dict[str, list[str]] = field(default_factory=dict)
 
     @property
@@ -1787,7 +1787,7 @@ class StandaloneJudgeResult:
 
 
 def load_agent_report(path: Path) -> list[str]:
-    """Read the ordered ``samples[].run_id`` list from an
+    """Read the ordered ``samples[].trajectory_id`` list from an
     ``agent_report.json`` produced by ``backend.app.agent_eval``.
 
     The report carries a ``samples`` array — one row per gradeable run
@@ -1811,14 +1811,14 @@ def load_agent_report(path: Path) -> list[str]:
             f"{path} is missing a `samples` array; expected a report "
             f"produced by backend.app.agent_eval"
         )
-    run_ids: list[str] = []
+    trajectory_ids: list[str] = []
     for i, row in enumerate(samples):
-        if not isinstance(row, dict) or not isinstance(row.get("run_id"), str):
+        if not isinstance(row, dict) or not isinstance(row.get("trajectory_id"), str):
             raise ValueError(
-                f"{path}: samples[{i}] is missing a string `run_id` field"
+                f"{path}: samples[{i}] is missing a string `trajectory_id` field"
             )
-        run_ids.append(row["run_id"])
-    return run_ids
+        trajectory_ids.append(row["trajectory_id"])
+    return trajectory_ids
 
 
 def run_standalone_judge(
@@ -1836,13 +1836,13 @@ def run_standalone_judge(
 
     Selection order:
 
-      1. Read ``samples[].run_id`` from ``report_path`` (preserves the
+      1. Read ``samples[].trajectory_id`` from ``report_path`` (preserves the
          eval run's per-sample order).
-      2. Drop run_ids that have no matching ``GoldenCase`` —
+      2. Drop trajectory_ids that have no matching ``GoldenCase`` —
          ``skipped["no_golden"]``.
-      3. Drop run_ids whose trace dump is missing —
+      3. Drop trajectory_ids whose trace dump is missing —
          ``skipped["missing_trace"]``.
-      4. Drop run_ids whose trace did not terminate via
+      4. Drop trajectory_ids whose trace did not terminate via
          ``propose_eval_case`` (no draft to grade) —
          ``skipped["no_proposal"]``.
       5. Apply ``sample_size`` (first-N by the report's order).
@@ -1870,40 +1870,40 @@ def run_standalone_judge(
         )
 
     golden_cases = load_golden_cases(golden_path)
-    report_run_ids = load_agent_report(report_path)
+    report_trajectory_ids = load_agent_report(report_path)
 
     graded: list[tuple[str, JudgeLLMResult]] = []
-    graded_run_ids: list[str] = []
+    graded_trajectory_ids: list[str] = []
     skipped: dict[str, list[str]] = {
         "no_golden": [],
         "missing_trace": [],
         "no_proposal": [],
     }
 
-    for run_id in report_run_ids:
+    for trajectory_id in report_trajectory_ids:
         if sample_size is not None and len(graded) >= sample_size:
             break
-        golden = golden_cases.get(run_id)
+        golden = golden_cases.get(trajectory_id)
         if golden is None:
-            skipped["no_golden"].append(run_id)
+            skipped["no_golden"].append(trajectory_id)
             continue
         try:
-            trace = load_trace(trace_dir, run_id)
+            trace = load_trace(trace_dir, trajectory_id)
         except FileNotFoundError:
-            skipped["missing_trace"].append(run_id)
+            skipped["missing_trace"].append(trajectory_id)
             continue
         if extract_proposed_eval_case(trace) is None:
-            skipped["no_proposal"].append(run_id)
+            skipped["no_proposal"].append(trajectory_id)
             continue
-        payload = build_judge_payload(run_id=run_id, golden=golden, trace=trace)
+        payload = build_judge_payload(trajectory_id=trajectory_id, golden=golden, trace=trace)
         result = run_llm_judge(
             payload,
             config,
             judge_callable=judge_callable,
             prompts_root=prompts_root,
         )
-        graded.append((run_id, result))
-        graded_run_ids.append(run_id)
+        graded.append((trajectory_id, result))
+        graded_trajectory_ids.append(trajectory_id)
 
     if not graded:
         raise ValueError(
@@ -1918,7 +1918,7 @@ def run_standalone_judge(
         report=report,
         json_path=json_path,
         md_path=md_path,
-        graded_run_ids=graded_run_ids,
+        graded_trajectory_ids=graded_trajectory_ids,
         skipped={k: v for k, v in skipped.items() if v},
     )
 
@@ -2031,7 +2031,7 @@ def main(
     sys.stderr.write(
         f"wrote {result.json_path}\n"
         f"wrote {result.md_path}\n"
-        f"graded {len(result.graded_run_ids)} cases for judge slot "
+        f"graded {len(result.graded_trajectory_ids)} cases for judge slot "
         f"{config.slot} (model={config.model}, "
         f"prompt_version={config.prompt_version})\n"
     )

@@ -55,6 +55,6 @@ Lesson: retrieved failure memory should guide pattern selection, not become evid
 
 - The v5 prompt improved failure sensitivity, but the success-recall gap shows a bias toward converting uncertainty into failure.
 - Many rejected cases are not unsupported; they are misaligned with golden labels or forbidden facts, especially around `missed_constraint` versus `wrong_result`.
-- RAG memory is helpful for pattern priors, but it should not be treated as trajectory evidence. This matches the A6 RAGAS result: no-ground-truth faithfulness over retrieved contexts was 0.4068, indicating that short failure-memory summaries do not support the full factual content of final eval cases.
+- RAG memory is helpful for pattern priors, but it should not be treated as trajectory evidence. This is exactly why the semantic metric grounds faithfulness in the agent's *visible evidence* (high-detail reads + digest) rather than in retrieved precedent: claims are faithful to what the agent inspected (evidence-mode faithfulness 0.93), whereas short failure-memory summaries are auxiliary precedent that does not contain a run's specific facts.
 
 Trade-off: stricter verification raises failure recall and produces useful regression rules, but it increases false positives on successful traces and adds latency/cost through extra high-detail inspection.

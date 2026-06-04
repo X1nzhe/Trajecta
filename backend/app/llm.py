@@ -9,9 +9,12 @@ The factory returns one of two duck-typed clients exposing:
 Screenshots live in SQLite as BLOBs (see ``backend.app.storage.load_screenshot``);
 callers pass the raw bytes plus a stable identifier so the mock client can keep
 its deterministic seeding. The real client is selected when ``OPENAI_API_KEY``
-is set AND ``TRAJECTA_VLM_MODEL`` is configured. Otherwise the deterministic
-mock is returned. This is the only client construction path; ``preprocess.py``
-and the ``get_step_detail`` tool must go through ``get_vlm_client``.
+is set for the provider selected by ``TRAJECTA_VLM_MODEL``. ``gemini-*``
+models use ``GEMINI_API_KEY`` and Gemini's OpenAI-compatible endpoint; all
+other models use ``OPENAI_API_KEY`` and the default OpenAI-compatible endpoint.
+Otherwise the deterministic mock is returned. This is the only client
+construction path; ``preprocess.py`` and the ``get_step_detail`` tool must go
+through ``get_vlm_client``.
 """
 
 from __future__ import annotations
@@ -22,12 +25,52 @@ import hashlib
 import logging
 import os
 from contextlib import contextmanager
-from typing import Iterator, Protocol
+from dataclasses import dataclass
+from typing import Iterator, Literal, Protocol
 
 from backend.app import prompts as prompt_registry
 
 
 logger = logging.getLogger(__name__)
+
+
+GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+@dataclass(frozen=True)
+class ModelProviderConfig:
+    provider: Literal["gemini", "openai"]
+    api_key: str | None
+    base_url: str | None
+
+
+def _env_value(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def resolve_model_provider(model_name: str | None) -> ModelProviderConfig:
+    """Resolve API credentials for an OpenAI-compatible model id.
+
+    ``gemini-*`` models route through Gemini's OpenAI-compatible endpoint.
+    Everything else keeps the existing OpenAI-compatible behavior.
+    """
+
+    normalized = (model_name or "").strip().lower()
+    if normalized.startswith("gemini-"):
+        return ModelProviderConfig(
+            provider="gemini",
+            api_key=_env_value("GEMINI_API_KEY"),
+            base_url=_env_value("GEMINI_BASE_URL") or GEMINI_OPENAI_BASE_URL,
+        )
+    return ModelProviderConfig(
+        provider="openai",
+        api_key=_env_value("OPENAI_API_KEY"),
+        base_url=_env_value("OPENAI_BASE_URL"),
+    )
 
 
 # --- VLM usage accounting ---------------------------------------------------
@@ -310,16 +353,17 @@ class MockVLMClient:
 class RealVLMClient:
     """OpenAI-compatible VLM client.
 
-    Only constructed when ``OPENAI_API_KEY`` and ``TRAJECTA_VLM_MODEL`` are
-    both set. Network failures degrade to ``None`` so a single flaky call
-    cannot abort an entire preprocessing run, but the underlying exception
-    is logged at WARNING so silent VLM dead-paths don't go unnoticed
-    (every "vlm_summary: null" in a trace should now have a corresponding
-    log line explaining why).
+    Only constructed when ``TRAJECTA_VLM_MODEL`` and the matching provider
+    API key are both set. Network failures degrade to ``None`` so a single
+    flaky call cannot abort an entire preprocessing run, but the underlying
+    exception is logged at WARNING so silent VLM dead-paths don't go unnoticed
+    (every "vlm_summary: null" in a trace should now have a corresponding log
+    line explaining why).
     """
 
-    def __init__(self, *, api_key: str, model_name: str) -> None:
+    def __init__(self, *, api_key: str, model_name: str, base_url: str | None = None) -> None:
         self._api_key = api_key
+        self._base_url = base_url
         self.model_name = model_name
 
     def _create_chat(self, client, *, messages: list, max_output_tokens: int):
@@ -371,7 +415,10 @@ class RealVLMClient:
         except ImportError:
             return None
 
-        client = OpenAI(api_key=self._api_key)
+        client_kwargs = {"api_key": self._api_key}
+        if self._base_url is not None:
+            client_kwargs["base_url"] = self._base_url
+        client = OpenAI(**client_kwargs)
         data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
         try:
             response = self._create_chat(
@@ -443,7 +490,10 @@ class RealVLMClient:
         except ImportError:
             return None
 
-        client = OpenAI(api_key=self._api_key)
+        client_kwargs = {"api_key": self._api_key}
+        if self._base_url is not None:
+            client_kwargs["base_url"] = self._base_url
+        client = OpenAI(**client_kwargs)
         data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
         prompt = _build_high_detail_prompt(
             image_name=image_name,
@@ -511,12 +561,16 @@ def get_vlm_client() -> VLMClient:
     model had run, which is silently wrong.
     """
 
-    api_key = os.environ.get("OPENAI_API_KEY")
     model_name = os.environ.get("TRAJECTA_VLM_MODEL")
-    if not (api_key and model_name):
+    provider = resolve_model_provider(model_name)
+    if not (provider.api_key and model_name):
         return MockVLMClient()
     try:
         from openai import OpenAI  # noqa: F401  probe availability
     except ImportError:
         return MockVLMClient()
-    return RealVLMClient(api_key=api_key, model_name=model_name)
+    return RealVLMClient(
+        api_key=provider.api_key,
+        model_name=model_name,
+        base_url=provider.base_url,
+    )

@@ -40,10 +40,18 @@ os.environ.setdefault("TRAJECTA_USE_FAKE_EMBEDDING", "1")
 # Capture real LLM env vars loaded from .env so individual opt-in tests can
 # restore them when they explicitly want the real API. The autouse fixture
 # below scrubs them per-test so the default suite never accidentally hits
-# OpenAI (cost + flakiness + would also defeat MockVLMClient assertions).
+# OpenAI or Gemini (cost + flakiness + would also defeat MockVLMClient
+# assertions).
 _REAL_LLM_ENV = {
     key: os.environ.get(key)
-    for key in ("OPENAI_API_KEY", "TRAJECTA_AGENT_MODEL", "TRAJECTA_VLM_MODEL")
+    for key in (
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "GEMINI_API_KEY",
+        "GEMINI_BASE_URL",
+        "TRAJECTA_AGENT_MODEL",
+        "TRAJECTA_VLM_MODEL",
+    )
 }
 
 
@@ -66,9 +74,14 @@ def real_llm_env(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
 
 
 def real_llm_configured() -> bool:
-    """True when .env (or the shell) provided both API key and agent model."""
+    """True when .env (or the shell) provided an agent model and provider key."""
 
-    return bool(_REAL_LLM_ENV.get("OPENAI_API_KEY") and _REAL_LLM_ENV.get("TRAJECTA_AGENT_MODEL"))
+    model = (_REAL_LLM_ENV.get("TRAJECTA_AGENT_MODEL") or "").strip()
+    if not model:
+        return False
+    if model.lower().startswith("gemini-"):
+        return bool(_REAL_LLM_ENV.get("GEMINI_API_KEY"))
+    return bool(_REAL_LLM_ENV.get("OPENAI_API_KEY"))
 
 
 @pytest.fixture(autouse=True)
@@ -80,6 +93,9 @@ def _isolated_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     # Default every test to the no-key environment. Integration tests that
     # need the real API must opt back in via the ``real_llm_env`` fixture.
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_BASE_URL", raising=False)
     monkeypatch.delenv("TRAJECTA_AGENT_MODEL", raising=False)
     monkeypatch.delenv("TRAJECTA_VLM_MODEL", raising=False)
     monkeypatch.delenv("TRAJECTA_VLM_HIGH_DETAIL_PROMPT_VERSION", raising=False)

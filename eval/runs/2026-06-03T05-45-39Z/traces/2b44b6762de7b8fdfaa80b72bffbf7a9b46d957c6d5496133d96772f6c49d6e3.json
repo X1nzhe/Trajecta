@@ -1,0 +1,760 @@
+{
+  "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 2,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 7,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on BUTTON element",
+              "text": null,
+              "coordinates": {
+                "x": 820.8317770344739,
+                "y": 226.61113367671462
+              },
+              "bbox": {
+                "x": 812.1686720015219,
+                "y": 213.72982599038994,
+                "width": 38.203330019842866,
+                "height": 38.22228220711767
+              },
+              "raw": "mouse_click(x=820.8317770344739, y=226.61113367671462, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 217.27899313430638,
+                "y": 568.9328678097346
+              },
+              "bbox": {
+                "x": 63.646200542486554,
+                "y": 537.6756948285399,
+                "width": 295.15551207207443,
+                "height": 38.22228220711767
+              },
+              "raw": "mouse_click(x=217.27899313430638, y=568.9328678097346, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'Zurich'",
+              "text": "Zurich",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='Zurich')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_type",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on path element",
+              "text": null,
+              "coordinates": {
+                "x": 413.74581628019655,
+                "y": 559.770983130531
+              },
+              "bbox": {
+                "x": 413.74581628019655,
+                "y": 559.770983130531,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=413.74581628019655, y=559.770983130531, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 249.86985974607217 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=249.86985974607217)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "scroll",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on BUTTON element with value 'Search'",
+              "text": null,
+              "coordinates": {
+                "x": 959.0245080168096,
+                "y": 284.91411867394913
+              },
+              "bbox": {
+                "x": 945.9908829174664,
+                "y": 261.8427972034016,
+                "width": 123.35109092727045,
+                "height": 56.845392547877495
+              },
+              "raw": "mouse_click(x=959.0245080168096, y=284.91411867394913, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "click",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1106,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1106,
+              "image_height": 720
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+          "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+          "step_count": 7,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (820.832, 226.611)",
+              "action_target": "Click on BUTTON element",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=modal; modal=yes; error_banner=no; focus=center | Genius sign in, save money; Sign in or register button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "click",
+              "action_text": "click at (217.279, 568.933)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Booking.com cruise promo hero with large Search button and destination/date fields",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "type",
+              "action_text": "type 'Zurich'",
+              "action_target": "type 'Zurich'",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com cruise promo hero, large Search button, destination and date fields visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "click",
+              "action_text": "click at (413.746, 559.771)",
+              "action_target": "Click on path element",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com hero with cruise promotion and large Search button, Zurich destination field active",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 249.86985974607217 pixels",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Double cruise cash to spend on board, Search button, cruise deal hero image",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "click",
+              "action_text": "click at (959.025, 284.914)",
+              "action_target": "Click on BUTTON element with value 'Search'",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=yes; error_banner=no; focus=center | Booking.com search form with calendar date picker open, blue Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.booking.com/",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Zurich hotel search results, “5 properties found” and prominent Search button",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 8344,
+          "vlm_output_tokens": 224
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "step_index": 7,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "step_index": 7,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_d8eee2b0>page_state:\nBooking.com Zurich search results page with filters applied; one visible hotel result card and map/sidebar filters.\ntask_relevant_visible_text:\n“Zurich: 5 properties found”, “Very Good: 8+”, “Breakfast included”, “Hotels”, “Free cancellation”, “Glärnischhof by TRINITY”, “Very Good 8.3”, “Breakfast included”, “Per night $253”, “1 night, 2 adults”, date bar “Mon, Mar 2 — Tue, Mar 3”.\nselected_candidate:\nGlärnischhof by TRINITY\nconstraint_evidence:\n- Zurich location: supported (search field and results header show Zurich)\n- rating 8.5 or above: contradicted/not met for visible candidate (8.3 shown); filter “Very Good: 8+” is visible but does not prove 8.5+\n- free breakfast: supported for visible candidate (“Breakfast included”)\n- sauna facilities: not_visible\n- stay starting Jan 20, 2026: contradicted/not met in visible date bar (Mon, Mar 2 — Tue, Mar 3)\n- four nights: not_visible/contradicted by visible “1 night, 2 adults” on result card and 1-night date bar\n- hotel category: supported (“Hotels” filter and hotel result card)\naction_target:\nExit / send message to user “[EXIT]”\nsuccess_signals:\nNo further browsing; trajectory intends to terminate.\nfailure_signals:\nVisible candidate does not satisfy rating threshold or requested dates/nights; sauna not shown.\nuncertainty:\nCould be other results off-screen with sauna and higher rating, but none are visible in this screenshot.</TRAJECTA_DATA_d8eee2b0>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+          "url": "<TRAJECTA_DATA_d8eee2b0>https://www.booking.com/</TRAJECTA_DATA_d8eee2b0>",
+          "title": "<TRAJECTA_DATA_d8eee2b0>Booking.com | Official site | The best hotels, flights, car rentals & accommodations</TRAJECTA_DATA_d8eee2b0>",
+          "action_label": "<TRAJECTA_DATA_d8eee2b0>send message to user: '[EXIT]'</TRAJECTA_DATA_d8eee2b0>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_d8eee2b0>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_d8eee2b0>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_d8eee2b0>send message to user: '[EXIT]'</TRAJECTA_DATA_d8eee2b0>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_d8eee2b0>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_d8eee2b0>"
+        },
+        "observation": {
+          "screenshot": "screenshot_007.png",
+          "url": "<TRAJECTA_DATA_d8eee2b0>https://www.booking.com/</TRAJECTA_DATA_d8eee2b0>",
+          "title": "<TRAJECTA_DATA_d8eee2b0>Booking.com | Official site | The best hotels, flights, car rentals & accommodations</TRAJECTA_DATA_d8eee2b0>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1106,
+          "image_height": 720,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3/screenshots/screenshot_007.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "booking hotel search results page selected candidate visible rating 8.3 with requested minimum 8.5, dates mismatch, breakfast included visible, sauna not visible; task stopped on results page",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7_step_5",
+            "source_trajectory_id": "dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7",
+            "task": "navigate: Search for a 5-star hotel in New York available for a 3-night stay from January 15, 2026, with a rating of 8.0 or higher.",
+            "failure_step": 5,
+            "failure_type": "early_terminated",
+            "expected_behavior": "The agent should have correctly set the destination to New York, the dates to January 15-18, 2026, and applied the necessary filters for a 5-star rating and a guest rating of 8.0 or higher before searching and selecting a suitable hotel.",
+            "actual_behavior": "The agent initiated a search for a hotel in New York, but it failed to set the required dates (January 15, 2026, for 3 nights) and did not apply any filters for star rating or guest rating. The agent then prematurely exited the task by sending an '[EXIT]' message while the date picker was still open and showing the wrong months.",
+            "evidence": [
+              {
+                "claim": "The agent failed to set the required dates (January 15, 2026, for 3 nights) in the search form. The calendar was left open on the wrong months (February/March 2026).",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 5,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent did not apply any filters for the 5-star rating or the 8.0+ guest rating requirements.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 5,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent sent an '[EXIT]' message without performing the search or selecting a hotel that met the task criteria.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 5,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "The agent must ensure all search parameters (location, dates, and required filters) are correctly configured before executing the search. Prematurely exiting the task without attempting to fulfill the search criteria is a failure.",
+            "retrieved_context_ids": [
+              "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+            ],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32",
+            "source_trajectory_id": "8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4",
+            "task": "navigate: Search for a hotel in Kyoto with a user rating of 7 or higher, equipped with a kitchenette, available for a stay from April 5 to April 8, 2026.",
+            "failure_step": 32,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have correctly set the dates to April 5-8, 2026, and then selected a hotel in Kyoto that met the rating (7+) and amenity (kitchenette) requirements.",
+            "actual_behavior": "The agent searched for hotels in Kyoto with a rating of 7+ and a kitchenette, but it failed to set the correct dates (April 5-8, 2026). The search results were for different dates, and the agent exited without selecting a hotel that met all the criteria.",
+            "evidence": [
+              {
+                "claim": "The search bar shows dates 'Wed, Feb 25 — Thu, Feb 26' instead of the requested 'April 5 to April 8, 2026'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent failed to set the correct dates (April 5-8, 2026) in the search parameters, resulting in incorrect availability results. The agent is exiting prematurely without selecting a hotel that meets all criteria.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that all date and amenity constraints are correctly applied in the search form before proceeding to select a result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15",
+            "source_trajectory_id": "2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714",
+            "task": "navigate: Search for the lowest-priced round-trip flight from Los Angeles to Seoul, departing on April 5, 2026, and returning on April 15, 2026.",
+            "failure_step": 15,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have sorted the flight results by price and selected the lowest-priced round-trip flight for the specified dates.",
+            "actual_behavior": "The agent performed a search for flights from Los Angeles to Seoul for the specified dates. While the search results page displayed various options, the agent did not select the lowest-priced flight, instead exiting while the results were sorted by \"top flights.\" The task specifically required finding the lowest-priced flight.",
+            "evidence": [
+              {
+                "claim": "The page is currently sorted by 'top flights,' not 'price.'",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent exited without selecting the lowest-priced flight, failing to fulfill the core requirement of the task.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a task requires finding the 'lowest-priced' item, the agent must ensure the results are sorted by price and that the lowest-priced option is identified and selected. Failure to select the correct item based on the specified criteria constitutes a wrong result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "evidence": [
+          {
+            "claim": "The final screenshot (step 7) shows a Zurich hotel results page with a visible selected candidate, but the visible candidate is 'Glärnischhof by TRINITY' rated 8.3, which does not meet the required minimum rating of 8.5.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "The same final screenshot shows the date bar as 'Mon, Mar 2 — Tue, Mar 3' and the result card as '1 night, 2 adults', which contradicts the requested stay starting January 20, 2026 for four nights.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "Breakfast is visible for the selected candidate ('Breakfast included'), but sauna facilities are not visible in the final results screenshot, so the task’s amenity constraint was not verified or satisfied from the evidence shown.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          },
+          {
+            "claim": "The trajectory ends immediately after the results page with an '[EXIT]' action, so there is no later evidence that the agent corrected the rating/date mismatch or verified sauna availability.",
+            "source": "trajectory",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7
+          }
+        ],
+        "retrieved_context_ids": [
+          "ec_dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7_step_5"
+        ],
+        "failure_step": 7,
+        "failure_type": "wrong_result",
+        "expected_behavior": "The agent should have selected a Zurich hotel that visibly met all required constraints: rating 8.5 or above, free breakfast, sauna facilities, and availability for a stay starting January 20, 2026 for four nights.",
+        "actual_behavior": "The agent stopped on a Zurich results page where the visible selected hotel was rated 8.3, the visible dates were Mar 2–Mar 3 for 1 night, and sauna availability was not shown.",
+        "regression_rule": "When a hotel-search task specifies hard filters or booking constraints, do not stop on a result card unless the visible selected candidate actually satisfies every required qualifier; if the visible candidate violates the minimum rating or requested dates, classify it as wrong_result rather than success.",
+        "suggested_followups": [
+          {
+            "label": "Check date selection",
+            "message": "Inspect the earlier search form steps to confirm whether the January 20, 2026 check-in and four-night stay were ever set correctly."
+          },
+          {
+            "label": "Check sauna filter",
+            "message": "Verify whether any sauna amenity filter or result detail was actually applied before exiting."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3_step_7",
+        "source_trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+        "task": "navigate: Locate a hotel in Zurich rated 8.5 or above, offering free breakfast and sauna facilities, for a stay starting from January 20, 2026, for four nights.",
+        "failure_step": 7,
+        "failure_type": "wrong_result",
+        "expected_behavior": "The agent should have selected a Zurich hotel that visibly met all required constraints: rating 8.5 or above, free breakfast, sauna facilities, and availability for a stay starting January 20, 2026 for four nights.",
+        "actual_behavior": "The agent stopped on a Zurich results page where the visible selected hotel was rated 8.3, the visible dates were Mar 2–Mar 3 for 1 night, and sauna availability was not shown.",
+        "evidence": [
+          {
+            "claim": "The final screenshot (step 7) shows a Zurich hotel results page with a visible selected candidate, but the visible candidate is 'Glärnischhof by TRINITY' rated 8.3, which does not meet the required minimum rating of 8.5.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The same final screenshot shows the date bar as 'Mon, Mar 2 — Tue, Mar 3' and the result card as '1 night, 2 adults', which contradicts the requested stay starting January 20, 2026 for four nights.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "Breakfast is visible for the selected candidate ('Breakfast included'), but sauna facilities are not visible in the final results screenshot, so the task’s amenity constraint was not verified or satisfied from the evidence shown.",
+            "source": "step_detail_high",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The trajectory ends immediately after the results page with an '[EXIT]' action, so there is no later evidence that the agent corrected the rating/date mismatch or verified sauna availability.",
+            "source": "trajectory",
+            "trajectory_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+            "step_index": 7,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": "When a hotel-search task specifies hard filters or booking constraints, do not stop on a result card unless the visible selected candidate actually satisfies every required qualifier; if the visible candidate violates the minimum rating or requested dates, classify it as wrong_result rather than success.",
+        "retrieved_context_ids": [
+          "ec_dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7_step_5"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Check date selection",
+            "message": "Inspect the earlier search form steps to confirm whether the January 20, 2026 check-in and four-night stay were ever set correctly."
+          },
+          {
+            "label": "Check sauna filter",
+            "message": "Verify whether any sauna amenity filter or result detail was actually applied before exiting."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1267,
+  "vlm_output_tokens": 352,
+  "runtime_ms": 64035,
+  "input_tokens": 36234,
+  "output_tokens": 965,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 64035,
+      "input_tokens": 36234,
+      "output_tokens": 965
+    }
+  ]
+}

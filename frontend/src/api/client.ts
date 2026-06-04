@@ -1,26 +1,26 @@
-import type { AgentTrace, EvalCase, TrajectoryDigest, TrajectoryRun } from '../types/contracts';
+import type { AgentTrace, EvalCase, TrajectoryDigest, Trajectory } from '../types/contracts';
 
-export interface RunDetail extends TrajectoryRun {
+export interface TrajectoryDetail extends Trajectory {
   digest?: TrajectoryDigest;
   last_trace?: AgentTrace | null;
   eval_case_draft?: EvalCase | null;
 }
 
-export async function fetchRuns(): Promise<TrajectoryRun[]> {
-  const res = await fetch('/api/runs');
-  if (!res.ok) throw new Error('Failed to fetch runs');
+export async function fetchTrajectories(): Promise<Trajectory[]> {
+  const res = await fetch('/api/trajectories');
+  if (!res.ok) throw new Error('Failed to fetch trajectories');
   return res.json();
 }
 
-export async function fetchRun(runId: string): Promise<RunDetail> {
-  const res = await fetch(`/api/runs/${runId}`);
-  if (!res.ok) throw new Error('Failed to fetch run details');
+export async function fetchTrajectory(trajectoryId: string): Promise<TrajectoryDetail> {
+  const res = await fetch(`/api/trajectories/${trajectoryId}`);
+  if (!res.ok) throw new Error('Failed to fetch trajectory details');
   return res.json();
 }
 
-export async function fetchRunDigest(runId: string): Promise<TrajectoryDigest> {
-  const res = await fetch(`/api/runs/${runId}/digest`);
-  if (!res.ok) throw new Error('Failed to fetch run digest');
+export async function fetchTrajectoryDigest(trajectoryId: string): Promise<TrajectoryDigest> {
+  const res = await fetch(`/api/trajectories/${trajectoryId}/digest`);
+  if (!res.ok) throw new Error('Failed to fetch trajectory digest');
   return res.json();
 }
 

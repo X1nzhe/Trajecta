@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 
 interface UrlState {
-  runId: string | null;
+  trajectoryId: string | null;
   stepIndex: number | null;
 }
 
 export function useUrlState() {
   const [state, setState] = useState<UrlState>(() => {
     const params = new URLSearchParams(window.location.search);
-    const runId = params.get('run');
+    const trajectoryId = params.get('trajectory');
     const step = params.get('step');
     return {
-      runId: runId || null,
+      trajectoryId: trajectoryId || null,
       stepIndex: step ? parseInt(step, 10) : null,
     };
   });
@@ -19,10 +19,10 @@ export function useUrlState() {
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const runId = params.get('run');
+      const trajectoryId = params.get('trajectory');
       const step = params.get('step');
       setState({
-        runId: runId || null,
+        trajectoryId: trajectoryId || null,
         stepIndex: step ? parseInt(step, 10) : null,
       });
     };
@@ -35,7 +35,7 @@ export function useUrlState() {
     setState((prev) => {
       const nextState = { ...prev, ...updates };
       const params = new URLSearchParams();
-      if (nextState.runId) params.set('run', nextState.runId);
+      if (nextState.trajectoryId) params.set('trajectory', nextState.trajectoryId);
       if (nextState.stepIndex !== null) params.set('step', nextState.stepIndex.toString());
       
       const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
@@ -45,8 +45,8 @@ export function useUrlState() {
     });
   }, []);
 
-  const setRunId = useCallback((runId: string | null) => {
-    updateUrl({ runId, stepIndex: null }); // Reset step when run changes
+  const setTrajectoryId = useCallback((trajectoryId: string | null) => {
+    updateUrl({ trajectoryId, stepIndex: null }); // Reset step when trajectory changes
   }, [updateUrl]);
 
   const setStepIndex = useCallback((stepIndex: number | null) => {
@@ -54,9 +54,9 @@ export function useUrlState() {
   }, [updateUrl]);
 
   return {
-    runId: state.runId,
+    trajectoryId: state.trajectoryId,
     stepIndex: state.stepIndex,
-    setRunId,
+    setTrajectoryId,
     setStepIndex,
   };
 }

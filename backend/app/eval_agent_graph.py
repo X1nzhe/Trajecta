@@ -19,7 +19,7 @@ from typing import Any, Literal, Protocol, TypedDict
 from pydantic import BaseModel
 
 from backend.app import preprocess, prompts, storage, tools
-from backend.app.llm import vlm_usage_scope
+from backend.app.llm import resolve_model_provider, vlm_usage_scope
 from backend.app.schemas import AgentTrace, AgentTraceEvent, TurnMetrics
 
 try:  # pragma: no cover - exercised when optional production deps are present
@@ -31,8 +31,14 @@ except ImportError:  # pragma: no cover - local no-dependency test fallback
 
 try:  # pragma: no cover - exercised when optional production deps are present
     from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
+    from langchain_core.messages import messages_from_dict, messages_to_dict
 except ImportError:  # pragma: no cover - the fallback is exercised in local tests
     AnyMessage = Any
+    # No real LangChain → no opaque replay buffer. _serialize_messages /
+    # _restore_messages short-circuit to None, and follow-ups fall back to
+    # rebuilding messages from trace events (the offline mock path).
+    messages_to_dict = None
+    messages_from_dict = None
 
     class _FallbackMessage:
         def __init__(self, content: str = "", **kwargs: Any) -> None:
@@ -63,8 +69,8 @@ except ImportError:  # pragma: no cover - the fallback is exercised in local tes
 
 
 class EvalState(TypedDict):
-    run_id: str
-    user_intent: Literal["analyze_run", "analyze_step"]
+    trajectory_id: str
+    user_intent: Literal["analyze_trajectory", "analyze_step"]
     selected_step: int | None
     trajectory_digest: list[dict[str, Any]]
     messages: list[AnyMessage]
@@ -87,6 +93,9 @@ class GraphState(EvalState, total=False):
     active_tool_call: dict[str, Any] | None
     llm_client: AgentLLM | Any | None
     done: bool
+    # Count of recoverable propose_eval_case failures so far this run; bounded by
+    # MAX_TERMINAL_RETRIES before the terminal error becomes fatal.
+    terminal_error_retries: int
     # Per-run Spotlighting token, minted in stream_analyze / stream_followup
     # and threaded to every node so digest / step-detail wrapping never depends
     # on a ContextVar that the sync NDJSON stream loses across chunks.
@@ -100,6 +109,10 @@ class AgentExecutionResult:
     eval_case_draft: dict[str, Any] | None
     new_events: list[AgentTraceEvent]
     errors: list[str]
+    # Opaque LangChain message history (messages_to_dict form) for follow-up
+    # replay; None on offline/mock runs or any serialization failure. Persisted
+    # off-trace via storage.save_agent_messages — see _serialize_messages.
+    raw_messages: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -137,10 +150,10 @@ class NoPriorTraceError(RuntimeError):
 BUDGETED_TOOLS = {
     "get_step_detail",
     "search_failure_memory",
-    "search_eval_cases",
-    "find_similar_successful_run",
+    "search_failure_eval_cases",
+    "find_similar_successful_trajectory",
 }
-SEARCH_TOOLS = {"search_failure_memory", "search_eval_cases"}
+SEARCH_TOOLS = {"search_failure_memory", "search_failure_eval_cases"}
 TERMINAL_TOOL = "propose_eval_case"
 INITIAL_BUDGET = 8
 # Followup runs the same loop as the initial analyze; giving it the same
@@ -149,28 +162,41 @@ INITIAL_BUDGET = 8
 # the draft). Was 4 historically — bumped to 8 once we saw real followups
 # routinely needing get_step_detail + a fresh search pair.
 FOLLOWUP_BUDGET = 8
+# A malformed propose_eval_case (schema/validation error, failure_type out of
+# vocabulary, or a retrieved_context_ids / evidence-context mismatch) is fed back
+# to the model so it can self-correct — the agent often gets the verdict right and
+# only mis-shapes one field. Bounded by this many retries per run; past the cap the
+# run terminates with terminated_by="error", preserving the invariant "no valid
+# EvalCase => error". propose_eval_case is NOT in BUDGETED_TOOLS, so these retries
+# don't consume the tool-call budget; the cap + graph recursion limit bound them.
+MAX_TERMINAL_RETRIES = 2
 _SENSITIVE_RESULT_KEYS = {"screenshot_bytes", "image_bytes", "image_data"}
 
+# Tag stamped on the persisted opaque replay buffer. Bump if the on-disk shape
+# changes incompatibly; _restore_messages refuses any other version and the
+# caller falls back to rebuilding messages from trace events.
+MESSAGES_FORMAT_VERSION = "lc-messages-v1"
+
 _TOOL_REGISTRY = {
-    "get_run": tools.get_run,
+    "get_trajectory": tools.get_trajectory,
     "get_step_detail": tools.get_step_detail,
     "search_failure_memory": tools.search_failure_memory,
-    "search_eval_cases": tools.search_eval_cases,
-    "find_similar_successful_run": tools.find_similar_successful_run,
+    "search_failure_eval_cases": tools.search_failure_eval_cases,
+    "find_similar_successful_trajectory": tools.find_similar_successful_trajectory,
     "propose_eval_case": tools.propose_eval_case,
 }
 
 
 def preprocess_node(state: GraphState) -> GraphState:
-    digest = preprocess.load_or_build_digest(state["run_id"])
+    digest = preprocess.load_or_build_digest(state["trajectory_id"])
     state["trajectory_digest"] = [step.model_dump(mode="json") for step in digest.steps]
     if not state["messages"]:
         state["messages"] = _initial_messages(state, followup=False)
     return state
 
 
-def analyze_run(
-    run_id: str,
+def analyze_trajectory(
+    trajectory_id: str,
     *,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
@@ -178,8 +204,8 @@ def analyze_run(
     source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> AgentExecutionResult:
     return _consume_stream(
-        stream_analyze_run(
-            run_id,
+        stream_analyze_trajectory(
+            trajectory_id,
             llm_client=llm_client,
             budget=budget,
             persist=persist,
@@ -188,8 +214,8 @@ def analyze_run(
     )
 
 
-def stream_analyze_run(
-    run_id: str,
+def stream_analyze_trajectory(
+    trajectory_id: str,
     *,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
@@ -202,7 +228,7 @@ def stream_analyze_run(
     entire trajectory_digest and decides which steps to deep-inspect.
     Failure attribution is the agent's responsibility, surfaced as
     ``EvalCase.failure_step``. New traces always carry
-    ``user_intent="analyze_run"`` and ``selected_step=None``; the
+    ``user_intent="analyze_trajectory"`` and ``selected_step=None``; the
     ``selected_step`` field is retained in the schema only for back-compat
     reading of older traces from disk.
 
@@ -211,8 +237,8 @@ def stream_analyze_run(
     """
 
     yield from stream_analyze(
-        run_id,
-        user_intent="analyze_run",
+        trajectory_id,
+        user_intent="analyze_trajectory",
         selected_step=None,
         llm_client=llm_client,
         budget=budget,
@@ -222,9 +248,9 @@ def stream_analyze_run(
 
 
 def analyze(
-    run_id: str,
+    trajectory_id: str,
     *,
-    user_intent: Literal["analyze_run", "analyze_step"],
+    user_intent: Literal["analyze_trajectory", "analyze_step"],
     selected_step: int | None,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
@@ -233,7 +259,7 @@ def analyze(
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_analyze(
-            run_id,
+            trajectory_id,
             user_intent=user_intent,
             selected_step=selected_step,
             llm_client=llm_client,
@@ -245,34 +271,35 @@ def analyze(
 
 
 def stream_analyze(
-    run_id: str,
+    trajectory_id: str,
     *,
-    user_intent: Literal["analyze_run", "analyze_step"],
+    user_intent: Literal["analyze_trajectory", "analyze_step"],
     selected_step: int | None,
     llm_client: AgentLLM | Any | None = None,
     budget: int = INITIAL_BUDGET,
     persist: bool = True,
     source: Literal["ui", "eval", "mcp"] = "ui",
 ) -> Iterator[AgentStreamItem]:
-    # Mirror the env-var split used by _default_llm_client: a real
-    # OpenAI-backed agent only runs when both OPENAI_API_KEY and
-    # TRAJECTA_AGENT_MODEL are set; otherwise OfflineAgentMock takes over.
-    # Stamp "mock" in that case so the frontend can label runs honestly
-    # instead of advertising a model that didn't actually answer.
+    # Mirror the provider split used by _default_llm_client: a real agent only
+    # runs when TRAJECTA_AGENT_MODEL and that provider's API key are set;
+    # otherwise OfflineAgentMock takes over. Stamp "mock" in that case so the
+    # frontend can label runs honestly instead of advertising a model that
+    # didn't actually answer.
     prompt_bundle = prompts.active_prompt_bundle()
     spotlighting_on = prompts.spotlighting_enabled()
     spotlight_token = prompts.new_spotlight_token()
     prompts.set_spotlight_token(spotlight_token)
     _agent_model_env = os.environ.get("TRAJECTA_AGENT_MODEL")
-    _agent_api_key = os.environ.get("OPENAI_API_KEY")
-    trace_model = _agent_model_env if (_agent_model_env and _agent_api_key) else "mock"
-    # Same gate for the VLM side — TRAJECTA_VLM_MODEL needs OPENAI_API_KEY to
-    # reach the real VLM. Without both, get_step_detail goes through
-    # MockVLMClient and we stamp "mock" to match how preprocess_model behaves.
+    _agent_provider = resolve_model_provider(_agent_model_env)
+    trace_model = _agent_model_env if (_agent_model_env and _agent_provider.api_key) else "mock"
+    # Same gate for the VLM side. Without both model and provider key,
+    # get_step_detail goes through MockVLMClient and we stamp "mock" to match
+    # how preprocess_model behaves.
     _vlm_model_env = os.environ.get("TRAJECTA_VLM_MODEL")
-    trace_vlm_model = _vlm_model_env if (_vlm_model_env and _agent_api_key) else "mock"
+    _vlm_provider = resolve_model_provider(_vlm_model_env)
+    trace_vlm_model = _vlm_model_env if (_vlm_model_env and _vlm_provider.api_key) else "mock"
     trace = AgentTrace(
-        run_id=run_id,
+        trajectory_id=trajectory_id,
         user_intent=user_intent,
         selected_step=selected_step,
         source=source,
@@ -285,7 +312,7 @@ def stream_analyze(
         vlm_model=trace_vlm_model,
     )
     state: GraphState = {
-        "run_id": run_id,
+        "trajectory_id": trajectory_id,
         "user_intent": user_intent,
         "selected_step": selected_step,
         "trajectory_digest": [],
@@ -298,6 +325,7 @@ def stream_analyze(
         "turn": 0,
         "budget": budget,
         "per_turn_budgeted_calls": 0,
+        "terminal_error_retries": 0,
         "pending_tool_calls": [],
         "active_tool_call": None,
         "llm_client": llm_client,
@@ -323,9 +351,9 @@ def stream_analyze(
             # runs; on a cache hit the row appears already-done with a
             # different message so the user still sees "the digest existed"
             # instead of jumping straight to the first tool call.
-            cache_hit = not _needs_preprocess(run_id)
-            run = storage.load_run(run_id)
-            step_count = len(run.steps) if run else 0
+            cache_hit = not _needs_preprocess(trajectory_id)
+            trajectory = storage.load_trajectory(trajectory_id)
+            step_count = len(trajectory.steps) if trajectory else 0
             _append_event(
                 trace,
                 "phase",
@@ -362,11 +390,12 @@ def stream_analyze(
             final_trace.vlm_input_tokens = vlm_usage["input"]
             final_trace.vlm_output_tokens = vlm_usage["output"]
             if persist:
-                storage.save_trace(run_id, final_trace)
+                storage.save_trace(trajectory_id, final_trace)
+                _persist_replay_buffer(trajectory_id, result)
     yield AgentStreamDone(result)
 
 
-def _needs_preprocess(run_id: str) -> bool:
+def _needs_preprocess(trajectory_id: str) -> bool:
     """Return True if the digest cache is missing or stale for the active VLM.
 
     Mirrors the freshness check inside ``preprocess.load_or_build_digest``
@@ -378,7 +407,7 @@ def _needs_preprocess(run_id: str) -> bool:
     from backend.app.llm import get_vlm_client
     from backend.app.preprocess import PREPROCESS_VERSION
 
-    cached = storage.load_digest(run_id)
+    cached = storage.load_digest(trajectory_id)
     if cached is None:
         return True
     client = get_vlm_client()
@@ -389,7 +418,7 @@ def _needs_preprocess(run_id: str) -> bool:
 
 
 def followup(
-    run_id: str,
+    trajectory_id: str,
     message: str,
     *,
     llm_client: AgentLLM | Any | None = None,
@@ -398,7 +427,7 @@ def followup(
 ) -> AgentExecutionResult:
     return _consume_stream(
         stream_followup(
-            run_id,
+            trajectory_id,
             message,
             llm_client=llm_client,
             budget=budget,
@@ -408,16 +437,16 @@ def followup(
 
 
 def stream_followup(
-    run_id: str,
+    trajectory_id: str,
     message: str,
     *,
     llm_client: AgentLLM | Any | None = None,
     budget: int = FOLLOWUP_BUDGET,
     persist: bool = True,
 ) -> Iterator[AgentStreamItem]:
-    trace = storage.load_trace(run_id)
+    trace = storage.load_trace(trajectory_id)
     if trace is None:
-        raise NoPriorTraceError(f"no prior trace for run_id: {run_id}")
+        raise NoPriorTraceError(f"no prior trace for trajectory_id: {trajectory_id}")
 
     turn = trace.turn_count
     start_seq = len(trace.events)
@@ -438,13 +467,25 @@ def stream_followup(
     # (not assign — earlier turns already contributed).
     with vlm_usage_scope() as vlm_usage:
         try:
-            digest = storage.load_digest(run_id) or preprocess.load_or_build_digest(run_id)
+            digest = storage.load_digest(trajectory_id) or preprocess.load_or_build_digest(trajectory_id)
+            # Prefer replaying the opaque message buffer (provider metadata such
+            # as Gemini's thought_signature intact); fall back to lossy
+            # reconstruction from trace events for old/undecodable buffers and
+            # offline runs. The restore branch must append the new user turn
+            # itself — the fallback gets it free from the user_message event
+            # already appended above.
+            restored = _restore_messages(storage.load_agent_messages(trajectory_id), trace)
+            if restored is not None:
+                restored.append(HumanMessage(content=message))
+                followup_messages = restored
+            else:
+                followup_messages = _messages_from_trace(trace)
             state = {
-                "run_id": run_id,
+                "trajectory_id": trajectory_id,
                 "user_intent": trace.user_intent,
                 "selected_step": trace.selected_step,
                 "trajectory_digest": [step.model_dump(mode="json") for step in digest.steps],
-                "messages": _messages_from_trace(trace),
+                "messages": followup_messages,
                 "tool_call_count": trace.tool_call_count,
                 "eval_case_draft": _latest_eval_case_draft(trace),
                 "errors": [],
@@ -453,6 +494,7 @@ def stream_followup(
                 "turn": turn,
                 "budget": budget,
                 "per_turn_budgeted_calls": 0,
+                "terminal_error_retries": 0,
                 "pending_tool_calls": [],
                 "active_tool_call": None,
                 "llm_client": llm_client,
@@ -483,8 +525,27 @@ def stream_followup(
             final_trace.vlm_input_tokens += vlm_usage["input"]
             final_trace.vlm_output_tokens += vlm_usage["output"]
             if persist:
-                storage.save_trace(run_id, final_trace)
+                storage.save_trace(trajectory_id, final_trace)
+                _persist_replay_buffer(trajectory_id, result)
     yield AgentStreamDone(result)
+
+
+def _persist_replay_buffer(trajectory_id: str, result: AgentExecutionResult | None) -> None:
+    """Save the opaque follow-up replay buffer alongside the trace.
+
+    No-op when the run produced no serializable messages (offline mock /
+    LangChain absent / serialization failure) or when the stream ended without a
+    result (exception path) — the next follow-up then reconstructs from trace
+    events. ``storage.save_agent_messages`` swallows a missing-table
+    ``OperationalError``, so this stays best-effort.
+    """
+
+    if result is None or result.raw_messages is None:
+        return
+    storage.save_agent_messages(
+        trajectory_id,
+        {"format_version": MESSAGES_FORMAT_VERSION, "messages": result.raw_messages},
+    )
 
 
 def _consume_stream(stream: Iterator[AgentStreamItem]) -> AgentExecutionResult:
@@ -543,7 +604,7 @@ def _build_agent_delta(payload: Any, state: GraphState) -> AgentDelta | None:
     EVERY message touched by a node — including SystemMessage and
     HumanMessage that the node loads into state["messages"]. Without
     a type filter the system prompt and the initial HumanMessage
-    (which carries run_id + trajectory_digest) would leak verbatim to
+    (which carries trajectory_id + trajectory_digest) would leak verbatim to
     the wire. Restrict to AIMessageChunk so only LLM-generated tokens
     cross the boundary.
     """
@@ -687,9 +748,9 @@ def _agent_node(state: GraphState) -> GraphState:
     state["messages"].append(message)
     _accumulate_token_usage(state["trace"], message, turn=state["turn"])
     # Only record an agent_message event when the model produced actual text.
-    # When the model returns only tool_calls (content == ""), the tool_call
-    # events that follow already represent the agent's intent — emitting a
-    # blank agent_message just renders as "(empty message)" in the UI.
+    # When the model returns only tool_calls (content == "" or content == []),
+    # the tool_call events that follow already represent the agent's intent —
+    # emitting a blank agent_message just renders as "(empty message)" in the UI.
     content = _message_content(message)
     if content.strip():
         _append_event(state["trace"], "agent_message", turn=state["turn"], message=content)
@@ -812,41 +873,42 @@ def _execute_tool_node(state: GraphState) -> GraphState:
     if name == TERMINAL_TOOL:
         error = _proposal_context_error(args, trace)
         if error is not None:
-            _record_terminal_tool_error(state, name=name, args=args, error=error)
+            _record_terminal_tool_error_or_retry(state, name=name, args=args, call_id=call_id, error=error)
             return state
 
     dispatch_args = args
     if name == "search_failure_memory":
-        # Server-side leakage guard: force the current run_id as
-        # exclude_source_run_id regardless of what the LLM emitted (or didn't).
+        # Server-side leakage guard: force the current trajectory_id as
+        # exclude_source_trajectory_id regardless of what the LLM emitted (or didn't).
         # See docs/testing.md "Failure-memory retrieval leakage". The trace
         # event recorded upstream still reflects the LLM-emitted args; this
         # only mutates dispatch.
-        dispatch_args = {**args, "exclude_source_run_id": trace.run_id}
-    elif name == "search_eval_cases":
+        dispatch_args = {**args, "exclude_source_trajectory_id": trace.trajectory_id}
+    elif name == "search_failure_eval_cases":
         # Same leakage guard for prior EvalCases: an EvalCase derived from
         # the run currently under analysis carries that run's verdict, so
         # retrieving it would be direct answer leakage. Force the source-run
         # filter regardless of LLM-emitted args, mirroring search_failure_memory.
-        dispatch_args = {**args, "exclude_source_run_id": trace.run_id}
-    elif name == "find_similar_successful_run":
+        dispatch_args = {**args, "exclude_source_trajectory_id": trace.trajectory_id}
+    elif name == "find_similar_successful_trajectory":
         # Same leakage guard for the replay-and-diff retrieval path. The prompt
-        # instructs the agent to pass exclude_run_id=current_run_id, but the
+        # instructs the agent to pass exclude_trajectory_id=current_trajectory_id, but the
         # tool signature defaults it to None and there is no schema-level
         # requirement that the LLM include it. If the LLM forgets, a run that
-        # is itself in the successful_runs collection (e.g. a golden-set sample
-        # whose human_validated success EvalCase was previously promoted)
+        # is itself in the successful_trajectories collection (e.g. a
+        # golden-set sample whose human_validated success EvalCase was
+        # previously promoted)
         # would re-surface as "similar to itself" — direct leakage of the
         # success verdict. Force the injection here so the guarantee holds
         # structurally rather than by prompt-following compliance.
-        dispatch_args = {**args, "exclude_run_id": trace.run_id}
+        dispatch_args = {**args, "exclude_trajectory_id": trace.trajectory_id}
 
     try:
         result = _TOOL_REGISTRY[name](**dispatch_args)
     except Exception as exc:
         error = str(exc)
         if name == TERMINAL_TOOL:
-            _record_terminal_tool_error(state, name=name, args=args, error=error)
+            _record_terminal_tool_error_or_retry(state, name=name, args=args, call_id=call_id, error=error)
         else:
             _record_recoverable_tool_error(state, name=name, args=args, call_id=call_id, error=error)
         return state
@@ -854,7 +916,7 @@ def _execute_tool_node(state: GraphState) -> GraphState:
     if isinstance(result, dict) and isinstance(result.get("tool_error"), str):
         error = result["tool_error"]
         if name == TERMINAL_TOOL:
-            _record_terminal_tool_error(state, name=name, args=args, error=error)
+            _record_terminal_tool_error_or_retry(state, name=name, args=args, call_id=call_id, error=error)
         else:
             _record_recoverable_tool_error(state, name=name, args=args, call_id=call_id, error=error)
         return state
@@ -951,6 +1013,46 @@ def _record_terminal_tool_error(
     state["done"] = True
 
 
+def _record_terminal_tool_error_or_retry(
+    state: GraphState,
+    *,
+    name: str,
+    args: dict[str, Any],
+    call_id: str,
+    error: str,
+) -> None:
+    """Feed a malformed propose_eval_case back to the agent for a bounded retry.
+
+    The agent frequently gets the verdict right and only mis-shapes one field
+    (e.g. an EvidenceItem with the assertion under ``text`` instead of ``claim``,
+    or a step list crammed into the ``source`` enum). The precise validation error
+    is highly correctable, so for the first ``MAX_TERMINAL_RETRIES`` failures we
+    record the diagnostic and return it as a ToolMessage — exactly like
+    ``_record_recoverable_tool_error`` for non-terminal tools — leaving ``done``
+    False so ``_after_execute_tool_node`` routes back to the agent for another
+    propose_eval_case. Past the cap we fall back to ``_record_terminal_tool_error``
+    (hard ``terminated_by="error"``), so a persistently-bad agent still terminates
+    cleanly with the real error. Recoverable retries do not append to
+    ``state["errors"]`` (mirroring the non-terminal path); only the final fatal
+    error does.
+    """
+
+    if state.get("terminal_error_retries", 0) >= MAX_TERMINAL_RETRIES:
+        _record_terminal_tool_error(state, name=name, args=args, error=error)
+        return
+    state["terminal_error_retries"] = state.get("terminal_error_retries", 0) + 1
+    _append_event(state["trace"], "tool_error", turn=state["turn"], name=name, args=args, error=error)
+    hint = (
+        "Fix the arguments and call propose_eval_case again. Each evidence item "
+        "must be {\"claim\": <assertion text>, \"source\": <one of the allowed "
+        "enum values>, ...}; put step numbers in the integer `step_index`, never "
+        "in `source`."
+    )
+    _append_tool_message(
+        state, name=name, call_id=call_id, payload={"tool_error": f"{error}\n\n{hint}"}
+    )
+
+
 def _record_graph_execution_error(
     state: GraphState | None,
     *,
@@ -982,6 +1084,7 @@ def _execution_result(trace: AgentTrace, state: EvalState, start_seq: int) -> Ag
         eval_case_draft=state["eval_case_draft"] if trace.terminated_by == "propose_eval_case" else None,
         new_events=trace.events[start_seq:],
         errors=list(state["errors"]),
+        raw_messages=_serialize_messages(state["messages"]),
     )
 
 
@@ -1042,29 +1145,59 @@ def _invoke_model(client: AgentLLM | Any, messages: list[AnyMessage]) -> AnyMess
 
 def _default_llm_client(state: EvalState) -> AgentLLM:
     model_name = os.environ.get("TRAJECTA_AGENT_MODEL")
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if model_name and api_key:
-        try:  # pragma: no cover - production-only path
-            from langchain_openai import ChatOpenAI
-        except ImportError:
-            pass
+    provider = resolve_model_provider(model_name)
+    if model_name and provider.api_key:
+        if provider.provider == "gemini":
+            # Gemini 3.x thinking models require thought_signature to be
+            # preserved across multi-turn tool-calling loops. The OpenAI-
+            # compatible endpoint + ChatOpenAI silently drops the signature,
+            # causing 400 errors on the second turn. ChatGoogleGenerativeAI
+            # speaks the native Gemini protocol and round-trips the signature —
+            # but ONLY at langchain-google-genai >= 3.0 (we pin >= 4, which also
+            # adds a DUMMY_THOUGHT_SIGNATURE fallback for parts lacking one).
+            # The 2.x line has zero thought_signature support and still 400s.
+            # That version floor is why requirements.txt is on the LangChain 1.x
+            # stack (langchain-core >= 1.4); see AGENTS.md "LLM / VLM Configuration".
+            try:  # pragma: no cover - production-only path
+                from langchain_google_genai import ChatGoogleGenerativeAI
+            except ImportError:
+                pass
+            else:
+                model = ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=provider.api_key,
+                    temperature=0,
+                    streaming=True,
+                )
+                if hasattr(model, "bind_tools"):
+                    return model.bind_tools(list(_TOOL_REGISTRY.values()))
+                return model
         else:
-            # streaming=True makes .invoke() internally stream + aggregate
-            # AND emit chunk callbacks. LangGraph's stream_mode="messages"
-            # listens to those callbacks, so the node code keeps using
-            # blocking .invoke() while the streaming layer surfaces deltas.
-            # stream_usage / include_usage on the request preserves
-            # token accumulation at end-of-stream (without it, the final
-            # AIMessage.usage_metadata is None on streamed calls).
-            model = ChatOpenAI(
-                model=model_name,
-                temperature=0,
-                streaming=True,
-                stream_usage=True,
-            )
-            if hasattr(model, "bind_tools"):
-                return model.bind_tools(list(_TOOL_REGISTRY.values()))
-            return model
+            try:  # pragma: no cover - production-only path
+                from langchain_openai import ChatOpenAI
+            except ImportError:
+                pass
+            else:
+                # streaming=True makes .invoke() internally stream + aggregate
+                # AND emit chunk callbacks. LangGraph's stream_mode="messages"
+                # listens to those callbacks, so the node code keeps using
+                # blocking .invoke() while the streaming layer surfaces deltas.
+                # stream_usage / include_usage on the request preserves
+                # token accumulation at end-of-stream (without it, the final
+                # AIMessage.usage_metadata is None on streamed calls).
+                model_kwargs = {
+                    "model": model_name,
+                    "api_key": provider.api_key,
+                    "temperature": 0,
+                    "streaming": True,
+                    "stream_usage": True,
+                }
+                if provider.base_url is not None:
+                    model_kwargs["base_url"] = provider.base_url
+                model = ChatOpenAI(**model_kwargs)
+                if hasattr(model, "bind_tools"):
+                    return model.bind_tools(list(_TOOL_REGISTRY.values()))
+                return model
     return OfflineAgentMock(state)
 
 
@@ -1076,33 +1209,33 @@ class OfflineAgentMock:
         self._stage = 0
 
     def invoke(self, messages: list[AnyMessage]) -> AnyMessage:
-        run_id = self._state["run_id"]
+        trajectory_id = self._state["trajectory_id"]
         if self._stage == 0:
             self._stage += 1
-            return _ai_tool_call("get_run", {"run_id": run_id})
+            return _ai_tool_call("get_trajectory", {"trajectory_id": trajectory_id})
         if self._stage == 1:
             self._stage += 1
             step_index = self._selected_failure_step()
             return _ai_tool_call(
                 "get_step_detail",
-                {"run_id": run_id, "step_index": step_index, "image_detail": "high"},
+                {"trajectory_id": trajectory_id, "step_index": step_index, "image_detail": "high"},
             )
         if self._stage == 2:
             self._stage += 1
-            task = storage.load_run(run_id).task
+            task = storage.load_trajectory(trajectory_id).task
             return _ai_tool_call(
-                "find_similar_successful_run",
-                {"task": task, "top_k": 1, "exclude_run_id": run_id},
+                "find_similar_successful_trajectory",
+                {"task": task, "top_k": 1, "exclude_trajectory_id": trajectory_id},
             )
         if self._stage == 3:
-            successful = _last_tool_items(messages, "find_similar_successful_run")
+            successful = _last_tool_items(messages, "find_similar_successful_trajectory")
             self._stage += 1
             if successful:
-                return _ai_tool_call("get_run", {"run_id": successful[0]["run_id"]})
+                return _ai_tool_call("get_trajectory", {"trajectory_id": successful[0]["trajectory_id"]})
             return _ai_tool_call("search_failure_memory", {"query": "missed_constraint", "top_k": 1})
         if self._stage == 4:
             self._stage += 1
-            if _last_tool_items(messages, "find_similar_successful_run"):
+            if _last_tool_items(messages, "find_similar_successful_trajectory"):
                 return _ai_tool_call("search_failure_memory", {"query": "missed_constraint", "top_k": 1})
             return self._proposal_message(messages)
         self._stage += 1
@@ -1122,7 +1255,7 @@ class OfflineAgentMock:
         return int(first.get("index", 1)) if isinstance(first, dict) else 1
 
     def _proposal_message(self, messages: list[AnyMessage]) -> AnyMessage:
-        run_id = self._state["run_id"]
+        trajectory_id = self._state["trajectory_id"]
         failure_step = self._selected_failure_step()
         memory_items = _last_tool_items(messages, "search_failure_memory")
         retrieved_ids = [memory_items[0]["case_id"]] if memory_items else []
@@ -1130,7 +1263,7 @@ class OfflineAgentMock:
             {
                 "claim": f"Step {failure_step} was inspected as the failure region.",
                 "source": "step_detail_high",
-                "run_id": run_id,
+                "trajectory_id": trajectory_id,
                 "step_index": failure_step,
             }
         ]
@@ -1145,7 +1278,7 @@ class OfflineAgentMock:
         return _ai_tool_call(
             TERMINAL_TOOL,
             {
-                "run_id": run_id,
+                "trajectory_id": trajectory_id,
                 "failure_step": failure_step,
                 "failure_type": "missed_constraint",
                 "expected_behavior": "The agent should satisfy the user's stated constraint before finishing.",
@@ -1247,7 +1380,7 @@ def _initial_messages(state: GraphState, *, followup: bool) -> list[AnyMessage]:
         HumanMessage(
             content=json.dumps(
                 {
-                    "run_id": state["run_id"],
+                    "trajectory_id": state["trajectory_id"],
                     "user_intent": state["user_intent"],
                     "selected_step": state["selected_step"],
                     "trajectory_digest": _wrap_digest_for_prompt(
@@ -1278,7 +1411,7 @@ def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
         HumanMessage(
             content=json.dumps(
                 {
-                    "run_id": trace.run_id,
+                    "trajectory_id": trace.trajectory_id,
                     "user_intent": trace.user_intent,
                     "selected_step": trace.selected_step,
                 },
@@ -1327,6 +1460,62 @@ def _messages_from_trace(trace: AgentTrace) -> list[AnyMessage]:
                     tool_call_id=last_tool_call_id or f"trace_{event.seq}",
                 )
             )
+    return messages
+
+
+def _serialize_messages(messages: list[AnyMessage]) -> list[dict[str, Any]] | None:
+    """Serialize the live LangChain message list for follow-up replay.
+
+    Returns the ``messages_to_dict`` form, which preserves provider-private
+    metadata (``additional_kwargs`` / ``response_metadata`` — where e.g. Gemini
+    thinking models' ``thought_signature`` rides) that the trace-event
+    projection in ``_messages_from_trace`` drops. Returns ``None`` when LangChain
+    isn't installed (the offline mock path uses ``_FallbackMessage`` shims that
+    ``messages_to_dict`` can't serialize) or on any serialization error, so
+    persistence stays best-effort and never aborts the run.
+    """
+
+    if messages_to_dict is None:
+        return None
+    try:
+        return messages_to_dict(messages)
+    except Exception:  # pragma: no cover - defensive against shims / odd shapes
+        return None
+
+
+def _restore_messages(
+    payload: dict[str, Any] | None, trace: AgentTrace
+) -> list[AnyMessage] | None:
+    """Rebuild the message list from a persisted replay buffer, or ``None``.
+
+    ``None`` (caller falls back to ``_messages_from_trace``) when the buffer is
+    absent, tagged with an unknown ``format_version``, LangChain is unavailable,
+    or ``messages_from_dict`` fails. On success the leading ``SystemMessage`` is
+    swapped for the follow-up system prompt — the buffer stored the initial
+    turn's system prompt, and follow-ups use a different one (mirrors
+    ``_messages_from_trace``, which builds with ``followup=True``).
+    """
+
+    if not isinstance(payload, dict) or messages_from_dict is None:
+        return None
+    if payload.get("format_version") != MESSAGES_FORMAT_VERSION:
+        return None
+    raw = payload.get("messages")
+    if not isinstance(raw, list):
+        return None
+    try:
+        messages = messages_from_dict(raw)
+    except Exception:  # pragma: no cover - defensive against format drift
+        return None
+    if not messages:
+        return None
+    followup_system = SystemMessage(
+        content=_system_prompt(followup=True, prompt_version=trace.prompt_version)
+    )
+    if isinstance(messages[0], SystemMessage):
+        messages[0] = followup_system
+    else:
+        messages.insert(0, followup_system)
     return messages
 
 
@@ -1389,8 +1578,28 @@ def _normalize_tool_call(raw: Any, index: int) -> dict[str, Any]:
 
 def _message_content(message: AnyMessage) -> str:
     content = getattr(message, "content", "")
+    if content is None:
+        return ""
     if isinstance(content, str):
         return content
+    if isinstance(content, (list, tuple)):
+        # Gemini / LangChain often return content=[] on tool-only turns.
+        # json.dumps([]) == "[]", which previously leaked into agent_message
+        # events and rendered as literal brackets in the UI.
+        if not content:
+            return ""
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                if block:
+                    parts.append(block)
+            elif isinstance(block, dict):
+                text = block.get("text")
+                if isinstance(text, str) and text:
+                    parts.append(text)
+            else:
+                return json.dumps(_sanitize_for_trace(content), ensure_ascii=False, sort_keys=True)
+        return "".join(parts)
     return json.dumps(_sanitize_for_trace(content), ensure_ascii=False, sort_keys=True)
 
 
@@ -1425,21 +1634,21 @@ def _proposal_context_error(args: dict[str, Any], trace: AgentTrace) -> str | No
     requested = set(args.get("retrieved_context_ids") or [])
     missing = sorted(context_id for context_id in requested if context_id not in available)
     if missing:
-        # Common agent mistake: passing run_ids from find_similar_successful_run
+        # Common agent mistake: passing trajectory_ids from find_similar_successful_trajectory
         # into retrieved_context_ids. That tool's results aren't case_ids and
         # are explicitly excluded by docs/contracts.md L332. Detect this case
         # and tell the agent specifically what to drop on its retry — a
         # generic "not found" message often loops the same mistake.
-        run_ids_seen = _retrieved_run_ids(trace)
-        misused_run_ids = sorted(ctx for ctx in missing if ctx in run_ids_seen)
-        if misused_run_ids:
+        trajectory_ids_seen = _retrieved_trajectory_ids(trace)
+        misused_trajectory_ids = sorted(ctx for ctx in missing if ctx in trajectory_ids_seen)
+        if misused_trajectory_ids:
             return (
                 "retrieved_context_ids must contain only case_ids returned by "
-                "search_failure_memory or search_eval_cases. The following IDs "
-                "are run_ids from find_similar_successful_run and must be "
+                "search_failure_memory or search_failure_eval_cases. The following IDs "
+                "are trajectory_ids from find_similar_successful_trajectory and must be "
                 "omitted (similar-run comparisons are tracked via the "
                 "AgentTrace, not retrieved_context_ids): "
-                + ", ".join(misused_run_ids)
+                + ", ".join(misused_trajectory_ids)
             )
         return "retrieved_context_ids not found in prior retrieval tool_result: " + ", ".join(missing)
 
@@ -1485,25 +1694,25 @@ def _retrieved_case_ids(trace: AgentTrace) -> set[str]:
     return ids
 
 
-def _retrieved_run_ids(trace: AgentTrace) -> set[str]:
-    """Run_ids surfaced by find_similar_successful_run results.
+def _retrieved_trajectory_ids(trace: AgentTrace) -> set[str]:
+    """Run_ids surfaced by find_similar_successful_trajectory results.
 
-    Used to give the agent a pedagogical error when it confuses run_ids
-    (returned by find_similar_successful_run) with case_ids (the only
+    Used to give the agent a pedagogical error when it confuses trajectory_ids
+    (returned by find_similar_successful_trajectory) with case_ids (the only
     legal contents of retrieved_context_ids). NOT used to expand the set
-    of legal IDs — run_ids remain ineligible per docs/contracts.md L332.
+    of legal IDs — trajectory_ids remain ineligible per docs/contracts.md L332.
     """
 
     ids: set[str] = set()
     for event in trace.events:
-        if event.type != "tool_result" or event.name != "find_similar_successful_run":
+        if event.type != "tool_result" or event.name != "find_similar_successful_trajectory":
             continue
         items = (event.result or {}).get("items")
         if not isinstance(items, list):
             continue
         for item in items:
-            if isinstance(item, dict) and isinstance(item.get("run_id"), str):
-                ids.add(item["run_id"])
+            if isinstance(item, dict) and isinstance(item.get("trajectory_id"), str):
+                ids.add(item["trajectory_id"])
     return ids
 
 
@@ -1540,6 +1749,6 @@ def _last_tool_items(messages: list[AnyMessage], name: str) -> list[dict[str, An
             items = payload.get("items")
             if isinstance(items, list):
                 return [item for item in items if isinstance(item, dict)]
-            if "case_id" in payload or "run_id" in payload:
+            if "case_id" in payload or "trajectory_id" in payload:
                 return [payload]
     return []

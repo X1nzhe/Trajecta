@@ -3,12 +3,15 @@
 Three collections live under ``TRAJECTA_CHROMA_DIR`` (default
 ``data/chroma/``):
 
-- ``failure_memory`` — reusable failure patterns; read-only at runtime,
-  hydrated from ``data/failure_memory/cases.jsonl`` on startup.
-- ``eval_cases`` — human-validated regression cases; written synchronously
-  by ``POST /api/eval-cases``.
-- ``successful_runs`` — imported runs with post-overlay ``status=="success"``;
-  written synchronously by the import handler.
+- ``failure_memory`` — reusable failure patterns (concept:
+  ``failure_pattern_memory``); read-only at runtime, hydrated from
+  ``data/failure_memory/cases.jsonl`` on startup.
+- ``failure_eval_cases`` — failure-shaped, human-validated EvalCases used as
+  failure precedents; written synchronously by ``POST /api/eval-cases``.
+  Success-shaped EvalCases do not belong here.
+- ``successful_trajectories`` — trajectories whose success was human-validated
+  via a success-shaped ``EvalCase``; used by ``find_similar_successful_trajectory``
+  for replay-and-diff. Starts empty after import and grows on validation.
 
 The embedding text formulas and metadata schemas are byte-exact
 reproductions of ``docs/contracts.md`` "RAG Collection Contracts". Do not
@@ -41,12 +44,12 @@ from chromadb.utils import embedding_functions
 from chromadb.utils.embedding_functions import register_embedding_function
 
 from backend.app import storage
-from backend.app.schemas import EvalCase, FailureMemoryCase, TrajectoryRun
+from backend.app.schemas import EvalCase, FailureMemoryCase, Trajectory
 
 
 FAILURE_MEMORY_COLLECTION = "failure_memory"
-EVAL_CASES_COLLECTION = "eval_cases"
-SUCCESSFUL_RUNS_COLLECTION = "successful_runs"
+FAILURE_EVAL_CASES_COLLECTION = "failure_eval_cases"
+SUCCESSFUL_TRAJECTORIES_COLLECTION = "successful_trajectories"
 
 _FAKE_EMBEDDING_DIM = 384
 
@@ -195,12 +198,12 @@ def failure_memory_collection() -> chromadb.Collection:
     return _get_or_create(FAILURE_MEMORY_COLLECTION)
 
 
-def eval_cases_collection() -> chromadb.Collection:
-    return _get_or_create(EVAL_CASES_COLLECTION)
+def failure_eval_cases_collection() -> chromadb.Collection:
+    return _get_or_create(FAILURE_EVAL_CASES_COLLECTION)
 
 
-def successful_runs_collection() -> chromadb.Collection:
-    return _get_or_create(SUCCESSFUL_RUNS_COLLECTION)
+def successful_trajectories_collection() -> chromadb.Collection:
+    return _get_or_create(SUCCESSFUL_TRAJECTORIES_COLLECTION)
 
 
 def _embed_text_failure_memory(case: FailureMemoryCase) -> str:
@@ -229,8 +232,8 @@ def _embed_text_eval_case(case: EvalCase) -> str:
     return " ".join(parts).strip()
 
 
-def _embed_text_successful_run(run: TrajectoryRun) -> str:
-    return run.task
+def _embed_text_successful_trajectory(trajectory: Trajectory) -> str:
+    return trajectory.task
 
 
 def _failure_memory_metadata(case: FailureMemoryCase) -> dict[str, str | int | float | bool]:
@@ -239,7 +242,7 @@ def _failure_memory_metadata(case: FailureMemoryCase) -> dict[str, str | int | f
         "failure_type": case.failure_type,
         "summary": case.summary,
         "fix_hint": case.fix_hint or "",
-        "source_run_id": case.source_run_id or "",
+        "source_trajectory_id": case.source_trajectory_id or "",
         "tags_json": json.dumps(case.tags),
     }
 
@@ -250,7 +253,7 @@ def _failure_memory_from_metadata(meta: dict) -> FailureMemoryCase:
         failure_type=meta["failure_type"],
         summary=meta["summary"],
         fix_hint=meta["fix_hint"] or None,
-        source_run_id=meta["source_run_id"] or None,
+        source_trajectory_id=meta["source_trajectory_id"] or None,
         tags=json.loads(meta.get("tags_json") or "[]"),
     )
 
@@ -260,7 +263,7 @@ def _eval_case_metadata(case: EvalCase) -> dict[str, str | int | float | bool]:
     # sentinel scalars. The authoritative shape lives in payload_json.
     return {
         "case_id": case.case_id,
-        "source_run_id": case.source_run_id,
+        "source_trajectory_id": case.source_trajectory_id,
         "task": case.task,
         "failure_step": case.failure_step if case.failure_step is not None else -1,
         "failure_type": case.failure_type or "",
@@ -270,12 +273,12 @@ def _eval_case_metadata(case: EvalCase) -> dict[str, str | int | float | bool]:
     }
 
 
-def _successful_run_metadata(run: TrajectoryRun) -> dict[str, str | int | float | bool]:
+def _successful_trajectory_metadata(trajectory: Trajectory) -> dict[str, str | int | float | bool]:
     return {
-        "run_id": run.run_id,
-        "task": run.task,
-        "status": run.status,
-        "step_count": len(run.steps),
+        "trajectory_id": trajectory.trajectory_id,
+        "task": trajectory.task,
+        "status": trajectory.status,
+        "step_count": len(trajectory.steps),
     }
 
 
@@ -287,72 +290,78 @@ def upsert_failure_memory(case: FailureMemoryCase) -> None:
     )
 
 
-def upsert_eval_case(case: EvalCase) -> None:
+def upsert_failure_eval_case(case: EvalCase) -> None:
     if not case.human_validated:
         raise ValueError(
             f"refuse to upsert draft eval case {case.case_id!r}; "
             "only human_validated=True cases are indexed"
         )
-    eval_cases_collection().upsert(
+    if case.is_success:
+        raise ValueError(
+            f"refuse to upsert success-shaped eval case {case.case_id!r} into "
+            "failure_eval_cases; success trajectories belong in "
+            "successful_trajectories"
+        )
+    failure_eval_cases_collection().upsert(
         ids=[case.case_id],
         documents=[_embed_text_eval_case(case)],
         metadatas=[_eval_case_metadata(case)],
     )
 
 
-def upsert_successful_run(run: TrajectoryRun) -> None:
-    if run.status != "success":
+def upsert_successful_trajectory(trajectory: Trajectory) -> None:
+    if trajectory.status != "success":
         raise ValueError(
-            f"refuse to upsert non-success run {run.run_id!r} "
-            f"(status={run.status!r}); only success runs are indexed"
+            f"refuse to upsert non-success trajectory {trajectory.trajectory_id!r} "
+            f"(status={trajectory.status!r}); only success runs are indexed"
         )
-    successful_runs_collection().upsert(
-        ids=[run.run_id],
-        documents=[_embed_text_successful_run(run)],
-        metadatas=[_successful_run_metadata(run)],
+    successful_trajectories_collection().upsert(
+        ids=[trajectory.trajectory_id],
+        documents=[_embed_text_successful_trajectory(trajectory)],
+        metadatas=[_successful_trajectory_metadata(trajectory)],
     )
 
 
-def delete_successful_run(run_id: str) -> None:
-    successful_runs_collection().delete(ids=[run_id])
+def delete_successful_trajectory(trajectory_id: str) -> None:
+    successful_trajectories_collection().delete(ids=[trajectory_id])
 
 
 def query_failure_memory(
     query: str,
     top_k: int = 3,
-    exclude_source_run_id: str | None = None,
+    exclude_source_trajectory_id: str | None = None,
 ) -> list[FailureMemoryCase]:
     """Retrieve up to ``top_k`` failure-memory cases similar to ``query``.
 
-    ``exclude_source_run_id`` filters out any case whose ``source_run_id`` matches
+    ``exclude_source_trajectory_id`` filters out any case whose ``source_trajectory_id`` matches
     the given value. This guards against retrieval leakage when the agent analyzes
-    a run that is itself the source of an existing failure-memory case (e.g. seed
-    cases in ``data/failure_memory/cases.jsonl`` whose ``source_run_id`` is one of
-    the runs in the golden eval set). Mirror of ``exclude_run_id`` in
-    ``query_similar_successful_runs``.
+    a trajectory that is itself the source of an existing failure-memory case (e.g. seed
+    cases in ``data/failure_memory/cases.jsonl`` whose ``source_trajectory_id`` is one of
+    the runs in the golden eval set). Mirror of ``exclude_trajectory_id`` in
+    ``query_similar_successful_trajectories``.
     """
 
     if top_k <= 0:
         return []
     kwargs: dict = {"query_texts": [query], "n_results": top_k}
-    if exclude_source_run_id:
-        kwargs["where"] = {"source_run_id": {"$ne": exclude_source_run_id}}
+    if exclude_source_trajectory_id:
+        kwargs["where"] = {"source_trajectory_id": {"$ne": exclude_source_trajectory_id}}
     result = failure_memory_collection().query(**kwargs)
     metas = (result.get("metadatas") or [[]])[0]
     return [_failure_memory_from_metadata(meta) for meta in metas]
 
 
-def query_eval_cases(
+def query_failure_eval_cases(
     query: str,
     top_k: int = 3,
     only_validated: bool = True,
-    exclude_source_run_id: str | None = None,
+    exclude_source_trajectory_id: str | None = None,
 ) -> list[EvalCase]:
-    """Retrieve up to ``top_k`` eval cases similar to ``query``.
+    """Retrieve up to ``top_k`` failure eval cases similar to ``query``.
 
-    ``exclude_source_run_id`` filters out any case whose ``source_run_id``
+    ``exclude_source_trajectory_id`` filters out any case whose ``source_trajectory_id``
     matches the given value. Mirrors the leakage guard on
-    ``query_failure_memory``: when the agent re-analyzes run X, an
+    ``query_failure_memory``: when the agent re-analyzes trajectory X, an
     EvalCase derived from X (whose verdict literally IS the answer for X)
     must not surface here.
     """
@@ -362,40 +371,40 @@ def query_eval_cases(
     conditions: list[dict] = []
     if only_validated:
         conditions.append({"human_validated": True})
-    if exclude_source_run_id:
-        conditions.append({"source_run_id": {"$ne": exclude_source_run_id}})
+    if exclude_source_trajectory_id:
+        conditions.append({"source_trajectory_id": {"$ne": exclude_source_trajectory_id}})
     if len(conditions) == 1:
         kwargs["where"] = conditions[0]
     elif len(conditions) > 1:
         kwargs["where"] = {"$and": conditions}
-    result = eval_cases_collection().query(**kwargs)
+    result = failure_eval_cases_collection().query(**kwargs)
     metas = (result.get("metadatas") or [[]])[0]
     cases = [EvalCase.model_validate_json(meta["payload_json"]) for meta in metas]
     if only_validated:
         cases = [case for case in cases if case.human_validated]
-    if exclude_source_run_id:
-        cases = [case for case in cases if case.source_run_id != exclude_source_run_id]
+    if exclude_source_trajectory_id:
+        cases = [case for case in cases if case.source_trajectory_id != exclude_source_trajectory_id]
     return cases
 
 
-def query_similar_successful_runs(
-    task: str, top_k: int = 3, exclude_run_id: str | None = None
+def query_similar_successful_trajectories(
+    task: str, top_k: int = 3, exclude_trajectory_id: str | None = None
 ) -> list[dict]:
     if top_k <= 0:
         return []
-    n_fetch = top_k + 1 if exclude_run_id else top_k
-    result = successful_runs_collection().query(
+    n_fetch = top_k + 1 if exclude_trajectory_id else top_k
+    result = successful_trajectories_collection().query(
         query_texts=[task],
         n_results=n_fetch,
     )
     metas = (result.get("metadatas") or [[]])[0]
     out: list[dict] = []
     for meta in metas:
-        if exclude_run_id and meta.get("run_id") == exclude_run_id:
+        if exclude_trajectory_id and meta.get("trajectory_id") == exclude_trajectory_id:
             continue
         out.append(
             {
-                "run_id": meta["run_id"],
+                "trajectory_id": meta["trajectory_id"],
                 "task": meta["task"],
                 "status": meta["status"],
                 "step_count": meta["step_count"],
@@ -411,14 +420,19 @@ def hydrate_all() -> None:
 
     Called on FastAPI startup. Failure memory is fully rebuilt so edits to
     ``data/failure_memory/cases.jsonl`` cannot leave stale vectors behind;
-    eval cases and successful runs are still upserted by stable IDs.
+    failure eval cases (failure-shaped only) and successful trajectories are
+    still upserted by stable IDs.
     """
 
     reset_failure_memory_collection()
     for case in storage.load_failure_memory():
         upsert_failure_memory(case)
     for case in storage.load_eval_cases():
-        upsert_eval_case(case)
-    for run in storage.list_runs():
-        if run.status == "success":
-            upsert_successful_run(run)
+        # Only failure-shaped EvalCases are failure precedents. Success-shaped
+        # cases are represented by their trajectory in successful_trajectories
+        # (rebuilt below from trajectory.status), so they must not leak in here.
+        if not case.is_success:
+            upsert_failure_eval_case(case)
+    for trajectory in storage.list_trajectories():
+        if trajectory.status == "success":
+            upsert_successful_trajectory(trajectory)

@@ -1,7 +1,7 @@
 """Trajecta MCP server — Phase 8 B1.
 
 Exposes the Trajecta Eval Agent over MCP for external coding agents (Claude
-Code, Cursor). The load-bearing tool is ``analyze_run``, which runs the
+Code, Cursor). The load-bearing tool is ``analyze_trajectory``, which runs the
 *entire* LangGraph Eval Agent loop as one composite call (B2). The other
 five tools are read-only delegates to existing in-process backend functions.
 
@@ -42,39 +42,39 @@ mcp = FastMCP("Trajecta")
 
 
 @mcp.tool
-def list_runs() -> list[dict[str, Any]]:
+def list_trajectories() -> list[dict[str, Any]]:
     """List imported trajectory runs (metadata only).
 
     Returns a lightweight picker shape per run — no `steps` array. Use
-    `get_run(run_id)` to fetch the full run + digest for a chosen run.
+    `get_trajectory(trajectory_id)` to fetch the full run + digest for a chosen run.
     """
     return [
         {
-            "run_id": run.run_id,
+            "trajectory_id": run.trajectory_id,
             "task": run.task,
             "source": run.source,
             "status": run.status,
             "step_count": len(run.steps),
             "metadata": run.metadata,
         }
-        for run in storage.list_runs()
+        for run in storage.list_trajectories()
     ]
 
 
 @mcp.tool
-def get_run(run_id: str) -> dict[str, Any]:
+def get_trajectory(trajectory_id: str) -> dict[str, Any]:
     """Fetch one run with its cached preprocessing digest attached."""
-    return tools.get_run(run_id)
+    return tools.get_trajectory(trajectory_id)
 
 
 @mcp.tool
 def get_step_detail(
-    run_id: str,
+    trajectory_id: str,
     step_index: int,
     image_detail: Literal["low", "high"] = "high",
 ) -> dict[str, Any]:
     """Inspect one step in depth (raw detail, optional high-detail VLM call)."""
-    return tools.get_step_detail(run_id, step_index, image_detail=image_detail)
+    return tools.get_step_detail(trajectory_id, step_index, image_detail=image_detail)
 
 
 @mcp.tool
@@ -84,13 +84,13 @@ def search_failure_memory(query: str, top_k: int = 3) -> list[dict[str, Any]]:
 
 
 @mcp.tool
-def search_eval_cases(query: str, top_k: int = 3) -> list[dict[str, Any]]:
-    """Retrieve prior human-validated EvalCase records similar to the query."""
-    return tools.search_eval_cases(query, top_k=top_k, only_validated=True)
+def search_failure_eval_cases(query: str, top_k: int = 3) -> list[dict[str, Any]]:
+    """Retrieve prior human-validated failure EvalCase records (failure precedents) similar to the query."""
+    return tools.search_failure_eval_cases(query, top_k=top_k, only_validated=True)
 
 
 @mcp.tool
-def analyze_run(run_id: str) -> dict[str, Any]:
+def analyze_trajectory(trajectory_id: str) -> dict[str, Any]:
     """Run the full LangGraph Eval Agent on a trajectory (composite).
 
     Spawns one Eval Agent run: preprocess → tool-calling loop (RAG retrieval,
@@ -101,7 +101,7 @@ def analyze_run(run_id: str) -> dict[str, Any]:
     loop ends with ``terminated_by="budget_exceeded"`` and the trace is still
     returned. There is no per-step mode — analysis is always full-trajectory.
     """
-    result = eval_agent_graph.analyze_run(run_id, persist=True, source="mcp")
+    result = eval_agent_graph.analyze_trajectory(trajectory_id, persist=True, source="mcp")
     # AgentTrace events are byte-sanitised at append time (no screenshot /
     # image bytes), so model_dump(mode="json") is already wire-safe.
     return {

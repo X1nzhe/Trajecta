@@ -1,0 +1,619 @@
+{
+  "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 2,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 5,
+        "cached": false
+      },
+      "result": null,
+      "message": "Building trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+        "task": "navigate: Find a language model released within the last 60 days on Hugging Face that specializes in generating educational content.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on A element with value 'Models'",
+              "text": null,
+              "coordinates": {
+                "x": 555.2676262654049,
+                "y": 48.00086157817787
+              },
+              "bbox": {
+                "x": 510.9436550946303,
+                "y": 20.282051282051285,
+                "width": 96.80281518210828,
+                "height": 31.549857549857553
+              },
+              "raw": "mouse_click(x=555.2676262654049, y=48.00086157817787, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 791,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 791
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on BUTTON element with value 'Dismiss'",
+              "text": null,
+              "coordinates": {
+                "x": 901.4084507042254,
+                "y": 465.3603988603989
+              },
+              "bbox": {
+                "x": 846.0282102772887,
+                "y": 443.0501562047888,
+                "width": 86.42254036916813,
+                "height": 33.35270698253925
+              },
+              "raw": "mouse_click(x=901.4084507042254, y=465.3603988603989, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 791,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 791
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 759.8873514524648,
+                "y": 125.52338073600052
+              },
+              "bbox": {
+                "x": 703.8873376980634,
+                "y": 109.97378745445839,
+                "width": 139.6056355221171,
+                "height": 31.549857549857553
+              },
+              "raw": "mouse_click(x=759.8873514524648, y=125.52338073600052, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 791,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 791
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://huggingface.co/models?sort=trending&search=language+educational+conten",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'language educational content'",
+              "text": "language educational content",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='language educational content')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 791,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "keyboard_type",
+              "image_width": 1280,
+              "image_height": 791
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://huggingface.co/models?sort=trending&search=language+educational+conten",
+              "title": "Models – Hugging Face",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 791,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1280,
+              "image_height": 791
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+          "task": "navigate: Find a language model released within the last 60 days on Hugging Face that specializes in generating educational content.",
+          "step_count": 5,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (555.268, 48.0009)",
+              "action_target": "Click on A element with value 'Models'",
+              "url": "https://huggingface.co/",
+              "title": "Hugging Face – The AI community building the future.",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=detail; modal=no; error_banner=no; focus=center | The AI community building the future. Explore AI Apps button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "click",
+              "action_text": "click at (901.408, 465.36)",
+              "action_target": "Click on BUTTON element with value 'Dismiss'",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=yes; error_banner=no; focus=center | popup about “Run 15,000+ Models Instantly” with Browse available models button",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "click",
+              "action_text": "click at (759.887, 125.523)",
+              "action_target": "Click on INPUT element",
+              "url": "https://huggingface.co/models",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Hugging Face Models results list with filters and trending sort visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "type",
+              "action_text": "type 'language educational content'",
+              "action_target": "type 'language educational content'",
+              "url": "https://huggingface.co/models?sort=trending&search=language+educational+conten",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Hugging Face Models list with filter chips and trending model results visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://huggingface.co/models?sort=trending&search=language+educational+conten",
+              "title": "Models – Hugging Face",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=left | Hugging Face Models page with filter chips and empty results area, “Models 0” visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 7130,
+          "vlm_output_tokens": 169
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+        "step_index": 4,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+        "step_index": 4,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_2a506319>page_state:\nHugging Face Models search/results page, sorted by Trending, with left-side task filters and a list of model cards. Search/filter text appears to be for “language educational content,” but no matching result is visible yet.\ntask_relevant_visible_text:\n“Models”, “Sort: Trending”, “Filter by nar…”, “Inference Available”, model cards including “Tongyi-MAI/Z-Image-Turbo”, “nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16”, “microsoft/VibeVoice-Realtime-0.5B”, “zai-org/AutoGLM-Phone-9B”, “XiaomiMiMo/MiMo-V2-Flash”, “ResembleAI/chatterbox-turbo”, “zai-org/GLM-TTS”, left filters “Text Generation”, “Text-to-Speech”, “Image-to-Text”, etc.\nselected_candidate:\nNone visible that clearly matches “language model specialized in generating educational content”.\nconstraint_evidence:\n- language model: supported (page is Hugging Face Models; visible text includes Text Generation model cards)\n- released within last 60 days: supported for some visible cards by “Updated 10 days ago / 12 hours ago / 6 days ago / 9 days ago / 3 days ago / 1 day ago”; however “updated” is not the same as release date, so exact release constraint is not fully supported\n- specializes in generating educational content: not_visible (no visible educational-content specialization)\n- on Hugging Face: supported (site/header and URL)\n- search intent for “language educational content”: supported by action/context, but no visible result confirming it\naction_target:\nContinue searching/filtering results for a model card who</TRAJECTA_DATA_2a506319>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Find a language model released within the last 60 days on Hugging Face that specializes in generating educational content.",
+          "url": "<TRAJECTA_DATA_2a506319>https://huggingface.co/models?sort=trending&search=language+educational+conten</TRAJECTA_DATA_2a506319>",
+          "title": "<TRAJECTA_DATA_2a506319>Models – Hugging Face</TRAJECTA_DATA_2a506319>",
+          "action_label": "<TRAJECTA_DATA_2a506319>type 'language educational content'</TRAJECTA_DATA_2a506319>",
+          "action_text": "<TRAJECTA_DATA_2a506319>language educational content</TRAJECTA_DATA_2a506319>",
+          "action_raw": "<TRAJECTA_DATA_2a506319>keyboard_type(text='language educational content')</TRAJECTA_DATA_2a506319>"
+        },
+        "action": {
+          "type": "type",
+          "label": "<TRAJECTA_DATA_2a506319>type 'language educational content'</TRAJECTA_DATA_2a506319>",
+          "text": "<TRAJECTA_DATA_2a506319>language educational content</TRAJECTA_DATA_2a506319>",
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_2a506319>keyboard_type(text='language educational content')</TRAJECTA_DATA_2a506319>"
+        },
+        "observation": {
+          "screenshot": "screenshot_004.png",
+          "url": "<TRAJECTA_DATA_2a506319>https://huggingface.co/models?sort=trending&search=language+educational+conten</TRAJECTA_DATA_2a506319>",
+          "title": "<TRAJECTA_DATA_2a506319>Models – Hugging Face</TRAJECTA_DATA_2a506319>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1280,
+          "image_height": 791,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258/screenshots/screenshot_004.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "Hugging Face models search stopped after typing a broad query, with no visible educational-content model and only trending results; missed release-date verification",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17_step_6",
+            "source_trajectory_id": "7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17",
+            "task": "navigate: Search for a model on Hugging Face suitable for fine-tuning on sentiment intensity classification.",
+            "failure_step": 6,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have searched for models relevant to \"sentiment intensity classification\", inspected the model cards or documentation of promising candidates to verify their suitability for this specific task, and then selected a model that is documented to be suitable for sentiment intensity classification.",
+            "actual_behavior": "The agent searched for \"fine-tuning sentiment\", selected a model (\"amerwafiy/finetuning-sentiment-model-3000-samples\") that had no model card or documentation, and then exited without verifying if it was suitable for \"sentiment intensity classification\". The selected model was an empty repository, making it a wrong result for the task.",
+            "evidence": [
+              {
+                "claim": "The model page for 'amerwafiy/finetuning-sentiment-model-3000-samples' shows 'No model card' and provides no information about its capabilities.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 6,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a task requires a specific type of model (e.g., 'sentiment intensity classification'), the agent must verify the model's suitability by inspecting its model card or documentation, rather than selecting an arbitrary or undocumented model from search results. Selecting an empty or non-functional model repository constitutes a wrong result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec_step_2",
+            "source_trajectory_id": "50d6d2f1a7e0476de7674ecd56bce65515ddfd6d21f4b2a9f95206b8d9a75bec",
+            "task": "navigate: Identify the most recent article on ArXiv related to 'deep reinforcement learning'.",
+            "failure_step": 2,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have typed the correct search query ('deep reinforcement learning') to find relevant articles. The agent failed to verify the search query for typos before submitting.",
+            "actual_behavior": "The agent performed a search with a typo in the query (\"deep reinforcemen learing\"), which resulted in no results. The agent then terminated the task with [EXIT].",
+            "evidence": [
+              {
+                "claim": "The agent typed 'deep reinforcemen learing' into the search field.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 2,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The search results page displays 'Sorry, your query returned no results'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 6,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that search queries are spelled correctly and verified before submission, especially when the initial search yields no results.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32",
+            "source_trajectory_id": "8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4",
+            "task": "navigate: Search for a hotel in Kyoto with a user rating of 7 or higher, equipped with a kitchenette, available for a stay from April 5 to April 8, 2026.",
+            "failure_step": 32,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have correctly set the dates to April 5-8, 2026, and then selected a hotel in Kyoto that met the rating (7+) and amenity (kitchenette) requirements.",
+            "actual_behavior": "The agent searched for hotels in Kyoto with a rating of 7+ and a kitchenette, but it failed to set the correct dates (April 5-8, 2026). The search results were for different dates, and the agent exited without selecting a hotel that met all the criteria.",
+            "evidence": [
+              {
+                "claim": "The search bar shows dates 'Wed, Feb 25 — Thu, Feb 26' instead of the requested 'April 5 to April 8, 2026'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent failed to set the correct dates (April 5-8, 2026) in the search parameters, resulting in incorrect availability results. The agent is exiting prematurely without selecting a hotel that meets all criteria.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that all date and amenity constraints are correctly applied in the search form before proceeding to select a result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches the Hugging Face Models search page and types a query for 'language educational content', but the high-detail inspection shows no visible result that specializes in educational content.",
+            "source": "step_detail_high",
+            "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+            "step_index": 4
+          },
+          {
+            "claim": "The same inspection shows the 'released within the last 60 days' requirement is not actually verified as release date; the page only shows some models updated recently, which is not enough to satisfy the task's release-date constraint.",
+            "source": "step_detail_high",
+            "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+            "step_index": 4
+          },
+          {
+            "claim": "The run ends on the search results page with 'Models 0' visible and an exit message, without any selected model or other evidence that the task was completed.",
+            "source": "trajectory",
+            "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+            "step_index": 5
+          },
+          {
+            "claim": "A validated precedent for similar behavior is an agent exiting after a model search without verifying the required suitability of the result.",
+            "source": "eval_case",
+            "context_id": "ec_7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17_step_6"
+          }
+        ],
+        "retrieved_context_ids": [
+          "ec_7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17_step_6"
+        ],
+        "failure_step": 4,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "The agent should have verified both hard constraints on the Hugging Face results: that the chosen model specializes in generating educational content and that its release date is within the last 60 days, using the model card/release metadata before exiting.",
+        "actual_behavior": "The agent searched broadly on Hugging Face Models, but the inspected results do not show any educational-content specialization and do not verify a true release date. It then exited from the results page without selecting a qualifying model.",
+        "regression_rule": "When a Hugging Face model-finding task includes explicit hard constraints like specialization and recency, the agent must inspect model-card metadata or otherwise verify both constraints on a candidate before exiting; a trending search page or recently updated cards are not sufficient evidence of a valid answer."
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258_step_4",
+        "source_trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+        "task": "navigate: Find a language model released within the last 60 days on Hugging Face that specializes in generating educational content.",
+        "failure_step": 4,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "The agent should have verified both hard constraints on the Hugging Face results: that the chosen model specializes in generating educational content and that its release date is within the last 60 days, using the model card/release metadata before exiting.",
+        "actual_behavior": "The agent searched broadly on Hugging Face Models, but the inspected results do not show any educational-content specialization and do not verify a true release date. It then exited from the results page without selecting a qualifying model.",
+        "evidence": [
+          {
+            "claim": "The trajectory reaches the Hugging Face Models search page and types a query for 'language educational content', but the high-detail inspection shows no visible result that specializes in educational content.",
+            "source": "step_detail_high",
+            "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The same inspection shows the 'released within the last 60 days' requirement is not actually verified as release date; the page only shows some models updated recently, which is not enough to satisfy the task's release-date constraint.",
+            "source": "step_detail_high",
+            "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+            "step_index": 4,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The run ends on the search results page with 'Models 0' visible and an exit message, without any selected model or other evidence that the task was completed.",
+            "source": "trajectory",
+            "trajectory_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+            "step_index": 5,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "A validated precedent for similar behavior is an agent exiting after a model search without verifying the required suitability of the result.",
+            "source": "eval_case",
+            "trajectory_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "ec_7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17_step_6"
+          }
+        ],
+        "regression_rule": "When a Hugging Face model-finding task includes explicit hard constraints like specialization and recency, the agent must inspect model-card metadata or otherwise verify both constraints on a candidate before exiting; a trending search page or recently updated cards are not sufficient evidence of a valid answer.",
+        "retrieved_context_ids": [
+          "ec_7f0d1a127a5f8d92e315c8ee0b52e741c99a9831661d0e4288737e56157bce17_step_6"
+        ],
+        "human_validated": false
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1490,
+  "vlm_output_tokens": 457,
+  "runtime_ms": 23161,
+  "input_tokens": 31421,
+  "output_tokens": 794,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 23161,
+      "input_tokens": 31421,
+      "output_tokens": 794
+    }
+  ]
+}

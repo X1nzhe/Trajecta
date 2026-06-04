@@ -70,6 +70,33 @@ def read_triage_csv(path: Path) -> list[dict[str, str]]:
     return rows
 
 
+def read_triage_csvs(paths: list[Path]) -> list[dict[str, str]]:
+    """Read and merge multiple triage CSVs into one de-duplicated union.
+
+    Each file is parsed with ``read_triage_csv``, which already enforces the
+    per-file schema, the sample_id pattern, the outcome vocabulary, and
+    intra-file dedup. A sample_id appearing in more than one file is a hard
+    error: it would silently mix annotation sets that must stay disjoint (e.g.
+    the golden test set in ``triage_notes.csv`` and the HITL eval-case seed
+    set in ``hitl_candidate_notes.csv``), which is exactly the leakage we want
+    to prevent. Rows are concatenated in argument order, so the output is
+    deterministic.
+    """
+    merged: list[dict[str, str]] = []
+    origin: dict[str, Path] = {}
+    for path in paths:
+        for row in read_triage_csv(path):
+            sample_id = row["sample_id"]
+            if sample_id in origin:
+                raise ValueError(
+                    f"duplicate sample_id {sample_id!r} across triage CSVs: "
+                    f"present in both {origin[sample_id]} and {path}"
+                )
+            origin[sample_id] = path
+            merged.append(row)
+    return merged
+
+
 def write_sample_ids(rows: list[dict[str, str]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(row["sample_id"] for row in rows) + "\n", encoding="utf-8")
@@ -105,9 +132,38 @@ def run_subprocess(cmd: list[str], dry_run: bool) -> None:
     subprocess.run(cmd, check=True)
 
 
+def assert_materialization_complete(manifest_path: Path, expected: int) -> None:
+    """Fail loudly if any requested sample_id was not materialized.
+
+    ``materialize_molmoweb_sample.py`` only *warns* on missing IDs and still
+    exits 0, so a typo'd or nonexistent sample_id is silently dropped from
+    ``hf_dataset/`` (it lands in the manifest's ``missing_sample_ids``). The
+    run then never imports and never shows in the frontend — while a row-count
+    check on ``demo_sample_ids.txt`` still passes. Turn that into a hard error.
+    """
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"materialize manifest not found: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    missing = manifest.get("missing_sample_ids") or []
+    if missing:
+        raise SystemExit(
+            f"materialization incomplete: {len(missing)} of {expected} requested "
+            f"sample_id(s) were not found in the Hugging Face dataset: {missing}"
+        )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Materialize the human-curated demo fixture.")
-    parser.add_argument("--triage-csv", default=DEFAULT_TRIAGE_CSV)
+    parser.add_argument(
+        "--triage-csv",
+        action="append",
+        default=None,
+        help="Triage CSV path. Repeatable: pass it multiple times to merge "
+        "several CSVs into one de-duplicated union fixture "
+        "(e.g. --triage-csv data/triage_notes.csv "
+        "--triage-csv data/hitl_candidate_notes.csv). A sample_id appearing "
+        f"in more than one CSV is an error. Defaults to {DEFAULT_TRIAGE_CSV}.",
+    )
     parser.add_argument("--sample-root", default=DEFAULT_SAMPLE_ROOT)
     parser.add_argument(
         "--max-rows",
@@ -128,7 +184,7 @@ def main() -> int:
     python = sys.executable
     script_dir = Path(__file__).resolve().parent
 
-    triage_csv = Path(args.triage_csv)
+    triage_csvs = [Path(p) for p in (args.triage_csv or [DEFAULT_TRIAGE_CSV])]
     sample_root = Path(args.sample_root)
     sample_id_file = sample_root / "demo_sample_ids.txt"
     status_overlay_file = sample_root / "run_status_overlay.json"
@@ -137,12 +193,13 @@ def main() -> int:
     manifest_path = sample_root / "materialize_manifest.json"
     gallery_dir = sample_root / "image_gallery"
 
-    rows = read_triage_csv(triage_csv)
+    rows = read_triage_csvs(triage_csvs)
+    joined = ", ".join(str(p) for p in triage_csvs)
     if not rows:
-        print(f"No samples in {triage_csv}", file=sys.stderr)
+        print(f"No samples in {joined}", file=sys.stderr)
         return 1
 
-    print(f"Loaded {len(rows)} curated samples from {triage_csv}")
+    print(f"Loaded {len(rows)} curated samples from {joined}")
     print(category_summary(rows))
 
     if not args.dry_run:
@@ -164,6 +221,8 @@ def main() -> int:
         if args.overwrite:
             cmd.append("--overwrite")
         run_subprocess(cmd, args.dry_run)
+        if not args.dry_run:
+            assert_materialization_complete(manifest_path, expected=len(rows))
 
     if not args.skip_gallery:
         cmd = [

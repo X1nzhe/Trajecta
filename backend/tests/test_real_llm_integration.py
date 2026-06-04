@@ -41,10 +41,10 @@ class RealLLMIntegrationTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        storage.save_run(sample_run("run_real_llm", status="unknown"))
+        storage.save_trajectory(sample_run("run_real_llm", status="unknown"))
 
-    def test_analyze_run_terminates_with_valid_trace(self) -> None:
-        result = eval_agent_graph.analyze_run("run_real_llm")
+    def test_analyze_trajectory_terminates_with_valid_trace(self) -> None:
+        result = eval_agent_graph.analyze_trajectory("run_real_llm")
 
         AgentTrace.model_validate(result.trace.model_dump(mode="json"))
 
@@ -61,11 +61,11 @@ class RealLLMIntegrationTests(unittest.TestCase):
 
         # If the model did call tools, every name must be declared.
         declared = {
-            "get_run",
-            "find_similar_successful_run",
+            "get_trajectory",
+            "find_similar_successful_trajectory",
             "get_step_detail",
             "search_failure_memory",
-            "search_eval_cases",
+            "search_failure_eval_cases",
             "propose_eval_case",
         }
         for event in result.trace.events:
