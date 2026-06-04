@@ -186,8 +186,8 @@ Trajecta's evaluation story has four pillars: a structured golden set, determini
 | Area | Result |
 | --- | --- |
 | Golden set | 35 cases across 8 categories: allrecipes, amazon, apple, arxiv, booking, github, google_flight, huggingface |
-| Best general prompt | `v3_balanced_rubric` at 80.6% binary verdict accuracy |
-| Guided-autonomy prompt | `v6_guided_autonomy` matches v3 at 80.6% binary accuracy with a cleaner evidence trail (70% of evidence from high-detail inspection) |
+| Top headline accuracy | `v3_balanced_rubric` & `v6_guided_autonomy` tie at 80.6% binary verdict accuracy (v3 is the cheapest/fastest at that accuracy) |
+| Featured prompt | `v6_guided_autonomy` — same accuracy with a cleaner evidence trail (70% of evidence from high-detail inspection) |
 | Failure-sensitive prompt | `v5_constraint_verification` reached 100.0% failure recall and 78.6% step localization |
 | Dual LLM judge | Gemini/OpenAI κ_LLM,LLM = 1.0 (both judges 20/31 acceptable) on the v6 run; see caveat below |
 | RAGAS | evidence-mode, real, n=10, faithfulness=0.93 (claims vs agent-visible evidence; no ground-truth answers) |
@@ -237,7 +237,7 @@ The formal v1 to v6 comparison uses 31 filtered golden-set samples with `gpt-5.4
 | 5 | `v5_constraint_verification` | Emphasize constraint evidence and failure verification. | Binary accuracy -6.5 pp; failure recall +14.3 pp to 100.0%; success recall -23.5 pp. | Best for catching failures, but not the best general prompt. |
 | 6 | `v6_guided_autonomy` | Legible per-tool contract + explicit investigation freedom + burden-of-proof / `not_visible` evidence rules. | Binary accuracy 80.6% (= v3); success recall 82.4%; failure recall 78.6%; 70% of evidence cited from high-detail inspection. | Matches v3's headline while grounding more claims in high-detail reads. Current featured prompt. |
 
-The best headline prompt is `v3_balanced_rubric`:
+`v3_balanced_rubric` ties `v6_guided_autonomy` for the top headline accuracy (80.6%), and reaches it the cheapest and fastest:
 
 | Metric | Value |
 | --- | --- |
@@ -248,6 +248,23 @@ The best headline prompt is `v3_balanced_rubric`:
 | Mean wall-clock latency / run | 9.96 s |
 | Total cost (31 runs) | $1.022 |
 | Coarse-to-fine VLM savings | 91.5% |
+
+The current featured prompt is `v6_guided_autonomy` — it does not beat v3's headline accuracy (the two tie at 80.6%), but it matches it while grounding more claims in high-detail inspection and is the version carried through the dual-judge run:
+
+| Metric | v6 value | vs v3 |
+| --- | --- | --- |
+| Binary verdict accuracy | 80.6% | = |
+| Success-verdict recall | 82.4% | +5.9 pp |
+| Failure-verdict recall | 78.6% | −7.1 pp |
+| Failure-type top-1 accuracy | 50.0% | = |
+| Failure step ±2 localization | 64.3% | −7.1 pp |
+| Evidence cited from high-detail reads | 70% (73/105) | v3 not tracked |
+| Mean tool calls / run | 1.39 | −0.29 |
+| Mean wall-clock latency / run | 48.27 s | +38.3 s |
+| Total cost (31 runs) | $1.103 | +$0.081 |
+| Dual-judge acceptability | A & B 20/31, κ=1.0 | v3 not judged |
+
+Caveat: this v6 report (run `2026-06-03T05-45-39Z`) predates later v6 prompt edits (`not_visible` / precedence rules); those were not re-run over the full 31-case set.
 
 The v5 prompt is intentionally failure-sensitive: failure recall reaches 100.0%, but success recall drops to 41.2%. Full per-round metrics and caveats are in [docs/experiment_log.md](docs/experiment_log.md).
 
