@@ -71,10 +71,10 @@ vs mini: binary acc. −0.129; success recall −0.412; failure recall +0.214;
 mean high-detail VLM calls +1.32; total cost +$3.474 (different agent list
 prices and more tool turns — not a like-for-like unit-price comparison).
 
-**Profile:** `gpt-5.4` on v6 behaves like a failure-sensitive trade-off
-(similar to `v5_constraint_verification`): it catches every labeled failure
-but marks many successful trajectories failed. It is **not** a better general
-prompt than v6 on mini by the primary metric.
+**Profile:** `gpt-5.4` on v6 shifts toward a failure-sensitive trade-off (same
+shape as Round 5). See [Why gpt-5.4 did not improve headline accuracy](#why-gpt-54-did-not-improve-headline-accuracy)
+for interpretation—not weaker reasoning, but a different verdict calibration on
+the same prompt.
 
 **Digest cache vs. token/cost accounting:** Preprocess digest cache skips
 per-step low-detail VLM and does **not** add to trace `vlm_*_tokens` on a
@@ -84,6 +84,113 @@ traces (23 rebuilt); gpt-5.4 had 31/31 hits. gpt-5.4 still recorded **higher**
 total VLM tokens because it issued more `get_step_detail` calls. Reported
 `cost_usd` multiplies usage by per-model list prices; it does not apply
 provider prompt-cache billing discounts if the API offers them.
+
+### Why gpt-5.4 did not improve headline accuracy
+
+**In one sentence:** gpt-5.4 lost headline accuracy not because it reasons worse
+but because it applies the success/failure threshold too aggressively—on the
+same fully-visible evidence it judged 10 trajectories more harshly than mini,
+*all in the success→failed direction*, which cost 7 false failures on
+gold-success runs and dropped binary accuracy 0.806 → 0.677. This is a verdict
+**calibration** shift, not a reasoning regression.
+
+This subsection explains the ablation numbers above. Swapping only
+`TRAJECTA_AGENT_MODEL` to `gpt-5.4-2026-03-05` did **not** produce a better
+general Eval Agent on the 31-case golden set under `v6_guided_autonomy`.
+
+**Metric pattern (not weaker reasoning).** Failure recall rises from 0.786 to
+1.000 while success recall falls from 0.824 to 0.412 and binary accuracy from
+0.806 to 0.677. That is the same success/failure trade-off seen in Round 5
+(`v5_constraint_verification`), not a random capability regression: the larger
+model is **more willing to call failure**, not less able to reason. Two
+sub-metrics confirm the reasoning is, if anything, *sharper*: on the failures it
+does flag, `failure_type_top1_accuracy` rises 0.500 → 0.643 and
+`failure_step_localization_within_2` rises 0.643 → 0.929. gpt-5.4 types and
+locates real failures better; it simply applies the success/failure threshold
+too aggressively. The regression is verdict **calibration**, not analysis
+quality.
+
+**Per-sample mechanism.** Comparing `samples` in
+`eval/runs/2026-06-03T05-45-39Z/agent_report.json` (mini agent) vs
+`eval/runs/2026-06-04T06-04-20Z/agent_report.json` (gpt-5.4 agent), **10 / 31**
+cases flip on `binary_verdict_correct`, and **all 10 move in the same direction**:
+mini said `success`, gpt-5.4 said `failed`. There is **not one** flip the other
+way (no case where mini said `failed` and gpt-5.4 said `success`). That
+monotonicity is the cleanest possible signature of a single verdict-threshold
+shift rather than mixed capability changes. Of the 10, **seven** are gold
+`success` trajectories that mini grades correctly and gpt-5.4 false-fails—the
+dominant error mode—and the remaining **three** are gold `failed` trajectories
+mini wrongly passed and gpt-5.4 correctly caught. The shift shows up in the
+marginal verdict distribution too: mini proposes **17 success / 14 failed**
+(matching the gold base rate of 17 / 14 almost exactly), while gpt-5.4 proposes
+**7 success / 24 failed**—it reclassifies 10 trajectories success→failed and is
+wrong on 7 of them. Because the golden set has 17 success and 14 failed labels,
+false failures on success hurt the primary metric more than missing a failure
+hurts it when failure recall is already high on mini.
+
+**Prompt × model interaction.** `v6_guided_autonomy` couples two pressures in
+[`prompts/eval_agent/v6_guided_autonomy/system.md`](../prompts/eval_agent/v6_guided_autonomy/system.md):
+the **Decision threshold** block puts the burden of proof on failure (default
+success-shape), while the opening **How to work** block encourages 2–4
+investigation tool calls, constraint-step reads, and high-detail inspection
+before `propose_eval_case`. Weaker or more cost-sensitive models often stop once
+evidence is sufficient; stronger models more consistently execute the “investigate
+deeper” branch. On this run that shows up as mean `get_step_detail` **2.32** vs
+**1.00** per trajectory, and on the seven false-failures specifically gpt-5.4
+issued 2–3 high-detail reads where mini issued exactly 1. The extra reads do not
+fail because the model *saw less*: on **all seven** false-failures
+`evidence_unavailable = 0` for both runs—the evidence was fully visible to both.
+What changes is interpretation. gpt-5.4 re-reads visible, success-shaped evidence
+and upgrades non-perfect-but-acceptable UI states into failures, typing them as
+`missed_constraint` (×3), `wrong_result` (×2), and `early_terminated` (×2). In
+other words it over-verifies constraints and holds completed tasks to a stricter
+bar than the trajectory's actual goal requires—even when mini, on the same VLM
+evidence, accepts success-shape. gpt-5.4 does not gain much on failures mini
+already caught (failure recall was already 0.786 on mini).
+
+**VLM ceiling unchanged.** Both runs set `TRAJECTA_VLM_MODEL=gpt-5.4-mini-2026-03-17`.
+High-detail screenshots are read by the same VLM; a larger Eval Agent only
+re-interprets the **same** digest and `get_step_detail` outputs. Better headline
+accuracy therefore cannot come from “seeing more pixels,” only from different
+judgment on identical visible evidence.
+
+**Judge corroboration.** The dual LLM judge uses the **same** rubric bundles on
+both trace sets. On gpt-5.4 drafts, acceptable rates drop (Judge A 16/31, Judge
+B 14/31 vs 20/31 each on mini) and κ_LLM,LLM falls to 0.743 with four A/B
+disagreements. Lower κ here reflects **worse regression-case drafts** (more
+aggressive failure shapes, weaker success paths), not a change in judge prompts.
+
+**What did not explain the verdict gap.**
+
+- **Missing/unavailable evidence:** ruled out. `evidence_unavailable = 0` on all
+  seven false-failures for both runs, so the gap is not "gpt-5.4 saw fewer
+  screenshots / hit more `not_visible` gaps." Both models judged the same fully
+  visible evidence and disagreed on the verdict.
+- **Digest cache:** mini had preprocess cache hits on 8/31 traces (23 rebuilt);
+  gpt-5.4 had 31/31 hits. Cache skips low-detail VLM billing on a hit but still
+  injects the digest into the agent prompt, so it does not explain a systematic
+  shift toward marking successes as failed.
+- **Cost / latency:** higher `cost_usd` on gpt-5.4 reflects higher agent list
+  prices and more tool turns, not proof of higher-quality verdicts on this
+  benchmark. Note the penalty is in dollars, not wall-clock: gpt-5.4 was actually
+  *faster* per trajectory (mean latency 25.7 s vs 48.3 s) despite doubling tool
+  calls, so "slower" is not part of the trade-off.
+
+**Implications.**
+
+- **Featured default:** `v6_guided_autonomy` with **`gpt-5.4-mini-2026-03-17`**
+  as the Eval Agent for balanced `binary_verdict_accuracy` on this golden set.
+- **When to use gpt-5.4:** only if the product goal prioritizes **failure recall**
+  (catch every labeled failure) and accepts more false failures on successful
+  trajectories—similar to choosing `v5_constraint_verification` over v3/v6 on
+  prompts alone.
+- **Future work (not done here):** since the gap is verdict calibration on
+  visible evidence (not investigation depth or missing pixels), a model-specific
+  variant should raise the **bar for a violation**—strengthen the success-shape
+  default and require an explicit, goal-relevant constraint breach before
+  `failed`, so extra reads inform the verdict without lowering the failure
+  threshold. Tune and re-run on the full 31-case set before treating gpt-5.4 as
+  the default agent.
 
 ## Experiment Table
 
@@ -97,13 +204,15 @@ provider prompt-cache billing discounts if the API offers them.
 | 6 | `v6_guided_autonomy` | Legible per-tool contract + explicit investigation freedom; strict verdict/evidence rules (burden-of-proof, `not_visible` split). | vs v3: binary acc. +0.000 (0.806); success recall +0.059; failure recall -0.071; 70% of evidence from high-detail reads; mean latency +38 s (longer prompt → more reasoning). | Matches v3's headline accuracy with a cleaner, better-grounded evidence trail; the current featured prompt. Higher latency is the cost. |
 | 7 | `v6_guided_autonomy` + `gpt-5.4-2026-03-05` agent | Same v6 prompt; swap Eval Agent to full `gpt-5.4`, VLM unchanged (mini). | vs v6 mini (`2026-06-03T05-45-39Z`): binary acc. −0.129; success recall −0.412; failure recall +0.214; mean `get_step_detail` +1.32; cost +$3.474; judge κ 1.0 → 0.743. | Stronger failure catching and step localization, but worse headline accuracy and more false failures on success; higher cost. Featured default remains mini agent. |
 
-## A7.1 Conclusion
+## Conclusion
 
 Use `v3_balanced_rubric` or `v6_guided_autonomy` as the best general agent-eval
 prompt by the primary metric (both at 0.806 binary accuracy). `v6_guided_autonomy`
 is featured because it grounds more claims in high-detail inspection (70% of
-cited evidence) at the cost of higher per-run latency. Use
-`v5_constraint_verification` only when the objective is to catch every failure
+cited evidence) at the cost of higher per-run latency. The featured **agent model**
+remains `gpt-5.4-mini-2026-03-17`; swapping to `gpt-5.4-2026-03-05` on the same v6
+prompt lowers headline accuracy—see [Why gpt-5.4 did not improve headline accuracy](#why-gpt-54-did-not-improve-headline-accuracy).
+Use `v5_constraint_verification` only when the objective is to catch every failure
 and tolerate more false positives on successful runs.
 
 Dual LLM judge on **v6 mini-agent** traces (`2026-06-03T05-45-39Z`): both
@@ -131,9 +240,9 @@ Caveat: the `v6_guided_autonomy` `agent_report` (run `2026-06-03T05-45-39Z`)
 predates later refinements to the v6 prompt (the `not_visible` / precedence
 edits); those were not re-run over the full 31-case set.
 
-## Note on Spotlighting (B6)
+## Note on Spotlighting
 
-The Phase 8 B6 Spotlighting defense (delimiting wrap + anti-injection
+The Spotlighting defense (delimiting wrap + anti-injection
 preamble) is a small production hardening feature, not an experiment in
 this log. It is shipped and unit-tested but deliberately **unmeasured** —
 there is no injection golden set, ablation, or `injection_resistance_rate`
