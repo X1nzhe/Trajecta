@@ -140,8 +140,10 @@ weaker, not because the rubric changed.
 κ=1.0 on the mini run reflects a largely objective checklist at temperature 0
 over n=31 — convergence on a mechanical standard, not a claim that
 acceptability judgment is solved. See
-[docs/experiment_log.md](experiment_log.md#model-ablation-v6-agent-only) for
-agent-model ablation metrics and digest-cache / token accounting notes.
+[docs/experiment_log.md — Model ablation](experiment_log.md#model-ablation-v6-agent-only)
+for metrics and digest-cache / token accounting, and
+[Why gpt-5.4 did not improve headline accuracy](experiment_log.md#why-gpt-54-did-not-improve-headline-accuracy)
+for the interpretation (prompt × model interaction, per-sample flips, VLM ceiling).
 
 | Assertion | Predicate |
 | --- | --- |

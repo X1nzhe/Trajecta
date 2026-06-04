@@ -278,13 +278,22 @@ Optional **model ablation** on the same v6 prompt (VLM still `gpt-5.4-mini-2026-
 | Dual-judge acceptable (A / B) | 16/31; 14/31 | 20/31; 20/31 |
 | κ_LLM,LLM | 0.743 | 1.000 |
 
-Full `gpt-5.4` agent trades headline accuracy for failure sensitivity (profile
-similar to `v5_constraint_verification`). Cross-run cost is **not** a fair
-unit-price comparison: agent list prices differ, tool depth differs, and digest
-cache hit rate differed (mini 8/31 cached preprocess vs gpt-5.4 31/31). Digest
-cache lowers **VLM** usage on a hit but does not reduce **agent** `input_tokens`
-(the digest still enters the LLM prompt). Details in
-[docs/experiment_log.md](docs/experiment_log.md#model-ablation-v6-agent-only).
+**Why the stronger model scored lower:** not because it “reasons worse”—because
+it applies the success/failure threshold too aggressively. The two runs disagree
+on 10 trajectories, and **all 10 flips go the same direction** (mini `success` →
+gpt-5.4 `failed`); none reverse. Seven of those are gold-success runs gpt-5.4
+false-fails (the three real ones it catches lift failure recall to 100%). The
+false failures happen on **fully visible evidence** (`evidence_unavailable = 0`),
+so it is not a “saw fewer pixels” effect—the VLM was unchanged (`gpt-5.4-mini`);
+gpt-5.4 just re-reads the same evidence and over-verifies constraints. On the
+failures it does flag it is actually *sharper* (failure-type 0.50 → 0.64, step
+localization 0.64 → 0.93), confirming a verdict **calibration** shift—a
+failure-sensitive direction resembling `v5_constraint_verification`—not a
+reasoning regression. Cross-run cost is **not** a fair unit-price comparison
+(list prices, tool depth, digest cache 8/31 vs 31/31 on preprocess), and the
+extra cost is dollars only: gpt-5.4 was faster per trajectory (25.7 s vs 48.3 s).
+Full interpretation:
+[docs/experiment_log.md — Why gpt-5.4 did not improve headline accuracy](docs/experiment_log.md#why-gpt-54-did-not-improve-headline-accuracy).
 
 The v5 prompt is intentionally failure-sensitive: failure recall reaches 100.0%, but success recall drops to 41.2%. Full per-round metrics and caveats are in [docs/experiment_log.md](docs/experiment_log.md).
 
