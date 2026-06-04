@@ -659,8 +659,9 @@ narrowing.
 
 ### C2. Repo hygiene
 
-Already completed in Phase 7 finalize: `eval/runs/`, `eval/agent_report.`*,
-`eval/_mock_smoke_test.json` are `.gitignored`. Phase 8 C2 is the
+Already completed in Phase 7 finalize: `eval/agent_report.*` and
+`eval/_mock_smoke_test.json` are `.gitignored`; `eval/runs/` ignores all
+timestamps except whitelisted formal runs (see `.gitignore`). Phase 8 C2 is the
 working-tree-clean check before each Phase 8 commit and a `git status`
 pass before the final 48-hour push.
 

@@ -1,0 +1,1161 @@
+{
+  "judge": {
+    "slot": "B",
+    "model": "gpt-5.4-mini-2026-03-17",
+    "prompt_version": "v1_acceptability_openai",
+    "prompt_sha256": "95c129141577828391eff8a516099b7a2964a3af900719909d687f2fb92be021"
+  },
+  "sample_size": 31,
+  "acceptable_count": 15,
+  "unacceptable_count": 16,
+  "acceptable_rate": 0.4838709677419355,
+  "cases": [
+    {
+      "run_id": "87ea181fa8c78cf62748a3490a845f4740dd4d5824cda20316ec05022998059e",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden success outcome and its evidence supports that claim. It does not assert any forbidden failure condition, and the cited step-local evidence is sufficient for a reusable regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft describes a successful run, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "No failure type is asserted for a success reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "This is a success reference, so step localization is not required."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior and rule describe the correct final search state clearly enough to reuse."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the run failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence directly supports the described final screen and search constraints."
+        }
+      ]
+    },
+    {
+      "run_id": "8dbb24c167b85f126c58dd983d130fa759dd267d562813b74a6d89ab959c1e71",
+      "verdict": "unacceptable",
+      "rationale": "The draft matches the failure shape of the trajectory, but the golden reference expects success, so the verdict is misaligned. It also asserts a missed-constraint failure despite evidence that the task was completed to a visible results page with a lowest fare.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft describes a failure while the golden outcome is success."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Missed constraint is compatible with the labeled failure."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure is localized to the final step."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The fields describe what to verify before exiting."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "It does not assert the forbidden failed outcome."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the stated gap in visible verification."
+        }
+      ]
+    },
+    {
+      "run_id": "973265788f73a2309245782ee9e5580dbcb1797dbabd1a3fc06ef8575b7db652",
+      "verdict": "unacceptable",
+      "rationale": "The draft\u2019s failure type is not compatible with the golden label set, and it asserts a forbidden missed-constraint failure. The evidence does support an unverified layover constraint, but the case is not acceptable under this reference.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly marks the run as failed."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The draft uses missed_constraint, which is forbidden and not in the allowed failure-type set."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Step 17 is within the expected failure range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule would help catch the same premature exit."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "It asserts a forbidden missed-constraint failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the unverified layover claim and the exit behavior."
+        }
+      ]
+    },
+    {
+      "run_id": "e5677cbb1e5eea79188ff5193aa5d8a3dd55b3ef5896729fdc85a8d98b6b34f3",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden success outcome and does not assert any forbidden failure. Its evidence is sufficient and the minor uncertainty is honestly framed as a gap rather than invented proof.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft claims success, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "No failure is asserted, so compatibility is not an issue."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "This is a success case, so step localization passes."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule would let a future check confirm the same success."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the forbidden failed outcome."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the success claim and notes uncertainty honestly."
+        }
+      ]
+    },
+    {
+      "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the success outcome and its evidence supports the claimed Amazon product selection. It does not assert any forbidden failure fact, and the cited details are sufficient for a reusable regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft describes a successful run, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "This is a success case, so no failure type is required."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "This is a success case, so step localization is not applicable."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The expected and actual behaviors plus rule are enough to detect the same success path."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the run failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited trajectory evidence supports the product and filter claims."
+        }
+      ]
+    },
+    {
+      "run_id": "3672b077c54192ee2e018d1910a8c06b38e779e80e27ea7f169d586b6e52ee01",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden success outcome and its evidence supports the claimed qualifying product page. It does not assert any forbidden failure condition, and the cited step is sufficient for the success case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft describes a success case, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "This is a success reference, so no failure type is required."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "This is a success reference, so step localization is not applicable."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule are enough to recognize the same successful Amazon desk result."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the run failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the product, price, and home-office claims."
+        }
+      ]
+    },
+    {
+      "run_id": "e3dd8b672040358f90c1e04eabb550ce5ae5d83f835e77b439ed6b9df83c5099",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the failed outcome and uses a compatible failure type. The cited evidence supports a wrong-target failure at the labeled step and does not assert any forbidden fact.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly marks the run as failed."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Wrong_target is explicitly allowed by the golden reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Step 23 is close enough and supported by the cited evidence."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, evidence, and rule would catch the same wrong-page substitution."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim success or a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence supports the wrong-target claim and the missing AirTag details are stated as not visible."
+        }
+      ]
+    },
+    {
+      "run_id": "2b5043e60689641f15f2ae8de566f023fdeece8548a5f2f2a78071c2d167f080",
+      "verdict": "unacceptable",
+      "rationale": "The draft does not match the golden success outcome because it describes an unverified/missed battery-life answer. It also fails usefulness and evidence-support because no exact average battery life was confirmed before exit.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The golden reference expects success, but the draft describes a missed answer."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Missed_constraint is compatible with the labeled failure."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure is localized to step 20."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The case does not capture an exact battery-life answer to regress against."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "It does not assert the forbidden failed outcome."
+        },
+        {
+          "name": "evidence_support",
+          "status": "fail",
+          "rationale": "The evidence only shows proxy battery text and explicitly notes no exact value was visible."
+        }
+      ]
+    },
+    {
+      "run_id": "865eb899d535f41df5bf4b17d84eaf0ab7adea06704ad24a5fea56598831e7fa",
+      "verdict": "unacceptable",
+      "rationale": "The draft marks a failed run as success, contradicting the golden outcome. It also relies on an early-termination failure case, which is incompatible with the required success reference.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The golden reference expects success, but the draft describes failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type early_terminated matches the cited precedent."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited step 6 is consistent with the termination point."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, expected behavior, and rule would catch the same premature exit."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts failure, which is forbidden by the golden reference."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited trajectory evidence supports the premature exit claim."
+        }
+      ]
+    },
+    {
+      "run_id": "19bacddefba25e3f6e6a63dda5c1862beeef09062e8c008f51a002aa19e2cbc3",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden failure shape and labels the failure as early_terminated at an in-range step. Its evidence and regression rule support a reusable case without asserting any forbidden facts.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft is a failure case, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type early_terminated is explicitly allowed."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step 7 is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule would catch the same premature exit pattern."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim success or a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the exit-before-verification claim."
+        }
+      ]
+    },
+    {
+      "run_id": "a492a7f130f565cc31662ce63c5ed1297ff48df996a747d735405df2269a3bfb",
+      "verdict": "unacceptable",
+      "rationale": "The draft describes a failure to verify spinach, but the golden reference expects success. Because it asserts a failed outcome and a missed constraint, it is not reusable for this reference.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft\u2019s failure shape conflicts with the golden success outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type is a compatible missed-constraint style error."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Step 7 is a plausible location for the observed issue."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The case would test a failure, not the required successful reference."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "It asserts the run failed, which is forbidden by the golden reference."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the claim that spinach was not verified."
+        }
+      ]
+    },
+    {
+      "run_id": "44bc689d47bfe634bde3454f1eab21437cc98cea7be4b6e44068e022c470ed3d",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden success outcome and does not assert any forbidden failure. Its evidence supports a reusable success case for the recipe page and extracted prep time/ingredients.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft describes a successful run, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "This is a success reference, so no failure type is required."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "This is a success reference, so step localization is not applicable."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The expected and actual behaviors plus the rule are enough to detect the same success state."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the run failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited trajectory evidence supports the success claim and contains no invented gaps."
+        }
+      ]
+    },
+    {
+      "run_id": "a6daae0455a6bd9e3bb37a0f9e853f53e17b7b6639cbbf5501e44c51781313d0",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden failure shape and uses a compatible failure type with localized evidence. It also avoids forbidden claims and provides enough evidence to support the regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft is a failed case, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "early_terminated is compatible with the labelled failure type."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure step is within the expected range and supported by the observed step."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule clearly describe how to catch the same failure again."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim success or a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited trajectory evidence supports the early termination claim."
+        }
+      ]
+    },
+    {
+      "run_id": "a2526a14d27f6d511e5216296976133c2d2d64126a3dfcf0cf07a94e1cd3e35d",
+      "verdict": "unacceptable",
+      "rationale": "The draft\u2019s failure type does not match the golden early-terminated label, and it forbids a labeled-compatible failure mode by using missed_constraint. The evidence supports an early stop on search results, but the case is not aligned with the reference failure taxonomy.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly marks the run as failed."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The draft uses missed_constraint, which is forbidden and not compatible with early_terminated."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Step 5 is within the expected failure range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, outcome, and rule would catch the same premature stop."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "It asserts a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the search-results-only stopping point."
+        }
+      ]
+    },
+    {
+      "run_id": "32e7dbe84bcaf8206d7d28a43e9c7b26e3553c33e509c30618bddb34fe8aaef4",
+      "verdict": "unacceptable",
+      "rationale": "The draft describes a failure to verify the recency constraint, but the golden reference expects success. Because the proposed case asserts a failed outcome, it is not aligned with the reference and also risks a forbidden claim.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft says the run failed, but the golden outcome is success."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type is compatible with a missed constraint."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited step 6 is within the localized evidence for the missed recency check."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, expected behavior, and rule describe a reusable recency-verification regression."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts failure, which is forbidden by the golden reference."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the claim that the recency constraint was not verified."
+        }
+      ]
+    },
+    {
+      "run_id": "963540ac95f6f5c7342cd6656329a56ee530dc17f3e6d05191643c554fac51df",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden success outcome and does not assert any forbidden failure. Its failure framing is compatible with a missed constraint and the cited evidence honestly shows the creation date was not verified.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The golden reference expects success, and the draft is not marked failed."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Missed constraint is compatible with the labelled failure type."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited step 7 evidence localizes the missed verification point."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, expected behavior, and rule would catch the same omission again."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the run failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence supports that creation date was not verified and no invented source is used."
+        }
+      ]
+    },
+    {
+      "run_id": "7cb4d4b1a9b88683ffbd82c7320a64f1a74928a0d41e9cfb2f7c52b4bc4346ab",
+      "verdict": "unacceptable",
+      "rationale": "The draft is misaligned with the golden success outcome and instead describes a failure case. It also asserts a missed-constraint failure without supporting evidence that the page was actually inspected and matched.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "Golden expects success, but the draft frames the run as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Missed-constraint is a compatible failure type for this draft."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure is localized to step 1, which is supported by the trajectory."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, expectation, and rule are sufficient to catch the same issue again."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert any forbidden fact from the golden reference."
+        },
+        {
+          "name": "evidence_support",
+          "status": "fail",
+          "rationale": "The evidence only shows missing page verification, not that the repository actually had the stated count."
+        }
+      ]
+    },
+    {
+      "run_id": "b31ed3c90690a0e0757c108be0eafd941a32358a396f9a01d9dfeb4f1b279158",
+      "verdict": "unacceptable",
+      "rationale": "The draft marks a failure, but the golden reference expects success. It also frames an unverified constraint as the key issue, which does not match the required outcome shape.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "Golden outcome is success, but the draft describes a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Missed_constraint is compatible with the labeled issue."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited step 14 is within the labeled failure range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule describe a reusable constraint-verification regression."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert the forbidden failed outcome."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the claim and notes the missing beach-resort proof honestly."
+        }
+      ]
+    },
+    {
+      "run_id": "369cde93212c31a57d18b8bc1aa61bf5d57d68bcb38d4918b4c9fc301da28a63",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden success outcome and is supported by the final visible evidence. It does not assert any forbidden failure fact, and the cited evidence is sufficient for a reusable regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft describes a successful outcome, matching the golden reference."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "This is a success case, so no failure type is required."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "This is a success case, so step localization is not applicable."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, evidence, and rule together define a clear success regression check."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the run failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited step evidence supports the stated success conditions."
+        }
+      ]
+    },
+    {
+      "run_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+      "verdict": "unacceptable",
+      "rationale": "The draft\u2019s failure type conflicts with the golden label, which expects early_terminated rather than missed_constraint. It also asserts a constraint-miss narrative that is not the labeled failure mode, even though the evidence supports the general search behavior.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly marks the run as failed."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "missed_constraint is forbidden and not compatible with early_terminated."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure step 39 is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The case describes the needed search, verification, and stopping behavior clearly."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "It claims a missed constraint failure type that is explicitly forbidden."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence supports the search-only behavior and lack of confirmed hotel details."
+        }
+      ]
+    },
+    {
+      "run_id": "945d14f4290efaa35e70185ecdb2a66c4a6acf826ae9ddb17995cc355aae0cac",
+      "verdict": "unacceptable",
+      "rationale": "The draft\u2019s failure type is incompatible with the golden label, which requires wrong_result rather than missed_constraint. It also asserts an unverified category-match issue that is not supported by the evidence and conflicts with the forbidden-facts set.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly marks the run as failed."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The labeled failure type is missed_constraint, which is not allowed here."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The failure is localized to step 7, which is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The fields describe the observed search result, the exit, and the needed category verification."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft implies a missed-constraint style failure that conflicts with the golden reference."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the search-results-page and exit claims, with the category match honestly left unverified."
+        }
+      ]
+    },
+    {
+      "run_id": "7357a951f990f531ebaa4761106d7f960054de3bb213e31a24a99f2be64264c6",
+      "verdict": "unacceptable",
+      "rationale": "The draft\u2019s failure type conflicts with the golden reference and its labeled failure step is outside the expected range. It also relies on an unsupported early-termination memory label and therefore does not cleanly match the reusable regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly describes a failed run."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The draft uses early_terminated, which is forbidden and not compatible with the labeled wrong_target set."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "fail",
+          "rationale": "The draft\u2019s failure_step is 7, outside the expected 2 to 6 range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior, evidence, and rule would catch the same wrong-target mistake."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts early_terminated, which appears in the forbidden facts."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the model-page mismatch and exit action."
+        }
+      ]
+    },
+    {
+      "run_id": "2b44b6762de7b8fdfaa80b72bffbf7a9b46d957c6d5496133d96772f6c49d6e3",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the failed outcome and uses a compatible failure type with a localized step in range. Its evidence and regression rule support the same wrong-result/missed-constraint regression without asserting forbidden facts.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft is marked failed, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "wrong_result is an allowed compatible failure type."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Failure step 7 is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior and rule capture the missing hard constraints clearly."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim success or a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the stated failure and gaps are not invented."
+        }
+      ]
+    },
+    {
+      "run_id": "0f1fafb32cb6b85f8a7e950af36286012292780d409caebd76d015af272d099c",
+      "verdict": "unacceptable",
+      "rationale": "The draft describes a failed run, but the golden reference expects success. It also does not support a reusable success case because the evidence only shows an unverified search-results stop.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft says the run failed while the golden outcome is success."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The failure type missed_constraint is compatible with the labeled constraint miss."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure is localized to step 4, which is within the supported evidence."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The case does not encode a successful verified selection matching the golden outcome."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert that the outcome was failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The evidence supports the claim that no verified target selection was shown."
+        }
+      ]
+    },
+    {
+      "run_id": "f51766eee5627636023c32517eb5d5362c75137194490409e8935e1035e77e2a",
+      "verdict": "unacceptable",
+      "rationale": "The draft\u2019s failure type and evidence point to missed_constraint, but the golden reference requires wrong_result and forbids missed_constraint. The rest of the case is useful, but it is not aligned with the labeled failure facts.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly marks the run as failed."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "The draft uses missed_constraint, which is forbidden and not compatible with the required wrong_result label."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure step 4 is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule would help catch the same constraint-verification failure."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts missed_constraint, which appears in the forbidden failure types."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the claimed 14-inch mismatch and the exit at step 4."
+        }
+      ]
+    },
+    {
+      "run_id": "cc5c498fce92fc22a65d6efc8c7f6deae6b032c3fdc0d135346fa5e476a89923",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the failed outcome and localizes the failure to the final underpriced product page. Its evidence and regression rule support a reusable missed-constraint/wrong-result case without asserting forbidden facts.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The case is clearly a failure, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Wrong_result is compatible with the labelled missed_constraint set."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure step 14 is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule capture the constraint-checking failure clearly."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim success or a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the underpriced final page and the exit."
+        }
+      ]
+    },
+    {
+      "run_id": "2d0807be8dc5f2d1219d6c2b7b2f17d00a12178f0f25a1e0f0c0d11e12f1b95b",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the golden success outcome and its evidence supports a successful arXiv search result. It does not assert any forbidden failure condition, and the cited details are sufficient for reuse.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft describes a success case."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "No failure type is asserted for a success reference."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "This is a success reference, so step localization is not required."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior and evidence are specific enough to reproduce the success."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim the run failed."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the successful search result."
+        }
+      ]
+    },
+    {
+      "run_id": "98872d07da3c778a6c97369b1ac1b7e77e37e6829554add5841dd587705ad59e",
+      "verdict": "unacceptable",
+      "rationale": "The draft describes a failed run, but the golden reference requires success. It also does not establish the needed success outcome for a reusable regression case.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "fail",
+          "rationale": "The draft's failure shape conflicts with the golden success outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "The labeled missed-constraint failure is compatible with the evidence."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure is localized to step 7 after the inspected article page."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "fail",
+          "rationale": "The case would test a failure, not the required success behavior."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not assert the forbidden failed outcome."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the described gap and exit state."
+        }
+      ]
+    },
+    {
+      "run_id": "071b66b4835f126f6c205fa349323688f6652d66b103c66cf1606f5abe36ba28",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the failed outcome and a compatible failure type, and the evidence supports the missed recency constraint. It also avoids forbidden claims and provides enough detail for a future regression check.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The draft correctly describes a failed run."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Missed constraint is compatible with the labeled failure set."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure step is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behavior and rule would catch the same omission again."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim success or a forbidden failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited trajectory evidence supports the missing recency check."
+        }
+      ]
+    },
+    {
+      "run_id": "cf1b44c865dd9dd3d6a5742720640bb2907757b914b616356cb7d0b10c2582da",
+      "verdict": "acceptable",
+      "rationale": "The draft matches the failed outcome, uses a compatible failure type, and localizes the failure within the allowed step range. Its evidence and regression rule support a reusable case without asserting forbidden facts.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The case is clearly framed as a failure, matching the golden outcome."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "pass",
+          "rationale": "Inefficient search is explicitly allowed by the labeled failure-type set."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "The cited failure step 4 is within the expected range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The expected, actual, and rule statements would catch the same missed-year search failure."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "pass",
+          "rationale": "The draft does not claim success or an excluded failure type."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited trajectory evidence supports the broad query, no-results page, and early exit claims."
+        }
+      ]
+    },
+    {
+      "run_id": "d8d335be0b252e0adbef1c41f190ee7b249d37ac857224bf8857473dc227c258",
+      "verdict": "unacceptable",
+      "rationale": "The draft\u2019s failure type and step do not match the golden reference, which expects inefficient_search at step 3-7 rather than early_terminated. It also introduces a forbidden failure framing by implying termination on an empty page instead of the labeled search inefficiency.",
+      "assertions": [
+        {
+          "name": "verdict_alignment",
+          "status": "pass",
+          "rationale": "The reference outcome is failed and the draft is also framed as a failure."
+        },
+        {
+          "name": "failure_mode_compatibility",
+          "status": "fail",
+          "rationale": "early_terminated is not in the allowed failure-type set and is forbidden here."
+        },
+        {
+          "name": "failure_step_localization",
+          "status": "pass",
+          "rationale": "Step 5 is within the expected failure range."
+        },
+        {
+          "name": "regression_case_usefulness",
+          "status": "pass",
+          "rationale": "The behaviors and rule describe how to catch the same search failure."
+        },
+        {
+          "name": "no_forbidden_claim",
+          "status": "fail",
+          "rationale": "The draft asserts an early termination pattern that conflicts with the golden failure framing."
+        },
+        {
+          "name": "evidence_support",
+          "status": "pass",
+          "rationale": "The cited evidence supports the empty results and missing verification claims."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1505 @@
+{
+  "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+  "user_intent": "analyze_run",
+  "selected_step": null,
+  "tool_call_count": 3,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 24,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_run",
+      "args": {
+        "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_run",
+      "args": null,
+      "result": {
+        "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+        "task": "navigate: Find a bamboo memory foam pillow on Amazon with a washable cover and available in king size.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 457.94574368568755,
+                "y": 20.28295605858855
+              },
+              "bbox": {
+                "x": 251.17305893358278,
+                "y": 10.545938748335553,
+                "width": 358.1066417212348,
+                "height": 36.431424766977365
+              },
+              "raw": "mouse_click(x=457.94574368568755, y=20.28295605858855, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'pillow'",
+              "text": "pillow",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='pillow')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "keyboard_type",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "press Enter key",
+              "text": "Enter",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_press(key='Enter')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "keyboard_press",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.amazon.com/s?k=pillow&crid=1M4FR2PX1XQRH&sprefix=pillow%2Caps%2C393&ref=nb_sb_noss_1",
+              "title": "Amazon.com : pillow",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'King Size'",
+              "text": null,
+              "coordinates": {
+                "x": 64.96538821328345,
+                "y": 212.45422769640479
+              },
+              "bbox": {
+                "x": 19.158091674462113,
+                "y": 207.60818908122505,
+                "width": 55.281571562207674,
+                "height": 15.818908122503329
+              },
+              "raw": "mouse_click(x=64.96538821328345, y=212.45422769640479, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "click",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&ref=sr_nr_p_rag_integrated_qb_1",
+              "title": "Amazon.com: King Size Pillow",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 237.76298268974702 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=237.76298268974702)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&ref=sr_nr_p_rag_integrated_qb_1",
+              "title": "Amazon.com: King Size Pillow",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Memory Foam'",
+              "text": null,
+              "coordinates": {
+                "x": 65.08512628624884,
+                "y": 306.5175599201065
+              },
+              "bbox": {
+                "x": 42.14780168381665,
+                "y": 300.3944740346205,
+                "width": 87.60336763330216,
+                "height": 15.818908122503329
+              },
+              "raw": "mouse_click(x=65.08512628624884, y=306.5175599201065, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "click",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011&dc&qid=1772181166&rnid=23750969011&ref=sr_nr_p_n_g-1003211091111_1&ds=v1%3Aohsm6E9%2F4vf5%2F8ROkqZt3VGuSRSyXCeKGr7XXw%2BxzCs",
+              "title": "Amazon.com: King Size Pillow - Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 372.9427430093209 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=372.9427430093209)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 8,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_008.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011&dc&qid=1772181166&rnid=23750969011&ref=sr_nr_p_n_g-1003211091111_1&ds=v1%3Aohsm6E9%2F4vf5%2F8ROkqZt3VGuSRSyXCeKGr7XXw%2BxzCs",
+              "title": "Amazon.com: King Size Pillow - Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 325.965379494008 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=325.965379494008)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "8",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 9,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_009.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011&dc&qid=1772181166&rnid=23750969011&ref=sr_nr_p_n_g-1003211091111_1&ds=v1%3Aohsm6E9%2F4vf5%2F8ROkqZt3VGuSRSyXCeKGr7XXw%2BxzCs",
+              "title": "Amazon.com: King Size Pillow - Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Washable'",
+              "text": null,
+              "coordinates": {
+                "x": 86.36482694106641,
+                "y": 578.0605026631158
+              },
+              "bbox": {
+                "x": 42.14780168381665,
+                "y": 573.2781291611185,
+                "width": 58.79887745556595,
+                "height": 15.818908122503329
+              },
+              "raw": "mouse_click(x=86.36482694106641, y=578.0605026631158, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "9",
+              "source_action_name": "click",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 10,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_010.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 465.9387483355526 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=465.9387483355526)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "10",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 11,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_011.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 261.73102529960056 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=261.73102529960056)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "11",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 12,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_012.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 268.44207723035953 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=268.44207723035953)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "12",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 13,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_013.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 287.6165113182424 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=287.6165113182424)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "13",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 14,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_014.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 291.4513981358189 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=291.4513981358189)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "14",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 15,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_015.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 222.42343541944075 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=222.42343541944075)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "15",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 16,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_016.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 307.74966711051934 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=307.74966711051934)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "16",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 17,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_017.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 252.14380825565914 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=252.14380825565914)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "17",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 18,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_018.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Memory Foam'",
+              "text": null,
+              "coordinates": {
+                "x": 107.90271281571562,
+                "y": 425.3428761651132
+              },
+              "bbox": {
+                "x": 42.14780168381665,
+                "y": 418.1974034620506,
+                "width": 87.60336763330216,
+                "height": 15.818908122503329
+              },
+              "raw": "mouse_click(x=107.90271281571562, y=425.3428761651132, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "18",
+              "source_action_name": "click",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 19,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_019.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 251.185086551265 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=251.185086551265)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "19",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 20,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_020.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 325.0066577896139 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=325.0066577896139)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "20",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 21,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_021.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 248.30892143808256 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=248.30892143808256)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "21",
+              "source_action_name": "scroll",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 22,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_022.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Bamboo'",
+              "text": null,
+              "coordinates": {
+                "x": 72.89803554724041,
+                "y": 549.2426764314248
+              },
+              "bbox": {
+                "x": 42.14780168381665,
+                "y": 543.6476364846872,
+                "width": 50.76145930776427,
+                "height": 15.818908122503329
+              },
+              "raw": "mouse_click(x=72.89803554724041, y=549.2426764314248, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "22",
+              "source_action_name": "click",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 23,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_023.png",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011%2Cp_n_g-1003357452111%3A23988550011&dc&qid=1772181224&rnid=23988495011&ref=sr_nr_p_n_g-1003357452111_3&ds=v1%3AvQHJJKxOfN8BNcxvymO7PG3khWHR0zZPcWd5j%2FcSN48",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Bamboo / Memory Foam",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Phantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable Firm Bed Pillows with Bamboo Cover & Cotton Cover, King Size, 1 Pack, Gift Package'",
+              "text": null,
+              "coordinates": {
+                "x": 348.1796071094481,
+                "y": 489.9779460719041
+              },
+              "bbox": {
+                "x": 277.0739008419083,
+                "y": 441.73102529960056,
+                "width": 224.29186155285313,
+                "height": 156.271637816245
+              },
+              "raw": "mouse_click(x=348.1796071094481, y=489.9779460719041, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "23",
+              "source_action_name": "click",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          },
+          {
+            "index": 24,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_024.png",
+              "url": "https://www.amazon.com/Phantoscope-Shredded-Sleeping-Hypoallergenic-Adjustable/dp/B08FWZBG18/ref=sr_1_1?dib=eyJ2IjoiMSJ9.pgfQO3J5TaLDGvvYawhymw.7tc7ZSFgKgOXpiCCAtL20czHTP6p46qWrjUs5tdTumk&dib_tag=se&keywords=king%2Bsize%2Bpillow&qid=1772181236&refinements=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011%2Cp_n_g-1003357452111%3A23988550011&rnid=23988495011&sr=8-1&th=1",
+              "title": "Amazon.com: Phantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable Firm Bed Pillows with Bamboo Cover & Cotton Cover, King Size, 1 Pack, Gift Package : Home & Kitchen",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1024,
+              "image_height": 720,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "24",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1024,
+              "image_height": 720
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+          "task": "navigate: Find a bamboo memory foam pillow on Amazon with a washable cover and available in king size.",
+          "step_count": 24,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (457.946, 20.283)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=top | Shop gifts for her under USD 50",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "type",
+              "action_text": "type 'pillow'",
+              "action_target": "type 'pillow'",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=top | Kitchen essentials Under $50, Get your game on, Shop for your home essentials",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "unknown",
+              "action_text": "press Enter key",
+              "action_target": "press Enter key",
+              "url": "https://www.amazon.com/",
+              "title": "Amazon.com. Spend less. Smile more.",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=top | Amazon search autocomplete for “pillow” with suggested queries and material chips",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "click",
+              "action_text": "click at (64.9654, 212.454)",
+              "action_target": "Click on SPAN element with value 'King Size'",
+              "url": "https://www.amazon.com/s?k=pillow&crid=1M4FR2PX1XQRH&sprefix=pillow%2Caps%2C393&ref=nb_sb_noss_1",
+              "title": "Amazon.com : pillow",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=top | Amazon search results for \"pillow\" with product cards and filters visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 237.76298268974702 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&ref=sr_nr_p_rag_integrated_qb_1",
+              "title": "Amazon.com: King Size Pillow",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon search results for king size pillow, product cards with pillow images and prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "click",
+              "action_text": "click at (65.0851, 306.518)",
+              "action_target": "Click on SPAN element with value 'Memory Foam'",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&ref=sr_nr_p_rag_integrated_qb_1",
+              "title": "Amazon.com: King Size Pillow",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon pillow listings with filters and Add to cart buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 372.9427430093209 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011&dc&qid=1772181166&rnid=23750969011&ref=sr_nr_p_n_g-1003211091111_1&ds=v1%3Aohsm6E9%2F4vf5%2F8ROkqZt3VGuSRSyXCeKGr7XXw%2BxzCs",
+              "title": "Amazon.com: King Size Pillow - Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon search results for \"king size pillow\" with product cards and prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 8,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 325.965379494008 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011&dc&qid=1772181166&rnid=23750969011&ref=sr_nr_p_n_g-1003211091111_1&ds=v1%3Aohsm6E9%2F4vf5%2F8ROkqZt3VGuSRSyXCeKGr7XXw%2BxzCs",
+              "title": "Amazon.com: King Size Pillow - Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon pillow search results with product cards and Add to cart buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 9,
+              "action_type": "click",
+              "action_text": "click at (86.3648, 578.061)",
+              "action_target": "Click on SPAN element with value 'Washable'",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011&dc&qid=1772181166&rnid=23750969011&ref=sr_nr_p_n_g-1003211091111_1&ds=v1%3Aohsm6E9%2F4vf5%2F8ROkqZt3VGuSRSyXCeKGr7XXw%2BxzCs",
+              "title": "Amazon.com: King Size Pillow - Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon pillow search results with Add to cart buttons and product images",
+              "has_screenshot": true
+            },
+            {
+              "index": 10,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 465.9387483355526 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for \"king size pillow\" with product cards and prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 11,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 261.73102529960056 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon product grid for pillows, yellow Add to cart buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 12,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 268.44207723035953 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | product listings for memory foam pillows with prices and Add to cart buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 13,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 287.6165113182424 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon product results for cooling memory foam pillows, Add to cart buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 14,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 291.4513981358189 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon product grid for pillows with Add to cart buttons and prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 15,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 222.42343541944075 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon-style product results for cooling pillows with Add to cart buttons and prices",
+              "has_screenshot": true
+            },
+            {
+              "index": 16,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 307.74966711051934 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Customers frequently viewed, Add to cart buttons, pillow product cards",
+              "has_screenshot": true
+            },
+            {
+              "index": 17,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 252.14380825565914 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | pillow shopping results with Add to cart buttons and prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 18,
+              "action_type": "click",
+              "action_text": "click at (107.903, 425.343)",
+              "action_target": "Click on SPAN element with value 'Memory Foam'",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011&dc&qid=1772181174&rnid=23750968011&ref=sr_nr_p_n_g-1003210783111_11&ds=v1%3A%2ByNNJVJsFVb3En9kTpireKOyW5zusluUQoMAl3qzfLw",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon product results for pillows, Add to cart buttons, sponsored listing visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 19,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 251.185086551265 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for king size pillow, product cards with pillow images and prices",
+              "has_screenshot": true
+            },
+            {
+              "index": 20,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 325.0066577896139 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon product grid for pillows with filters and Add to cart buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 21,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 248.30892143808256 pixels",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | Amazon product grid for memory foam pillows, Add to cart buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 22,
+              "action_type": "click",
+              "action_text": "click at (72.898, 549.243)",
+              "action_target": "Click on SPAN element with value 'Bamboo'",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011&dc&qid=1772181192&rnid=316545011&ref=sr_nr_p_n_material_browse_2&ds=v1%3A%2B7dzAjYemqM4pTHSWO5N0InlfqZANLJcpX%2FeTCooQQ0",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon-style product grid for memory foam pillows with prices and Add to cart buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 23,
+              "action_type": "click",
+              "action_text": "click at (348.18, 489.978)",
+              "action_target": "Click on SPAN element with value 'Phantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable Firm Bed Pillows with Bamboo Cover & Cotton Cover, King Size, 1 Pack, Gift Package'",
+              "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011%2Cp_n_g-1003357452111%3A23988550011&dc&qid=1772181224&rnid=23988495011&ref=sr_nr_p_n_g-1003357452111_3&ds=v1%3AvQHJJKxOfN8BNcxvymO7PG3khWHR0zZPcWd5j%2FcSN48",
+              "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Bamboo / Memory Foam",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "TAGS: page_type=search_results; modal=no; error_banner=no; focus=center | Amazon results for “king size pillow”, product image and price prominently shown",
+              "has_screenshot": true
+            },
+            {
+              "index": 24,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.amazon.com/Phantoscope-Shredded-Sleeping-Hypoallergenic-Adjustable/dp/B08FWZBG18/ref=sr_1_1?dib=eyJ2IjoiMSJ9.pgfQO3J5TaLDGvvYawhymw.7tc7ZSFgKgOXpiCCAtL20czHTP6p46qWrjUs5tdTumk&dib_tag=se&keywords=king%2Bsize%2Bpillow&qid=1772181236&refinements=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011%2Cp_n_g-1003357452111%3A23988550011&rnid=23988495011&sr=8-1&th=1",
+              "title": "Amazon.com: Phantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable Firm Bed Pillows with Bamboo Cover & Cotton Cover, King Size, 1 Pack, Gift Package : Home & Kitchen",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "TAGS: page_type=detail; modal=no; error_banner=no; focus=center | Phantoscope Memory Foam Pillow for Sleeping, Add to cart button, price prominently shown",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 26616,
+          "vlm_output_tokens": 820
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+        "step_index": 23,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+        "step_index": 23,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "page_state:\nAmazon search results page showing 1 result for “king size pillow,” with left-side filters and one visible product card.\ntask_relevant_visible_text:\n“Phantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable…”\n“Options: 3 sizes”\n“4.3”\n“(1.1K)”\n“VND 964,514”\n“Ships to Vietnam”\nFilter text: “Memory Foam”, “Washable”, “Cooling”, “Firm”\nselected_candidate:\nPhantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable Firm Bed Pillows with Bamboo Cover & Cotton Cover, King Size, 1 Pack, Gift Package\nconstraint_evidence:\n- bamboo material/cover: supported by action/title context (“Bamboo Cover” in candidate title); not clearly visible in screenshot text\n- memory foam: supported (visible in filter and product title)\n- washable cover: supported (visible “Washable” filter; product title implies cover options but not explicit washable cover on card)\n- king size: supported (visible in URL/title context and “Options: 3 sizes”; candidate title explicitly says King Size)\n- Amazon product result: supported (Amazon results page visible)\n- available/in stock: not_visible\n- price: supported (visible VND 964,514)\n- rating: supported (visible 4.3 stars, 1.1K reviews)\naction_target:\nClick the Phantoscope product listing text/card.\nsuccess_signals:\nProduct detail page opens for the Phantoscope pillow; title includes bamboo cover, washable cover, and king size options.\nfailure_sig",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Find a bamboo memory foam pillow on Amazon with a washable cover and available in king size.",
+          "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011%2Cp_n_g-1003357452111%3A23988550011&dc&qid=1772181224&rnid=23988495011&ref=sr_nr_p_n_g-1003357452111_3&ds=v1%3AvQHJJKxOfN8BNcxvymO7PG3khWHR0zZPcWd5j%2FcSN48",
+          "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Bamboo / Memory Foam",
+          "action_label": "Click on SPAN element with value 'Phantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable Firm Bed Pillows with Bamboo Cover & Cotton Cover, King Size, 1 Pack, Gift Package'",
+          "action_text": null,
+          "action_raw": "mouse_click(x=348.1796071094481, y=489.9779460719041, button='left')"
+        },
+        "action": {
+          "type": "click",
+          "label": "Click on SPAN element with value 'Phantoscope Memory Foam Pillow for Sleeping, Shredded Memory Foam Pillow Cooling Gel for Hot Sleepers, Adjustable Firm Bed Pillows with Bamboo Cover & Cotton Cover, King Size, 1 Pack, Gift Package'",
+          "text": null,
+          "coordinates": {
+            "x": 348.1796071094481,
+            "y": 489.9779460719041
+          },
+          "bbox": {
+            "x": 277.0739008419083,
+            "y": 441.73102529960056,
+            "width": 224.29186155285313,
+            "height": 156.271637816245
+          },
+          "raw": "mouse_click(x=348.1796071094481, y=489.9779460719041, button='left')"
+        },
+        "observation": {
+          "screenshot": "screenshot_023.png",
+          "url": "https://www.amazon.com/s?k=king+size+pillow&rh=p_n_g-1003211091111%3A23750991011%2Cp_n_g-1003210783111%3A23750974011%2Cp_n_material_browse%3A212335119011%2Cp_n_g-1003357452111%3A23988550011&dc&qid=1772181224&rnid=23988495011&ref=sr_nr_p_n_g-1003357452111_3&ds=v1%3AvQHJJKxOfN8BNcxvymO7PG3khWHR0zZPcWd5j%2FcSN48",
+          "title": "Amazon.com: King Size Pillow - Washable / Memory Foam / Bamboo / Memory Foam",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "validated",
+          "image_width": 1024,
+          "image_height": 720,
+          "reason": null
+        },
+        "screenshot_url": "/api/runs/d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a/screenshots/screenshot_023.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "find_similar_successful_run",
+      "args": {
+        "task": "navigate: Find a bamboo memory foam pillow on Amazon with a washable cover and available in king size.",
+        "top_k": 1,
+        "exclude_run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "find_similar_successful_run",
+      "args": null,
+      "result": {
+        "items": []
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "search_eval_cases",
+      "args": {
+        "query": "Amazon pillow search filters bamboo washable memory foam king size product selected and final detail page",
+        "top_k": 2,
+        "only_validated": true,
+        "exclude_source_run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "search_eval_cases",
+      "args": null,
+      "result": {
+        "items": []
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 9,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+        "evidence": [
+          {
+            "claim": "The final selected item is the Phantoscope Memory Foam Pillow listing, and the high-detail step shows the product detail page opened after clicking it.",
+            "source": "step_detail_high",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+            "step_index": 23
+          },
+          {
+            "claim": "The selected candidate title includes both 'Bamboo Cover' and 'King Size', matching the task's bamboo memory foam and king size requirements.",
+            "source": "step_detail_high",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+            "step_index": 23
+          },
+          {
+            "claim": "The high-detail summary also records 'Washable' as visible filter text and states the listing is a memory foam pillow result on Amazon, but washable cover is not directly visible on the product card; the final product detail title still includes the relevant cover/material context.",
+            "source": "step_detail_high",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+            "step_index": 23
+          },
+          {
+            "claim": "No concrete contradiction or mis-selection is visible in the trajectory; the run ends on the product detail page for the intended kind of item rather than an obviously wrong target.",
+            "source": "trajectory_digest",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a"
+          }
+        ],
+        "retrieved_context_ids": [],
+        "suggested_followups": [
+          {
+            "label": "Check cover details",
+            "message": "If you need stricter validation, inspect the product detail page for explicit washable-cover wording in the bullets/specs."
+          },
+          {
+            "label": "Verify material",
+            "message": "Confirm the listing mentions bamboo cover or bamboo-derived cover details on the detail page."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 10,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a_success",
+        "source_run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+        "task": "navigate: Find a bamboo memory foam pillow on Amazon with a washable cover and available in king size.",
+        "failure_step": null,
+        "failure_type": null,
+        "expected_behavior": null,
+        "actual_behavior": null,
+        "evidence": [
+          {
+            "claim": "The final selected item is the Phantoscope Memory Foam Pillow listing, and the high-detail step shows the product detail page opened after clicking it.",
+            "source": "step_detail_high",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+            "step_index": 23,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The selected candidate title includes both 'Bamboo Cover' and 'King Size', matching the task's bamboo memory foam and king size requirements.",
+            "source": "step_detail_high",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+            "step_index": 23,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "The high-detail summary also records 'Washable' as visible filter text and states the listing is a memory foam pillow result on Amazon, but washable cover is not directly visible on the product card; the final product detail title still includes the relevant cover/material context.",
+            "source": "step_detail_high",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+            "step_index": 23,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "No concrete contradiction or mis-selection is visible in the trajectory; the run ends on the product detail page for the intended kind of item rather than an obviously wrong target.",
+            "source": "trajectory_digest",
+            "run_id": "d95272c4bdc8b554302393460823f2cd6dfef0280f4b10b64fb3f5877cbc061a",
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": null
+          }
+        ],
+        "regression_rule": null,
+        "retrieved_context_ids": [],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Check cover details",
+            "message": "If you need stricter validation, inspect the product detail page for explicit washable-cover wording in the bullets/specs."
+          },
+          {
+            "label": "Verify material",
+            "message": "Confirm the listing mentions bamboo cover or bamboo-derived cover details on the detail page."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-mini-2026-03-17",
+  "prompt_version": "v2_success_rubric",
+  "prompt_sha256": "60db727d34e76ee124e0ce7c5d36aa90e974d451f12822a68934abf2e364a844",
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 1373,
+  "vlm_output_tokens": 409,
+  "runtime_ms": 10153,
+  "input_tokens": 100611,
+  "output_tokens": 769,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 10153,
+      "input_tokens": 100611,
+      "output_tokens": 769
+    }
+  ]
+}

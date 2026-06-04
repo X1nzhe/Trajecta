@@ -1,0 +1,2414 @@
+{
+  "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+  "user_intent": "analyze_trajectory",
+  "selected_step": null,
+  "source": "eval",
+  "tool_call_count": 3,
+  "turn_count": 1,
+  "terminated_by": "propose_eval_case",
+  "events": [
+    {
+      "seq": 0,
+      "type": "phase",
+      "name": "preprocess",
+      "args": {
+        "step_count": 39,
+        "cached": true
+      },
+      "result": null,
+      "message": "Loaded cached trajectory digest",
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 1,
+      "type": "tool_call",
+      "name": "get_trajectory",
+      "args": {
+        "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 2,
+      "type": "tool_result",
+      "name": "get_trajectory",
+      "args": null,
+      "result": {
+        "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+        "task": "navigate: Search for a boutique hotel in New York City with availability for a three-night stay from May 15 to May 18, 2026. Ensure it offers a rooftop bar and check for a customer rating of 9 or above.",
+        "source": "allenai/MolmoWeb-HumanSkills",
+        "status": "unknown",
+        "steps": [
+          {
+            "index": 1,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_001.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on INPUT element",
+              "text": null,
+              "coordinates": {
+                "x": 383.38588074023306,
+                "y": 302.6507936507937
+              },
+              "bbox": {
+                "x": 185.99040438656615,
+                "y": 295.63280423280423,
+                "width": 289.307745030843,
+                "height": 31.580952380952382
+              },
+              "raw": "mouse_click(x=383.38588074023306, y=302.6507936507937, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "1",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 2,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_002.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "type",
+              "label": "type 'new york city'",
+              "text": "new york city",
+              "coordinates": null,
+              "bbox": null,
+              "raw": "keyboard_type(text='new york city')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "2",
+              "source_action_name": "keyboard_type",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 3,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_003.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on DIV element with value 'New York (New York City)'",
+              "text": null,
+              "coordinates": {
+                "x": 370.22618231665524,
+                "y": 355.2857142857143
+              },
+              "bbox": {
+                "x": 193.0089102124743,
+                "y": 348.2677248677249,
+                "width": 328.1151473612063,
+                "height": 17.544973544973544
+              },
+              "raw": "mouse_click(x=370.22618231665524, y=355.2857142857143, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "3",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 4,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_004.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 1008.032899246059,
+                "y": 411.42962962962963
+              },
+              "bbox": {
+                "x": 1008.032899246059,
+                "y": 411.42962962962963,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=1008.032899246059, y=411.42962962962963, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "4",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 5,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_005.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 1008.032899246059,
+                "y": 411.42962962962963
+              },
+              "bbox": {
+                "x": 1008.032899246059,
+                "y": 411.42962962962963,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=1008.032899246059, y=411.42962962962963, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "5",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 6,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_006.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value '15'",
+              "text": null,
+              "coordinates": {
+                "x": 978.2042494859493,
+                "y": 572.8433862433862
+              },
+              "bbox": {
+                "x": 950.5414667580535,
+                "y": 546.5259259259259,
+                "width": 35.21590130226183,
+                "height": 38.5989417989418
+              },
+              "raw": "mouse_click(x=978.2042494859493, y=572.8433862433862, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "6",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 7,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_007.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value '18'",
+              "text": null,
+              "coordinates": {
+                "x": 828.1836874571625,
+                "y": 607.0560846560846
+              },
+              "bbox": {
+                "x": 809.6778615490061,
+                "y": 588.6338624338624,
+                "width": 35.21590130226183,
+                "height": 38.5989417989418
+              },
+              "raw": "mouse_click(x=828.1836874571625, y=607.0560846560846, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "7",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 8,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_008.png",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on SPAN element with value 'Search'",
+              "text": null,
+              "coordinates": {
+                "x": 1058.0397532556547,
+                "y": 304.405291005291
+              },
+              "bbox": {
+                "x": 1042.0424948594928,
+                "y": 299.1417989417989,
+                "width": 52.844413982179574,
+                "height": 24.562962962962963
+              },
+              "raw": "mouse_click(x=1058.0397532556547, y=304.405291005291, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "8",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 9,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_009.png",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 173.6952380952381 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=173.6952380952381)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "9",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 10,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_010.png",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.2973544973545 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.2973544973545)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "10",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 11,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_011.png",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 174.57248677248677 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=174.57248677248677)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "11",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 12,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_012.png",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on DIV element with value 'Wonderful: 9+'",
+              "text": null,
+              "coordinates": {
+                "x": 256.1754626456477,
+                "y": 428.0973544973545
+              },
+              "bbox": {
+                "x": 190.37697052775874,
+                "y": 414.9386243386244,
+                "width": 72.32350925291296,
+                "height": 17.544973544973544
+              },
+              "raw": "mouse_click(x=256.1754626456477, y=428.0973544973545, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "12",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 13,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_013.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 613.1968253968254 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=613.1968253968254)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "13",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 14,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_014.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 436.8698412698413 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=436.8698412698413)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "14",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 15,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_015.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 260.54285714285714 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=260.54285714285714)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "15",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 16,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_016.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 228.10143934201508,
+                "y": 668.4634920634921
+              },
+              "bbox": {
+                "x": 228.10143934201508,
+                "y": 668.4634920634921,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=228.10143934201508, y=668.4634920634921, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "16",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 17,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_017.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 350.02222222222224 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=350.02222222222224)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "17",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 18,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_018.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 174.57248677248677 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=174.57248677248677)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "18",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 19,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_019.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 232.48800548320767,
+                "y": 639.5142857142857
+              },
+              "bbox": {
+                "x": 232.48800548320767,
+                "y": 639.5142857142857,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=232.48800548320767, y=639.5142857142857, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "19",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 20,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_020.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.2973544973545 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.2973544973545)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "20",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 21,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_021.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.2973544973545 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.2973544973545)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "21",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 22,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_022.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 243.89307745030843,
+                "y": 524.594708994709
+              },
+              "bbox": {
+                "x": 243.89307745030843,
+                "y": 524.594708994709,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=243.89307745030843, y=524.594708994709, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "22",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 23,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_023.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 350.02222222222224 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=350.02222222222224)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "23",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 24,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_024.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 262.2973544973545 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=262.2973544973545)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "24",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 25,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_025.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "click",
+              "label": "Click on svg element",
+              "text": null,
+              "coordinates": {
+                "x": 229.85606579849212,
+                "y": 709.6941798941799
+              },
+              "bbox": {
+                "x": 229.85606579849212,
+                "y": 709.6941798941799,
+                "width": 0.0,
+                "height": 0.0
+              },
+              "raw": "mouse_click(x=229.85606579849212, y=709.6941798941799, button='left')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "validated",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": null
+            },
+            "metadata": {
+              "source_step_key": "25",
+              "source_action_name": "click",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 26,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_026.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 431.6063492063492 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=431.6063492063492)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "26",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 27,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_027.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 437.74708994709 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=437.74708994709)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "27",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 28,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_028.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll down by 348.26772486772484 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=348.26772486772484)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "28",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 29,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_029.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by 88.6021164021164 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-88.6021164021164)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "29",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 30,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_030.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.02222222222224 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.02222222222224)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "30",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 31,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_031.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -262.2973544973545 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-262.2973544973545)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "31",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 32,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_032.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.02222222222224 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.02222222222224)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "32",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 33,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_033.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -437.74708994709 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-437.74708994709)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "33",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 34,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_034.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -262.2973544973545 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-262.2973544973545)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "34",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 35,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_035.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.02222222222224 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.02222222222224)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "35",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 36,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_036.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.02222222222224 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.02222222222224)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "36",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 37,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_037.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -350.02222222222224 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-350.02222222222224)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "37",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 38,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_038.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "scroll",
+              "label": "scroll up by -437.74708994709 pixels",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "scroll(delta_x=0.0, delta_y=-437.74708994709)"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "38",
+              "source_action_name": "scroll",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          },
+          {
+            "index": 39,
+            "timestamp": null,
+            "observation": {
+              "screenshot": "screenshot_039.png",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "visible_text": null,
+              "visual_evidence": []
+            },
+            "action": {
+              "type": "unknown",
+              "label": "send message to user: '[EXIT]'",
+              "text": null,
+              "coordinates": null,
+              "bbox": null,
+              "raw": "send_msg_to_user(text='[EXIT]')"
+            },
+            "result": {
+              "status": "unknown",
+              "error": null
+            },
+            "coordinate_validation": {
+              "status": "missing",
+              "image_width": 1280,
+              "image_height": 829,
+              "reason": "action has no coordinates"
+            },
+            "metadata": {
+              "source_step_key": "39",
+              "source_action_name": "send_msg_to_user",
+              "image_width": 1280,
+              "image_height": 829
+            }
+          }
+        ],
+        "metadata": {},
+        "digest": {
+          "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+          "task": "navigate: Search for a boutique hotel in New York City with availability for a three-night stay from May 15 to May 18, 2026. Ensure it offers a rooftop bar and check for a customer rating of 9 or above.",
+          "step_count": 39,
+          "steps": [
+            {
+              "index": 1,
+              "action_type": "click",
+              "action_text": "click at (383.386, 302.651)",
+              "action_target": "Click on INPUT element",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=dashboard; modal=no; error_banner=no; focus=center | Booking.com homepage with large “Find deals for any season” headline and search bar",
+              "has_screenshot": true
+            },
+            {
+              "index": 2,
+              "action_type": "type",
+              "action_text": "type 'new york city'",
+              "action_target": "type 'new york city'",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com hero headline “Find deals for any season” with search bar and destination dropdown open",
+              "has_screenshot": true
+            },
+            {
+              "index": 3,
+              "action_type": "click",
+              "action_text": "click at (370.226, 355.286)",
+              "action_target": "Click on DIV element with value 'New York (New York City)'",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com homepage with search bar open and destination suggestions dropdown visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 4,
+              "action_type": "click",
+              "action_text": "click at (1008.03, 411.43)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=yes; error_banner=no; focus=center | Booking.com homepage with date picker open, Find deals for any season headline, Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 5,
+              "action_type": "click",
+              "action_text": "click at (1008.03, 411.43)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=yes; error_banner=no; focus=center | Booking.com homepage with date calendar open and large “Find deals for any season” headline",
+              "has_screenshot": true
+            },
+            {
+              "index": 6,
+              "action_type": "click",
+              "action_text": "click at (978.204, 572.843)",
+              "action_target": "Click on SPAN element with value '15'",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=yes; error_banner=no; focus=center | Booking.com search form with calendar date picker open, large Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 7,
+              "action_type": "click",
+              "action_text": "click at (828.184, 607.056)",
+              "action_target": "Click on SPAN element with value '18'",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=yes; error_banner=no; focus=center | Booking.com search form with calendar date picker open, blue Search button visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 8,
+              "action_type": "click",
+              "action_text": "click at (1058.04, 304.405)",
+              "action_target": "Click on SPAN element with value 'Search'",
+              "url": "https://www.booking.com/?chal_t=1771855908430&force_referer=",
+              "title": "Booking.com | Official site | The best hotels, flights, car rentals & accommodations",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=form; modal=no; error_banner=no; focus=center | Booking.com homepage with large “Find deals for any season” headline and prominent search bar",
+              "has_screenshot": true
+            },
+            {
+              "index": 9,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 173.6952380952381 pixels",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | New York: 516 exact matches found, hotel listings with See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 10,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.2973544973545 pixels",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | New York: 516 exact matches found, hotel listings with See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 11,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 174.57248677248677 pixels",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with property cards, ratings, prices, and See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 12,
+              "action_type": "click",
+              "action_text": "click at (256.175, 428.097)",
+              "action_target": "Click on DIV element with value 'Wonderful: 9+'",
+              "url": "https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel listings with blue See availability buttons and New York City Times Square property names",
+              "has_screenshot": true
+            },
+            {
+              "index": 13,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 613.1968253968254 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with filter sidebar and loading property cards",
+              "has_screenshot": true
+            },
+            {
+              "index": 14,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 436.8698412698413 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel results list with blue See availability buttons and nightly prices",
+              "has_screenshot": true
+            },
+            {
+              "index": 15,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 260.54285714285714 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with blue “See availability” buttons and Manhattan hotel listings",
+              "has_screenshot": true
+            },
+            {
+              "index": 16,
+              "action_type": "click",
+              "action_text": "click at (228.101, 668.463)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with multiple listings and blue “See availability” buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 17,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 350.02222222222224 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with blue See availability buttons and nightly prices",
+              "has_screenshot": true
+            },
+            {
+              "index": 18,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 174.57248677248677 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with multiple listings and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 19,
+              "action_type": "click",
+              "action_text": "click at (232.488, 639.514)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with multiple listings and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 20,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.2973544973545 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with room cards and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 21,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.2973544973545 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with “See availability” buttons and ratings for Manhattan properties",
+              "has_screenshot": true
+            },
+            {
+              "index": 22,
+              "action_type": "click",
+              "action_text": "click at (243.893, 524.595)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with blue “See availability” buttons and room prices",
+              "has_screenshot": true
+            },
+            {
+              "index": 23,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 350.02222222222224 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with room cards and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 24,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 262.2973544973545 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with room cards, blue See availability buttons, Wall Street Hotel New York City prominent",
+              "has_screenshot": true
+            },
+            {
+              "index": 25,
+              "action_type": "click",
+              "action_text": "click at (229.856, 709.694)",
+              "action_target": "Click on svg element",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "validated",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with Bryant Park Hotel and See availability buttons visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 26,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 431.6063492063492 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with filters and blue “See availability” buttons, Bryant Park Hotel visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 27,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 437.74708994709 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with prominent See availability buttons and luxury New York hotel listings",
+              "has_screenshot": true
+            },
+            {
+              "index": 28,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll down by 348.26772486772484 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with filters and blue “See availability” buttons, New York listings visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 29,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by 88.6021164021164 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with multiple listings and blue “See availability” buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 30,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.02222222222224 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with room photos, prices, and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 31,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -262.2973544973545 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel listings with blue See availability buttons and ratings, New York properties shown",
+              "has_screenshot": true
+            },
+            {
+              "index": 32,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.02222222222224 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with property cards, prices, ratings, and See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 33,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -437.74708994709 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with See availability buttons and room prices visible",
+              "has_screenshot": true
+            },
+            {
+              "index": 34,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -262.2973544973545 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with room cards, ratings, and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 35,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.02222222222224 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with listings, ratings, prices, and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 36,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.02222222222224 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with blue “See availability” buttons and property cards",
+              "has_screenshot": true
+            },
+            {
+              "index": 37,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -350.02222222222224 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with property cards and blue “See availability” buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 38,
+              "action_type": "scroll",
+              "action_text": "scroll",
+              "action_target": "scroll up by -437.74708994709 pixels",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | hotel search results with property cards and blue See availability buttons",
+              "has_screenshot": true
+            },
+            {
+              "index": 39,
+              "action_type": "unknown",
+              "action_text": "send message to user: '[EXIT]'",
+              "action_target": "send message to user: '[EXIT]'",
+              "url": "https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90",
+              "title": "Booking.com: Hotels in New York. Book your hotel now!",
+              "result_status": "unknown",
+              "coord_validation_status": "missing",
+              "vlm_low_detail_summary": "page_type=search_results; modal=no; error_banner=no; focus=center | New York: 60 exact matches found, hotel listings with filters and Search button visible",
+              "has_screenshot": true
+            }
+          ],
+          "preprocess_model": "gpt-5.4-mini-2026-03-17",
+          "preprocess_version": "v2",
+          "vlm_input_tokens": 57486,
+          "vlm_output_tokens": 1271
+        }
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 3,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+        "step_index": 12,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 4,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+        "step_index": 12,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_7c5b5ee9>page_state:\nBooking.com search results page for New York City hotels; results list visible with review-score filters on left and hotel cards on right.\ntask_relevant_visible_text:\n“Wonderful: 9+”, “Very Good: 8+”, “Hotels”, “Manhattan”, “Free cancellation”, “Motto By Hilton New York City Times Square”, “Very Good 8.2”, “Millennium Hotel Broadway Times Square”, “Good 7.5”, “Courtyard New York Downtown Manhattan/Financial District”, “7.9”, “See availability”, “3 nights, 2 adults”.\nselected_candidate:\nThe clicked filter option “Wonderful: 9+” in the Review score sidebar.\nconstraint_evidence:\n- New York City hotel search: supported (Booking.com results for New York visible; title/URL indicate New York).\n- Boutique hotel: not_visible (no explicit boutique/boutique-style label visible).\n- Availability for a three-night stay: supported (cards show “3 nights, 2 adults” and “See availability”).\n- Dates May 15 to May 18, 2026: not_visible (dates not shown in screenshot).\n- Rooftop bar: not_visible (no rooftop bar amenity visible).\n- Customer rating of 9 or above: supported (filter “Wonderful: 9+” visible; click target matches it).\naction_target:\nClick the “Wonderful: 9+” review score filter checkbox/div in the left sidebar.\nsuccess_signals:\nFilter becomes selected/applied; results update to only 9+ rated properties.\nfailure_signals:\nNo visible selection state change after click; results remain unfiltered or page scrolls unexpectedly; wrong filter applied.\nuncertainty:\nThe screenshot doe</TRAJECTA_DATA_7c5b5ee9>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Search for a boutique hotel in New York City with availability for a three-night stay from May 15 to May 18, 2026. Ensure it offers a rooftop bar and check for a customer rating of 9 or above.",
+          "url": "<TRAJECTA_DATA_7c5b5ee9>https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0</TRAJECTA_DATA_7c5b5ee9>",
+          "title": "<TRAJECTA_DATA_7c5b5ee9>Booking.com: Hotels in New York. Book your hotel now!</TRAJECTA_DATA_7c5b5ee9>",
+          "action_label": "<TRAJECTA_DATA_7c5b5ee9>Click on DIV element with value 'Wonderful: 9+'</TRAJECTA_DATA_7c5b5ee9>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_7c5b5ee9>mouse_click(x=256.1754626456477, y=428.0973544973545, button='left')</TRAJECTA_DATA_7c5b5ee9>"
+        },
+        "action": {
+          "type": "click",
+          "label": "<TRAJECTA_DATA_7c5b5ee9>Click on DIV element with value 'Wonderful: 9+'</TRAJECTA_DATA_7c5b5ee9>",
+          "text": null,
+          "coordinates": {
+            "x": 256.1754626456477,
+            "y": 428.0973544973545
+          },
+          "bbox": {
+            "x": 190.37697052775874,
+            "y": 414.9386243386244,
+            "width": 72.32350925291296,
+            "height": 17.544973544973544
+          },
+          "raw": "<TRAJECTA_DATA_7c5b5ee9>mouse_click(x=256.1754626456477, y=428.0973544973545, button='left')</TRAJECTA_DATA_7c5b5ee9>"
+        },
+        "observation": {
+          "screenshot": "screenshot_012.png",
+          "url": "<TRAJECTA_DATA_7c5b5ee9>https://www.booking.com/searchresults.html?ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&lang=en-us&sb=1&src_elem=sb&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&ac_meta=GhA0ODNkNjNkNDIyMzYwNTFmIAAoATICZW46DW5ldyB5b3JrIGNpdHlAAEoAUAA%3D&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0</TRAJECTA_DATA_7c5b5ee9>",
+          "title": "<TRAJECTA_DATA_7c5b5ee9>Booking.com: Hotels in New York. Book your hotel now!</TRAJECTA_DATA_7c5b5ee9>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "validated",
+          "image_width": 1280,
+          "image_height": 829,
+          "reason": null
+        },
+        "screenshot_url": "/api/trajectories/ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b/screenshots/screenshot_012.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "name": "get_step_detail",
+      "args": {
+        "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+        "step_index": 39,
+        "image_detail": "high"
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 6,
+      "type": "tool_result",
+      "name": "get_step_detail",
+      "args": null,
+      "result": {
+        "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+        "step_index": 39,
+        "has_screenshot": true,
+        "image_detail": "high",
+        "vlm_summary": "<TRAJECTA_DATA_7c5b5ee9>page_state:\nBooking.com search results page for New York City, showing “60 exact matches found” with filters applied and hotel cards visible.\ntask_relevant_visible_text:\n“Fri, May 15 — Mon, May 18”; “Wonderful: 9+”; “San Carlos Hotel New York” (9.0); “The Langham, New York, Fifth Avenue” (9.1); “3 nights, 2 adults”; “See availability”.\nselected_candidate:\nSan Carlos Hotel New York\nconstraint_evidence:\n- New York City destination: supported (URL/title and page header show New York / New York City).\n- Three-night stay May 15 to May 18, 2026: supported (date selector shows Fri, May 15 — Mon, May 18; URL includes checkin=2026-05-15 and checkout=2026-05-18).\n- Boutique hotel: not_visible (no explicit boutique label/category shown).\n- Availability: supported for listed results in general; specific candidate availability not yet confirmed (visible “See availability” button, but no booking confirmation).\n- Rooftop bar: not_visible (no amenity text visible for any candidate).\n- Customer rating of 9 or above: supported for visible candidates (San Carlos Hotel New York 9.0; The Langham 9.1; filter “Wonderful: 9+” active).\naction_target:\nSend message to user: “[EXIT]”\nsuccess_signals:\nSearch results page is loaded with correct dates and NYC destination; high-rating filter is active; candidate hotels with 9+ ratings are visible.\nfailure_signals:\nBoutique-hotel requirement and rooftop-bar requirement are not verified on-screen; no explicit confirmation of a qualifying hotel’s amenities.\nun</TRAJECTA_DATA_7c5b5ee9>",
+        "vlm_prompt_version": "v1_task_context",
+        "vlm_prompt_sha256": "d08eecc36f8cd65eb514c1d2d5fdfbad846be1db71ec1362a314d5c4e4e38595",
+        "task_context": {
+          "task": "navigate: Search for a boutique hotel in New York City with availability for a three-night stay from May 15 to May 18, 2026. Ensure it offers a rooftop bar and check for a customer rating of 9 or above.",
+          "url": "<TRAJECTA_DATA_7c5b5ee9>https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90</TRAJECTA_DATA_7c5b5ee9>",
+          "title": "<TRAJECTA_DATA_7c5b5ee9>Booking.com: Hotels in New York. Book your hotel now!</TRAJECTA_DATA_7c5b5ee9>",
+          "action_label": "<TRAJECTA_DATA_7c5b5ee9>send message to user: '[EXIT]'</TRAJECTA_DATA_7c5b5ee9>",
+          "action_text": null,
+          "action_raw": "<TRAJECTA_DATA_7c5b5ee9>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_7c5b5ee9>"
+        },
+        "action": {
+          "type": "unknown",
+          "label": "<TRAJECTA_DATA_7c5b5ee9>send message to user: '[EXIT]'</TRAJECTA_DATA_7c5b5ee9>",
+          "text": null,
+          "coordinates": null,
+          "bbox": null,
+          "raw": "<TRAJECTA_DATA_7c5b5ee9>send_msg_to_user(text='[EXIT]')</TRAJECTA_DATA_7c5b5ee9>"
+        },
+        "observation": {
+          "screenshot": "screenshot_039.png",
+          "url": "<TRAJECTA_DATA_7c5b5ee9>https://www.booking.com/searchresults.html?label=gen173nr-10CAEoggI46AdIM1gEaJUCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuAKowPHMBsACAdICJGZkMzhiNGQ0LTE3ODUtNDA4Ni1hMWE5LTFhOTM1ZGYxOTBlZdgCAeACAQ&aid=304142&ss=New+York+%28New+York+City%29%2C+New+York%2C+United+States&efdco=1&lang=en-us&src=index&dest_id=20088325&dest_type=city&ac_position=0&ac_click_type=b&ac_langcode=en&ac_suggestion_list_length=5&search_selected=true&search_pageview_id=483d63d42236051f&checkin=2026-05-15&checkout=2026-05-18&group_adults=2&no_rooms=1&group_children=0&nflt=review_score%3D90</TRAJECTA_DATA_7c5b5ee9>",
+          "title": "<TRAJECTA_DATA_7c5b5ee9>Booking.com: Hotels in New York. Book your hotel now!</TRAJECTA_DATA_7c5b5ee9>",
+          "visible_text": null,
+          "visual_evidence": []
+        },
+        "result": {
+          "status": "unknown",
+          "error": null
+        },
+        "coordinate_validation": {
+          "status": "missing",
+          "image_width": 1280,
+          "image_height": 829,
+          "reason": "action has no coordinates"
+        },
+        "screenshot_url": "/api/trajectories/ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b/screenshots/screenshot_039.png"
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 7,
+      "type": "tool_call",
+      "name": "search_failure_eval_cases",
+      "args": {
+        "query": "Booking.com hotel search ended on results page with 9+ rating filter applied, but agent never verified boutique hotel or rooftop bar amenity before exiting",
+        "top_k": 3,
+        "only_validated": true
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 8,
+      "type": "tool_result",
+      "name": "search_failure_eval_cases",
+      "args": null,
+      "result": {
+        "items": [
+          {
+            "case_id": "ec_dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7_step_5",
+            "source_trajectory_id": "dfc9bebaecfc5b144fda386c65ca157e60e748e4e0d55daa078395d336d717a7",
+            "task": "navigate: Search for a 5-star hotel in New York available for a 3-night stay from January 15, 2026, with a rating of 8.0 or higher.",
+            "failure_step": 5,
+            "failure_type": "early_terminated",
+            "expected_behavior": "The agent should have correctly set the destination to New York, the dates to January 15-18, 2026, and applied the necessary filters for a 5-star rating and a guest rating of 8.0 or higher before searching and selecting a suitable hotel.",
+            "actual_behavior": "The agent initiated a search for a hotel in New York, but it failed to set the required dates (January 15, 2026, for 3 nights) and did not apply any filters for star rating or guest rating. The agent then prematurely exited the task by sending an '[EXIT]' message while the date picker was still open and showing the wrong months.",
+            "evidence": [
+              {
+                "claim": "The agent failed to set the required dates (January 15, 2026, for 3 nights) in the search form. The calendar was left open on the wrong months (February/March 2026).",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 5,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent did not apply any filters for the 5-star rating or the 8.0+ guest rating requirements.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 5,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent sent an '[EXIT]' message without performing the search or selecting a hotel that met the task criteria.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 5,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "The agent must ensure all search parameters (location, dates, and required filters) are correctly configured before executing the search. Prematurely exiting the task without attempting to fulfill the search criteria is a failure.",
+            "retrieved_context_ids": [
+              "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+            ],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32",
+            "source_trajectory_id": "8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4",
+            "task": "navigate: Search for a hotel in Kyoto with a user rating of 7 or higher, equipped with a kitchenette, available for a stay from April 5 to April 8, 2026.",
+            "failure_step": 32,
+            "failure_type": "missed_constraint",
+            "expected_behavior": "The agent should have correctly set the dates to April 5-8, 2026, and then selected a hotel in Kyoto that met the rating (7+) and amenity (kitchenette) requirements.",
+            "actual_behavior": "The agent searched for hotels in Kyoto with a rating of 7+ and a kitchenette, but it failed to set the correct dates (April 5-8, 2026). The search results were for different dates, and the agent exited without selecting a hotel that met all the criteria.",
+            "evidence": [
+              {
+                "claim": "The search bar shows dates 'Wed, Feb 25 — Thu, Feb 26' instead of the requested 'April 5 to April 8, 2026'.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent failed to set the correct dates (April 5-8, 2026) in the search parameters, resulting in incorrect availability results. The agent is exiting prematurely without selecting a hotel that meets all criteria.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 32,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "Ensure that all date and amenity constraints are correctly applied in the search form before proceeding to select a result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          },
+          {
+            "case_id": "ec_2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714_step_15",
+            "source_trajectory_id": "2febd85ececb302695eef85707d169858f38857cadb51c07133c39de1e851714",
+            "task": "navigate: Search for the lowest-priced round-trip flight from Los Angeles to Seoul, departing on April 5, 2026, and returning on April 15, 2026.",
+            "failure_step": 15,
+            "failure_type": "wrong_result",
+            "expected_behavior": "The agent should have sorted the flight results by price and selected the lowest-priced round-trip flight for the specified dates.",
+            "actual_behavior": "The agent performed a search for flights from Los Angeles to Seoul for the specified dates. While the search results page displayed various options, the agent did not select the lowest-priced flight, instead exiting while the results were sorted by \"top flights.\" The task specifically required finding the lowest-priced flight.",
+            "evidence": [
+              {
+                "claim": "The page is currently sorted by 'top flights,' not 'price.'",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              },
+              {
+                "claim": "The agent exited without selecting the lowest-priced flight, failing to fulfill the core requirement of the task.",
+                "source": "step_detail_high",
+                "trajectory_id": null,
+                "step_index": 15,
+                "trace_event_seq": null,
+                "context_id": null
+              }
+            ],
+            "regression_rule": "When a task requires finding the 'lowest-priced' item, the agent must ensure the results are sorted by price and that the lowest-priced option is identified and selected. Failure to select the correct item based on the specified criteria constitutes a wrong result.",
+            "retrieved_context_ids": [],
+            "human_validated": true
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 9,
+      "type": "tool_call",
+      "name": "propose_eval_case",
+      "args": {
+        "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+        "failure_step": 39,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "The agent should have identified or opened a hotel result that visibly satisfied all hard constraints: New York City, May 15–18 2026 availability, customer rating 9+, and verification that it was a boutique hotel with a rooftop bar, before ending the run.",
+        "actual_behavior": "The agent searched New York hotels, applied the 9+ review-score filter, and then spent the rest of the run scrolling result cards before exiting on the results page without verifying the boutique-hotel requirement or the rooftop-bar amenity for any selected property.",
+        "regression_rule": "When a hotel-search task includes explicit amenity or category constraints such as boutique hotel and rooftop bar, the agent must open or otherwise verify a concrete candidate that visibly satisfies those constraints before exiting; stopping on a filtered results page where those constraints remain unverified is a failure.",
+        "evidence": [
+          {
+            "claim": "The task explicitly required a boutique hotel in New York City for May 15–18, 2026 with a rooftop bar and customer rating of 9 or above.",
+            "source": "trajectory",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b"
+          },
+          {
+            "claim": "On the results page, the agent clicked the 'Wonderful: 9+' review-score filter; the screenshot shows New York hotel results and the 9+ filter as the selected target, so the rating constraint was being addressed.",
+            "source": "step_detail_high",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+            "step_index": 12
+          },
+          {
+            "claim": "At the final step, the page shows New York City hotel results for Fri, May 15 — Mon, May 18, with 9+ rated examples such as San Carlos Hotel New York (9.0) and The Langham, New York, Fifth Avenue (9.1), but the high-detail read marks both 'boutique hotel' and 'rooftop bar' as not visible and no property detail page is opened.",
+            "source": "step_detail_high",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+            "step_index": 39
+          },
+          {
+            "claim": "After applying the 9+ filter, the trajectory consists largely of repeated scrolling around the search results (steps 13–38) and then an '[EXIT]' action, with no evidence of opening a candidate to verify amenities or boutique status.",
+            "source": "trajectory_digest",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+            "step_index": 39
+          },
+          {
+            "claim": "A validated precedent treats exiting after satisfying only some search constraints while leaving required qualifiers unverified as a failure; here, date/location/rating are visible but required amenity/category verification is missing.",
+            "source": "eval_case",
+            "context_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+          }
+        ],
+        "retrieved_context_ids": [
+          "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+        ],
+        "suggested_followups": [
+          {
+            "label": "Check candidate details",
+            "message": "Open a visible 9+ hotel result and verify whether it explicitly lists a rooftop bar and boutique style."
+          },
+          {
+            "label": "Review filter strategy",
+            "message": "Inspect whether Booking.com offered a boutique/property-type or amenity filter that the agent could have used earlier."
+          }
+        ]
+      },
+      "result": null,
+      "message": null,
+      "error": null,
+      "turn": 0
+    },
+    {
+      "seq": 10,
+      "type": "tool_result",
+      "name": "propose_eval_case",
+      "args": null,
+      "result": {
+        "case_id": "ec_ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b_step_39",
+        "source_trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+        "task": "navigate: Search for a boutique hotel in New York City with availability for a three-night stay from May 15 to May 18, 2026. Ensure it offers a rooftop bar and check for a customer rating of 9 or above.",
+        "failure_step": 39,
+        "failure_type": "missed_constraint",
+        "expected_behavior": "The agent should have identified or opened a hotel result that visibly satisfied all hard constraints: New York City, May 15–18 2026 availability, customer rating 9+, and verification that it was a boutique hotel with a rooftop bar, before ending the run.",
+        "actual_behavior": "The agent searched New York hotels, applied the 9+ review-score filter, and then spent the rest of the run scrolling result cards before exiting on the results page without verifying the boutique-hotel requirement or the rooftop-bar amenity for any selected property.",
+        "evidence": [
+          {
+            "claim": "The task explicitly required a boutique hotel in New York City for May 15–18, 2026 with a rooftop bar and customer rating of 9 or above.",
+            "source": "trajectory",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "On the results page, the agent clicked the 'Wonderful: 9+' review-score filter; the screenshot shows New York hotel results and the 9+ filter as the selected target, so the rating constraint was being addressed.",
+            "source": "step_detail_high",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+            "step_index": 12,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "At the final step, the page shows New York City hotel results for Fri, May 15 — Mon, May 18, with 9+ rated examples such as San Carlos Hotel New York (9.0) and The Langham, New York, Fifth Avenue (9.1), but the high-detail read marks both 'boutique hotel' and 'rooftop bar' as not visible and no property detail page is opened.",
+            "source": "step_detail_high",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+            "step_index": 39,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "After applying the 9+ filter, the trajectory consists largely of repeated scrolling around the search results (steps 13–38) and then an '[EXIT]' action, with no evidence of opening a candidate to verify amenities or boutique status.",
+            "source": "trajectory_digest",
+            "trajectory_id": "ffa6cd8e3e896ad57c1eb59b25fe617f70d92f1b3b6b0bcaf2b734bf10d19a8b",
+            "step_index": 39,
+            "trace_event_seq": null,
+            "context_id": null
+          },
+          {
+            "claim": "A validated precedent treats exiting after satisfying only some search constraints while leaving required qualifiers unverified as a failure; here, date/location/rating are visible but required amenity/category verification is missing.",
+            "source": "eval_case",
+            "trajectory_id": null,
+            "step_index": null,
+            "trace_event_seq": null,
+            "context_id": "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+          }
+        ],
+        "regression_rule": "When a hotel-search task includes explicit amenity or category constraints such as boutique hotel and rooftop bar, the agent must open or otherwise verify a concrete candidate that visibly satisfies those constraints before exiting; stopping on a filtered results page where those constraints remain unverified is a failure.",
+        "retrieved_context_ids": [
+          "ec_8f3ef841a0cdc1798c85d5a4e996f536319c7ee9026227b7a7837aabe5cc5de4_step_32"
+        ],
+        "human_validated": false,
+        "suggested_followups": [
+          {
+            "label": "Check candidate details",
+            "message": "Open a visible 9+ hotel result and verify whether it explicitly lists a rooftop bar and boutique style."
+          },
+          {
+            "label": "Review filter strategy",
+            "message": "Inspect whether Booking.com offered a boutique/property-type or amenity filter that the agent could have used earlier."
+          }
+        ]
+      },
+      "message": null,
+      "error": null,
+      "turn": 0
+    }
+  ],
+  "model": "gpt-5.4-2026-03-05",
+  "prompt_version": "v6_guided_autonomy",
+  "prompt_sha256": "1c8acf3867f3a11e810957074ddb9f637e895b154b1762a6bad0d50f551f5a8e",
+  "spotlighting_enabled": true,
+  "vlm_model": "gpt-5.4-mini-2026-03-17",
+  "vlm_input_tokens": 3566,
+  "vlm_output_tokens": 765,
+  "runtime_ms": 31321,
+  "input_tokens": 185258,
+  "output_tokens": 1173,
+  "turn_metrics": [
+    {
+      "turn": 0,
+      "runtime_ms": 31321,
+      "input_tokens": 185258,
+      "output_tokens": 1173
+    }
+  ]
+}
