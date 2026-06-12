@@ -44,7 +44,7 @@ export function StepTimeline({ trajectory, selectedStepIndex, inspectedSteps = n
 
   return (
     <div className="border-b border-[color:var(--color-hairline)] bg-white px-4 py-3">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between">
         <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-500">
           Trajectory · {trajectory.steps.length} {trajectory.steps.length === 1 ? 'step' : 'steps'}
         </div>
@@ -60,7 +60,7 @@ export function StepTimeline({ trajectory, selectedStepIndex, inspectedSteps = n
       <div
         ref={scrollerRef}
         onWheel={handleWheel}
-        className="scrollbar-thin flex items-stretch gap-1 overflow-x-auto pb-1.5"
+        className="scrollbar-thin flex items-stretch gap-1 overflow-x-auto pt-1 pb-1.5"
       >
         {trajectory.steps.map((step, i) => {
           const idx = step.index ?? i + 1;
