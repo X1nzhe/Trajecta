@@ -6,6 +6,14 @@ Trajecta is an AI-native Eval Agent for browser-agent trajectory evaluation. It 
 
 This is not a browser-use agent. It does not control a live browser in v1.
 
+## Demo
+
+Full walkthrough — import a trajectory, preprocess, run the Eval Agent, and validate an eval case (6 min):
+
+https://github.com/user-attachments/assets/4e4074d4-7740-42ee-941a-c48bb6f4faa0
+
+
+
 ## Presentation Guide
 
 Use this README as the presentation entry point:
